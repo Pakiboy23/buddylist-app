@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import ChatWindow, { ChatMessage } from '@/components/ChatWindow';
 import GroupChatWindow from '@/components/GroupChatWindow';
@@ -150,7 +150,7 @@ function useSoundPlayer() {
   }, []);
 }
 
-export default function BuddyList() {
+function BuddyListContent() {
   const [userId, setUserId] = useState<string | null>(null);
   const [screenname, setScreenname] = useState('Loading...');
   const [statusMsg, setStatusMsg] = useState('Available');
@@ -1648,5 +1648,13 @@ export default function BuddyList() {
         />
       )}
     </main>
+  );
+}
+
+export default function BuddyList() {
+  return (
+    <Suspense fallback={<main className="h-[100dvh] overflow-hidden bg-[#f8f9fa]" />}>
+      <BuddyListContent />
+    </Suspense>
   );
 }

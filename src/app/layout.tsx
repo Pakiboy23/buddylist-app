@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Suspense } from "react";
 import GlobalNotificationListener from "@/components/GlobalNotificationListener";
 import { ChatProvider } from "@/context/ChatContext";
 import "./globals.css";
@@ -31,7 +32,9 @@ export default function RootLayout({
       >
         <ChatProvider>
           {children}
-          <GlobalNotificationListener />
+          <Suspense fallback={null}>
+            <GlobalNotificationListener />
+          </Suspense>
         </ChatProvider>
       </body>
     </html>
