@@ -1,26 +1,40 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@theme {
+  /* AIM 4.0 / 5.5 inspired palette */
+  --color-os-grey: #d4d0c8;
+  --color-os-blue: #0d4da3;
+  --color-os-dark-grey: #7f7d79;
+  --color-os-light-grey: #edf0f7;
+  --color-aim-yellow: #F9E24C;
+  --color-os-blue-start: #3e8deb;
+  --color-os-blue-end: #0b3e8f;
+  --color-os-blue-glow: #9dc7ff;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* Softer XP-era beveled depth */
+  --shadow-window-out: inset 1px 1px #ffffff, inset -1px -1px #6f6f6f, inset 2px 2px #f7f7f7, inset -2px -2px #a3a3a3;
+  --shadow-window-in: inset 1px 1px #6f6f6f, inset -1px -1px #ffffff, inset 2px 2px #949494, inset -2px -2px #f5f5f5;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: radial-gradient(circle at top left, #1b9ca1 0%, #007f84 44%, #00656a 100%);
+  color: black;
+}
+
+.aim-titlebar {
+  background: linear-gradient(
+    180deg,
+    var(--color-os-blue-start) 0%,
+    var(--color-os-blue) 52%,
+    var(--color-os-blue-end) 100%
+  );
+  box-shadow: inset 0 1px var(--color-os-blue-glow), inset 0 -1px #072b64;
+}
+
+.aim-rich-html {
+  word-break: break-word;
+}
+
+.aim-rich-html span {
+  white-space: pre-wrap;
 }
