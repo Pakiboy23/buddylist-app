@@ -6,7 +6,9 @@ interface RetroWindowProps {
   className?: string;
   style?: React.CSSProperties;
   titleBarClassName?: string;
-  onTitleBarMouseDown?: (event: React.MouseEvent<HTMLDivElement>) => void;
+  showBackButton?: boolean;
+  onBack?: () => void;
+  headerActions?: React.ReactNode;
 }
 
 export default function RetroWindow({
@@ -15,26 +17,39 @@ export default function RetroWindow({
   className,
   style,
   titleBarClassName,
-  onTitleBarMouseDown,
+  showBackButton = false,
+  onBack,
+  headerActions,
 }: RetroWindowProps) {
   return (
     <div
-      className={`w-full rounded-[2px] border-2 border-white border-b-[#0a0a0a] border-r-[#0a0a0a] bg-os-grey p-[2px] font-sans shadow-window-out flex flex-col ${className ?? ''}`}
+      className={`flex h-[100dvh] w-full flex-col overflow-hidden bg-[#f8f9fa] font-sans ${className ?? ''}`}
       style={style}
     >
-      
       <div
-        className={`aim-titlebar flex select-none items-center px-1 py-[3px] text-sm font-bold text-white ${titleBarClassName ?? ''}`}
-        onMouseDown={onTitleBarMouseDown}
+        className={`flex min-h-[56px] items-center gap-2 bg-gradient-to-b from-blue-400 via-blue-500 to-blue-700 px-3 py-2 text-sm font-semibold text-white ${titleBarClassName ?? ''}`}
       >
-        <span className="mr-2 text-xs text-aim-yellow">🏃</span>
-        <span className="tracking-wide drop-shadow-[0_1px_0_rgba(0,0,0,0.35)]">{title}</span>
+        {showBackButton ? (
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border border-white/30 bg-white/20 px-3 text-xs font-bold text-white transition-colors hover:bg-white/30"
+          >
+            Back
+          </button>
+        ) : null}
+        {headerActions}
+        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-[12px] text-aim-yellow">
+          🏃
+        </span>
+        <span className="flex-1 truncate tracking-wide [text-shadow:0_1px_1px_rgba(0,0,0,0.45),0_0_1px_rgba(255,255,255,0.35)]">
+          {title}
+        </span>
       </div>
 
-      <div className="mt-1 flex-grow border border-os-dark-grey bg-os-light-grey p-2 shadow-window-in">
+      <div className="flex-1 overflow-y-auto bg-gradient-to-b from-[#f7fbff] via-[#eff6ff] to-[#e7f1ff] p-3">
         {children}
       </div>
-      
     </div>
   );
 }

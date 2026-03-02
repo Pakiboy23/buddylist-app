@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, MouseEvent, useEffect, useRef, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import RetroWindow from '@/components/RetroWindow';
 import RichTextToolbar from '@/components/RichTextToolbar';
 import {
@@ -41,10 +41,7 @@ export default function ChatWindow({
 }: ChatWindowProps) {
   const [draft, setDraft] = useState('');
   const [format, setFormat] = useState<RichTextFormat>(DEFAULT_RICH_TEXT_FORMAT);
-  const [position, setPosition] = useState({ x: 100, y: 100 });
-  const [isDragging, setIsDragging] = useState(false);
   const historyRef = useRef<HTMLDivElement>(null);
-  const dragOffsetRef = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     if (!historyRef.current) {
@@ -52,31 +49,6 @@ export default function ChatWindow({
     }
     historyRef.current.scrollTop = historyRef.current.scrollHeight;
   }, [messages, isLoading]);
-
-  useEffect(() => {
-    if (!isDragging) {
-      return;
-    }
-
-    const handleMouseMove = (event: globalThis.MouseEvent) => {
-      setPosition({
-        x: event.clientX - dragOffsetRef.current.x,
-        y: event.clientY - dragOffsetRef.current.y,
-      });
-    };
-
-    const handleMouseUp = () => {
-      setIsDragging(false);
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isDragging]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -94,49 +66,24 @@ export default function ChatWindow({
     }
   };
 
-  const handleTitleBarMouseDown = (event: MouseEvent<HTMLDivElement>) => {
-    dragOffsetRef.current = {
-      x: event.clientX - position.x,
-      y: event.clientY - position.y,
-    };
-    setIsDragging(true);
-    event.preventDefault();
-  };
-
   return (
-    <div
-      className="w-[min(92vw,440px)]"
-      style={{ top: position.y, left: position.x, position: 'fixed', zIndex: 50 }}
-    >
-      <RetroWindow
-        title={`IM with ${buddyScreenname}`}
-        onTitleBarMouseDown={handleTitleBarMouseDown}
-        titleBarClassName={isDragging ? 'cursor-grabbing' : 'cursor-grab'}
-      >
-        <div className="flex h-full min-h-[320px] flex-col gap-2 text-xs">
-          <div className="flex items-center justify-between">
-            <div
-              className="aim-rich-html max-w-[75%] truncate font-bold text-os-blue"
-              dangerouslySetInnerHTML={{
-                __html: sanitizeRichTextHtml(buddyStatusMessage || 'No away message.'),
-              }}
-            />
-            <button
-              type="button"
-              onClick={onClose}
-              className="cursor-pointer border-2 border-white border-b-[#0a0a0a] border-r-[#0a0a0a] bg-os-grey px-2 py-[1px] text-[11px] font-bold active:border-b-white active:border-l-[#0a0a0a] active:border-r-white active:border-t-[#0a0a0a]"
-            >
-              X
-            </button>
-          </div>
+    <div className="fixed inset-0 z-40">
+      <RetroWindow title={`IM with ${buddyScreenname}`} showBackButton onBack={onClose}>
+        <div className="flex h-full min-h-0 flex-col gap-2 text-sm">
+          <div
+            className="aim-rich-html rounded-md border border-blue-200 bg-white px-3 py-2 font-semibold text-blue-700"
+            dangerouslySetInnerHTML={{
+              __html: sanitizeRichTextHtml(buddyStatusMessage || 'No away message.'),
+            }}
+          />
 
           <div
             ref={historyRef}
-            className="h-[240px] overflow-y-auto border-2 border-[#0a0a0a] border-b-white border-r-white bg-white p-2 shadow-window-in"
+            className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-blue-200 bg-white p-3 shadow-[inset_0_1px_4px_rgba(37,99,235,0.12)]"
           >
-            {isLoading && <p className="italic text-os-dark-grey">Loading conversation...</p>}
+            {isLoading && <p className="italic text-slate-500">Loading conversation...</p>}
             {!isLoading && messages.length === 0 && (
-              <p className="italic text-os-dark-grey">No messages yet. Say hey.</p>
+              <p className="italic text-slate-500">No messages yet. Say hey.</p>
             )}
             {!isLoading &&
               messages.map((message) => {
@@ -152,17 +99,17 @@ export default function ChatWindow({
                     className={`mb-2 flex ${isMine ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
-                      className={`max-w-[85%] border px-2 py-1 ${
+                      className={`max-w-[88%] rounded-md border px-3 py-2 ${
                         isMine
-                          ? 'border-os-blue bg-[#e6ebff] text-right'
-                          : 'border-os-dark-grey bg-[#f4f4f4]'
+                          ? 'border-blue-300 bg-blue-50 text-right'
+                          : 'border-slate-300 bg-slate-50'
                       }`}
                     >
-                      <p className="mb-[2px] text-[10px] font-bold text-os-dark-grey">
+                      <p className="mb-1 text-[11px] font-bold text-slate-500">
                         {isMine ? 'You' : buddyScreenname} at {timestamp}
                       </p>
                       <div
-                        className="aim-rich-html whitespace-pre-wrap break-words text-xs"
+                        className="aim-rich-html whitespace-pre-wrap break-words text-sm"
                         dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(message.content) }}
                       />
                     </div>
@@ -171,36 +118,38 @@ export default function ChatWindow({
               })}
           </div>
 
-          <RichTextToolbar value={format} onChange={setFormat} />
+          <div className="shrink-0 rounded-lg border border-blue-200 bg-white/90 p-2">
+            <RichTextToolbar value={format} onChange={setFormat} />
 
-          <form onSubmit={handleSubmit} className="flex gap-1">
-            <textarea
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder="Type your message..."
-              className="min-h-[52px] flex-1 resize-none border-2 border-[#0a0a0a] border-b-white border-r-white bg-white p-1 text-xs focus:outline-none shadow-window-in"
-              maxLength={1000}
-              rows={2}
-            />
-            <button
-              type="submit"
-              disabled={isSending || !draft.trim()}
-              className="cursor-pointer self-end border-2 border-white border-b-[#0a0a0a] border-r-[#0a0a0a] bg-os-grey px-2 py-1 text-xs font-bold active:border-b-white active:border-l-[#0a0a0a] active:border-r-white active:border-t-[#0a0a0a] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isSending ? '...' : 'Send'}
-            </button>
-          </form>
+            <form onSubmit={handleSubmit} className="mt-2 flex items-end gap-2">
+              <textarea
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                placeholder="Type your message..."
+                className="min-h-[44px] max-h-36 flex-1 resize-none rounded-md border border-blue-300 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_3px_rgba(37,99,235,0.18)] focus:outline-none"
+                maxLength={1000}
+                rows={2}
+              />
+              <button
+                type="submit"
+                disabled={isSending || !draft.trim()}
+                className="min-h-[44px] min-w-[86px] cursor-pointer rounded-md border border-blue-500 bg-gradient-to-b from-blue-200 via-blue-300 to-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:from-blue-300 hover:to-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSending ? '...' : 'Send'}
+              </button>
+            </form>
 
-          <div className="border border-[#8b93ac] bg-white px-2 py-1 text-[11px]">
-            <span className="mr-1 font-bold text-os-dark-grey">Message Preview:</span>
-            <span
-              className="aim-rich-html"
-              dangerouslySetInnerHTML={{
-                __html: sanitizeRichTextHtml(
-                  formatRichText(draft || 'Type a message to preview styles.', format),
-                ),
-              }}
-            />
+            <div className="mt-2 rounded-md border border-blue-200 bg-white px-2 py-1 text-[11px]">
+              <span className="mr-1 font-bold text-slate-500">Message Preview:</span>
+              <span
+                className="aim-rich-html"
+                dangerouslySetInnerHTML={{
+                  __html: sanitizeRichTextHtml(
+                    formatRichText(draft || 'Type a message to preview styles.', format),
+                  ),
+                }}
+              />
+            </div>
           </div>
         </div>
       </RetroWindow>

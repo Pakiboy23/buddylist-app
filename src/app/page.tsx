@@ -9,12 +9,11 @@ const SIGN_ON_SOUND = '/signon.wav';
 
 export default function Home() {
   const [screenname, setScreenname] = useState('');
-  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [savePassword, setSavePassword] = useState(true);
   const [autoLogin, setAutoLogin] = useState(false);
-  const [statusMsg, setStatusMsg] = useState('Welcome to BuddyList. Enter your account details to sign on.');
+  const [statusMsg, setStatusMsg] = useState('Welcome to BuddyList. Enter your Screen Name and Password.');
   const [isLoading, setIsLoading] = useState(false);
   const hasNavigatedRef = useRef(false);
   const router = useRouter();
@@ -86,8 +85,8 @@ export default function Home() {
       const nextMode = !previous;
       setStatusMsg(
         nextMode
-          ? 'Create your account and pick a Screen Name to get started.'
-          : 'Welcome back. Enter your email and password to sign on.',
+          ? 'Get a Screen Name by choosing one and creating a password.'
+          : 'Welcome back. Enter your Screen Name and Password.',
       );
       return nextMode;
     });
@@ -96,26 +95,23 @@ export default function Home() {
   const handleSignOn = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!email.trim() || !password) {
-      setStatusMsg('Please enter your Email Address and Password.');
+    const trimmedScreenname = screenname.trim();
+    if (!trimmedScreenname || !password) {
+      setStatusMsg('Please enter your Screen Name and Password.');
       return;
     }
 
-    if (isSignUp && !screenname.trim()) {
-      setStatusMsg('Please choose a Screen Name.');
-      return;
-    }
-
+    const authEmail = `${trimmedScreenname.toLowerCase()}@buddylist.com`;
     setIsLoading(true);
     setStatusMsg(isSignUp ? 'Creating account...' : 'Dialing in...');
 
     if (isSignUp) {
       const { data, error } = await supabase.auth.signUp({
-        email: email.trim(),
+        email: authEmail,
         password,
         options: {
           data: {
-            screenname: screenname.trim(),
+            screenname: trimmedScreenname,
           },
         },
       });
@@ -138,7 +134,7 @@ export default function Home() {
     }
 
     const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
+      email: authEmail,
       password,
     });
 
@@ -155,108 +151,91 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-[100dvh] flex items-center justify-center p-4">
-      <div className="w-full max-w-[420px]">
-        <RetroWindow title="AOL Instant Messenger - Sign On" className="mx-auto">
-          <form onSubmit={handleSignOn} className="space-y-3 p-1 text-[13px] font-sans">
-            <div className="grid grid-cols-[92px_1fr] gap-3">
-              <div className="flex flex-col items-center justify-between border border-os-dark-grey bg-[#f2e7ab] px-2 py-2 shadow-window-in">
-                <span className="text-[34px] leading-none">🏃</span>
-                <p className="text-[11px] font-bold tracking-wide text-[#0d4da3]">AIM</p>
-              </div>
-
-              <div className="space-y-2">
-                {isSignUp ? (
-                  <div>
-                    <label className="mb-1 block text-[12px] font-bold uppercase tracking-wide">Screen Name</label>
-                    <input
-                      type="text"
-                      value={screenname}
-                      onChange={(e) => setScreenname(e.target.value)}
-                      className="w-full border-2 border-[#0a0a0a] border-b-white border-r-white bg-white px-2 py-1 focus:outline-none shadow-window-in"
-                      placeholder="Choose a screen name"
-                      disabled={isLoading}
-                      autoComplete="nickname"
-                    />
-                  </div>
-                ) : null}
-
-                <div>
-                  <label className="mb-1 block text-[12px] font-bold uppercase tracking-wide">Email Address</label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full border-2 border-[#0a0a0a] border-b-white border-r-white bg-white px-2 py-1 focus:outline-none shadow-window-in"
-                    placeholder="you@email.com"
-                    disabled={isLoading}
-                    autoComplete="email"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-[12px] font-bold uppercase tracking-wide">Password</label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full border-2 border-[#0a0a0a] border-b-white border-r-white bg-white px-2 py-1 focus:outline-none shadow-window-in"
-                    placeholder="Enter password"
-                    disabled={isLoading}
-                    autoComplete={isSignUp ? 'new-password' : 'current-password'}
-                  />
-                </div>
-
-                <div className="space-y-1 pt-1">
-                  <label className="flex items-center gap-2 text-[12px] font-semibold">
-                    <input
-                      type="checkbox"
-                      checked={savePassword}
-                      onChange={(e) => setSavePassword(e.target.checked)}
-                      disabled={isLoading}
-                      className="h-4 w-4 appearance-none border-2 border-[#0a0a0a] border-b-white border-r-white bg-white checked:bg-os-blue checked:[box-shadow:inset_0_0_0_2px_#fff] disabled:opacity-60"
-                    />
-                    Save password
-                  </label>
-                  <label className="flex items-center gap-2 text-[12px] font-semibold">
-                    <input
-                      type="checkbox"
-                      checked={autoLogin}
-                      onChange={(e) => setAutoLogin(e.target.checked)}
-                      disabled={isLoading}
-                      className="h-4 w-4 appearance-none border-2 border-[#0a0a0a] border-b-white border-r-white bg-white checked:bg-os-blue checked:[box-shadow:inset_0_0_0_2px_#fff] disabled:opacity-60"
-                    />
-                    Auto-login
-                  </label>
-                </div>
-              </div>
+    <main className="h-[100dvh] overflow-hidden">
+      <RetroWindow title="AOL Instant Messenger - Sign On">
+        <form onSubmit={handleSignOn} className="mx-auto w-full max-w-md space-y-4 pb-6 text-[13px] font-sans">
+          <div className="grid grid-cols-[92px_1fr] gap-3">
+            <div className="flex flex-col items-center justify-between rounded-md border border-blue-200 bg-[#f2e7ab] px-2 py-2">
+              <span className="text-[34px] leading-none">🏃</span>
+              <p className="text-[11px] font-bold tracking-wide text-[#0d4da3]">AIM</p>
             </div>
 
-            <p className="min-h-9 border border-os-dark-grey bg-white px-2 py-1 text-[12px] font-bold leading-snug text-os-blue shadow-window-in">
-              {statusMsg}
-            </p>
+            <div className="space-y-2">
+              <div>
+                <label className="mb-1 block text-[12px] font-bold uppercase tracking-wide">Screen Name</label>
+                <input
+                  type="text"
+                  value={screenname}
+                  onChange={(e) => setScreenname(e.target.value)}
+                  className="min-h-[44px] w-full rounded-md border border-blue-300 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_3px_rgba(37,99,235,0.18)] focus:outline-none"
+                  placeholder="e.g. sk8erboi99"
+                  disabled={isLoading}
+                  autoComplete="username"
+                />
+              </div>
 
-            <div className="flex items-center justify-end">
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="min-w-[122px] bg-os-blue px-3 py-1 font-bold text-white border-2 border-white border-b-[#0a0a0a] border-r-[#0a0a0a] active:border-t-[#0a0a0a] active:border-l-[#0a0a0a] active:border-b-white active:border-r-white disabled:opacity-50 cursor-pointer"
-              >
-                {isLoading ? (isSignUp ? 'Creating...' : 'Signing On...') : isSignUp ? 'Create Account' : 'Sign On'}
-              </button>
+              <div>
+                <label className="mb-1 block text-[12px] font-bold uppercase tracking-wide">Password</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="min-h-[44px] w-full rounded-md border border-blue-300 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_3px_rgba(37,99,235,0.18)] focus:outline-none"
+                  placeholder="Enter password"
+                  disabled={isLoading}
+                  autoComplete={isSignUp ? 'new-password' : 'current-password'}
+                />
+              </div>
+
+              <div className="space-y-1 pt-1">
+                <label className="flex items-center gap-2 text-[12px] font-semibold">
+                  <input
+                    type="checkbox"
+                    checked={savePassword}
+                    onChange={(e) => setSavePassword(e.target.checked)}
+                    disabled={isLoading}
+                    className="h-5 w-5 rounded border border-blue-300 bg-white checked:bg-blue-600 disabled:opacity-60"
+                  />
+                  Save password
+                </label>
+                <label className="flex items-center gap-2 text-[12px] font-semibold">
+                  <input
+                    type="checkbox"
+                    checked={autoLogin}
+                    onChange={(e) => setAutoLogin(e.target.checked)}
+                    disabled={isLoading}
+                    className="h-5 w-5 rounded border border-blue-300 bg-white checked:bg-blue-600 disabled:opacity-60"
+                  />
+                  Auto-login
+                </label>
+              </div>
             </div>
+          </div>
 
+          <p className="min-h-[44px] rounded-md border border-blue-200 bg-white px-3 py-2 text-[12px] font-bold leading-snug text-blue-700">
+            {statusMsg}
+          </p>
+
+          <div className="flex items-center justify-end">
             <button
-              type="button"
-              onClick={toggleMode}
+              type="submit"
               disabled={isLoading}
-              className="text-[12px] font-bold text-os-blue underline underline-offset-2 disabled:opacity-50 cursor-pointer"
+              className="min-h-[44px] min-w-[148px] cursor-pointer rounded-md border border-blue-500 bg-gradient-to-b from-blue-200 via-blue-300 to-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:from-blue-300 hover:to-blue-600 disabled:opacity-50"
             >
-              {isSignUp ? 'Back to Sign On' : 'Get a Screen Name'}
+              {isLoading ? (isSignUp ? 'Creating...' : 'Signing On...') : isSignUp ? 'Get a Screen Name' : 'Sign On'}
             </button>
-          </form>
-        </RetroWindow>
-      </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={toggleMode}
+            disabled={isLoading}
+            className="min-h-[44px] cursor-pointer text-left text-[12px] font-bold text-blue-700 underline underline-offset-2 disabled:opacity-50"
+          >
+            {isSignUp ? 'Already have a screen name? Sign On.' : "Don't have a screen name? Get one here."}
+          </button>
+        </form>
+      </RetroWindow>
     </main>
   );
 }

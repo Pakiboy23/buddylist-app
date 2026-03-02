@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, MouseEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import RetroWindow from '@/components/RetroWindow';
 import RichTextToolbar from '@/components/RichTextToolbar';
 import { supabase } from '@/lib/supabase';
@@ -10,6 +10,7 @@ import {
   RichTextFormat,
   sanitizeRichTextHtml,
 } from '@/lib/richText';
+import { useChatContext } from '@/context/ChatContext';
 
 interface RoomMessage {
   id: string;
@@ -40,7 +41,8 @@ interface GroupChatWindowProps {
   roomName: string;
   currentUserId: string;
   currentUserScreenname: string;
-  onClose: () => void;
+  onBack: () => void;
+  onLeave: () => void;
 }
 
 export default function GroupChatWindow({
@@ -48,12 +50,10 @@ export default function GroupChatWindow({
   roomName,
   currentUserId,
   currentUserScreenname,
-  onClose,
+  onBack,
+  onLeave,
 }: GroupChatWindowProps) {
-  const [position, setPosition] = useState({ x: 140, y: 80 });
-  const [isDragging, setIsDragging] = useState(false);
-  const dragOffsetRef = useRef({ x: 0, y: 0 });
-
+  const { clearUnreads } = useChatContext();
   const [messages, setMessages] = useState<RoomMessage[]>([]);
   const [participants, setParticipants] = useState<RoomParticipant[]>([]);
   const [screennameMap, setScreennameMap] = useState<Record<string, string>>({
@@ -124,38 +124,8 @@ export default function GroupChatWindow({
   }, [messages, isLoadingMessages]);
 
   useEffect(() => {
-    if (!isDragging) {
-      return;
-    }
-
-    const handleMouseMove = (event: globalThis.MouseEvent) => {
-      setPosition({
-        x: event.clientX - dragOffsetRef.current.x,
-        y: event.clientY - dragOffsetRef.current.y,
-      });
-    };
-
-    const handleMouseUp = () => {
-      setIsDragging(false);
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isDragging]);
-
-  const handleTitleBarMouseDown = (event: MouseEvent<HTMLDivElement>) => {
-    dragOffsetRef.current = {
-      x: event.clientX - position.x,
-      y: event.clientY - position.y,
-    };
-    setIsDragging(true);
-    event.preventDefault();
-  };
+    clearUnreads(roomName);
+  }, [clearUnreads, roomName]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -196,7 +166,7 @@ export default function GroupChatWindow({
   }, [ensureScreennames, roomId]);
 
   useEffect(() => {
-    const roomChannel = supabase.channel(`room:${roomId}`, {
+    const roomChannel = supabase.channel('active_chat_room', {
       config: {
         presence: {
           key: currentUserId,
@@ -258,7 +228,7 @@ export default function GroupChatWindow({
 
     return () => {
       void roomChannel.untrack();
-      void supabase.removeChannel(roomChannel);
+      roomChannel.unsubscribe();
     };
   }, [currentUserId, currentUserScreenname, ensureScreennames, roomId]);
 
@@ -300,103 +270,100 @@ export default function GroupChatWindow({
   };
 
   return (
-    <div
-      className="w-[min(96vw,780px)]"
-      style={{ position: 'fixed', left: position.x, top: position.y, zIndex: 55 }}
-    >
+    <div className="fixed inset-0 z-50">
       <RetroWindow
         title={`Chat Room: ${roomName}`}
-        onTitleBarMouseDown={handleTitleBarMouseDown}
-        titleBarClassName={isDragging ? 'cursor-grabbing' : 'cursor-grab'}
-      >
-        <div className="flex items-center justify-between pb-1">
-          <p className="text-xs font-bold text-os-blue">Room: #{roomName}</p>
+        showBackButton
+        onBack={onBack}
+        headerActions={
           <button
             type="button"
-            onClick={onClose}
-            className="cursor-pointer border-2 border-white border-b-[#0a0a0a] border-r-[#0a0a0a] bg-os-grey px-2 py-[1px] text-[11px] font-bold active:border-b-white active:border-l-[#0a0a0a] active:border-r-white active:border-t-[#0a0a0a]"
+            onClick={onLeave}
+            className="inline-flex min-h-[44px] items-center justify-center rounded-md border border-white/40 bg-white/20 px-3 text-xs font-bold text-white transition-colors hover:bg-white/30"
           >
-            X
+            Leave Room
           </button>
-        </div>
-
-        <div className="flex min-h-[380px] gap-2">
-          <div className="flex min-w-0 flex-1 flex-col gap-2">
-            <div
-              ref={historyRef}
-              className="h-[280px] overflow-y-auto border-2 border-[#0a0a0a] border-b-white border-r-white bg-white p-2 shadow-window-in"
-            >
-              {isLoadingMessages && <p className="italic text-os-dark-grey">Loading room history...</p>}
-              {!isLoadingMessages && messages.length === 0 && (
-                <p className="italic text-os-dark-grey">No messages yet. Start the room conversation.</p>
+        }
+      >
+        <div className="flex h-full min-h-0 flex-col">
+          <div className="mb-2 rounded-lg border border-blue-200 bg-white/85 px-3 py-2">
+            <p className="text-xs font-bold text-blue-700">Room: #{roomName}</p>
+            <div className="mt-1 flex gap-2 overflow-x-auto pb-1 text-xs">
+              {participants.length === 0 ? (
+                <p className="italic text-slate-500">No one else is here yet.</p>
+              ) : (
+                participants.map((participant) => (
+                  <span
+                    key={participant.userId}
+                    className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-1 whitespace-nowrap"
+                  >
+                    <span className="text-emerald-600">●</span>
+                    <span className="font-semibold text-slate-700">
+                      {participant.userId === currentUserId
+                        ? `${participant.screenname} (You)`
+                        : participant.screenname}
+                    </span>
+                  </span>
+                ))
               )}
-              {!isLoadingMessages &&
-                messages.map((message) => {
-                  const senderName = screennameMap[message.sender_id] || 'Unknown User';
-                  const isMine = message.sender_id === currentUserId;
-                  const timestamp = new Date(message.created_at).toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  });
-
-                  return (
-                    <div key={message.id} className="mb-2">
-                      <p className="mb-[2px] text-[10px] font-bold text-os-dark-grey">
-                        {isMine ? 'You' : senderName} at {timestamp}
-                      </p>
-                      <div
-                        className={`aim-rich-html border px-2 py-1 text-xs ${
-                          isMine ? 'border-os-blue bg-[#e6ebff]' : 'border-os-dark-grey bg-[#f4f4f4]'
-                        }`}
-                        dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(message.content) }}
-                      />
-                    </div>
-                  );
-                })}
             </div>
+          </div>
 
+          <div
+            ref={historyRef}
+            className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-blue-200 bg-white px-3 py-3 shadow-[inset_0_1px_4px_rgba(37,99,235,0.12)]"
+          >
+            {isLoadingMessages && <p className="italic text-slate-500">Loading room history...</p>}
+            {!isLoadingMessages && messages.length === 0 && (
+              <p className="italic text-slate-500">No messages yet. Start the room conversation.</p>
+            )}
+            {!isLoadingMessages &&
+              messages.map((message) => {
+                const senderName = screennameMap[message.sender_id] || 'Unknown User';
+                const isMine = message.sender_id === currentUserId;
+                const timestamp = new Date(message.created_at).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                });
+
+                return (
+                  <div key={message.id} className="mb-3">
+                    <p className="mb-1 text-[11px] font-bold text-slate-500">
+                      {isMine ? 'You' : senderName} at {timestamp}
+                    </p>
+                    <div
+                      className={`aim-rich-html rounded-md border px-3 py-2 text-sm ${
+                        isMine ? 'border-blue-300 bg-blue-50' : 'border-slate-300 bg-slate-50'
+                      }`}
+                      dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(message.content) }}
+                    />
+                  </div>
+                );
+              })}
+          </div>
+
+          <div className="mt-2 shrink-0 rounded-lg border border-blue-200 bg-white/90 p-2">
             <RichTextToolbar value={format} onChange={setFormat} />
 
-            <form onSubmit={handleSendMessage} className="flex gap-1">
+            <form onSubmit={handleSendMessage} className="mt-2 flex items-end gap-2">
               <textarea
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
                 placeholder={`Message #${roomName}`}
-                className="min-h-[68px] flex-1 resize-none border-2 border-[#0a0a0a] border-b-white border-r-white bg-white p-1 text-xs focus:outline-none shadow-window-in"
+                className="min-h-[44px] max-h-36 flex-1 resize-none rounded-md border border-blue-300 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_3px_rgba(37,99,235,0.18)] focus:outline-none"
                 maxLength={1500}
-                rows={3}
+                rows={2}
               />
               <button
                 type="submit"
                 disabled={isSending || !draft.trim()}
-                className="cursor-pointer self-end border-2 border-white border-b-[#0a0a0a] border-r-[#0a0a0a] bg-os-grey px-2 py-1 text-xs font-bold active:border-b-white active:border-l-[#0a0a0a] active:border-r-white active:border-t-[#0a0a0a] disabled:cursor-not-allowed disabled:opacity-50"
+                className="min-h-[44px] min-w-[86px] cursor-pointer rounded-md border border-blue-500 bg-gradient-to-b from-blue-200 via-blue-300 to-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:from-blue-300 hover:to-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isSending ? '...' : 'Send'}
               </button>
             </form>
 
-            {error && (
-              <p className="border border-red-700 bg-[#ffe9e9] px-2 py-1 text-xs text-red-700">{error}</p>
-            )}
-          </div>
-
-          <div className="w-[170px] shrink-0 border-2 border-[#0a0a0a] border-b-white border-r-white bg-white p-1 shadow-window-in">
-            <p className="mb-1 border-b border-os-light-grey pb-1 text-xs font-bold text-os-blue">
-              In Room ({participants.length})
-            </p>
-            <div className="max-h-[340px] overflow-y-auto text-xs">
-              {participants.length === 0 && (
-                <p className="italic text-os-dark-grey">No one else is here yet.</p>
-              )}
-              {participants.map((participant) => (
-                <div key={participant.userId} className="mb-[2px] flex items-center gap-1">
-                  <span className="text-green-700">●</span>
-                  <span className="truncate font-bold">
-                    {participant.userId === currentUserId ? `${participant.screenname} (You)` : participant.screenname}
-                  </span>
-                </div>
-              ))}
-            </div>
+            {error && <p className="mt-2 text-sm text-red-700">{error}</p>}
           </div>
         </div>
       </RetroWindow>
