@@ -40,7 +40,7 @@ interface PendingRequest {
   screenname: string;
 }
 
-interface TemporaryChatProfile {
+export interface TemporaryChatProfile {
   screenname: string;
   status_msg: string | null;
 }
