@@ -51,6 +51,16 @@ interface ChatRoom {
   name: string;
 }
 
+interface AdminMeResponse {
+  isAdmin: boolean;
+}
+
+interface AdminTicketResponse {
+  ok: boolean;
+  ticket: string;
+  expiresAt: string;
+}
+
 const SIGN_ON_SOUND = '/signon.wav';
 const SIGN_OFF_SOUND = '/doorslam.wav';
 const INCOMING_MESSAGE_SOUND = '/imrcv.wav';
@@ -170,6 +180,11 @@ function BuddyListContent() {
   const [isSetupOpen, setIsSetupOpen] = useState(false);
   const [setupError, setSetupError] = useState<string | null>(null);
   const [isSavingSetup, setIsSavingSetup] = useState(false);
+  const [isRecoverySetupOpen, setIsRecoverySetupOpen] = useState(false);
+  const [recoveryCodeDraft, setRecoveryCodeDraft] = useState('');
+  const [recoveryCodeConfirmDraft, setRecoveryCodeConfirmDraft] = useState('');
+  const [recoverySetupError, setRecoverySetupError] = useState<string | null>(null);
+  const [isSavingRecoveryCode, setIsSavingRecoveryCode] = useState(false);
 
   const [showAddWindow, setShowAddWindow] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -183,6 +198,12 @@ function BuddyListContent() {
   const [roomJoinError, setRoomJoinError] = useState<string | null>(null);
   const [isJoiningRoom, setIsJoiningRoom] = useState(false);
   const [activeRoom, setActiveRoom] = useState<ChatRoom | null>(null);
+  const [isAdminUser, setIsAdminUser] = useState(false);
+  const [isAdminResetOpen, setIsAdminResetOpen] = useState(false);
+  const [adminResetScreenname, setAdminResetScreenname] = useState('');
+  const [adminResetError, setAdminResetError] = useState<string | null>(null);
+  const [isIssuingAdminReset, setIsIssuingAdminReset] = useState(false);
+  const [issuedAdminTicket, setIssuedAdminTicket] = useState<{ ticket: string; expiresAt: string } | null>(null);
 
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
   const [pendingRequestError, setPendingRequestError] = useState<string | null>(null);
@@ -262,6 +283,23 @@ function BuddyListContent() {
         oscillator.stop(audioContext.currentTime + 0.13);
       });
   }, []);
+
+  const getAccessToken = useCallback(async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    return session?.access_token ?? null;
+  }, []);
+
+  const readApiError = async (response: Response) => {
+    try {
+      const payload = (await response.json()) as { error?: string };
+      return payload.error ?? 'Request failed.';
+    } catch {
+      return 'Request failed.';
+    }
+  };
 
   const loadBuddies = useCallback(async (targetUserId: string) => {
     setIsLoadingBuddies(true);
@@ -398,6 +436,57 @@ function BuddyListContent() {
       setStatusType(parsedStatus.statusType);
       setCustomMessage(parsedStatus.customMessage);
       setCustomMessageFormat(parsedStatus.customMessageFormat);
+      let hasRecoveryCode = true;
+      const { data: recoveryData, error: recoveryError } = await supabase
+        .from('account_recovery_codes')
+        .select('user_id')
+        .eq('user_id', session.user.id)
+        .maybeSingle();
+
+      if (recoveryError) {
+        console.error('Failed to check recovery code status:', recoveryError.message);
+      } else {
+        hasRecoveryCode = Boolean(recoveryData);
+      }
+
+      setIsRecoverySetupOpen(!hasRecoveryCode);
+
+      let adminFlag = false;
+      if (session.access_token) {
+        const adminResponse = await fetch('/api/admin/me', {
+          method: 'GET',
+          cache: 'no-store',
+          headers: {
+            authorization: `Bearer ${session.access_token}`,
+          },
+        });
+
+        if (adminResponse.ok) {
+          const adminPayload = (await adminResponse.json()) as AdminMeResponse;
+          adminFlag = Boolean(adminPayload.isAdmin);
+        } else {
+          const adminError = await readApiError(adminResponse);
+          console.error(`Admin check via /api/admin/me failed (${adminResponse.status}):`, adminError);
+        }
+      } else {
+        console.warn('Admin check skipped because the access token was missing.');
+      }
+
+      if (!adminFlag) {
+        const { data: adminFallbackData, error: adminFallbackError } = await supabase
+          .from('admin_users')
+          .select('user_id')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+
+        if (adminFallbackError) {
+          console.error('Fallback admin_users check failed:', adminFallbackError.message);
+        } else {
+          adminFlag = Boolean(adminFallbackData);
+        }
+      }
+
+      setIsAdminUser(adminFlag);
       setIsBootstrapping(false);
       void loadBuddies(session.user.id);
     };
@@ -769,6 +858,103 @@ function BuddyListContent() {
     resetChatState();
     await supabase.auth.signOut();
     router.push('/');
+  };
+
+  const handleSaveRecoveryCode = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmed = recoveryCodeDraft.trim();
+    const confirm = recoveryCodeConfirmDraft.trim();
+
+    if (!trimmed || !confirm) {
+      setRecoverySetupError('Enter and confirm your recovery code.');
+      return;
+    }
+
+    if (trimmed !== confirm) {
+      setRecoverySetupError('Recovery code entries do not match.');
+      return;
+    }
+
+    setIsSavingRecoveryCode(true);
+    setRecoverySetupError(null);
+
+    const accessToken = await getAccessToken();
+    if (!accessToken) {
+      setRecoverySetupError('Session expired. Please sign on again.');
+      setIsSavingRecoveryCode(false);
+      return;
+    }
+
+    const response = await fetch('/api/auth/recovery/setup', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ recoveryCode: trimmed }),
+    });
+
+    if (!response.ok) {
+      const errorMessage = await readApiError(response);
+      setRecoverySetupError(errorMessage);
+      setIsSavingRecoveryCode(false);
+      return;
+    }
+
+    setRecoveryCodeDraft('');
+    setRecoveryCodeConfirmDraft('');
+    setIsRecoverySetupOpen(false);
+    setIsSavingRecoveryCode(false);
+  };
+
+  const openAdminResetWindow = () => {
+    setAdminResetScreenname('');
+    setAdminResetError(null);
+    setIssuedAdminTicket(null);
+    setIsAdminResetOpen(true);
+  };
+
+  const handleIssueAdminResetTicket = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const target = adminResetScreenname.trim();
+    if (!target) {
+      setAdminResetError('Enter a screen name.');
+      return;
+    }
+
+    setIsIssuingAdminReset(true);
+    setAdminResetError(null);
+    setIssuedAdminTicket(null);
+
+    const accessToken = await getAccessToken();
+    if (!accessToken) {
+      setAdminResetError('Session expired. Please sign on again.');
+      setIsIssuingAdminReset(false);
+      return;
+    }
+
+    const response = await fetch('/api/admin/password-reset-ticket', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ screenname: target }),
+    });
+
+    if (!response.ok) {
+      const errorMessage = await readApiError(response);
+      setAdminResetError(errorMessage);
+      setIsIssuingAdminReset(false);
+      return;
+    }
+
+    const payload = (await response.json()) as AdminTicketResponse;
+    setIssuedAdminTicket({
+      ticket: payload.ticket,
+      expiresAt: payload.expiresAt,
+    });
+    setIsIssuingAdminReset(false);
   };
 
   const handleSetupSave = async (event: FormEvent<HTMLFormElement>) => {
@@ -1365,9 +1551,158 @@ function BuddyListContent() {
             >
               Chat Rooms
             </button>
+            {isAdminUser && (
+              <button
+                type="button"
+                onClick={openAdminResetWindow}
+                className="min-h-[44px] cursor-pointer rounded-md border border-amber-400 bg-gradient-to-b from-amber-100 via-amber-200 to-amber-400 px-2 py-2 text-sm font-semibold text-amber-900 shadow-sm transition hover:from-amber-200 hover:to-amber-500"
+              >
+                Admin Reset
+              </button>
+            )}
           </div>
         </div>
       </RetroWindow>
+
+      {isRecoverySetupOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-[1px]">
+          <div className="w-full max-w-md">
+            <RetroWindow title="Set Recovery Code">
+              <form onSubmit={handleSaveRecoveryCode} className="space-y-3 text-sm">
+                <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] text-amber-900">
+                  You must set a recovery code before continuing. Store this safely. It is required for forgotten
+                  password recovery.
+                </p>
+
+                <div>
+                  <label htmlFor="recovery-code-input" className="mb-1 block text-[12px] font-semibold text-slate-700">
+                    Recovery code
+                  </label>
+                  <input
+                    id="recovery-code-input"
+                    value={recoveryCodeDraft}
+                    onChange={(event) => setRecoveryCodeDraft(event.target.value)}
+                    className="w-full rounded-md border border-blue-300 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_3px_rgba(37,99,235,0.18)] focus:outline-none"
+                    placeholder="MY-SECRET-CODE-2026"
+                    minLength={8}
+                    disabled={isSavingRecoveryCode}
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="recovery-code-confirm-input"
+                    className="mb-1 block text-[12px] font-semibold text-slate-700"
+                  >
+                    Confirm recovery code
+                  </label>
+                  <input
+                    id="recovery-code-confirm-input"
+                    value={recoveryCodeConfirmDraft}
+                    onChange={(event) => setRecoveryCodeConfirmDraft(event.target.value)}
+                    className="w-full rounded-md border border-blue-300 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_3px_rgba(37,99,235,0.18)] focus:outline-none"
+                    placeholder="Repeat your code"
+                    minLength={8}
+                    disabled={isSavingRecoveryCode}
+                  />
+                </div>
+
+                {recoverySetupError && (
+                  <p className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
+                    {recoverySetupError}
+                  </p>
+                )}
+
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleSignOff()}
+                    className="cursor-pointer rounded-md border border-blue-300 bg-gradient-to-b from-white via-slate-100 to-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:from-slate-50 hover:to-slate-300"
+                  >
+                    Sign Off
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSavingRecoveryCode}
+                    className="cursor-pointer rounded-md border border-blue-500 bg-gradient-to-b from-blue-200 via-blue-300 to-blue-500 px-4 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:from-blue-300 hover:to-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isSavingRecoveryCode ? 'Saving...' : 'Save Recovery Code'}
+                  </button>
+                </div>
+              </form>
+            </RetroWindow>
+          </div>
+        </div>
+      )}
+
+      {isAdminResetOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-[1px]">
+          <div className="w-full max-w-md">
+            <RetroWindow title="Admin Password Reset">
+              <form onSubmit={handleIssueAdminResetTicket} className="space-y-3 text-sm">
+                <p className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-[12px] text-blue-800">
+                  Issue a one-time password reset ticket for out-of-band delivery.
+                </p>
+                <div>
+                  <label htmlFor="admin-reset-screenname" className="mb-1 block text-[12px] font-semibold text-slate-700">
+                    Target screen name
+                  </label>
+                  <input
+                    id="admin-reset-screenname"
+                    value={adminResetScreenname}
+                    onChange={(event) => setAdminResetScreenname(event.target.value)}
+                    className="w-full rounded-md border border-blue-300 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_3px_rgba(37,99,235,0.18)] focus:outline-none"
+                    placeholder="screenname"
+                    disabled={isIssuingAdminReset}
+                  />
+                </div>
+
+                {adminResetError && (
+                  <p className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
+                    {adminResetError}
+                  </p>
+                )}
+
+                {issuedAdminTicket && (
+                  <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] text-amber-900">
+                    <p className="font-bold">One-time ticket (share securely):</p>
+                    <p className="mt-1 break-all font-mono text-[13px] font-bold">{issuedAdminTicket.ticket}</p>
+                    <p className="mt-1 text-[11px]">
+                      Expires: {new Date(issuedAdminTicket.expiresAt).toLocaleString()}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void navigator.clipboard.writeText(issuedAdminTicket.ticket);
+                      }}
+                      className="mt-2 rounded-md border border-amber-500 bg-gradient-to-b from-amber-100 to-amber-300 px-3 py-1 text-xs font-semibold text-amber-900"
+                    >
+                      Copy Ticket
+                    </button>
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsAdminResetOpen(false)}
+                    className="cursor-pointer rounded-md border border-blue-300 bg-gradient-to-b from-white via-slate-100 to-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:from-slate-50 hover:to-slate-300"
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isIssuingAdminReset}
+                    className="cursor-pointer rounded-md border border-blue-500 bg-gradient-to-b from-blue-200 via-blue-300 to-blue-500 px-4 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:from-blue-300 hover:to-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isIssuingAdminReset ? 'Issuing...' : 'Issue Ticket'}
+                  </button>
+                </div>
+              </form>
+            </RetroWindow>
+          </div>
+        </div>
+      )}
 
       {isSetupOpen && (
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-[1px]">
