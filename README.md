@@ -46,6 +46,7 @@ A retro AIM-style messaging app built with Next.js + Supabase, now mobile-first 
   - `/api/auth/recovery/redeem-ticket`
   - `/api/admin/me`
   - `/api/admin/password-reset-ticket`
+  - `/api/admin/password-reset-audit`
 
 ## Environment Variables
 
@@ -182,6 +183,7 @@ Recovery model:
 - `src/lib/passwordRecovery.ts` - recovery/ticket crypto + workflows
 - `src/lib/roomName.ts` - shared room normalization helpers
 - `capacitor.config.ts` - iOS/Android wrapper configuration
+- `src/app/api/admin/password-reset-audit/route.ts` - admin-only recovery audit feed
 
 ## Build & Quality Checks
 

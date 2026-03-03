@@ -63,6 +63,21 @@ interface AdminTicketResponse {
   expiresAt: string;
 }
 
+interface AdminAuditEntry {
+  id: number;
+  eventType: string;
+  actorUserId: string | null;
+  actorScreenname: string | null;
+  targetUserId: string | null;
+  targetScreenname: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}
+
+interface AdminAuditResponse {
+  entries: AdminAuditEntry[];
+}
+
 interface AwayPreset {
   id: string;
   label: string;
@@ -197,6 +212,26 @@ function getDmTypingChannelKey(leftUserId: string, rightUserId: string) {
   return [leftUserId, rightUserId].sort().join(':');
 }
 
+function formatAdminAuditEvent(eventType: string) {
+  return eventType
+    .split('_')
+    .filter(Boolean)
+    .map((token) => token.charAt(0).toUpperCase() + token.slice(1))
+    .join(' ');
+}
+
+function formatAuditUserLabel(screenname: string | null, userId: string | null) {
+  if (screenname) {
+    return screenname;
+  }
+
+  if (userId) {
+    return `User ${userId.slice(0, 8)}`;
+  }
+
+  return 'System';
+}
+
 function BuddyListContent() {
   const [userId, setUserId] = useState<string | null>(null);
   const [screenname, setScreenname] = useState('Loading...');
@@ -254,6 +289,9 @@ function BuddyListContent() {
   const [isIssuingAdminReset, setIsIssuingAdminReset] = useState(false);
   const [issuedAdminTicket, setIssuedAdminTicket] = useState<{ ticket: string; expiresAt: string } | null>(null);
   const [confirmAdminResetAction, setConfirmAdminResetAction] = useState(false);
+  const [adminAuditEntries, setAdminAuditEntries] = useState<AdminAuditEntry[]>([]);
+  const [isLoadingAdminAudit, setIsLoadingAdminAudit] = useState(false);
+  const [adminAuditError, setAdminAuditError] = useState<string | null>(null);
 
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
   const [pendingRequestError, setPendingRequestError] = useState<string | null>(null);
@@ -1488,12 +1526,45 @@ function BuddyListContent() {
     setIsSavingRecoveryCode(false);
   };
 
+  const fetchAdminAuditEntries = async () => {
+    setIsLoadingAdminAudit(true);
+    setAdminAuditError(null);
+
+    const accessToken = await getAccessToken();
+    if (!accessToken) {
+      setAdminAuditError('Session expired. Please sign on again.');
+      setIsLoadingAdminAudit(false);
+      return;
+    }
+
+    const response = await fetch('/api/admin/password-reset-audit?limit=12', {
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+      },
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      const errorMessage = await readApiError(response);
+      setAdminAuditError(errorMessage);
+      setIsLoadingAdminAudit(false);
+      return;
+    }
+
+    const payload = (await response.json()) as AdminAuditResponse;
+    setAdminAuditEntries(Array.isArray(payload.entries) ? payload.entries : []);
+    setIsLoadingAdminAudit(false);
+  };
+
   const openAdminResetWindow = () => {
     setAdminResetScreenname('');
     setAdminResetError(null);
     setIssuedAdminTicket(null);
     setConfirmAdminResetAction(false);
+    setAdminAuditEntries([]);
+    setAdminAuditError(null);
     setIsAdminResetOpen(true);
+    void fetchAdminAuditEntries();
   };
 
   const handleIssueAdminResetTicket = async (event: FormEvent<HTMLFormElement>) => {
@@ -1541,6 +1612,7 @@ function BuddyListContent() {
       expiresAt: payload.expiresAt,
     });
     setIsIssuingAdminReset(false);
+    void fetchAdminAuditEntries();
   };
 
   const handleSearch = async (event: FormEvent<HTMLFormElement>) => {
@@ -2508,6 +2580,61 @@ function BuddyListContent() {
                     </button>
                   </div>
                 )}
+
+                <div className="border border-[#c8d6ea] bg-[#f4f8fe] px-2 py-1.5 text-[11px] text-[#1e395b]">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-bold">Recent Recovery Activity</p>
+                    <button
+                      type="button"
+                      onClick={() => void fetchAdminAuditEntries()}
+                      disabled={isLoadingAdminAudit}
+                      className="border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-2 py-1 text-[11px] font-bold text-[#1e395b] disabled:opacity-60"
+                    >
+                      {isLoadingAdminAudit ? 'Refreshing...' : 'Refresh'}
+                    </button>
+                  </div>
+
+                  {adminAuditError ? (
+                    <p className="mt-2 border border-[#b95f5f] bg-[#ffe5e5] px-2 py-1 text-[11px] text-[#8b2020]">
+                      {adminAuditError}
+                    </p>
+                  ) : null}
+
+                  {!adminAuditError && !isLoadingAdminAudit && adminAuditEntries.length === 0 ? (
+                    <p className="mt-2 italic text-[#4c6182]">No recent events.</p>
+                  ) : null}
+
+                  {adminAuditEntries.length > 0 ? (
+                    <div className="mt-2 max-h-44 space-y-1.5 overflow-y-auto pr-1">
+                      {adminAuditEntries.map((entry) => {
+                        const actorLabel = formatAuditUserLabel(entry.actorScreenname, entry.actorUserId);
+                        const targetLabel = formatAuditUserLabel(entry.targetScreenname, entry.targetUserId);
+                        const reason =
+                          typeof entry.metadata.reason === 'string' && entry.metadata.reason.trim()
+                            ? entry.metadata.reason
+                            : null;
+
+                        return (
+                          <div key={entry.id} className="border border-[#d2deee] bg-white px-2 py-1.5">
+                            <p className="font-bold text-[#2a4f82]">{formatAdminAuditEvent(entry.eventType)}</p>
+                            <p className="text-[10px] text-[#4c6182]">{new Date(entry.createdAt).toLocaleString()}</p>
+                            <p className="mt-0.5">
+                              <span className="font-semibold">Actor:</span> {actorLabel}
+                            </p>
+                            <p>
+                              <span className="font-semibold">Target:</span> {targetLabel}
+                            </p>
+                            {reason ? (
+                              <p>
+                                <span className="font-semibold">Reason:</span> {reason}
+                              </p>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </div>
 
                 <div className="flex justify-end gap-2">
                   <button
