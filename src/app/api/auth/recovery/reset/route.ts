@@ -25,6 +25,7 @@ interface ResetBody {
 }
 
 const INVALID_RECOVERY_MESSAGE = 'Invalid screen name or recovery code.';
+const TOO_MANY_ATTEMPTS_MESSAGE = 'Too many attempts. Try again shortly.';
 
 export async function POST(request: Request) {
   let body: ResetBody;
@@ -54,8 +55,13 @@ export async function POST(request: Request) {
 
     const rateLimitStatus = await checkResetAttemptAllowed(admin, screennameKey, ipHash);
     if (!rateLimitStatus.allowed) {
+      await insertPasswordRecoveryAudit(admin, 'recovery_reset_rate_limited', null, null, {
+        screennameKey,
+        ipHash,
+        retryAfterSeconds: rateLimitStatus.retryAfterSeconds,
+      });
       return NextResponse.json(
-        { error: 'Too many attempts. Try again shortly.', retryAfterSeconds: rateLimitStatus.retryAfterSeconds },
+        { error: TOO_MANY_ATTEMPTS_MESSAGE, retryAfterSeconds: rateLimitStatus.retryAfterSeconds },
         { status: 429 },
       );
     }
@@ -63,12 +69,21 @@ export async function POST(request: Request) {
     const user = await findUserByScreenname(admin, screennameKey);
     if (!user) {
       await registerFailedResetAttempt(admin, screennameKey, ipHash);
+      await insertPasswordRecoveryAudit(admin, 'recovery_reset_failed', null, null, {
+        reason: 'user_not_found',
+        screennameKey,
+        ipHash,
+      });
       return NextResponse.json({ error: INVALID_RECOVERY_MESSAGE }, { status: 401 });
     }
 
     const isValidRecoveryCode = await verifyRecoveryCodeForUser(admin, user.id, recoveryCode);
     if (!isValidRecoveryCode) {
       await registerFailedResetAttempt(admin, screennameKey, ipHash);
+      await insertPasswordRecoveryAudit(admin, 'recovery_reset_failed', null, user.id, {
+        reason: 'invalid_recovery_code',
+        ipHash,
+      });
       return NextResponse.json({ error: INVALID_RECOVERY_MESSAGE }, { status: 401 });
     }
 
