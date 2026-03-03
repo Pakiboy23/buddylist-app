@@ -360,7 +360,7 @@ export default function GroupChatWindow({
 
       const { data, error: messagesError } = await supabase
         .from('room_messages')
-        .select('id,room_id,sender_id,content,created_at,edited_at,deleted_at,deleted_by')
+        .select('*')
         .eq('room_id', roomId)
         .order('created_at', { ascending: true })
         .limit(300);
@@ -570,7 +570,7 @@ export default function GroupChatWindow({
         sender_id: currentUserId,
         content: formatted,
       })
-      .select('id,room_id,sender_id,content,created_at,edited_at,deleted_at,deleted_by')
+      .select('*')
       .single();
 
     setIsSending(false);
