@@ -1,6 +1,6 @@
 # BuddyList App
 
-A retro AIM-style messaging app built with Next.js + Supabase, now mobile-first with persistent room sessions, unread tracking, and global realtime notifications.
+A retro AIM-style messaging app built with Next.js + Supabase, now mobile-first with persistent room sessions, unread tracking, global realtime notifications, and Capacitor iOS/Android wrappers.
 
 ## Current Status
 
@@ -13,6 +13,15 @@ A retro AIM-style messaging app built with Next.js + Supabase, now mobile-first 
 - DM behavior:
   - incoming DMs no longer force-open the chat window
   - unread DM badge appears next to sender in Buddy List until opened
+- Chat UX is optimized for mobile:
+  - dense AIM-style timestamped message rows (no heavy message cards)
+  - collapsible rich text toolbar in compose area
+  - compact `<` / `X` room controls
+  - smooth auto-scroll to newest message
+- Sender names are color-differentiated in DM and group chat:
+  - `You` is always blue
+  - other users get stable deterministic colors (per sender id)
+- Capacitor mobile wrapper is configured with status bar + safe-area aware layout behavior.
 
 ## Stack
 
@@ -20,6 +29,7 @@ A retro AIM-style messaging app built with Next.js + Supabase, now mobile-first 
 - React 19
 - TypeScript
 - Tailwind CSS v4
+- Capacitor 8 (`@capacitor/core`, `@capacitor/ios`, `@capacitor/android`)
 - Supabase:
   - Auth
   - Postgres
@@ -28,7 +38,8 @@ A retro AIM-style messaging app built with Next.js + Supabase, now mobile-first 
 ## Core App Routes
 
 - `/` - Sign-on + account creation + password recovery/ticket redemption
-- `/buddy-list` - Main app view, buddies, rooms, settings, admin reset tooling
+- `/buddy-list` - Main app view, buddies, DM windows, room windows, settings, admin reset tooling
+- Note: room chat is rendered via components from Buddy List (not a standalone `/chat-rooms` route in this codebase).
 - API routes:
   - `/api/auth/recovery/setup`
   - `/api/auth/recovery/reset`
@@ -83,6 +94,35 @@ on conflict (user_id) do nothing;
 npm run dev
 ```
 
+## Mobile Wrapper (Capacitor)
+
+Capacitor has already been initialized and platform projects are committed:
+
+- `ios/`
+- `android/`
+- `capacitor.config.ts`
+
+Current config uses hosted web content mode:
+- `server.url = https://buddylist-app.vercel.app`
+
+Useful commands:
+
+```bash
+# sync web/native config + plugin updates
+npx cap sync
+
+# open native projects
+npx cap open ios
+npx cap open android
+```
+
+Current native-shell behavior:
+- no pull-to-refresh bounce (`overscroll-behavior-y: none`)
+- no viewport zoom (`maximum-scale=1`, `user-scalable=0`)
+- no long-press text callout (`-webkit-touch-callout: none`)
+- safe-area aware glossy header
+- status bar configured in `capacitor.config.ts`
+
 ## Auth Model
 
 Supabase auth uses synthetic email behind screenname:
@@ -110,6 +150,9 @@ Recovery model:
   - `global_notifications_messages` (DMs)
   - `global_notifications_room_messages` (room messages)
 - Banner queue prevents dropped notifications under bursts.
+- Banner click behavior:
+  - DM banner routes to `?dm=<senderId>`
+  - Room banner routes to `?room=<roomName>`
 
 ### Room Persistence
 
@@ -128,9 +171,13 @@ Recovery model:
 - `src/context/ChatContext.tsx` - persistent room state + unread logic
 - `src/components/GlobalNotificationListener.tsx` - app-wide notifications
 - `src/components/GroupChatWindow.tsx` - room UI + presence
+- `src/components/ChatWindow.tsx` - DM UI (mobile-first dense log + collapsible formatting)
 - `src/components/IncomingMessageBanner.tsx` - mobile-style notification banner
+- `src/components/RetroWindow.tsx` - top-level mobile window shell + centered glossy titlebar
 - `src/app/buddy-list/page.tsx` - buddy list, DM windows, room controls, admin reset UI
 - `src/lib/passwordRecovery.ts` - recovery/ticket crypto + workflows
+- `src/lib/roomName.ts` - shared room normalization helpers
+- `capacitor.config.ts` - iOS/Android wrapper configuration
 
 ## Build & Quality Checks
 
@@ -166,3 +213,4 @@ npm run dev
 - Set all three env vars in Vercel project settings.
 - Ensure Supabase URL/keys match the intended environment (staging vs prod).
 - If auth callback/session behavior seems stale after env changes, redeploy.
+- If using Capacitor hosted mode, keep `capacitor.config.ts -> server.url` aligned with your production domain.
