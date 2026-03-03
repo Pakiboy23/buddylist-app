@@ -25,6 +25,7 @@ interface ChatWindowProps {
   messages: ChatMessage[];
   onSendMessage: (content: string) => Promise<void> | void;
   onClose: () => void;
+  onSignOff?: () => void;
   isSending?: boolean;
   isLoading?: boolean;
 }
@@ -36,6 +37,7 @@ export default function ChatWindow({
   messages,
   onSendMessage,
   onClose,
+  onSignOff,
   isSending = false,
   isLoading = false,
 }: ChatWindowProps) {
@@ -91,20 +93,42 @@ export default function ChatWindow({
     textarea.form?.requestSubmit();
   };
 
+  const toggleBold = () => {
+    setFormat((previous) => ({ ...previous, bold: !previous.bold }));
+  };
+
+  const toggleItalic = () => {
+    setFormat((previous) => ({ ...previous, italic: !previous.italic }));
+  };
+
+  const toggleUnderline = () => {
+    setFormat((previous) => ({ ...previous, underline: !previous.underline }));
+  };
+
+  const xpTinyToolbarButtonClass =
+    'inline-flex h-5 min-w-5 items-center justify-center border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-1 text-[11px] font-bold text-[#1e395b]';
+
   return (
     <div className="fixed inset-0 z-40">
-      <RetroWindow title={`IM with ${buddyScreenname}`} showBackButton backButtonLabel="<" onBack={onClose}>
-        <div className="flex h-full min-h-0 flex-col gap-2 text-sm">
-          <div
-            className="aim-rich-html rounded-md border border-blue-200 bg-white px-3 py-2 font-semibold text-blue-700"
-            dangerouslySetInnerHTML={{
-              __html: sanitizeRichTextHtml(buddyStatusMessage || 'No away message.'),
-            }}
-          />
+      <RetroWindow
+        title={`IM with ${buddyScreenname}`}
+        variant="xp_shell"
+        xpTitleText={`Instant Message - ${buddyScreenname}`}
+        onXpClose={onClose}
+        onXpSignOff={onSignOff}
+      >
+        <div className="flex h-full min-h-0 flex-col bg-[#ece9d8] font-[Tahoma,Arial,sans-serif] text-[11px]">
+          <div className="m-2 mb-0 border border-[#b7b7b7] bg-[#f6f8fc] px-2 py-1 text-[11px] text-[#1e395b]">
+            <span className="font-bold">Buddy Status:</span>{' '}
+            <span
+              className="aim-rich-html"
+              dangerouslySetInnerHTML={{
+                __html: sanitizeRichTextHtml(buddyStatusMessage || 'No away message.'),
+              }}
+            />
+          </div>
 
-          <div
-            className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-blue-200 bg-white px-3 py-2"
-          >
+          <div className="m-2 mb-0 min-h-0 flex-1 overflow-y-auto border-2 border-t-[#808080] border-l-[#808080] border-b-white border-r-white bg-white p-2">
             {isLoading && <p className="italic text-slate-500">Loading conversation...</p>}
             {!isLoading && messages.length === 0 && (
               <p className="italic text-slate-500">No messages yet. Say hey.</p>
@@ -120,8 +144,8 @@ export default function ChatWindow({
                   const senderClassName = isMine ? 'text-blue-600' : 'text-emerald-600';
 
                   return (
-                    <div key={message.id} className="flex flex-wrap items-baseline gap-x-1 text-sm leading-5">
-                      <span className="text-xs text-gray-500">[{timestamp}]</span>
+                    <div key={message.id} className="flex flex-wrap items-baseline gap-x-1 leading-5">
+                      <span className="text-[11px] text-gray-500">[{timestamp}]</span>
                       <span className={`font-bold ${senderClassName}`}>
                         {isMine ? 'You' : buddyScreenname}:
                       </span>
@@ -137,44 +161,73 @@ export default function ChatWindow({
             )}
           </div>
 
-          <div className="shrink-0 border-t border-blue-200 bg-white/95 px-2 pb-2 pt-2 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
-            {showFormatting ? (
-              <div className="mb-2 rounded-md border border-blue-200 bg-blue-50/40 p-2">
-                <RichTextToolbar value={format} onChange={setFormat} />
-              </div>
-            ) : null}
+          <div className="mx-2 mb-2 flex items-center gap-1 border border-[#b7b7b7] bg-[#ece9d8] px-1 py-1">
+            <button
+              type="button"
+              onClick={() => setShowFormatting((previous) => !previous)}
+              className={xpTinyToolbarButtonClass}
+              aria-label="Toggle formatting"
+              title="Toggle formatting"
+            >
+              A
+            </button>
+            <button type="button" onClick={toggleBold} className={xpTinyToolbarButtonClass} aria-label="Bold">
+              B
+            </button>
+            <button type="button" onClick={toggleItalic} className={xpTinyToolbarButtonClass} aria-label="Italic">
+              I
+            </button>
+            <button
+              type="button"
+              onClick={toggleUnderline}
+              className={xpTinyToolbarButtonClass}
+              aria-label="Underline"
+            >
+              <span className="underline">U</span>
+            </button>
+            <button
+              type="button"
+              disabled
+              className={`${xpTinyToolbarButtonClass} opacity-70`}
+              aria-label="Link"
+              title="Link"
+            >
+              🔗
+            </button>
+          </div>
 
-            <form onSubmit={handleSubmit} className="flex items-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowFormatting((previous) => !previous)}
-                className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border border-blue-300 bg-gradient-to-b from-white via-blue-50 to-blue-200 px-2 text-sm font-bold text-blue-800 shadow-sm transition hover:from-blue-50 hover:to-blue-300"
-                aria-label="Toggle formatting"
-                title="Toggle formatting"
-              >
-                A
-              </button>
+          {showFormatting ? (
+            <div className="mx-2 mb-2 border border-[#b7b7b7] bg-[#ece9d8] p-1">
+              <RichTextToolbar value={format} onChange={setFormat} />
+            </div>
+          ) : null}
+
+          <div className="m-2 mt-0 flex items-stretch gap-2">
+            <form
+              onSubmit={handleSubmit}
+              className="flex h-16 flex-1 items-stretch gap-2 border-2 border-t-[#808080] border-l-[#808080] border-b-white border-r-white bg-white p-1"
+            >
               <textarea
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
                 onKeyDown={handleDraftKeyDown}
                 placeholder="Type your message..."
-                className="min-h-[44px] max-h-36 flex-1 resize-none rounded-md border border-blue-300 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_3px_rgba(37,99,235,0.18)] focus:outline-none"
+                className="h-full min-h-0 flex-1 resize-none bg-white px-2 py-1 text-[11px] focus:outline-none"
                 maxLength={1000}
                 rows={2}
               />
               <button
                 type="submit"
                 disabled={isSending || !draft.trim()}
-                className="min-h-[44px] min-w-[86px] cursor-pointer rounded-md border border-blue-500 bg-gradient-to-b from-blue-200 via-blue-300 to-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:from-blue-300 hover:to-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+                className="min-w-[74px] border-2 border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-2 text-[11px] font-bold text-[#1e395b] disabled:opacity-60"
               >
                 {isSending ? '...' : 'Send'}
               </button>
             </form>
-            <p className="mt-1 text-[11px] text-slate-500">
-              Enter to send. Cmd/Ctrl + Enter for a new line.
-            </p>
           </div>
+          <p className="mx-2 mb-2 text-[11px] text-[#5a5a5a]">
+            Enter to send. Cmd/Ctrl + Enter for a new line.
+          </p>
         </div>
       </RetroWindow>
     </div>

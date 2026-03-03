@@ -4,17 +4,8 @@ import { FormEvent, Suspense, useCallback, useEffect, useMemo, useRef, useState 
 import { useRouter, useSearchParams } from 'next/navigation';
 import ChatWindow, { ChatMessage } from '@/components/ChatWindow';
 import GroupChatWindow from '@/components/GroupChatWindow';
-import RichTextToolbar from '@/components/RichTextToolbar';
 import { getAccessTokenOrNull, getSessionOrNull } from '@/lib/authClient';
 import { supabase } from '@/lib/supabase';
-import {
-  DEFAULT_RICH_TEXT_FORMAT,
-  detectRichTextFormat,
-  formatRichText,
-  htmlToPlainText,
-  RichTextFormat,
-  sanitizeRichTextHtml,
-} from '@/lib/richText';
 import { normalizeRoomKey, sameRoom } from '@/lib/roomName';
 import RetroWindow from '@/components/RetroWindow';
 import { useChatContext } from '@/context/ChatContext';
@@ -23,6 +14,8 @@ interface UserProfile {
   id: string;
   email?: string | null;
   screenname: string | null;
+  status: string | null;
+  away_message: string | null;
   status_msg: string | null;
 }
 
@@ -34,6 +27,8 @@ interface BuddyRelationshipRow {
 interface Buddy {
   id: string;
   screenname: string;
+  status: string | null;
+  away_message: string | null;
   status_msg: string | null;
   relationshipStatus: 'pending' | 'accepted';
 }
@@ -45,6 +40,8 @@ interface PendingRequest {
 
 export interface TemporaryChatProfile {
   screenname: string;
+  status: string | null;
+  away_message: string | null;
   status_msg: string | null;
 }
 
@@ -67,75 +64,79 @@ const SIGN_ON_SOUND = '/signon.wav';
 const SIGN_OFF_SOUND = '/doorslam.wav';
 const INCOMING_MESSAGE_SOUND = '/imrcv.wav';
 const NEW_MESSAGE_SOUND = '/newmessage.wav';
-const STATUS_OPTIONS = ['Available', 'Away', 'Busy', 'Be Right Back'] as const;
 const BUDDY_LIST_PATH = '/buddy-list';
+const AVAILABLE_STATUS = 'Available';
+const AWAY_STATUS = 'Away';
+const KNOWN_STATUSES = ['Available', 'Away', 'Invisible', 'Busy', 'Be Right Back'] as const;
 
-type StatusType = (typeof STATUS_OPTIONS)[number];
+function normalizeStatusLabel(input: string | null | undefined): string {
+  const value = (input ?? '').trim();
+  if (!value) {
+    return AVAILABLE_STATUS;
+  }
 
-function buildStatusMessage(statusType: StatusType, customMessage: string) {
-  const trimmedMessage = customMessage.trim();
-  return trimmedMessage ? `${statusType} - ${trimmedMessage}` : statusType;
+  const match = KNOWN_STATUSES.find((status) => status.toLowerCase() === value.toLowerCase());
+  return match ?? value;
 }
 
-function extractStyledStatus(rawStatus: string | null | undefined): {
-  statusType: StatusType;
-  customMessage: string;
-  customMessageHtml: string;
-  customMessageFormat: RichTextFormat;
+function parseLegacyStatusMessage(rawStatus: string | null | undefined): {
+  status: string;
+  awayMessage: string;
 } {
   const raw = (rawStatus ?? '').trim();
   if (!raw) {
-    return {
-      statusType: 'Available',
-      customMessage: '',
-      customMessageHtml: '',
-      customMessageFormat: { ...DEFAULT_RICH_TEXT_FORMAT },
-    };
+    return { status: AVAILABLE_STATUS, awayMessage: '' };
   }
 
-  for (const option of STATUS_OPTIONS) {
-    const match = raw.match(new RegExp(`^${option}\\s*(?:-|:)\\s*`, 'i'));
-    if (!match) {
-      if (raw.toLowerCase() === option.toLowerCase()) {
-        return {
-          statusType: option,
-          customMessage: '',
-          customMessageHtml: '',
-          customMessageFormat: { ...DEFAULT_RICH_TEXT_FORMAT },
-        };
-      }
-
-      continue;
+  for (const option of KNOWN_STATUSES) {
+    const pattern = new RegExp(`^${option}\\s*(?:-|:)\\s*`, 'i');
+    const match = raw.match(pattern);
+    if (match) {
+      const trailing = raw.slice(match[0].length).trim();
+      return {
+        status: option,
+        awayMessage: option === AWAY_STATUS ? trailing : '',
+      };
     }
 
-    const trailingHtml = raw.slice(match[0].length).trim();
-    const sanitizedMessage = sanitizeRichTextHtml(trailingHtml);
-    const plainMessage = htmlToPlainText(sanitizedMessage).trim();
-
-    return {
-      statusType: option,
-      customMessage: plainMessage,
-      customMessageHtml: sanitizedMessage || plainMessage,
-      customMessageFormat: detectRichTextFormat(sanitizedMessage),
-    };
+    if (raw.toLowerCase() === option.toLowerCase()) {
+      return { status: option, awayMessage: '' };
+    }
   }
 
-  const sanitizedMessage = sanitizeRichTextHtml(raw);
-  return {
-    statusType: 'Available',
-    customMessage: htmlToPlainText(sanitizedMessage).trim(),
-    customMessageHtml: sanitizedMessage,
-    customMessageFormat: detectRichTextFormat(sanitizedMessage),
-  };
+  return { status: AVAILABLE_STATUS, awayMessage: '' };
 }
 
-function parseStatusMessage(rawStatus: string | null | undefined): {
-  statusType: StatusType;
-  customMessage: string;
-  customMessageHtml: string;
-  customMessageFormat: RichTextFormat;
-} {
-  return extractStyledStatus(rawStatus);
+function composeStatusMessage(status: string, awayMessage: string | null | undefined): string {
+  const normalizedStatus = normalizeStatusLabel(status);
+  const trimmedAwayMessage = (awayMessage ?? '').trim();
+  if (normalizedStatus === AWAY_STATUS && trimmedAwayMessage) {
+    return `${AWAY_STATUS} - ${trimmedAwayMessage}`;
+  }
+
+  return normalizedStatus;
+}
+
+function resolveStatusFields({
+  status,
+  awayMessage,
+  statusMessage,
+}: {
+  status: string | null | undefined;
+  awayMessage: string | null | undefined;
+  statusMessage: string | null | undefined;
+}) {
+  const legacy = parseLegacyStatusMessage(statusMessage);
+  const resolvedStatus = normalizeStatusLabel(status || legacy.status);
+  const resolvedAwayMessage =
+    (awayMessage ?? '').trim() || (resolvedStatus === AWAY_STATUS ? legacy.awayMessage : '');
+  const resolvedStatusMessage = composeStatusMessage(resolvedStatus, resolvedAwayMessage);
+
+  return {
+    status: resolvedStatus,
+    awayMessage: resolvedAwayMessage,
+    statusMessage: resolvedStatusMessage,
+  };
 }
 
 function useSoundPlayer() {
@@ -161,12 +162,13 @@ function useSoundPlayer() {
 function BuddyListContent() {
   const [userId, setUserId] = useState<string | null>(null);
   const [screenname, setScreenname] = useState('Loading...');
-  const [statusMsg, setStatusMsg] = useState('Available');
-  const [statusType, setStatusType] = useState<StatusType>('Available');
-  const [customMessage, setCustomMessage] = useState('');
-  const [customMessageFormat, setCustomMessageFormat] = useState<RichTextFormat>({
-    ...DEFAULT_RICH_TEXT_FORMAT,
-  });
+  const [statusMsg, setStatusMsg] = useState(AVAILABLE_STATUS);
+  const [userStatus, setUserStatus] = useState(AVAILABLE_STATUS);
+  const [awayMessage, setAwayMessage] = useState('');
+  const [showAwayModal, setShowAwayModal] = useState(false);
+  const [awayText, setAwayText] = useState('');
+  const [awayModalError, setAwayModalError] = useState<string | null>(null);
+  const [isSavingAwayMessage, setIsSavingAwayMessage] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
 
   const [buddyRows, setBuddyRows] = useState<Buddy[]>([]);
@@ -174,10 +176,10 @@ function BuddyListContent() {
   const [hasLoadedBuddies, setHasLoadedBuddies] = useState(false);
   const [selectedBuddyId, setSelectedBuddyId] = useState<string | null>(null);
   const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
+  const [isBuddiesOpen, setIsBuddiesOpen] = useState(true);
+  const [isOfflineOpen, setIsOfflineOpen] = useState(true);
+  const [isActiveChatsOpen, setIsActiveChatsOpen] = useState(true);
 
-  const [isSetupOpen, setIsSetupOpen] = useState(false);
-  const [setupError, setSetupError] = useState<string | null>(null);
-  const [isSavingSetup, setIsSavingSetup] = useState(false);
   const [isRecoverySetupOpen, setIsRecoverySetupOpen] = useState(false);
   const [recoveryCodeDraft, setRecoveryCodeDraft] = useState('');
   const [recoveryCodeConfirmDraft, setRecoveryCodeConfirmDraft] = useState('');
@@ -319,7 +321,7 @@ function BuddyListContent() {
     const buddyIds = [...new Set(relationshipRows.map((item) => item.buddy_id))];
     const { data: profiles, error: profilesError } = await supabase
       .from('users')
-      .select('id,screenname,status_msg')
+      .select('id,screenname,status,away_message,status_msg')
       .in('id', buddyIds);
 
     if (profilesError) {
@@ -338,6 +340,8 @@ function BuddyListContent() {
       return {
         id: relationship.buddy_id,
         screenname: profile?.screenname?.trim() || 'Unknown Buddy',
+        status: profile?.status ?? null,
+        away_message: profile?.away_message ?? null,
         status_msg: profile?.status_msg ?? null,
         relationshipStatus: relationship.status,
       } as Buddy;
@@ -376,7 +380,7 @@ function BuddyListContent() {
 
       const { data: userProfile, error: profileError } = await supabase
         .from('users')
-        .select('id,email,screenname,status_msg')
+        .select('id,email,screenname,status,away_message,status_msg')
         .eq('id', session.user.id)
         .maybeSingle();
 
@@ -386,11 +390,11 @@ function BuddyListContent() {
 
       const existingProfile = userProfile as UserProfile | null;
       const resolvedScreenname = existingProfile?.screenname?.trim() || fallbackName;
-      const parsedStatus = parseStatusMessage(existingProfile?.status_msg);
-      const resolvedStatus = buildStatusMessage(
-        parsedStatus.statusType,
-        parsedStatus.customMessageHtml || parsedStatus.customMessage,
-      );
+      const resolvedStatusState = resolveStatusFields({
+        status: existingProfile?.status,
+        awayMessage: existingProfile?.away_message,
+        statusMessage: existingProfile?.status_msg,
+      });
       const userEmail = session.user.email ?? existingProfile?.email ?? null;
       const metadataScreenname =
         typeof session.user.user_metadata?.screenname === 'string'
@@ -409,7 +413,9 @@ function BuddyListContent() {
           id: session.user.id,
           email: userEmail,
           screenname: metadataScreenname || resolvedScreenname,
-          status_msg: resolvedStatus,
+          status: resolvedStatusState.status,
+          away_message: resolvedStatusState.awayMessage || null,
+          status_msg: resolvedStatusState.statusMessage,
           is_online: true,
         },
         { onConflict: 'id' },
@@ -421,10 +427,9 @@ function BuddyListContent() {
 
       setUserId(session.user.id);
       setScreenname(resolvedScreenname);
-      setStatusMsg(resolvedStatus);
-      setStatusType(parsedStatus.statusType);
-      setCustomMessage(parsedStatus.customMessage);
-      setCustomMessageFormat(parsedStatus.customMessageFormat);
+      setStatusMsg(resolvedStatusState.statusMessage);
+      setUserStatus(resolvedStatusState.status);
+      setAwayMessage(resolvedStatusState.awayMessage);
       let hasRecoveryCode = true;
       const { data: recoveryData, error: recoveryError } = await supabase
         .from('account_recovery_codes')
@@ -539,6 +544,18 @@ function BuddyListContent() {
                 typeof updated.screenname === 'string' && updated.screenname.trim()
                   ? updated.screenname
                   : buddy.screenname,
+              status:
+                typeof updated.status === 'string'
+                  ? updated.status
+                  : updated.status === null
+                    ? null
+                    : buddy.status,
+              away_message:
+                typeof updated.away_message === 'string'
+                  ? updated.away_message
+                  : updated.away_message === null
+                    ? null
+                    : buddy.away_message,
               status_msg:
                 typeof updated.status_msg === 'string'
                   ? updated.status_msg
@@ -553,17 +570,22 @@ function BuddyListContent() {
           if (typeof updated.screenname === 'string' && updated.screenname.trim()) {
             setScreenname(updated.screenname);
           }
-          if (typeof updated.status_msg === 'string') {
-            const parsedStatus = parseStatusMessage(updated.status_msg);
-            setStatusMsg(
-              buildStatusMessage(
-                parsedStatus.statusType,
-                parsedStatus.customMessageHtml || parsedStatus.customMessage,
-              ),
-            );
-            setStatusType(parsedStatus.statusType);
-            setCustomMessage(parsedStatus.customMessage);
-            setCustomMessageFormat(parsedStatus.customMessageFormat);
+          if (
+            typeof updated.status === 'string' ||
+            typeof updated.away_message === 'string' ||
+            typeof updated.status_msg === 'string' ||
+            updated.status === null ||
+            updated.away_message === null ||
+            updated.status_msg === null
+          ) {
+            const resolvedStatusState = resolveStatusFields({
+              status: updated.status ?? userStatus,
+              awayMessage: updated.away_message ?? awayMessage,
+              statusMessage: updated.status_msg ?? statusMsg,
+            });
+            setStatusMsg(resolvedStatusState.statusMessage);
+            setUserStatus(resolvedStatusState.status);
+            setAwayMessage(resolvedStatusState.awayMessage);
           }
         }
       })
@@ -572,7 +594,7 @@ function BuddyListContent() {
     return () => {
       void supabase.removeChannel(usersChannel);
     };
-  }, [userId]);
+  }, [awayMessage, statusMsg, userId, userStatus]);
 
   useEffect(() => {
     if (!userId) {
@@ -636,10 +658,6 @@ function BuddyListContent() {
     [acceptedBuddies],
   );
 
-  const selectedBuddy = useMemo(
-    () => acceptedBuddies.find((buddy) => buddy.id === selectedBuddyId) ?? null,
-    [acceptedBuddies, selectedBuddyId],
-  );
   const activeChatBuddy = useMemo(() => {
     if (!activeChatBuddyId) {
       return null;
@@ -656,6 +674,8 @@ function BuddyListContent() {
         id: activeChatBuddyId,
         relationshipStatus: 'pending' as const,
         screenname: temporaryProfile.screenname,
+        status: temporaryProfile.status,
+        away_message: temporaryProfile.away_message,
         status_msg: temporaryProfile.status_msg,
         isOnline: true,
       };
@@ -670,6 +690,8 @@ function BuddyListContent() {
       id: activeChatBuddyId,
       relationshipStatus: 'pending' as const,
       screenname: pendingRequest.screenname,
+      status: null,
+      away_message: null,
       status_msg: null,
       isOnline: true,
     };
@@ -823,20 +845,26 @@ function BuddyListContent() {
           void (async () => {
             const { data: senderProfile } = await supabase
               .from('users')
-              .select('id,screenname,status_msg')
+              .select('id,screenname,status,away_message,status_msg')
               .eq('id', senderId)
               .maybeSingle();
 
             const profile = senderProfile as UserProfile | null;
             const senderScreenname =
               profile?.screenname?.trim() || profile?.email?.split('@')[0] || 'Unknown User';
-            const senderStatus = profile?.status_msg ?? null;
+            const resolvedSenderStatus = resolveStatusFields({
+              status: profile?.status,
+              awayMessage: profile?.away_message,
+              statusMessage: profile?.status_msg,
+            });
 
             setTemporaryChatProfiles((previous) => ({
               ...previous,
               [senderId]: {
                 screenname: senderScreenname,
-                status_msg: senderStatus,
+                status: resolvedSenderStatus.status,
+                away_message: resolvedSenderStatus.awayMessage || null,
+                status_msg: resolvedSenderStatus.statusMessage,
               },
             }));
             setPendingRequestError(null);
@@ -875,6 +903,68 @@ function BuddyListContent() {
     await supabase.auth.signOut();
     router.push('/');
   };
+
+  const updateStatus = useCallback(
+    async (newStatus: string, message: string | null) => {
+      if (!userId) {
+        return false;
+      }
+
+      const normalizedStatus = normalizeStatusLabel(newStatus);
+      const normalizedAwayMessage = (message ?? '').trim();
+      const nextAwayMessage = normalizedStatus === AWAY_STATUS ? normalizedAwayMessage : '';
+      const nextStatusMessage = composeStatusMessage(normalizedStatus, nextAwayMessage);
+
+      const { error } = await supabase
+        .from('users')
+        .update({
+          status: normalizedStatus,
+          away_message: nextAwayMessage || null,
+          status_msg: nextStatusMessage,
+        })
+        .eq('id', userId);
+
+      if (error) {
+        console.error('Failed to update status:', error.message);
+        setAwayModalError(error.message);
+        return false;
+      }
+
+      setUserStatus(normalizedStatus);
+      setAwayMessage(nextAwayMessage);
+      setStatusMsg(nextStatusMessage);
+      return true;
+    },
+    [userId],
+  );
+
+  const openAwayModal = useCallback(() => {
+    setAwayText(awayMessage);
+    setAwayModalError(null);
+    setShowAwayModal(true);
+  }, [awayMessage]);
+
+  const handleSaveAwayMessage = useCallback(
+    async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      setAwayModalError(null);
+      setIsSavingAwayMessage(true);
+
+      const success = await updateStatus(AWAY_STATUS, awayText);
+      setIsSavingAwayMessage(false);
+
+      if (!success) {
+        return;
+      }
+
+      setShowAwayModal(false);
+    },
+    [awayText, updateStatus],
+  );
+
+  const handleImBack = useCallback(() => {
+    void updateStatus(AVAILABLE_STATUS, null);
+  }, [updateStatus]);
 
   const handleSaveRecoveryCode = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -973,35 +1063,6 @@ function BuddyListContent() {
     setIsIssuingAdminReset(false);
   };
 
-  const handleSetupSave = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!userId) {
-      return;
-    }
-
-    const formattedCustomMessage = customMessage.trim()
-      ? formatRichText(customMessage.trim(), customMessageFormat)
-      : '';
-    const formattedStatus = buildStatusMessage(statusType, formattedCustomMessage);
-    setIsSavingSetup(true);
-    setSetupError(null);
-
-    const { error } = await supabase
-      .from('users')
-      .update({ status_msg: formattedStatus })
-      .eq('id', userId);
-
-    setIsSavingSetup(false);
-
-    if (error) {
-      setSetupError(error.message);
-      return;
-    }
-
-    setStatusMsg(formattedStatus);
-    setIsSetupOpen(false);
-  };
-
   const handleSearch = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!userId) {
@@ -1019,7 +1080,7 @@ function BuddyListContent() {
 
     const { data, error } = await supabase
       .from('users')
-      .select('id,screenname,status_msg')
+      .select('id,screenname,status,away_message,status_msg')
       .ilike('screenname', `%${query}%`)
       .neq('id', userId)
       .order('screenname', { ascending: true })
@@ -1331,7 +1392,7 @@ function BuddyListContent() {
     void (async () => {
       const { data: profileData, error: profileError } = await supabase
         .from('users')
-        .select('id,screenname,status_msg')
+        .select('id,screenname,status,away_message,status_msg')
         .eq('id', requestedDirectMessageUserId)
         .maybeSingle();
 
@@ -1343,11 +1404,18 @@ function BuddyListContent() {
         console.error('Failed to load direct message profile:', profileError.message);
       } else if (profileData) {
         const profile = profileData as UserProfile;
+        const resolvedProfileStatus = resolveStatusFields({
+          status: profile.status,
+          awayMessage: profile.away_message,
+          statusMessage: profile.status_msg,
+        });
         setTemporaryChatProfiles((previous) => ({
           ...previous,
           [requestedDirectMessageUserId]: {
             screenname: profile.screenname?.trim() || 'Unknown User',
-            status_msg: profile.status_msg ?? null,
+            status: resolvedProfileStatus.status,
+            away_message: resolvedProfileStatus.awayMessage || null,
+            status_msg: resolvedProfileStatus.statusMessage,
           },
         }));
       }
@@ -1366,15 +1434,6 @@ function BuddyListContent() {
       isCancelled = true;
     };
   }, [requestedDirectMessageUserId, requestedRoomName, router, userId]);
-
-  const openSetupWindow = () => {
-    const parsed = parseStatusMessage(statusMsg);
-    setStatusType(parsed.statusType);
-    setCustomMessage(parsed.customMessage);
-    setCustomMessageFormat(parsed.customMessageFormat);
-    setSetupError(null);
-    setIsSetupOpen(true);
-  };
 
   const openAddWindow = () => {
     setSearchTerm('');
@@ -1411,9 +1470,9 @@ function BuddyListContent() {
         return;
       }
 
-        await openRoomView(resolvedRoom);
-        setShowRoomsWindow(false);
-      } catch (error) {
+      await openRoomView(resolvedRoom);
+      setShowRoomsWindow(false);
+    } catch (error) {
       const message = error instanceof Error ? error.message : 'Could not join room right now.';
       setRoomJoinError(message);
     } finally {
@@ -1434,218 +1493,331 @@ function BuddyListContent() {
     }
   };
 
+  const isCurrentUserAway = normalizeStatusLabel(userStatus) === AWAY_STATUS;
   const activePendingRequest = pendingRequests[0] ?? null;
+  const activeChatBuddyStatusMessage = activeChatBuddy
+    ? resolveStatusFields({
+        status: activeChatBuddy.status,
+        awayMessage: activeChatBuddy.away_message,
+        statusMessage: activeChatBuddy.status_msg,
+      }).statusMessage
+    : null;
+  const xpRaisedButtonClass =
+    'min-h-[28px] border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-1 text-[11px] font-bold text-[#1e395b] disabled:opacity-60';
+
+  const handleOpenImFromActionBar = () => {
+    const fallbackBuddyId =
+      (selectedBuddyId && acceptedBuddies.some((buddy) => buddy.id === selectedBuddyId)
+        ? selectedBuddyId
+        : null) ??
+      onlineBuddies[0]?.id ??
+      acceptedBuddies[0]?.id ??
+      null;
+
+    if (!fallbackBuddyId) {
+      return;
+    }
+
+    handleOpenChat(fallbackBuddyId);
+  };
+
+  const handleSetupAction = () => {
+    if (!isAdminUser) {
+      return;
+    }
+
+    openAdminResetWindow();
+  };
 
   return (
     <main className="h-[100dvh] overflow-hidden">
-      <RetroWindow title="Buddy List">
-        <div className="flex h-full min-h-0 flex-col">
-          <div className="mb-3 flex items-end justify-between rounded-lg border border-blue-200 bg-white/90 px-3 py-2 font-sans text-sm shadow-sm">
-            <div>
-              <p className="text-xs text-blue-700/80">Signed in as</p>
-              <p className="text-base font-bold text-blue-900">{screenname}</p>
-              <div
-                className="aim-rich-html max-w-[180px] overflow-hidden text-ellipsis whitespace-nowrap text-[11px] italic text-slate-600"
-                dangerouslySetInnerHTML={{
-                  __html: sanitizeRichTextHtml(statusMsg || 'Available'),
-                }}
-              />
-            </div>
-            <button
-              onClick={handleSignOff}
-              className="min-h-[44px] cursor-pointer rounded-full border border-blue-300 bg-gradient-to-b from-white via-blue-50 to-blue-100 px-4 py-2 text-sm font-semibold text-blue-800 shadow-sm transition hover:from-blue-50 hover:to-blue-200"
-            >
-              Sign Off
-            </button>
+      <RetroWindow
+        title="Buddy List"
+        variant="xp_shell"
+        xpTitleText={screenname && screenname !== 'Loading...' ? `${screenname} - Buddy List` : 'AIM Buddy List'}
+        onXpClose={handleSignOff}
+        onXpSignOff={handleSignOff}
+      >
+        <div className="flex h-full min-h-0 flex-col p-2 font-[Tahoma,Arial,sans-serif] text-[11px]">
+          <div className="mx-auto mb-2 flex h-[50px] w-full max-w-[320px] items-center justify-center border-2 border-t-[#808080] border-l-[#808080] border-b-white border-r-white bg-[#f5f5f5] text-[#666]">
+            Ad Space 320x50
           </div>
 
-          <div className="min-h-0 flex-1 select-none overflow-y-auto rounded-xl border border-blue-200 bg-white/95 p-2 font-sans text-sm shadow-[inset_0_2px_7px_rgba(37,99,235,0.12)]">
-            <div className="mb-2">
-              <p className="cursor-pointer font-bold text-slate-800">
-                ▼ Buddies ({onlineBuddies.length}/{acceptedBuddies.length})
-              </p>
-              {isBootstrapping && (
-                <p className="pl-4 text-xs italic text-slate-500">Dialing in...</p>
-              )}
-              {!isBootstrapping && isLoadingBuddies && (
-                <p className="pl-4 text-xs italic text-slate-500">Loading your buddy list...</p>
-              )}
-              {!isBootstrapping && !isLoadingBuddies && acceptedBuddies.length === 0 && (
-                <p className="pl-4 text-xs italic text-slate-500">List is empty.</p>
-              )}
-              {!isBootstrapping &&
-                onlineBuddies.map((buddy) => {
-                  const unreadDirectCount = unreadDirectMessages[buddy.id] ?? 0;
-                  return (
-                    <button
-                      key={buddy.id}
-                      type="button"
-                      onClick={() => handleOpenChat(buddy.id)}
-                      className={`w-full cursor-pointer rounded-md px-2 py-1 text-left transition ${
-                        selectedBuddyId === buddy.id
-                          ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white shadow-sm'
-                          : 'hover:bg-blue-50'
-                      }`}
-                    >
-                      <div className="flex items-center gap-1">
-                        <span className={selectedBuddyId === buddy.id ? 'text-white' : 'text-emerald-600'}>
-                          ●
-                        </span>
-                        <span className="truncate font-bold">{buddy.screenname}</span>
-                        {unreadDirectCount > 0 ? (
-                          <span className="ml-2 px-2 py-0.5 rounded-full bg-gradient-to-b from-red-400 to-red-600 text-white text-[10px] font-bold border border-white shadow-sm shadow-black/50">
-                            {unreadDirectCount}
-                          </span>
-                        ) : null}
-                      </div>
-                      <div
-                        className={`aim-rich-html overflow-hidden text-ellipsis whitespace-nowrap pl-4 text-[10px] italic ${
-                          selectedBuddyId === buddy.id ? 'text-blue-100' : 'text-slate-500'
-                        }`}
-                        dangerouslySetInnerHTML={{
-                          __html: sanitizeRichTextHtml(buddy.status_msg || 'No away message.'),
-                        }}
-                      />
-                    </button>
-                  );
-                })}
+          <div className="mb-2 border border-[#b8b8b8] bg-[#f4f7fc] p-2">
+            <div className="min-w-0">
+              <p className="uppercase tracking-wide text-[#546b88]">Signed in as</p>
+              <p className="truncate text-[13px] font-bold text-[#1e395b]">{screenname}</p>
+              <p className="mt-0.5 truncate italic text-[#5b708f]">{statusMsg || AVAILABLE_STATUS}</p>
             </div>
 
-            <div>
-              <p className="cursor-pointer font-bold text-slate-600">
-                ▼ Offline ({offlineBuddies.length}/{acceptedBuddies.length})
-              </p>
-              {offlineBuddies.map((buddy) => {
-                const unreadDirectCount = unreadDirectMessages[buddy.id] ?? 0;
-                return (
-                  <button
-                    key={buddy.id}
-                    type="button"
-                    onClick={() => handleOpenChat(buddy.id)}
-                    className={`w-full cursor-pointer rounded-md px-2 py-1 text-left transition ${
-                      selectedBuddyId === buddy.id
-                        ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white shadow-sm'
-                        : 'hover:bg-slate-100'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1">
-                      <span className={selectedBuddyId === buddy.id ? 'text-white' : 'text-slate-500'}>
-                        ○
-                      </span>
-                      <span className="truncate font-bold">{buddy.screenname}</span>
-                      {unreadDirectCount > 0 ? (
-                        <span className="ml-2 px-2 py-0.5 rounded-full bg-gradient-to-b from-red-400 to-red-600 text-white text-[10px] font-bold border border-white shadow-sm shadow-black/50">
-                          {unreadDirectCount}
-                        </span>
-                      ) : null}
-                    </div>
-                    <div
-                      className={`aim-rich-html overflow-hidden text-ellipsis whitespace-nowrap pl-4 text-[10px] italic ${
-                        selectedBuddyId === buddy.id ? 'text-blue-100' : 'text-slate-500'
-                      }`}
-                      dangerouslySetInnerHTML={{
-                        __html: sanitizeRichTextHtml(buddy.status_msg || 'No away message.'),
-                      }}
-                    />
-                  </button>
-                );
-              })}
-            </div>
-
-            {pendingBuddies.length > 0 && (
-              <div className="mt-2">
-                <p className="cursor-pointer font-bold text-slate-600">
-                  ▼ Pending ({pendingBuddies.length})
+            {isCurrentUserAway ? (
+              <div className="mt-2 flex flex-col items-center space-y-2 border-y border-gray-400 bg-[#ffffe1] p-3 text-center shadow-sm">
+                <p className="text-[12px] font-semibold text-[#4d5874]">You are currently Away.</p>
+                <p className="w-full break-words text-[11px] italic text-gray-600">
+                  {awayMessage || 'Away from keyboard.'}
                 </p>
-                {pendingBuddies.map((buddy) => (
-                  <p key={buddy.id} className="truncate pl-4 text-xs italic text-slate-500">
-                    {buddy.screenname}
-                  </p>
-                ))}
+                <button
+                  type="button"
+                  onClick={handleImBack}
+                  className={xpRaisedButtonClass}
+                >
+                  I&apos;m Back
+                </button>
+              </div>
+            ) : (
+              <div className="mt-2 flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled
+                  className="min-h-[28px] border border-[#7f7f7f] border-t-[#a7a7a7] border-l-[#a7a7a7] border-r-white border-b-white bg-[#dfe6f1] px-2 font-bold text-[#1e395b]"
+                >
+                  Available
+                </button>
+                <button type="button" onClick={openAwayModal} className={xpRaisedButtonClass}>
+                  Set Away Message
+                </button>
               </div>
             )}
+            {awayModalError ? <p className="mt-2 font-semibold text-red-700">{awayModalError}</p> : null}
+          </div>
 
-            <div className="mt-3">
-              <p className="cursor-pointer font-bold text-slate-700">▼ Active Chats ({activeRooms.length})</p>
-              {activeRooms.length === 0 ? (
-                <p className="pl-4 text-xs italic text-slate-500">No active rooms.</p>
-              ) : (
-                activeRooms.map((roomName) => {
-                  const unreadCount = getUnreadCountForRoom(roomName);
+          <div className="min-h-0 flex-1 overflow-hidden border-2 border-t-[#808080] border-l-[#808080] border-b-white border-r-white bg-white">
+            <div className="h-full overflow-y-auto">
+              <div className="select-none">
+                <button
+                  type="button"
+                  onClick={() => setIsBuddiesOpen((previous) => !previous)}
+                  className="flex w-full items-center gap-2 border-y border-[#aab7cd] bg-gradient-to-b from-[#f3f6fb] to-[#dce6f6] px-2 py-1.5 text-left font-bold text-[#1e395b]"
+                >
+                  <span className="inline-flex h-3.5 w-3.5 items-center justify-center border border-[#7f7f7f] bg-[#ece9d8] text-[10px] leading-none">
+                    {isBuddiesOpen ? '-' : '+'}
+                  </span>
+                  <span>Buddies ({onlineBuddies.length}/{acceptedBuddies.length})</span>
+                </button>
 
-                  return (
-                    <div key={roomName} className="mt-1 flex items-center gap-2 rounded-md bg-blue-50/50 p-1">
-                      <button
-                        type="button"
-                        onClick={() => void handleOpenActiveRoom(roomName)}
-                        className="flex min-h-[44px] flex-1 items-center justify-between rounded-md border border-blue-300 bg-gradient-to-b from-white via-blue-50 to-blue-200 px-3 py-2 text-left text-sm font-semibold text-blue-900 shadow-sm transition hover:from-blue-50 hover:to-blue-300"
-                      >
-                        <span className="truncate">{roomName}</span>
-                        {unreadCount > 0 ? (
-                          <span className="ml-2 px-2 py-0.5 rounded-full bg-gradient-to-b from-red-400 to-red-600 text-white text-[10px] font-bold border border-white shadow-sm shadow-black/50">
-                            {unreadCount}
-                          </span>
-                        ) : null}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleLeaveRoom(roomName)}
-                        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border border-blue-300 bg-gradient-to-b from-white via-slate-100 to-slate-200 px-3 text-xs font-bold text-slate-700 shadow-sm transition hover:from-slate-50 hover:to-slate-300"
-                        aria-label={`Leave ${roomName}`}
-                        title="Leave room"
-                      >
-                        X
-                      </button>
-                    </div>
-                  );
-                })
-              )}
+                {isBuddiesOpen ? (
+                  <div>
+                    {isBootstrapping ? <p className="px-2 py-1 italic text-slate-500">Dialing in...</p> : null}
+                    {!isBootstrapping && isLoadingBuddies ? (
+                      <p className="px-2 py-1 italic text-slate-500">Loading your buddy list...</p>
+                    ) : null}
+                    {!isBootstrapping && !isLoadingBuddies && acceptedBuddies.length === 0 ? (
+                      <p className="px-2 py-1 italic text-slate-500">List is empty.</p>
+                    ) : null}
+                    {!isBootstrapping &&
+                      onlineBuddies.map((buddy) => {
+                        const unreadDirectCount = unreadDirectMessages[buddy.id] ?? 0;
+                        const isSelected = selectedBuddyId === buddy.id;
+                        const resolvedBuddyStatus = resolveStatusFields({
+                          status: buddy.status,
+                          awayMessage: buddy.away_message,
+                          statusMessage: buddy.status_msg,
+                        });
+                        const isBuddyAway = normalizeStatusLabel(resolvedBuddyStatus.status) === AWAY_STATUS;
+                        const awayLine = resolvedBuddyStatus.awayMessage || 'Away';
+
+                        return (
+                          <button
+                            key={buddy.id}
+                            type="button"
+                            onClick={() => handleOpenChat(buddy.id)}
+                            className={`group flex min-h-[24px] w-full items-center justify-between border-b border-[#e5ecf5] px-2 py-1 text-left transition ${
+                              isSelected
+                                ? 'bg-[#316ac5] text-white'
+                                : 'text-[#1e395b] hover:bg-[#316ac5] hover:text-white'
+                            }`}
+                          >
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className={isSelected ? 'text-white' : 'text-emerald-600'}>
+                                  {isBuddyAway ? '📜' : '●'}
+                                </span>
+                                <span
+                                  className={`truncate font-bold ${
+                                    isBuddyAway && !isSelected ? 'italic text-gray-500 group-hover:text-white' : ''
+                                  }`}
+                                >
+                                  {buddy.screenname}
+                                </span>
+                              </div>
+                              {isBuddyAway ? (
+                                <p
+                                  className={`w-full truncate pl-4 text-[10px] italic ${
+                                    isSelected ? 'text-blue-100' : 'text-gray-500 group-hover:text-blue-100'
+                                  }`}
+                                  title={awayLine}
+                                >
+                                  {awayLine}
+                                </p>
+                              ) : null}
+                            </div>
+                            {unreadDirectCount > 0 ? (
+                              <span className="ml-2 shrink-0 rounded-full border border-white bg-gradient-to-b from-red-400 to-red-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm shadow-black/50">
+                                {unreadDirectCount}
+                              </span>
+                            ) : null}
+                          </button>
+                        );
+                      })}
+
+                    {pendingBuddies.length > 0 ? (
+                      <div className="border-b border-[#e5ecf5] px-2 py-1">
+                        <p className="font-bold text-[#536b89]">Pending ({pendingBuddies.length})</p>
+                        {pendingBuddies.map((buddy) => (
+                          <p key={buddy.id} className="truncate italic text-slate-500">
+                            {buddy.screenname}
+                          </p>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="select-none">
+                <button
+                  type="button"
+                  onClick={() => setIsOfflineOpen((previous) => !previous)}
+                  className="flex w-full items-center gap-2 border-y border-[#aab7cd] bg-gradient-to-b from-[#f3f6fb] to-[#dce6f6] px-2 py-1.5 text-left font-bold text-[#1e395b]"
+                >
+                  <span className="inline-flex h-3.5 w-3.5 items-center justify-center border border-[#7f7f7f] bg-[#ece9d8] text-[10px] leading-none">
+                    {isOfflineOpen ? '-' : '+'}
+                  </span>
+                  <span>Offline ({offlineBuddies.length}/{acceptedBuddies.length})</span>
+                </button>
+
+                {isOfflineOpen
+                  ? offlineBuddies.map((buddy) => {
+                      const unreadDirectCount = unreadDirectMessages[buddy.id] ?? 0;
+                      const isSelected = selectedBuddyId === buddy.id;
+                      const resolvedBuddyStatus = resolveStatusFields({
+                        status: buddy.status,
+                        awayMessage: buddy.away_message,
+                        statusMessage: buddy.status_msg,
+                      });
+                      const isBuddyAway = normalizeStatusLabel(resolvedBuddyStatus.status) === AWAY_STATUS;
+                      const awayLine = resolvedBuddyStatus.awayMessage || 'Away';
+
+                      return (
+                        <button
+                          key={buddy.id}
+                          type="button"
+                          onClick={() => handleOpenChat(buddy.id)}
+                          className={`group flex min-h-[24px] w-full items-center justify-between border-b border-[#e5ecf5] px-2 py-1 text-left transition ${
+                            isSelected
+                              ? 'bg-[#316ac5] text-white'
+                              : 'text-[#1e395b] hover:bg-[#316ac5] hover:text-white'
+                          }`}
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className={isSelected ? 'text-white' : 'text-slate-500'}>
+                                {isBuddyAway ? '📜' : '○'}
+                              </span>
+                              <span
+                                className={`truncate font-bold ${
+                                  isBuddyAway && !isSelected ? 'italic text-gray-500 group-hover:text-white' : ''
+                                }`}
+                              >
+                                {buddy.screenname}
+                              </span>
+                            </div>
+                            {isBuddyAway ? (
+                              <p
+                                className={`w-full truncate pl-4 text-[10px] italic ${
+                                  isSelected ? 'text-blue-100' : 'text-gray-500 group-hover:text-blue-100'
+                                }`}
+                                title={awayLine}
+                              >
+                                {awayLine}
+                              </p>
+                            ) : null}
+                          </div>
+                          {unreadDirectCount > 0 ? (
+                            <span className="ml-2 shrink-0 rounded-full border border-white bg-gradient-to-b from-red-400 to-red-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm shadow-black/50">
+                              {unreadDirectCount}
+                            </span>
+                          ) : null}
+                        </button>
+                      );
+                    })
+                  : null}
+              </div>
+
+              <div className="select-none">
+                <button
+                  type="button"
+                  onClick={() => setIsActiveChatsOpen((previous) => !previous)}
+                  className="flex w-full items-center gap-2 border-y border-[#aab7cd] bg-gradient-to-b from-[#f3f6fb] to-[#dce6f6] px-2 py-1.5 text-left font-bold text-[#1e395b]"
+                >
+                  <span className="inline-flex h-3.5 w-3.5 items-center justify-center border border-[#7f7f7f] bg-[#ece9d8] text-[10px] leading-none">
+                    {isActiveChatsOpen ? '-' : '+'}
+                  </span>
+                  <span>Active Chats ({activeRooms.length})</span>
+                </button>
+
+                {isActiveChatsOpen ? (
+                  activeRooms.length === 0 ? (
+                    <p className="px-2 py-1 italic text-slate-500">No active rooms.</p>
+                  ) : (
+                    activeRooms.map((roomName) => {
+                      const unreadCount = getUnreadCountForRoom(roomName);
+
+                      return (
+                        <div key={roomName} className="flex items-stretch border-b border-[#e5ecf5]">
+                          <button
+                            type="button"
+                            onClick={() => void handleOpenActiveRoom(roomName)}
+                            className="group flex min-h-[24px] flex-1 items-center justify-between px-2 py-1 text-left text-[#1e395b] transition hover:bg-[#316ac5] hover:text-white"
+                          >
+                            <span className="truncate font-bold">{roomName}</span>
+                            {unreadCount > 0 ? (
+                              <span className="ml-2 shrink-0 rounded-full border border-white bg-gradient-to-b from-red-400 to-red-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm shadow-black/50">
+                                {unreadCount}
+                              </span>
+                            ) : null}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleLeaveRoom(roomName)}
+                            className="inline-flex min-h-[24px] min-w-[24px] items-center justify-center border-l border-[#c3d4e6] bg-gradient-to-b from-[#fefefe] via-[#f4f4f4] to-[#dedede] px-2 text-[11px] font-bold text-[#7b1f1f] shadow-[inset_1px_1px_0_rgba(255,255,255,0.8)] transition hover:from-[#ffe7e7] hover:to-[#f0caca]"
+                            aria-label={`Leave ${roomName}`}
+                            title="Leave room"
+                          >
+                            X
+                          </button>
+                        </div>
+                      );
+                    })
+                  )
+                ) : null}
+              </div>
             </div>
           </div>
 
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={openSetupWindow}
-              className="min-h-[44px] cursor-pointer rounded-md border border-blue-300 bg-gradient-to-b from-white via-blue-50 to-blue-200 px-2 py-2 text-sm font-semibold text-blue-900 shadow-sm transition hover:from-blue-50 hover:to-blue-300"
-            >
-              Preferences
-            </button>
-            <button
-              type="button"
-              onClick={openAddWindow}
-              className="min-h-[44px] cursor-pointer rounded-md border border-blue-300 bg-gradient-to-b from-white via-blue-50 to-blue-200 px-2 py-2 text-sm font-semibold text-blue-900 shadow-sm transition hover:from-blue-50 hover:to-blue-300"
-            >
-              Add
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (selectedBuddy) {
-                  handleOpenChat(selectedBuddy.id);
-                }
-              }}
-              disabled={!selectedBuddy}
-              className="min-h-[44px] cursor-pointer rounded-md border border-blue-300 bg-gradient-to-b from-white via-blue-50 to-blue-200 px-2 py-2 text-sm font-semibold text-blue-900 shadow-sm transition hover:from-blue-50 hover:to-blue-300 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Chat
-            </button>
-            <button
-              type="button"
-              onClick={openRoomsWindow}
-              className="min-h-[44px] cursor-pointer rounded-md border border-blue-300 bg-gradient-to-b from-white via-blue-50 to-blue-200 px-2 py-2 text-sm font-semibold text-blue-900 shadow-sm transition hover:from-blue-50 hover:to-blue-300"
-            >
-              Chat Rooms
-            </button>
-            {isAdminUser && (
+          <div className="mt-2 border-t border-[#9a9a9a] bg-[#ece9d8] p-1">
+            <div className="grid grid-cols-5 gap-1">
+              <button type="button" onClick={handleOpenImFromActionBar} className={xpRaisedButtonClass}>
+                IM
+              </button>
+              <button type="button" onClick={openRoomsWindow} className={xpRaisedButtonClass}>
+                Chat
+              </button>
+              <button type="button" onClick={openAddWindow} className={xpRaisedButtonClass}>
+                Info
+              </button>
+              <button type="button" onClick={openAwayModal} className={xpRaisedButtonClass}>
+                Away
+              </button>
               <button
                 type="button"
-                onClick={openAdminResetWindow}
-                className="min-h-[44px] cursor-pointer rounded-md border border-amber-400 bg-gradient-to-b from-amber-100 via-amber-200 to-amber-400 px-2 py-2 text-sm font-semibold text-amber-900 shadow-sm transition hover:from-amber-200 hover:to-amber-500"
+                onClick={handleSetupAction}
+                disabled={!isAdminUser}
+                className={xpRaisedButtonClass}
               >
-                Admin Reset
+                Setup
               </button>
-            )}
+            </div>
           </div>
         </div>
       </RetroWindow>
@@ -1790,91 +1962,52 @@ function BuddyListContent() {
         </div>
       )}
 
-      {isSetupOpen && (
-        <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-[1px]">
-          <div className="w-full max-w-md">
-            <RetroWindow title="Preferences">
-              <form onSubmit={handleSetupSave} className="space-y-4 text-sm">
-                <div>
-                  <label htmlFor="status-type-input" className="mb-1 block text-[12px] font-semibold text-slate-700">
-                    Status
-                  </label>
-                  <select
-                    id="status-type-input"
-                    value={statusType}
-                    onChange={(event) => setStatusType(event.target.value as StatusType)}
-                    className="w-full rounded-md border border-blue-300 bg-white px-3 py-2 text-slate-800 shadow-[inset_0_1px_3px_rgba(37,99,235,0.18)] focus:outline-none"
-                  >
-                    {STATUS_OPTIONS.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+      {showAwayModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4">
+          <div className="w-80 max-w-[90%] border-2 border-t-white border-l-white border-r-gray-500 border-b-gray-500 bg-[#eceeef] p-1 shadow-xl">
+            <div className="mb-2 flex min-h-[28px] items-center bg-gradient-to-b from-blue-400 via-blue-500 to-blue-700 px-3">
+              <p className="text-sm font-bold text-white [text-shadow:0_1px_0_rgba(0,0,0,0.35)]">
+                Set Away Message
+              </p>
+            </div>
 
-                <RichTextToolbar value={customMessageFormat} onChange={setCustomMessageFormat} />
+            <form onSubmit={handleSaveAwayMessage} className="space-y-3 px-2 pb-2 text-sm">
+              <label htmlFor="away-message-input" className="block text-[12px] font-semibold text-[#1e395b]">
+                Enter your Away Message:
+              </label>
+              <textarea
+                id="away-message-input"
+                value={awayText}
+                onChange={(event) => setAwayText(event.target.value)}
+                className="min-h-[104px] w-full resize-none border border-[#7F9DB9] bg-white p-2 text-sm shadow-inner focus:outline-none focus:ring-1 focus:ring-[#7F9DB9]"
+                placeholder="Out for lunch..."
+                maxLength={240}
+              />
 
-                <div>
-                  <label
-                    htmlFor="custom-message-input"
-                    className="mb-1 block text-[12px] font-semibold text-slate-700"
-                  >
-                    Custom away message
-                  </label>
-                  <textarea
-                    id="custom-message-input"
-                    value={customMessage}
-                    onChange={(event) => setCustomMessage(event.target.value)}
-                    className="min-h-[96px] w-full resize-none rounded-md border border-blue-300 bg-white px-3 py-2 text-slate-800 shadow-[inset_0_2px_7px_rgba(30,64,175,0.18)] focus:outline-none"
-                    style={{
-                      fontFamily: customMessageFormat.fontFamily,
-                      color: customMessageFormat.color,
-                      fontWeight: customMessageFormat.bold ? 'bold' : 'normal',
-                      fontStyle: customMessageFormat.italic ? 'italic' : 'normal',
-                      textDecoration: customMessageFormat.underline ? 'underline' : 'none',
-                    }}
-                    maxLength={240}
-                    placeholder="Out grabbing pizza..."
-                    rows={4}
-                  />
-                </div>
+              {awayModalError ? (
+                <p className="text-[12px] font-semibold text-red-700">{awayModalError}</p>
+              ) : null}
 
-                <div className="rounded-md border border-blue-100 bg-white/90 px-3 py-2">
-                  <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-blue-700">Preview</p>
-                  <div
-                    className="aim-rich-html text-[12px] text-slate-600"
-                    dangerouslySetInnerHTML={{
-                      __html: sanitizeRichTextHtml(
-                        buildStatusMessage(
-                          statusType,
-                          customMessage.trim() ? formatRichText(customMessage.trim(), customMessageFormat) : '',
-                        ),
-                      ),
-                    }}
-                  />
-                </div>
-
-                {setupError && <p className="text-sm text-red-700">{setupError}</p>}
-
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsSetupOpen(false)}
-                    className="cursor-pointer rounded-md border border-blue-300 bg-gradient-to-b from-white via-slate-100 to-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:from-slate-50 hover:to-slate-300"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSavingSetup}
-                    className="cursor-pointer rounded-md border border-blue-500 bg-gradient-to-b from-blue-200 via-blue-300 to-blue-500 px-4 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:from-blue-300 hover:to-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isSavingSetup ? 'Saving...' : 'Save'}
-                  </button>
-                </div>
-              </form>
-            </RetroWindow>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAwayModal(false);
+                    setAwayModalError(null);
+                  }}
+                  className="min-h-[34px] border-2 border-t-white border-l-white border-r-gray-500 border-b-gray-500 bg-[#eceeef] px-3 text-xs font-bold text-[#1e395b] shadow-[inset_1px_1px_0_rgba(255,255,255,0.8)]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingAwayMessage}
+                  className="min-h-[34px] border-2 border-t-white border-l-white border-r-gray-500 border-b-gray-500 bg-[#eceeef] px-4 text-xs font-bold text-[#1e395b] shadow-[inset_1px_1px_0_rgba(255,255,255,0.8)] disabled:opacity-60"
+                >
+                  {isSavingAwayMessage ? 'Saving...' : 'OK'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -1997,30 +2130,38 @@ function BuddyListContent() {
                     <p className="p-2 text-sm italic text-slate-500">No screennames found.</p>
                   )}
                   {!isSearching &&
-                    searchResults.map((profile) => (
-                      <div
-                        key={profile.id}
-                        className="mb-2 flex items-center justify-between gap-2 rounded-md border border-blue-100 bg-blue-50/30 p-2"
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate font-bold">{profile.screenname || 'Unknown User'}</p>
-                          <div
-                            className="aim-rich-html truncate text-[11px] italic text-slate-500"
-                            dangerouslySetInnerHTML={{
-                              __html: sanitizeRichTextHtml(profile.status_msg || 'No away message.'),
-                            }}
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleAddBuddy(profile)}
-                          disabled={isAddingBuddyId === profile.id}
-                          className="shrink-0 cursor-pointer rounded-md border border-blue-500 bg-gradient-to-b from-blue-200 via-blue-300 to-blue-500 px-3 py-1 text-xs font-semibold text-white shadow-sm transition hover:from-blue-300 hover:to-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+                    searchResults.map((profile) => {
+                      const resolvedProfileStatus = resolveStatusFields({
+                        status: profile.status,
+                        awayMessage: profile.away_message,
+                        statusMessage: profile.status_msg,
+                      });
+                      const isProfileAway = normalizeStatusLabel(resolvedProfileStatus.status) === AWAY_STATUS;
+
+                      return (
+                        <div
+                          key={profile.id}
+                          className="mb-2 flex items-center justify-between gap-2 rounded-md border border-blue-100 bg-blue-50/30 p-2"
                         >
-                          {isAddingBuddyId === profile.id ? 'Adding...' : 'Add'}
-                        </button>
-                      </div>
-                    ))}
+                          <div className="min-w-0">
+                            <p className="truncate font-bold">{profile.screenname || 'Unknown User'}</p>
+                            <p className="truncate text-[11px] italic text-slate-500">
+                              {isProfileAway
+                                ? `📜 ${resolvedProfileStatus.awayMessage || 'Away'}`
+                                : resolvedProfileStatus.statusMessage}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleAddBuddy(profile)}
+                            disabled={isAddingBuddyId === profile.id}
+                            className="shrink-0 cursor-pointer rounded-md border border-blue-500 bg-gradient-to-b from-blue-200 via-blue-300 to-blue-500 px-3 py-1 text-xs font-semibold text-white shadow-sm transition hover:from-blue-300 hover:to-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {isAddingBuddyId === profile.id ? 'Adding...' : 'Add'}
+                          </button>
+                        </div>
+                      );
+                    })}
                 </div>
 
                 <div className="flex justify-end">
@@ -2042,11 +2183,12 @@ function BuddyListContent() {
         <>
           <ChatWindow
             buddyScreenname={activeChatBuddy.screenname}
-            buddyStatusMessage={activeChatBuddy.status_msg}
+            buddyStatusMessage={activeChatBuddyStatusMessage || AVAILABLE_STATUS}
             currentUserId={userId}
             messages={chatMessages}
             onSendMessage={handleSendMessage}
             onClose={closeChatWindow}
+            onSignOff={handleSignOff}
             isLoading={isChatLoading}
             isSending={isSendingMessage}
           />
@@ -2066,6 +2208,7 @@ function BuddyListContent() {
           currentUserScreenname={screenname}
           onBack={handleBackFromRoom}
           onLeave={handleLeaveCurrentRoom}
+          onSignOff={handleSignOff}
         />
       )}
     </main>
