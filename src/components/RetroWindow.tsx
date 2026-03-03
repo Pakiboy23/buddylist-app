@@ -27,7 +27,7 @@ export default function RetroWindow({
       style={style}
     >
       <div
-        className={`flex min-h-[56px] items-center gap-2 bg-gradient-to-b from-blue-400 via-blue-500 to-blue-700 px-3 py-2 text-sm font-semibold text-white ${titleBarClassName ?? ''}`}
+        className={`flex min-h-[56px] items-center gap-2 bg-gradient-to-b from-blue-400 via-blue-500 to-blue-700 px-3 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] text-sm font-semibold text-white ${titleBarClassName ?? ''}`}
       >
         {showBackButton ? (
           <button
