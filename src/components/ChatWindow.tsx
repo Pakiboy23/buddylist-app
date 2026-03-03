@@ -117,11 +117,14 @@ export default function ChatWindow({
                     hour: '2-digit',
                     minute: '2-digit',
                   });
+                  const senderClassName = isMine ? 'text-blue-600' : 'text-emerald-600';
 
                   return (
                     <div key={message.id} className="flex flex-wrap items-baseline gap-x-1 text-sm leading-5">
                       <span className="text-xs text-gray-500">[{timestamp}]</span>
-                      <span className="font-bold text-blue-600">{isMine ? 'You' : buddyScreenname}:</span>
+                      <span className={`font-bold ${senderClassName}`}>
+                        {isMine ? 'You' : buddyScreenname}:
+                      </span>
                       <span
                         className="aim-rich-html text-gray-900"
                         dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(message.content) }}

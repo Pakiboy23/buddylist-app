@@ -45,6 +45,25 @@ interface GroupChatWindowProps {
   onLeave: () => void;
 }
 
+const GROUP_SENDER_COLOR_CLASSES = [
+  'text-emerald-600',
+  'text-violet-600',
+  'text-rose-600',
+  'text-amber-600',
+  'text-cyan-600',
+  'text-lime-600',
+  'text-fuchsia-600',
+  'text-sky-600',
+] as const;
+
+function getStableSenderColorClass(senderId: string) {
+  let hash = 0;
+  for (let index = 0; index < senderId.length; index += 1) {
+    hash = (hash * 31 + senderId.charCodeAt(index)) >>> 0;
+  }
+  return GROUP_SENDER_COLOR_CLASSES[hash % GROUP_SENDER_COLOR_CLASSES.length];
+}
+
 export default function GroupChatWindow({
   roomId,
   roomName,
@@ -322,17 +341,24 @@ export default function GroupChatWindow({
                 <p className="italic text-slate-500">No one else is here yet.</p>
               ) : (
                 participants.map((participant) => (
-                  <span
-                    key={participant.userId}
-                    className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-1 whitespace-nowrap"
-                  >
-                    <span className="text-emerald-600">●</span>
-                    <span className="font-semibold text-slate-700">
-                      {participant.userId === currentUserId
-                        ? `${participant.screenname} (You)`
-                        : participant.screenname}
-                    </span>
-                  </span>
+                  (() => {
+                    const isCurrentUser = participant.userId === currentUserId;
+                    const senderColorClass = isCurrentUser
+                      ? 'text-blue-600'
+                      : getStableSenderColorClass(participant.userId);
+
+                    return (
+                      <span
+                        key={participant.userId}
+                        className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-1 whitespace-nowrap"
+                      >
+                        <span className={senderColorClass}>●</span>
+                        <span className={`font-semibold ${senderColorClass}`}>
+                          {isCurrentUser ? `${participant.screenname} (You)` : participant.screenname}
+                        </span>
+                      </span>
+                    );
+                  })()
                 ))
               )}
             </div>
@@ -348,6 +374,9 @@ export default function GroupChatWindow({
                 {messages.map((message) => {
                   const senderName = screennameMap[message.sender_id] || 'Unknown User';
                   const isMine = message.sender_id === currentUserId;
+                  const senderClassName = isMine
+                    ? 'text-blue-600'
+                    : getStableSenderColorClass(message.sender_id);
                   const timestamp = new Date(message.created_at).toLocaleTimeString([], {
                     hour: '2-digit',
                     minute: '2-digit',
@@ -356,7 +385,9 @@ export default function GroupChatWindow({
                   return (
                     <div key={message.id} className="flex flex-wrap items-baseline gap-x-1 text-sm leading-5">
                       <span className="text-xs text-gray-500">[{timestamp}]</span>
-                      <span className="font-bold text-blue-600">{isMine ? 'You' : senderName}:</span>
+                      <span className={`font-bold ${senderClassName}`}>
+                        {isMine ? 'You' : senderName}:
+                      </span>
                       <span
                         className="aim-rich-html text-gray-900"
                         dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(message.content) }}
