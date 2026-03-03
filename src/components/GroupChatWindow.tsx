@@ -87,7 +87,6 @@ const GROUP_SENDER_COLOR_CLASSES = [
   'text-fuchsia-600',
   'text-sky-600',
 ] as const;
-const REACTION_OPTIONS = ['👍', '❤️', '😂', '😮', '😢'] as const;
 
 function getStableSenderColorClass(senderId: string) {
   let hash = 0;
@@ -360,7 +359,7 @@ export default function GroupChatWindow({
 
       const { data, error: messagesError } = await supabase
         .from('room_messages')
-        .select('*')
+        .select('id,room_id,sender_id,content,created_at,edited_at,deleted_at,deleted_by')
         .eq('room_id', roomId)
         .order('created_at', { ascending: true })
         .limit(300);
@@ -570,7 +569,7 @@ export default function GroupChatWindow({
         sender_id: currentUserId,
         content: formatted,
       })
-      .select('*')
+      .select('id,room_id,sender_id,content,created_at,edited_at,deleted_at,deleted_by')
       .single();
 
     setIsSending(false);
@@ -780,34 +779,6 @@ export default function GroupChatWindow({
     }
   };
 
-  const toggleReaction = async (messageId: string, emoji: string) => {
-    const summary = reactionSummaryByMessageId.get(messageId);
-    const hasReaction = summary?.mine.has(emoji) ?? false;
-    setReactionError(null);
-
-    if (hasReaction) {
-      const { error } = await supabase
-        .from('room_message_reactions')
-        .delete()
-        .eq('message_id', messageId)
-        .eq('user_id', currentUserId)
-        .eq('emoji', emoji);
-      if (error) {
-        setReactionError(error.message);
-      }
-      return;
-    }
-
-    const { error } = await supabase.from('room_message_reactions').insert({
-      message_id: messageId,
-      user_id: currentUserId,
-      emoji,
-    });
-    if (error) {
-      setReactionError(error.message);
-    }
-  };
-
   const toggleBold = () => {
     setFormat((previous) => ({ ...previous, bold: !previous.bold }));
   };
@@ -849,14 +820,11 @@ export default function GroupChatWindow({
   }, [resolvedTypingUsers]);
 
   const reactionSummaryByMessageId = useMemo(() => {
-    const summary = new Map<string, { counts: Record<string, number>; mine: Set<string> }>();
+    const summary = new Map<string, Record<string, number>>();
 
     for (const row of reactionRows) {
       if (!summary.has(row.message_id)) {
-        summary.set(row.message_id, {
-          counts: {},
-          mine: new Set<string>(),
-        });
+        summary.set(row.message_id, {});
       }
 
       const target = summary.get(row.message_id);
@@ -864,14 +832,11 @@ export default function GroupChatWindow({
         continue;
       }
 
-      target.counts[row.emoji] = (target.counts[row.emoji] ?? 0) + 1;
-      if (row.user_id === currentUserId) {
-        target.mine.add(row.emoji);
-      }
+      target[row.emoji] = (target[row.emoji] ?? 0) + 1;
     }
 
     return summary;
-  }, [currentUserId, reactionRows]);
+  }, [reactionRows]);
 
   const attachmentsByMessageId = useMemo(() => {
     const grouped = new Map<string, RoomMessageAttachmentRow[]>();
@@ -987,6 +952,11 @@ export default function GroupChatWindow({
                   });
                   const fullTimestamp = timestampDate.toLocaleString();
                   const reactionSummary = reactionSummaryByMessageId.get(message.id);
+                  const reactionEntries = reactionSummary
+                    ? Object.entries(reactionSummary)
+                        .filter(([, count]) => count > 0)
+                        .sort((left, right) => right[1] - left[1])
+                    : [];
                   const messageAttachments = attachmentsByMessageId.get(message.id) ?? [];
                   const isEdited = Boolean(message.edited_at && !message.deleted_at);
 
@@ -1088,27 +1058,16 @@ export default function GroupChatWindow({
                           })}
                         </div>
                       ) : null}
-                      {!isDeleted ? (
+                      {!isDeleted && reactionEntries.length > 0 ? (
                         <div className="mt-0.5 flex flex-wrap items-center gap-1 pl-12">
-                          {REACTION_OPTIONS.map((emoji) => {
-                            const count = reactionSummary?.counts[emoji] ?? 0;
-                            const mine = reactionSummary?.mine.has(emoji) ?? false;
-                            return (
-                              <button
-                                key={`${message.id}-${emoji}`}
-                                type="button"
-                                onClick={() => void toggleReaction(message.id, emoji)}
-                                className={`rounded border px-1 py-[1px] text-[10px] ${
-                                  mine
-                                    ? 'border-[#2b8f3f] bg-[#e6f8ec] text-[#1c6a2f]'
-                                    : 'border-[#b7c4d8] bg-[#f6f9ff] text-[#355178]'
-                                }`}
-                              >
-                                {emoji}
-                                {count > 0 ? ` ${count}` : ''}
-                              </button>
-                            );
-                          })}
+                          {reactionEntries.map(([emoji, count]) => (
+                            <span
+                              key={`${message.id}-${emoji}`}
+                              className="rounded border border-[#b7c4d8] bg-[#f6f9ff] px-1 py-[1px] text-[10px] text-[#355178]"
+                            >
+                              {emoji} {count}
+                            </span>
+                          ))}
                         </div>
                       ) : null}
                     </div>
