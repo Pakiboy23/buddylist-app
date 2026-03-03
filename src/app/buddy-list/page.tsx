@@ -60,6 +60,13 @@ interface AdminTicketResponse {
   expiresAt: string;
 }
 
+interface AwayPreset {
+  id: string;
+  label: string;
+  message: string;
+  builtIn?: boolean;
+}
+
 const SIGN_ON_SOUND = '/signon.wav';
 const SIGN_OFF_SOUND = '/doorslam.wav';
 const INCOMING_MESSAGE_SOUND = '/imrcv.wav';
@@ -68,6 +75,18 @@ const BUDDY_LIST_PATH = '/buddy-list';
 const AVAILABLE_STATUS = 'Available';
 const AWAY_STATUS = 'Away';
 const KNOWN_STATUSES = ['Available', 'Away', 'Invisible', 'Busy', 'Be Right Back'] as const;
+const AWAY_PRESETS_STORAGE_KEY = 'buddylist:away-presets';
+const AWAY_SETTINGS_STORAGE_KEY = 'buddylist:away-settings';
+const AWAY_COOLDOWN_STORAGE_KEY = 'buddylist:away-cooldowns';
+const AWAY_AUTO_REPLY_PREFIX = '[Auto-Reply]';
+const AWAY_AUTO_REPLY_COOLDOWN_MS = 10 * 60 * 1000;
+const AUTO_AWAY_MINUTE_OPTIONS = [5, 10, 15, 30] as const;
+const DEFAULT_AWAY_PRESETS: AwayPreset[] = [
+  { id: 'simple-plan', label: 'Simple Plan', message: "Hey %n, I'm away right now. Back at %t.", builtIn: true },
+  { id: 'brb', label: 'BRB', message: 'Be right back. Current time: %t.', builtIn: true },
+  { id: 'lunch', label: 'Lunch', message: 'Out for lunch (%d %t). Leave me a message.', builtIn: true },
+  { id: 'afk', label: 'AFK', message: "AFK for a bit. I'll get back to you soon.", builtIn: true },
+];
 
 function normalizeStatusLabel(input: string | null | undefined): string {
   const value = (input ?? '').trim();
@@ -115,6 +134,17 @@ function composeStatusMessage(status: string, awayMessage: string | null | undef
   }
 
   return normalizedStatus;
+}
+
+function resolveAwayTemplate(template: string, selfName: string, buddyName?: string): string {
+  const now = new Date();
+  const resolvedBuddyName = (buddyName ?? 'Buddy').trim() || 'Buddy';
+  const resolvedSelfName = selfName.trim() || 'User';
+  return template
+    .replace(/%n/gi, resolvedBuddyName)
+    .replace(/%d/gi, now.toLocaleDateString())
+    .replace(/%t/gi, now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))
+    .replace(/%s/gi, resolvedSelfName);
 }
 
 function resolveStatusFields({
@@ -166,7 +196,15 @@ function BuddyListContent() {
   const [userStatus, setUserStatus] = useState(AVAILABLE_STATUS);
   const [awayMessage, setAwayMessage] = useState('');
   const [showAwayModal, setShowAwayModal] = useState(false);
+  const [awayPresets, setAwayPresets] = useState<AwayPreset[]>(DEFAULT_AWAY_PRESETS);
+  const [selectedAwayPresetId, setSelectedAwayPresetId] = useState<string>(DEFAULT_AWAY_PRESETS[0].id);
+  const [awayLabelDraft, setAwayLabelDraft] = useState('');
   const [awayText, setAwayText] = useState('');
+  const [saveAwayPreset, setSaveAwayPreset] = useState(false);
+  const [isAutoAwayEnabled, setIsAutoAwayEnabled] = useState(true);
+  const [autoAwayMinutes, setAutoAwayMinutes] = useState<number>(10);
+  const [autoReturnOnActivity, setAutoReturnOnActivity] = useState(true);
+  const [awaySinceAt, setAwaySinceAt] = useState<string | null>(null);
   const [awayModalError, setAwayModalError] = useState<string | null>(null);
   const [isSavingAwayMessage, setIsSavingAwayMessage] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
@@ -224,6 +262,11 @@ function BuddyListContent() {
   const acceptedBuddyIdsRef = useRef<Set<string>>(new Set());
   const pendingRequestsRef = useRef<PendingRequest[]>([]);
   const temporaryChatAllowedIdsRef = useRef<Set<string>>(new Set());
+  const userStatusRef = useRef(userStatus);
+  const awayMessageRef = useRef(awayMessage);
+  const screennameRef = useRef(screenname);
+  const autoAwayTriggeredRef = useRef(false);
+  const awayReplyCooldownRef = useRef<Record<string, number>>({});
   const playSound = useSoundPlayer();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -240,6 +283,135 @@ function BuddyListContent() {
   useEffect(() => {
     temporaryChatAllowedIdsRef.current = new Set(temporaryChatAllowedIds);
   }, [temporaryChatAllowedIds]);
+
+  useEffect(() => {
+    userStatusRef.current = userStatus;
+  }, [userStatus]);
+
+  useEffect(() => {
+    awayMessageRef.current = awayMessage;
+  }, [awayMessage]);
+
+  useEffect(() => {
+    screennameRef.current = screenname;
+  }, [screenname]);
+
+  useEffect(() => {
+    if (!userId || typeof window === 'undefined') {
+      return;
+    }
+
+    try {
+      const presetsRaw = window.localStorage.getItem(`${AWAY_PRESETS_STORAGE_KEY}:${userId}`);
+      if (presetsRaw) {
+        const parsed = JSON.parse(presetsRaw) as Array<{ id: string; label: string; message: string }>;
+        const validCustomPresets = parsed
+          .filter(
+            (preset) =>
+              preset &&
+              typeof preset.id === 'string' &&
+              typeof preset.label === 'string' &&
+              typeof preset.message === 'string',
+          )
+          .map((preset) => ({
+            id: preset.id,
+            label: preset.label.trim() || 'Custom',
+            message: preset.message,
+          }));
+
+        setAwayPresets([...DEFAULT_AWAY_PRESETS, ...validCustomPresets]);
+      } else {
+        setAwayPresets(DEFAULT_AWAY_PRESETS);
+      }
+    } catch {
+      setAwayPresets(DEFAULT_AWAY_PRESETS);
+    }
+
+    try {
+      const settingsRaw = window.localStorage.getItem(`${AWAY_SETTINGS_STORAGE_KEY}:${userId}`);
+      if (settingsRaw) {
+        const parsed = JSON.parse(settingsRaw) as {
+          autoAwayEnabled?: boolean;
+          autoAwayMinutes?: number;
+          autoReturnOnActivity?: boolean;
+        };
+
+        if (typeof parsed.autoAwayEnabled === 'boolean') {
+          setIsAutoAwayEnabled(parsed.autoAwayEnabled);
+        }
+
+        if (
+          typeof parsed.autoAwayMinutes === 'number' &&
+          AUTO_AWAY_MINUTE_OPTIONS.includes(parsed.autoAwayMinutes as (typeof AUTO_AWAY_MINUTE_OPTIONS)[number])
+        ) {
+          setAutoAwayMinutes(parsed.autoAwayMinutes);
+        }
+
+        if (typeof parsed.autoReturnOnActivity === 'boolean') {
+          setAutoReturnOnActivity(parsed.autoReturnOnActivity);
+        }
+      }
+    } catch {
+      // Keep default settings.
+    }
+
+    try {
+      const cooldownRaw = window.localStorage.getItem(`${AWAY_COOLDOWN_STORAGE_KEY}:${userId}`);
+      if (cooldownRaw) {
+        const parsed = JSON.parse(cooldownRaw) as Record<string, number>;
+        awayReplyCooldownRef.current = Object.fromEntries(
+          Object.entries(parsed).filter(([, value]) => typeof value === 'number' && Number.isFinite(value)),
+        );
+      } else {
+        awayReplyCooldownRef.current = {};
+      }
+    } catch {
+      awayReplyCooldownRef.current = {};
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId || typeof window === 'undefined') {
+      return;
+    }
+
+    const customPresets = awayPresets
+      .filter((preset) => !preset.builtIn)
+      .map((preset) => ({
+        id: preset.id,
+        label: preset.label,
+        message: preset.message,
+      }));
+
+    window.localStorage.setItem(`${AWAY_PRESETS_STORAGE_KEY}:${userId}`, JSON.stringify(customPresets));
+  }, [awayPresets, userId]);
+
+  useEffect(() => {
+    if (!userId || typeof window === 'undefined') {
+      return;
+    }
+
+    window.localStorage.setItem(
+      `${AWAY_SETTINGS_STORAGE_KEY}:${userId}`,
+      JSON.stringify({
+        autoAwayEnabled: isAutoAwayEnabled,
+        autoAwayMinutes,
+        autoReturnOnActivity,
+      }),
+    );
+  }, [autoAwayMinutes, autoReturnOnActivity, isAutoAwayEnabled, userId]);
+
+  useEffect(() => {
+    if (selectedAwayPresetId === '__custom__') {
+      return;
+    }
+
+    if (awayPresets.some((preset) => preset.id === selectedAwayPresetId)) {
+      return;
+    }
+
+    setSelectedAwayPresetId(awayPresets[0]?.id ?? DEFAULT_AWAY_PRESETS[0].id);
+  }, [awayPresets, selectedAwayPresetId]);
 
   const playIncomingAlert = useCallback(() => {
     if (typeof window === 'undefined') {
@@ -430,6 +602,7 @@ function BuddyListContent() {
       setStatusMsg(resolvedStatusState.statusMessage);
       setUserStatus(resolvedStatusState.status);
       setAwayMessage(resolvedStatusState.awayMessage);
+      setAwaySinceAt(resolvedStatusState.status === AWAY_STATUS ? new Date().toISOString() : null);
       let hasRecoveryCode = true;
       const { data: recoveryData, error: recoveryError } = await supabase
         .from('account_recovery_codes')
@@ -586,6 +759,9 @@ function BuddyListContent() {
             setStatusMsg(resolvedStatusState.statusMessage);
             setUserStatus(resolvedStatusState.status);
             setAwayMessage(resolvedStatusState.awayMessage);
+            setAwaySinceAt((previous) =>
+              resolvedStatusState.status === AWAY_STATUS ? previous ?? new Date().toISOString() : null,
+            );
           }
         }
       })
@@ -818,6 +994,60 @@ function BuddyListContent() {
     setPendingRequests((previous) => previous.filter((request) => request.senderId !== senderId));
   }, []);
 
+  const sendAutoAwayReply = useCallback(
+    async (senderId: string, incomingContent: string) => {
+      if (!userId) {
+        return;
+      }
+
+      if (userStatusRef.current !== AWAY_STATUS) {
+        return;
+      }
+
+      if (incomingContent.trim().toLowerCase().startsWith(AWAY_AUTO_REPLY_PREFIX.toLowerCase())) {
+        return;
+      }
+
+      const now = Date.now();
+      const lastReplyAt = awayReplyCooldownRef.current[senderId] ?? 0;
+      if (now - lastReplyAt < AWAY_AUTO_REPLY_COOLDOWN_MS) {
+        return;
+      }
+
+      const senderNameFromBuddy =
+        buddyRows.find((buddy) => buddy.id === senderId)?.screenname ||
+        temporaryChatProfiles[senderId]?.screenname ||
+        pendingRequestsRef.current.find((request) => request.senderId === senderId)?.screenname ||
+        'Buddy';
+      const template = awayMessageRef.current.trim() || "I'm away right now. Leave me a message.";
+      const resolvedTemplate = resolveAwayTemplate(template, screennameRef.current, senderNameFromBuddy);
+      const autoReplyText = `${AWAY_AUTO_REPLY_PREFIX} ${resolvedTemplate}`;
+
+      const { error } = await supabase.from('messages').insert({
+        sender_id: userId,
+        receiver_id: senderId,
+        content: autoReplyText,
+      });
+
+      if (error) {
+        return;
+      }
+
+      awayReplyCooldownRef.current = {
+        ...awayReplyCooldownRef.current,
+        [senderId]: now,
+      };
+
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(
+          `${AWAY_COOLDOWN_STORAGE_KEY}:${userId}`,
+          JSON.stringify(awayReplyCooldownRef.current),
+        );
+      }
+    },
+    [buddyRows, temporaryChatProfiles, userId],
+  );
+
   useEffect(() => {
     if (!userId) {
       return;
@@ -832,6 +1062,8 @@ function BuddyListContent() {
         }
 
         const senderId = incomingMessage.sender_id;
+        const incomingContent = typeof incomingMessage.content === 'string' ? incomingMessage.content : '';
+        void sendAutoAwayReply(senderId, incomingContent);
         const isBuddy = acceptedBuddyIdsRef.current.has(senderId);
         const isTemporarilyAllowed = temporaryChatAllowedIdsRef.current.has(senderId);
 
@@ -895,10 +1127,12 @@ function BuddyListContent() {
     return () => {
       void supabase.removeChannel(globalMessagesChannel);
     };
-  }, [clearUnreadDirectMessages, incrementUnreadDirectMessages, playIncomingAlert, userId]);
+  }, [clearUnreadDirectMessages, incrementUnreadDirectMessages, playIncomingAlert, sendAutoAwayReply, userId]);
 
   const handleSignOff = async () => {
     setUnreadDirectMessages({});
+    setAwaySinceAt(null);
+    autoAwayTriggeredRef.current = false;
     await resetChatState();
     await supabase.auth.signOut();
     router.push('/');
@@ -913,7 +1147,11 @@ function BuddyListContent() {
       const normalizedStatus = normalizeStatusLabel(newStatus);
       const normalizedAwayMessage = (message ?? '').trim();
       const nextAwayMessage = normalizedStatus === AWAY_STATUS ? normalizedAwayMessage : '';
-      const nextStatusMessage = composeStatusMessage(normalizedStatus, nextAwayMessage);
+      const resolvedStatusAwayMessage =
+        normalizedStatus === AWAY_STATUS
+          ? resolveAwayTemplate(nextAwayMessage, screennameRef.current, screennameRef.current)
+          : '';
+      const nextStatusMessage = composeStatusMessage(normalizedStatus, resolvedStatusAwayMessage);
 
       const { error } = await supabase
         .from('users')
@@ -933,16 +1171,29 @@ function BuddyListContent() {
       setUserStatus(normalizedStatus);
       setAwayMessage(nextAwayMessage);
       setStatusMsg(nextStatusMessage);
+      setAwaySinceAt((previous) =>
+        normalizedStatus === AWAY_STATUS ? previous ?? new Date().toISOString() : null,
+      );
       return true;
     },
     [userId],
   );
 
   const openAwayModal = useCallback(() => {
-    setAwayText(awayMessage);
+    const matchingPreset = awayPresets.find((preset) => preset.message === awayMessage);
+    if (matchingPreset) {
+      setSelectedAwayPresetId(matchingPreset.id);
+      setAwayLabelDraft(matchingPreset.label);
+      setAwayText(matchingPreset.message);
+    } else {
+      setSelectedAwayPresetId('__custom__');
+      setAwayLabelDraft('');
+      setAwayText(awayMessage || DEFAULT_AWAY_PRESETS[0].message);
+    }
+    setSaveAwayPreset(false);
     setAwayModalError(null);
     setShowAwayModal(true);
-  }, [awayMessage]);
+  }, [awayMessage, awayPresets]);
 
   const handleSaveAwayMessage = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -950,21 +1201,103 @@ function BuddyListContent() {
       setAwayModalError(null);
       setIsSavingAwayMessage(true);
 
-      const success = await updateStatus(AWAY_STATUS, awayText);
+      const trimmedMessage = awayText.trim();
+      const trimmedLabel = awayLabelDraft.trim();
+
+      if (!trimmedMessage) {
+        setAwayModalError('Enter an away message before saving.');
+        setIsSavingAwayMessage(false);
+        return;
+      }
+
+      if (saveAwayPreset && !trimmedLabel) {
+        setAwayModalError('Enter a label to save this away message.');
+        setIsSavingAwayMessage(false);
+        return;
+      }
+
+      if (saveAwayPreset && trimmedLabel) {
+        const presetId = `custom-${trimmedLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'away'}`;
+        setAwayPresets((previous) => {
+          const withoutExistingLabel = previous.filter(
+            (preset) => !(preset.label.toLowerCase() === trimmedLabel.toLowerCase() && !preset.builtIn),
+          );
+          return [
+            ...withoutExistingLabel,
+            {
+              id: presetId,
+              label: trimmedLabel,
+              message: trimmedMessage,
+              builtIn: false,
+            },
+          ];
+        });
+        setSelectedAwayPresetId(presetId);
+      }
+
+      const success = await updateStatus(AWAY_STATUS, trimmedMessage);
       setIsSavingAwayMessage(false);
 
       if (!success) {
         return;
       }
 
+      autoAwayTriggeredRef.current = false;
       setShowAwayModal(false);
     },
-    [awayText, updateStatus],
+    [awayLabelDraft, awayText, saveAwayPreset, updateStatus],
   );
 
   const handleImBack = useCallback(() => {
+    autoAwayTriggeredRef.current = false;
+    setAwaySinceAt(null);
     void updateStatus(AVAILABLE_STATUS, null);
   }, [updateStatus]);
+
+  useEffect(() => {
+    if (!userId || !isAutoAwayEnabled || typeof window === 'undefined') {
+      return;
+    }
+
+    let lastActivityAt = Date.now();
+
+    const markActivity = () => {
+      lastActivityAt = Date.now();
+      if (autoReturnOnActivity && autoAwayTriggeredRef.current && userStatusRef.current === AWAY_STATUS) {
+        autoAwayTriggeredRef.current = false;
+        setAwaySinceAt(null);
+        void updateStatus(AVAILABLE_STATUS, null);
+      }
+    };
+
+    const activityEvents: Array<keyof WindowEventMap> = ['pointerdown', 'keydown', 'touchstart', 'mousemove'];
+    activityEvents.forEach((eventName) => {
+      window.addEventListener(eventName, markActivity, { passive: true });
+    });
+
+    const intervalId = window.setInterval(() => {
+      if (userStatusRef.current !== AVAILABLE_STATUS) {
+        return;
+      }
+
+      const elapsed = Date.now() - lastActivityAt;
+      if (elapsed < autoAwayMinutes * 60 * 1000) {
+        return;
+      }
+
+      autoAwayTriggeredRef.current = true;
+      setAwaySinceAt(new Date().toISOString());
+      const template = awayMessageRef.current.trim() || "I've stepped away for a bit. Back soon.";
+      void updateStatus(AWAY_STATUS, template);
+    }, 15000);
+
+    return () => {
+      activityEvents.forEach((eventName) => {
+        window.removeEventListener(eventName, markActivity);
+      });
+      window.clearInterval(intervalId);
+    };
+  }, [autoAwayMinutes, autoReturnOnActivity, isAutoAwayEnabled, updateStatus, userId]);
 
   const handleSaveRecoveryCode = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -1525,6 +1858,13 @@ function BuddyListContent() {
     openAwayModal();
   };
 
+  const selectedAwayPreset = awayPresets.find((preset) => preset.id === selectedAwayPresetId) ?? null;
+  const awayPreview = resolveAwayTemplate(
+    awayText || selectedAwayPreset?.message || "I'm away right now.",
+    screenname,
+    'Buddy',
+  );
+
   return (
     <main className="h-[100dvh] overflow-hidden">
       <RetroWindow
@@ -1561,8 +1901,13 @@ function BuddyListContent() {
               <div className="flex flex-col items-center space-y-2 border-y border-gray-400 bg-[#ffffe1] px-3 py-3 text-center shadow-sm">
                 <p className="text-[12px] font-semibold text-[#4d5874]">You are currently Away.</p>
                 <p className="w-full break-words text-[11px] italic text-gray-600">
-                  {awayMessage || 'Away from keyboard.'}
+                  {resolveAwayTemplate(awayMessage || 'Away from keyboard.', screenname, screenname)}
                 </p>
+                {awaySinceAt ? (
+                  <p className="text-[10px] text-[#4d5874]">
+                    Away since {new Date(awaySinceAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                ) : null}
                 <button
                   type="button"
                   onClick={handleImBack}
@@ -1605,7 +1950,11 @@ function BuddyListContent() {
                           statusMessage: buddy.status_msg,
                         });
                         const isBuddyAway = normalizeStatusLabel(resolvedBuddyStatus.status) === AWAY_STATUS;
-                        const awayLine = resolvedBuddyStatus.awayMessage || 'Away';
+                        const awayLine = resolveAwayTemplate(
+                          resolvedBuddyStatus.awayMessage || 'Away',
+                          buddy.screenname,
+                          screenname,
+                        );
 
                         return (
                           <button
@@ -1687,7 +2036,11 @@ function BuddyListContent() {
                         statusMessage: buddy.status_msg,
                       });
                       const isBuddyAway = normalizeStatusLabel(resolvedBuddyStatus.status) === AWAY_STATUS;
-                      const awayLine = resolvedBuddyStatus.awayMessage || 'Away';
+                      const awayLine = resolveAwayTemplate(
+                        resolvedBuddyStatus.awayMessage || 'Away',
+                        buddy.screenname,
+                        screenname,
+                      );
 
                       return (
                         <button
@@ -1944,25 +2297,137 @@ function BuddyListContent() {
 
       {showAwayModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4">
-          <div className="w-80 max-w-[90%] border-2 border-t-white border-l-white border-r-gray-500 border-b-gray-500 bg-[#eceeef] p-1 shadow-xl">
+          <div className="w-[22rem] max-w-[95%] border-2 border-t-white border-l-white border-r-gray-500 border-b-gray-500 bg-[#eceeef] p-1 shadow-xl">
             <div className="mb-2 flex min-h-[28px] items-center bg-gradient-to-b from-blue-400 via-blue-500 to-blue-700 px-3">
-              <p className="text-sm font-bold text-white [text-shadow:0_1px_0_rgba(0,0,0,0.35)]">
+              <p className="text-[13px] font-bold text-white [text-shadow:0_1px_0_rgba(0,0,0,0.35)]">
                 Set Away Message
               </p>
             </div>
 
             <form onSubmit={handleSaveAwayMessage} className="space-y-3 px-2 pb-2 text-sm">
-              <label htmlFor="away-message-input" className="block text-[12px] font-semibold text-[#1e395b]">
-                Enter your Away Message:
-              </label>
+              <div className="grid grid-cols-[90px_1fr] items-center gap-2">
+                <label htmlFor="away-label-input" className="text-[12px] font-semibold text-[#1e395b]">
+                  Enter label:
+                </label>
+                <input
+                  id="away-label-input"
+                  value={awayLabelDraft}
+                  onChange={(event) => setAwayLabelDraft(event.target.value)}
+                  className="h-8 border border-[#7F9DB9] bg-white px-2 text-[12px] shadow-[inset_1px_1px_2px_rgba(0,0,0,0.08)] focus:outline-none focus:ring-1 focus:ring-[#7F9DB9]"
+                  placeholder="Simple Plan"
+                  maxLength={40}
+                />
+              </div>
+
+              <div className="grid grid-cols-[90px_1fr] items-center gap-2">
+                <label htmlFor="away-preset-select" className="text-[12px] font-semibold text-[#1e395b]">
+                  Preset:
+                </label>
+                <select
+                  id="away-preset-select"
+                  value={selectedAwayPresetId}
+                  onChange={(event) => {
+                    const nextPresetId = event.target.value;
+                    setSelectedAwayPresetId(nextPresetId);
+                    const preset = awayPresets.find((item) => item.id === nextPresetId);
+                    if (preset) {
+                      setAwayLabelDraft(preset.label);
+                      setAwayText(preset.message);
+                    }
+                  }}
+                  className="h-8 border border-[#7F9DB9] bg-white px-2 text-[12px] shadow-[inset_1px_1px_2px_rgba(0,0,0,0.08)] focus:outline-none focus:ring-1 focus:ring-[#7F9DB9]"
+                >
+                  {awayPresets.map((preset) => (
+                    <option key={preset.id} value={preset.id}>
+                      {preset.label}
+                    </option>
+                  ))}
+                  <option value="__custom__">Custom...</option>
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="away-message-input" className="mb-1 block text-[12px] font-semibold text-[#1e395b]">
+                  Enter new Away message:
+                </label>
+                <div className="mb-1 flex items-center gap-1 border border-[#b7b7b7] bg-[#ece9d8] px-1 py-1">
+                  <span className="inline-flex h-5 w-5 items-center justify-center border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] text-[11px] font-bold text-[#1e395b]">
+                    A
+                  </span>
+                  <span className="inline-flex h-5 w-5 items-center justify-center border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] text-[11px] font-bold text-[#1e395b]">
+                    B
+                  </span>
+                  <span className="inline-flex h-5 w-5 items-center justify-center border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] text-[11px] font-bold text-[#1e395b]">
+                    I
+                  </span>
+                  <span className="inline-flex h-5 w-5 items-center justify-center border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] text-[11px] font-bold text-[#1e395b] underline">
+                    U
+                  </span>
+                </div>
+              </div>
+
               <textarea
                 id="away-message-input"
                 value={awayText}
                 onChange={(event) => setAwayText(event.target.value)}
-                className="min-h-[104px] w-full resize-none border border-[#7F9DB9] bg-white p-2 text-sm shadow-inner focus:outline-none focus:ring-1 focus:ring-[#7F9DB9]"
-                placeholder="Out for lunch..."
-                maxLength={240}
+                className="min-h-[110px] w-full resize-none border border-[#7F9DB9] bg-white p-2 text-[12px] shadow-inner focus:outline-none focus:ring-1 focus:ring-[#7F9DB9]"
+                placeholder="Use %n for buddy name, %d for date, %t for time..."
+                maxLength={320}
               />
+
+              <div className="border border-[#5a5a5a] border-t-[#808080] border-l-[#808080] border-r-[#b6b6b6] border-b-[#b6b6b6] bg-black p-2">
+                <p className="break-words text-[13px] text-[#ffc4d8]">{awayPreview}</p>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#2f405c]">
+                <label className="inline-flex items-center gap-1">
+                  <input
+                    type="checkbox"
+                    checked={saveAwayPreset}
+                    onChange={(event) => setSaveAwayPreset(event.target.checked)}
+                    className="h-4 w-4 border border-[#7f7f7f]"
+                  />
+                  Save for later use
+                </label>
+                <span className="text-[10px]">%n = Buddy, %d = Date, %t = Time</span>
+              </div>
+
+              <div className="space-y-2 border border-[#c9d4e5] bg-[#f4f7fc] p-2">
+                <label className="inline-flex items-center gap-2 text-[11px] font-semibold text-[#1e395b]">
+                  <input
+                    type="checkbox"
+                    checked={isAutoAwayEnabled}
+                    onChange={(event) => setIsAutoAwayEnabled(event.target.checked)}
+                    className="h-4 w-4 border border-[#7f7f7f]"
+                  />
+                  Auto set Away when idle
+                </label>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-[#1e395b]">Idle timeout:</span>
+                  <select
+                    value={autoAwayMinutes}
+                    onChange={(event) => setAutoAwayMinutes(Number(event.target.value))}
+                    className="h-7 border border-[#7F9DB9] bg-white px-2 text-[11px] shadow-[inset_1px_1px_2px_rgba(0,0,0,0.08)] focus:outline-none"
+                    disabled={!isAutoAwayEnabled}
+                  >
+                    {AUTO_AWAY_MINUTE_OPTIONS.map((minutes) => (
+                      <option key={minutes} value={minutes}>
+                        {minutes} min
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <label className="inline-flex items-center gap-2 text-[11px] text-[#1e395b]">
+                  <input
+                    type="checkbox"
+                    checked={autoReturnOnActivity}
+                    onChange={(event) => setAutoReturnOnActivity(event.target.checked)}
+                    className="h-4 w-4 border border-[#7f7f7f]"
+                    disabled={!isAutoAwayEnabled}
+                  />
+                  Return to Available when activity resumes
+                </label>
+              </div>
 
               {awayModalError ? (
                 <p className="text-[12px] font-semibold text-red-700">{awayModalError}</p>
@@ -1984,7 +2449,7 @@ function BuddyListContent() {
                   disabled={isSavingAwayMessage}
                   className="min-h-[34px] border-2 border-t-white border-l-white border-r-gray-500 border-b-gray-500 bg-[#eceeef] px-4 text-xs font-bold text-[#1e395b] shadow-[inset_1px_1px_0_rgba(255,255,255,0.8)] disabled:opacity-60"
                 >
-                  {isSavingAwayMessage ? 'Saving...' : 'OK'}
+                  {isSavingAwayMessage ? 'Saving...' : "I'm Away"}
                 </button>
               </div>
             </form>
