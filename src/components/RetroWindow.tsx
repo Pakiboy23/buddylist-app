@@ -38,7 +38,7 @@ export default function RetroWindow({
         style={style}
       >
         <div
-          className={`relative z-20 flex min-h-[56px] items-center bg-gradient-to-b from-[#0058e6] via-[#3a93ff] to-[#0058e6] px-3 pb-2 text-[13px] font-bold text-white shadow-[0_1px_2px_rgba(0,0,0,0.25)] ${titleBarClassName ?? ''}`}
+          className={`relative z-20 flex min-h-[52px] items-center border-b border-[#1f4f9e] bg-gradient-to-b from-[#0058e6] via-[#3a93ff] to-[#0058e6] px-2 pb-1.5 text-[11px] font-bold text-white shadow-[0_1px_0_rgba(255,255,255,0.35)_inset] ${titleBarClassName ?? ''}`}
           style={{ paddingTop: 'env(safe-area-inset-top)' }}
         >
           <div className="z-10 flex min-w-[44px] items-center">
@@ -46,27 +46,30 @@ export default function RetroWindow({
               <button
                 type="button"
                 onClick={onXpClose}
-                className="inline-flex h-9 min-w-9 items-center justify-center rounded border border-white/40 bg-white/15 px-2 text-[18px] font-bold leading-none"
+                className="inline-flex h-7 min-w-7 items-center justify-center border border-[#2a5db5] border-t-white/70 border-l-white/70 border-r-[#1a3f86] border-b-[#1a3f86] bg-gradient-to-b from-[#86bbff] to-[#3579d6] px-1 text-[13px] font-bold leading-none text-white [text-shadow:0_1px_0_rgba(0,0,0,0.45)]"
                 aria-label="Back"
                 title="Back"
               >
-                ‹
+                {'<'}
               </button>
             ) : null}
           </div>
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-20">
-            <span className="truncate [text-shadow:0_1px_0_rgba(0,0,0,0.5)]">{xpTitleText ?? title}</span>
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center gap-1 px-16">
+            <span className="inline-flex h-3.5 w-3.5 items-center justify-center border border-[#0b3f9c] bg-gradient-to-b from-[#ffd84e] to-[#f0ba0f] text-[9px] leading-none text-[#103d95]">
+              +
+            </span>
+            <span className="truncate [text-shadow:0_1px_0_rgba(0,0,0,0.55)]">{xpTitleText ?? title}</span>
           </div>
           <div className="z-10 ml-auto flex min-w-[44px] justify-end">
             {onXpSignOff ? (
               <button
                 type="button"
                 onClick={onXpSignOff}
-                className="inline-flex h-9 min-w-9 items-center justify-center rounded border border-white/40 bg-white/15 px-2 text-[16px]"
+                className="inline-flex h-7 min-w-7 items-center justify-center border border-[#2a5db5] border-t-white/70 border-l-white/70 border-r-[#1a3f86] border-b-[#1a3f86] bg-gradient-to-b from-[#86bbff] to-[#3579d6] px-1 text-[12px] font-bold text-white [text-shadow:0_1px_0_rgba(0,0,0,0.45)]"
                 aria-label="Settings"
                 title="Settings"
               >
-                ⚙
+                ≡
               </button>
             ) : null}
           </div>
