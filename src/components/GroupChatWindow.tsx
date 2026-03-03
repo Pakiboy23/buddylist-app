@@ -328,8 +328,12 @@ export default function GroupChatWindow({
     setFormat((previous) => ({ ...previous, underline: !previous.underline }));
   };
 
-  const xpTinyToolbarButtonClass =
-    'inline-flex h-5 min-w-5 items-center justify-center border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-1 text-[11px] font-bold text-[#1e395b]';
+  const xpTinyToolbarButtonClass = (active = false) =>
+    `inline-flex h-5 min-w-5 items-center justify-center border px-1 text-[11px] font-bold text-[#1e395b] ${
+      active
+        ? 'border-[#7f7f7f] border-t-[#9d9d9d] border-l-[#9d9d9d] border-r-white border-b-white bg-[#dde4ef]'
+        : 'border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8]'
+    }`;
 
   return (
     <div className="fixed inset-0 z-50">
@@ -342,33 +346,17 @@ export default function GroupChatWindow({
       >
         <div className="flex h-full min-h-0 flex-col bg-[#ece9d8] font-[Tahoma,Arial,sans-serif] text-[11px]">
           <div className="m-2 mb-0 flex min-h-0 flex-1 flex-col overflow-y-auto border-2 border-t-[#808080] border-l-[#808080] border-b-white border-r-white bg-white p-2">
-            <p className="mb-1 font-bold text-[#1e395b]">Room: #{roomName}</p>
-            <div className="mb-2 flex gap-2 overflow-x-auto pb-1 text-[11px]">
-              {participants.length === 0 ? (
-                <p className="italic text-slate-500">No one else is here yet.</p>
-              ) : (
-                participants.map((participant) => (
-                  (() => {
-                    const isCurrentUser = participant.userId === currentUserId;
-                    const senderColorClass = isCurrentUser
-                      ? 'text-blue-600'
-                      : getStableSenderColorClass(participant.userId);
-
-                    return (
-                      <span
-                        key={participant.userId}
-                        className="inline-flex items-center gap-1 whitespace-nowrap border border-[#c7c7c7] bg-[#f6f8fc] px-1.5 py-0.5"
-                      >
-                        <span className={senderColorClass}>●</span>
-                        <span className={`font-semibold ${senderColorClass}`}>
-                          {isCurrentUser ? `${participant.screenname} (You)` : participant.screenname}
-                        </span>
-                      </span>
-                    );
-                  })()
-                ))
-              )}
-            </div>
+            <p className="mb-0.5 font-bold text-[#1e395b]">Room: #{roomName}</p>
+            <p className="mb-2 truncate text-[11px] text-[#4f607c]">
+              Participants:{' '}
+              {participants.length === 0
+                ? 'No one else is here yet.'
+                : participants
+                    .map((participant) =>
+                      participant.userId === currentUserId ? `${participant.screenname} (You)` : participant.screenname,
+                    )
+                    .join(', ')}
+            </p>
 
             {isLoadingMessages && <p className="italic text-slate-500">Loading room history...</p>}
             {!isLoadingMessages && messages.length === 0 && (
@@ -388,7 +376,7 @@ export default function GroupChatWindow({
                   });
 
                   return (
-                    <div key={message.id} className="flex flex-wrap items-baseline gap-x-1 leading-5">
+                    <div key={message.id} className="flex flex-wrap items-baseline gap-x-1 leading-4">
                       <span className="text-[11px] text-gray-500">[{timestamp}]</span>
                       <span className={`font-bold ${senderClassName}`}>
                         {isMine ? 'You' : senderName}:
@@ -409,22 +397,22 @@ export default function GroupChatWindow({
             <button
               type="button"
               onClick={() => setShowFormatting((previous) => !previous)}
-              className={xpTinyToolbarButtonClass}
+              className={xpTinyToolbarButtonClass(showFormatting)}
               aria-label="Toggle formatting"
               title="Toggle formatting"
             >
               A
             </button>
-            <button type="button" onClick={toggleBold} className={xpTinyToolbarButtonClass} aria-label="Bold">
+            <button type="button" onClick={toggleBold} className={xpTinyToolbarButtonClass(format.bold)} aria-label="Bold">
               B
             </button>
-            <button type="button" onClick={toggleItalic} className={xpTinyToolbarButtonClass} aria-label="Italic">
+            <button type="button" onClick={toggleItalic} className={xpTinyToolbarButtonClass(format.italic)} aria-label="Italic">
               I
             </button>
             <button
               type="button"
               onClick={toggleUnderline}
-              className={xpTinyToolbarButtonClass}
+              className={xpTinyToolbarButtonClass(format.underline)}
               aria-label="Underline"
             >
               <span className="underline">U</span>
@@ -432,7 +420,7 @@ export default function GroupChatWindow({
             <button
               type="button"
               disabled
-              className={`${xpTinyToolbarButtonClass} opacity-70`}
+              className={`${xpTinyToolbarButtonClass()} opacity-70`}
               aria-label="Link"
               title="Link"
             >
@@ -441,7 +429,7 @@ export default function GroupChatWindow({
             <button
               type="button"
               onClick={onLeave}
-              className={`${xpTinyToolbarButtonClass} ml-auto text-[#7b1f1f]`}
+              className={`${xpTinyToolbarButtonClass()} ml-auto text-[#7b1f1f]`}
               aria-label="Leave room"
               title="Leave room"
             >

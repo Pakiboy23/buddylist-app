@@ -32,64 +32,47 @@ export default function RetroWindow({
   xpTitleText,
 }: RetroWindowProps) {
   if (variant === 'xp_shell') {
-    const xpControlBase =
-      'inline-flex h-[20px] w-[22px] items-center justify-center border border-[#0f2e73] border-t-white/70 border-l-white/70 border-r-[#0d2d6f] border-b-[#0d2d6f] text-[11px] font-bold leading-none shadow-[inset_1px_1px_0_rgba(255,255,255,0.35)]';
-
     return (
       <div
-        className={`flex h-[100dvh] w-full flex-col overflow-hidden bg-[#ece9d8] font-[Tahoma,Arial,sans-serif] text-[11px] ${className ?? ''}`}
+        className={`flex h-[100dvh] w-full flex-col overflow-hidden bg-[#f4f7fc] font-[Tahoma,Arial,"MS Sans Serif",sans-serif] text-[11px] ${className ?? ''}`}
         style={style}
       >
         <div
-          className={`relative flex min-h-[32px] items-center justify-between rounded-t-lg border border-[#1f4f9e] bg-gradient-to-b from-[#0058e6] via-[#3a93ff] to-[#0058e6] px-2 text-[11px] font-bold text-white [text-shadow:0_1px_0_rgba(0,0,0,0.6)] ${titleBarClassName ?? ''}`}
+          className={`relative z-20 flex min-h-[56px] items-center bg-gradient-to-b from-[#0058e6] via-[#3a93ff] to-[#0058e6] px-3 pb-2 text-[13px] font-bold text-white shadow-[0_1px_2px_rgba(0,0,0,0.25)] ${titleBarClassName ?? ''}`}
           style={{ paddingTop: 'env(safe-area-inset-top)' }}
         >
-          <div className="min-w-0 truncate pr-2">{xpTitleText ?? title}</div>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              className={`${xpControlBase} bg-gradient-to-b from-[#6faeff] to-[#2d75d8]`}
-              aria-label="Minimize"
-              title="Minimize"
-            >
-              _
-            </button>
-            <button
-              type="button"
-              className={`${xpControlBase} bg-gradient-to-b from-[#6faeff] to-[#2d75d8]`}
-              aria-label="Maximize"
-              title="Maximize"
-            >
-              □
-            </button>
-            <button
-              type="button"
-              onClick={onXpClose}
-              className={`${xpControlBase} bg-gradient-to-b from-[#ff7f7f] via-[#ef3a3a] to-[#c90000]`}
-              aria-label="Close"
-              title="Close"
-            >
-              ×
-            </button>
+          <div className="z-10 flex min-w-[44px] items-center">
+            {onXpClose ? (
+              <button
+                type="button"
+                onClick={onXpClose}
+                className="inline-flex h-9 min-w-9 items-center justify-center rounded border border-white/40 bg-white/15 px-2 text-[18px] font-bold leading-none"
+                aria-label="Back"
+                title="Back"
+              >
+                ‹
+              </button>
+            ) : null}
+          </div>
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-20">
+            <span className="truncate [text-shadow:0_1px_0_rgba(0,0,0,0.5)]">{xpTitleText ?? title}</span>
+          </div>
+          <div className="z-10 ml-auto flex min-w-[44px] justify-end">
+            {onXpSignOff ? (
+              <button
+                type="button"
+                onClick={onXpSignOff}
+                className="inline-flex h-9 min-w-9 items-center justify-center rounded border border-white/40 bg-white/15 px-2 text-[16px]"
+                aria-label="Settings"
+                title="Settings"
+              >
+                ⚙
+              </button>
+            ) : null}
           </div>
         </div>
 
-        <div className="flex min-h-[24px] items-center gap-4 border-x border-b border-[#b6b6b6] bg-[#ece9d8] px-2 text-[11px] text-[#111]">
-          <span>File</span>
-          <span>Edit</span>
-          <span>Insert</span>
-          <span>Window</span>
-          {onXpSignOff ? (
-            <button type="button" onClick={onXpSignOff} className="cursor-pointer">
-              Sign Off
-            </button>
-          ) : (
-            <span>Sign Off</span>
-          )}
-          <span>Help</span>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-hidden border-x border-b border-[#b6b6b6] bg-[#ece9d8]">
+        <div className="min-h-0 flex-1 overflow-hidden bg-[#f4f7fc]">
           {children}
         </div>
       </div>

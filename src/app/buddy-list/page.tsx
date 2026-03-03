@@ -1435,13 +1435,6 @@ function BuddyListContent() {
     };
   }, [requestedDirectMessageUserId, requestedRoomName, router, userId]);
 
-  const openAddWindow = () => {
-    setSearchTerm('');
-    setSearchResults([]);
-    setSearchError(null);
-    setShowAddWindow(true);
-  };
-
   const openRoomsWindow = () => {
     setRoomNameDraft(activeRoom?.name ?? '');
     setRoomJoinError(null);
@@ -1503,7 +1496,9 @@ function BuddyListContent() {
       }).statusMessage
     : null;
   const xpRaisedButtonClass =
-    'min-h-[28px] border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-1 text-[11px] font-bold text-[#1e395b] disabled:opacity-60';
+    'min-h-[32px] border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-2 text-[11px] font-bold text-[#1e395b] disabled:opacity-60 active:border-t-[#808080] active:border-l-[#808080] active:border-r-white active:border-b-white';
+  const xpGroupHeaderClass =
+    'flex min-h-[38px] w-full items-center gap-2 border-y border-[#c3d4e6] bg-[#e6eff8] px-3 py-2 text-left text-[12px] font-bold text-[#1e395b]';
 
   const handleOpenImFromActionBar = () => {
     const fallbackBuddyId =
@@ -1522,11 +1517,12 @@ function BuddyListContent() {
   };
 
   const handleSetupAction = () => {
-    if (!isAdminUser) {
+    if (isAdminUser) {
+      openAdminResetWindow();
       return;
     }
 
-    openAdminResetWindow();
+    openAwayModal();
   };
 
   return (
@@ -1534,24 +1530,35 @@ function BuddyListContent() {
       <RetroWindow
         title="Buddy List"
         variant="xp_shell"
-        xpTitleText={screenname && screenname !== 'Loading...' ? `${screenname} - Buddy List` : 'AIM Buddy List'}
-        onXpClose={handleSignOff}
-        onXpSignOff={handleSignOff}
+        xpTitleText="Buddy List"
+        onXpSignOff={handleSetupAction}
       >
-        <div className="flex h-full min-h-0 flex-col p-2 font-[Tahoma,Arial,sans-serif] text-[11px]">
-          <div className="mx-auto mb-2 flex h-[50px] w-full max-w-[320px] items-center justify-center border-2 border-t-[#808080] border-l-[#808080] border-b-white border-r-white bg-[#f5f5f5] text-[#666]">
-            Ad Space 320x50
-          </div>
-
-          <div className="mb-2 border border-[#b8b8b8] bg-[#f4f7fc] p-2">
-            <div className="min-w-0">
-              <p className="uppercase tracking-wide text-[#546b88]">Signed in as</p>
-              <p className="truncate text-[13px] font-bold text-[#1e395b]">{screenname}</p>
-              <p className="mt-0.5 truncate italic text-[#5b708f]">{statusMsg || AVAILABLE_STATUS}</p>
+        <div className="relative flex h-full min-h-0 flex-col font-[Tahoma,Arial,sans-serif] text-[11px] text-[#1e395b]">
+          <div className="min-h-0 flex-1 overflow-y-auto pb-20">
+            <div className="border-b border-[#d0d7e5] bg-[#f4f7fc] px-3 py-2">
+              {!isCurrentUserAway ? (
+                <>
+                  <p className="truncate text-[13px] font-bold text-[#1e395b]">{screenname}</p>
+                  <p className="truncate text-[11px] italic text-[#5b708f]">{statusMsg || AVAILABLE_STATUS}</p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled
+                      className="min-h-[32px] border border-[#7f7f7f] border-t-[#a7a7a7] border-l-[#a7a7a7] border-r-white border-b-white bg-[#dfe6f1] px-2 font-bold text-[#1e395b]"
+                    >
+                      Available
+                    </button>
+                    <button type="button" onClick={openAwayModal} className={xpRaisedButtonClass}>
+                      Set Away Message
+                    </button>
+                  </div>
+                </>
+              ) : null}
+              {awayModalError ? <p className="mt-2 font-semibold text-red-700">{awayModalError}</p> : null}
             </div>
 
             {isCurrentUserAway ? (
-              <div className="mt-2 flex flex-col items-center space-y-2 border-y border-gray-400 bg-[#ffffe1] p-3 text-center shadow-sm">
+              <div className="flex flex-col items-center space-y-2 border-y border-gray-400 bg-[#ffffe1] px-3 py-3 text-center shadow-sm">
                 <p className="text-[12px] font-semibold text-[#4d5874]">You are currently Away.</p>
                 <p className="w-full break-words text-[11px] italic text-gray-600">
                   {awayMessage || 'Away from keyboard.'}
@@ -1564,32 +1571,16 @@ function BuddyListContent() {
                   I&apos;m Back
                 </button>
               </div>
-            ) : (
-              <div className="mt-2 flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled
-                  className="min-h-[28px] border border-[#7f7f7f] border-t-[#a7a7a7] border-l-[#a7a7a7] border-r-white border-b-white bg-[#dfe6f1] px-2 font-bold text-[#1e395b]"
-                >
-                  Available
-                </button>
-                <button type="button" onClick={openAwayModal} className={xpRaisedButtonClass}>
-                  Set Away Message
-                </button>
-              </div>
-            )}
-            {awayModalError ? <p className="mt-2 font-semibold text-red-700">{awayModalError}</p> : null}
-          </div>
+            ) : null}
 
-          <div className="min-h-0 flex-1 overflow-hidden border-2 border-t-[#808080] border-l-[#808080] border-b-white border-r-white bg-white">
-            <div className="h-full overflow-y-auto">
+            <div className="bg-white">
               <div className="select-none">
                 <button
                   type="button"
                   onClick={() => setIsBuddiesOpen((previous) => !previous)}
-                  className="flex w-full items-center gap-2 border-y border-[#aab7cd] bg-gradient-to-b from-[#f3f6fb] to-[#dce6f6] px-2 py-1.5 text-left font-bold text-[#1e395b]"
+                  className={xpGroupHeaderClass}
                 >
-                  <span className="inline-flex h-3.5 w-3.5 items-center justify-center border border-[#7f7f7f] bg-[#ece9d8] text-[10px] leading-none">
+                  <span className="inline-flex h-4 w-4 items-center justify-center border border-[#7f7f7f] bg-[#ece9d8] text-[11px] leading-none">
                     {isBuddiesOpen ? '-' : '+'}
                   </span>
                   <span>Buddies ({onlineBuddies.length}/{acceptedBuddies.length})</span>
@@ -1597,12 +1588,12 @@ function BuddyListContent() {
 
                 {isBuddiesOpen ? (
                   <div>
-                    {isBootstrapping ? <p className="px-2 py-1 italic text-slate-500">Dialing in...</p> : null}
+                    {isBootstrapping ? <p className="px-3 py-2 italic text-slate-500">Dialing in...</p> : null}
                     {!isBootstrapping && isLoadingBuddies ? (
-                      <p className="px-2 py-1 italic text-slate-500">Loading your buddy list...</p>
+                      <p className="px-3 py-2 italic text-slate-500">Loading your buddy list...</p>
                     ) : null}
                     {!isBootstrapping && !isLoadingBuddies && acceptedBuddies.length === 0 ? (
-                      <p className="px-2 py-1 italic text-slate-500">List is empty.</p>
+                      <p className="px-3 py-2 italic text-slate-500">List is empty.</p>
                     ) : null}
                     {!isBootstrapping &&
                       onlineBuddies.map((buddy) => {
@@ -1621,7 +1612,7 @@ function BuddyListContent() {
                             key={buddy.id}
                             type="button"
                             onClick={() => handleOpenChat(buddy.id)}
-                            className={`group flex min-h-[24px] w-full items-center justify-between border-b border-[#e5ecf5] px-2 py-1 text-left transition ${
+                            className={`group flex min-h-[44px] w-full items-center justify-between border-b border-[#edf2f8] px-3 py-2 text-left transition ${
                               isSelected
                                 ? 'bg-[#316ac5] text-white'
                                 : 'text-[#1e395b] hover:bg-[#316ac5] hover:text-white'
@@ -1629,8 +1620,8 @@ function BuddyListContent() {
                           >
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5">
-                                <span className={isSelected ? 'text-white' : 'text-emerald-600'}>
-                                  {isBuddyAway ? '📜' : '●'}
+                                <span className={isSelected ? 'text-white' : isBuddyAway ? 'text-[#7d7d7d]' : 'text-[#2b8f3f]'}>
+                                  {isBuddyAway ? '▸' : '●'}
                                 </span>
                                 <span
                                   className={`truncate font-bold ${
@@ -1661,7 +1652,7 @@ function BuddyListContent() {
                       })}
 
                     {pendingBuddies.length > 0 ? (
-                      <div className="border-b border-[#e5ecf5] px-2 py-1">
+                      <div className="border-b border-[#e5ecf5] px-3 py-2">
                         <p className="font-bold text-[#536b89]">Pending ({pendingBuddies.length})</p>
                         {pendingBuddies.map((buddy) => (
                           <p key={buddy.id} className="truncate italic text-slate-500">
@@ -1678,9 +1669,9 @@ function BuddyListContent() {
                 <button
                   type="button"
                   onClick={() => setIsOfflineOpen((previous) => !previous)}
-                  className="flex w-full items-center gap-2 border-y border-[#aab7cd] bg-gradient-to-b from-[#f3f6fb] to-[#dce6f6] px-2 py-1.5 text-left font-bold text-[#1e395b]"
+                  className={xpGroupHeaderClass}
                 >
-                  <span className="inline-flex h-3.5 w-3.5 items-center justify-center border border-[#7f7f7f] bg-[#ece9d8] text-[10px] leading-none">
+                  <span className="inline-flex h-4 w-4 items-center justify-center border border-[#7f7f7f] bg-[#ece9d8] text-[11px] leading-none">
                     {isOfflineOpen ? '-' : '+'}
                   </span>
                   <span>Offline ({offlineBuddies.length}/{acceptedBuddies.length})</span>
@@ -1703,7 +1694,7 @@ function BuddyListContent() {
                           key={buddy.id}
                           type="button"
                           onClick={() => handleOpenChat(buddy.id)}
-                          className={`group flex min-h-[24px] w-full items-center justify-between border-b border-[#e5ecf5] px-2 py-1 text-left transition ${
+                          className={`group flex min-h-[44px] w-full items-center justify-between border-b border-[#edf2f8] px-3 py-2 text-left transition ${
                             isSelected
                               ? 'bg-[#316ac5] text-white'
                               : 'text-[#1e395b] hover:bg-[#316ac5] hover:text-white'
@@ -1711,8 +1702,8 @@ function BuddyListContent() {
                         >
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5">
-                              <span className={isSelected ? 'text-white' : 'text-slate-500'}>
-                                {isBuddyAway ? '📜' : '○'}
+                              <span className={isSelected ? 'text-white' : isBuddyAway ? 'text-[#7d7d7d]' : 'text-slate-500'}>
+                                {isBuddyAway ? '▸' : '○'}
                               </span>
                               <span
                                 className={`truncate font-bold ${
@@ -1748,9 +1739,9 @@ function BuddyListContent() {
                 <button
                   type="button"
                   onClick={() => setIsActiveChatsOpen((previous) => !previous)}
-                  className="flex w-full items-center gap-2 border-y border-[#aab7cd] bg-gradient-to-b from-[#f3f6fb] to-[#dce6f6] px-2 py-1.5 text-left font-bold text-[#1e395b]"
+                  className={xpGroupHeaderClass}
                 >
-                  <span className="inline-flex h-3.5 w-3.5 items-center justify-center border border-[#7f7f7f] bg-[#ece9d8] text-[10px] leading-none">
+                  <span className="inline-flex h-4 w-4 items-center justify-center border border-[#7f7f7f] bg-[#ece9d8] text-[11px] leading-none">
                     {isActiveChatsOpen ? '-' : '+'}
                   </span>
                   <span>Active Chats ({activeRooms.length})</span>
@@ -1758,19 +1749,19 @@ function BuddyListContent() {
 
                 {isActiveChatsOpen ? (
                   activeRooms.length === 0 ? (
-                    <p className="px-2 py-1 italic text-slate-500">No active rooms.</p>
+                    <p className="px-3 py-2 italic text-slate-500">No active rooms.</p>
                   ) : (
                     activeRooms.map((roomName) => {
                       const unreadCount = getUnreadCountForRoom(roomName);
 
                       return (
-                        <div key={roomName} className="flex items-stretch border-b border-[#e5ecf5]">
+                        <div key={roomName} className="flex items-stretch border-b border-[#edf2f8]">
                           <button
                             type="button"
                             onClick={() => void handleOpenActiveRoom(roomName)}
-                            className="group flex min-h-[24px] flex-1 items-center justify-between px-2 py-1 text-left text-[#1e395b] transition hover:bg-[#316ac5] hover:text-white"
+                            className="group flex min-h-[44px] flex-1 items-center justify-between px-3 py-2 text-left text-[#1e395b] transition hover:bg-[#316ac5] hover:text-white"
                           >
-                            <span className="truncate font-bold">{roomName}</span>
+                            <span className="truncate font-bold">#{roomName}</span>
                             {unreadCount > 0 ? (
                               <span className="ml-2 shrink-0 rounded-full border border-white bg-gradient-to-b from-red-400 to-red-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm shadow-black/50">
                                 {unreadCount}
@@ -1780,7 +1771,7 @@ function BuddyListContent() {
                           <button
                             type="button"
                             onClick={() => void handleLeaveRoom(roomName)}
-                            className="inline-flex min-h-[24px] min-w-[24px] items-center justify-center border-l border-[#c3d4e6] bg-gradient-to-b from-[#fefefe] via-[#f4f4f4] to-[#dedede] px-2 text-[11px] font-bold text-[#7b1f1f] shadow-[inset_1px_1px_0_rgba(255,255,255,0.8)] transition hover:from-[#ffe7e7] hover:to-[#f0caca]"
+                            className="my-1 mr-2 inline-flex min-h-[32px] min-w-[32px] items-center justify-center border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-2 text-[11px] font-bold text-[#7b1f1f] transition hover:bg-[#f6eaea]"
                             aria-label={`Leave ${roomName}`}
                             title="Leave room"
                           >
@@ -1795,26 +1786,15 @@ function BuddyListContent() {
             </div>
           </div>
 
-          <div className="mt-2 border-t border-[#9a9a9a] bg-[#ece9d8] p-1">
-            <div className="grid grid-cols-5 gap-1">
+          <div className="fixed bottom-0 left-0 z-20 h-16 w-full border-t-2 border-white bg-[#eceeef] shadow-[0_-1px_2px_rgba(0,0,0,0.1)]">
+            <div className="grid h-full grid-cols-3 items-center gap-2 px-3 py-2">
               <button type="button" onClick={handleOpenImFromActionBar} className={xpRaisedButtonClass}>
                 IM
               </button>
               <button type="button" onClick={openRoomsWindow} className={xpRaisedButtonClass}>
                 Chat
               </button>
-              <button type="button" onClick={openAddWindow} className={xpRaisedButtonClass}>
-                Info
-              </button>
-              <button type="button" onClick={openAwayModal} className={xpRaisedButtonClass}>
-                Away
-              </button>
-              <button
-                type="button"
-                onClick={handleSetupAction}
-                disabled={!isAdminUser}
-                className={xpRaisedButtonClass}
-              >
+              <button type="button" onClick={handleSetupAction} className={xpRaisedButtonClass}>
                 Setup
               </button>
             </div>

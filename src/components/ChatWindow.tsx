@@ -105,8 +105,12 @@ export default function ChatWindow({
     setFormat((previous) => ({ ...previous, underline: !previous.underline }));
   };
 
-  const xpTinyToolbarButtonClass =
-    'inline-flex h-5 min-w-5 items-center justify-center border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-1 text-[11px] font-bold text-[#1e395b]';
+  const xpTinyToolbarButtonClass = (active = false) =>
+    `inline-flex h-5 min-w-5 items-center justify-center border px-1 text-[11px] font-bold text-[#1e395b] ${
+      active
+        ? 'border-[#7f7f7f] border-t-[#9d9d9d] border-l-[#9d9d9d] border-r-white border-b-white bg-[#dde4ef]'
+        : 'border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8]'
+    }`;
 
   return (
     <div className="fixed inset-0 z-40">
@@ -118,8 +122,8 @@ export default function ChatWindow({
         onXpSignOff={onSignOff}
       >
         <div className="flex h-full min-h-0 flex-col bg-[#ece9d8] font-[Tahoma,Arial,sans-serif] text-[11px]">
-          <div className="m-2 mb-0 border border-[#b7b7b7] bg-[#f6f8fc] px-2 py-1 text-[11px] text-[#1e395b]">
-            <span className="font-bold">Buddy Status:</span>{' '}
+          <div className="m-2 mb-0 border border-[#a8a8a8] border-t-white border-l-white border-r-[#a8a8a8] border-b-[#a8a8a8] bg-[#ece9d8] px-2 py-1 text-[11px] text-[#1e395b]">
+            <span className="font-bold">Conversation with {buddyScreenname}:</span>{' '}
             <span
               className="aim-rich-html"
               dangerouslySetInnerHTML={{
@@ -144,7 +148,7 @@ export default function ChatWindow({
                   const senderClassName = isMine ? 'text-blue-600' : 'text-emerald-600';
 
                   return (
-                    <div key={message.id} className="flex flex-wrap items-baseline gap-x-1 leading-5">
+                    <div key={message.id} className="flex flex-wrap items-baseline gap-x-1 leading-4">
                       <span className="text-[11px] text-gray-500">[{timestamp}]</span>
                       <span className={`font-bold ${senderClassName}`}>
                         {isMine ? 'You' : buddyScreenname}:
@@ -165,22 +169,22 @@ export default function ChatWindow({
             <button
               type="button"
               onClick={() => setShowFormatting((previous) => !previous)}
-              className={xpTinyToolbarButtonClass}
+              className={xpTinyToolbarButtonClass(showFormatting)}
               aria-label="Toggle formatting"
               title="Toggle formatting"
             >
               A
             </button>
-            <button type="button" onClick={toggleBold} className={xpTinyToolbarButtonClass} aria-label="Bold">
+            <button type="button" onClick={toggleBold} className={xpTinyToolbarButtonClass(format.bold)} aria-label="Bold">
               B
             </button>
-            <button type="button" onClick={toggleItalic} className={xpTinyToolbarButtonClass} aria-label="Italic">
+            <button type="button" onClick={toggleItalic} className={xpTinyToolbarButtonClass(format.italic)} aria-label="Italic">
               I
             </button>
             <button
               type="button"
               onClick={toggleUnderline}
-              className={xpTinyToolbarButtonClass}
+              className={xpTinyToolbarButtonClass(format.underline)}
               aria-label="Underline"
             >
               <span className="underline">U</span>
@@ -188,7 +192,7 @@ export default function ChatWindow({
             <button
               type="button"
               disabled
-              className={`${xpTinyToolbarButtonClass} opacity-70`}
+              className={`${xpTinyToolbarButtonClass()} opacity-70`}
               aria-label="Link"
               title="Link"
             >

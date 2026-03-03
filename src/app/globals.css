@@ -17,8 +17,8 @@
 }
 
 body {
-  background: radial-gradient(circle at top left, #1b9ca1 0%, #007f84 44%, #00656a 100%);
-  color: black;
+  background: #f4f7fc;
+  color: #111827;
 }
 
 html,

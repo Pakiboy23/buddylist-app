@@ -25,15 +25,15 @@ export default function RichTextToolbar({ value, onChange }: RichTextToolbarProp
   const toggleUnderline = () => updateValue({ underline: !value.underline });
 
   const toggleClassName = (active: boolean) =>
-    `inline-flex h-6 min-w-6 items-center justify-center rounded-sm border px-1 text-[11px] font-semibold transition-colors focus:outline-none ${
+    `inline-flex h-5 min-w-5 items-center justify-center border px-1 text-[11px] font-bold focus:outline-none ${
       active
-        ? 'border-blue-400 bg-blue-200 text-blue-800'
-        : 'border-transparent bg-transparent text-slate-700 hover:border-blue-300 hover:bg-blue-100'
+        ? 'border-[#7f7f7f] border-t-[#a7a7a7] border-l-[#a7a7a7] border-r-white border-b-white bg-[#dfe6f1] text-[#1e395b]'
+        : 'border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] text-[#1e395b]'
     }`;
 
   return (
-    <div className="rounded-md border border-blue-200 bg-blue-50/50 px-2 py-1.5">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="border border-[#a9a9a9] border-t-white border-l-white border-r-[#8d8d8d] border-b-[#8d8d8d] bg-[#d4d0c8] px-1 py-1">
+      <div className="flex flex-wrap items-center gap-1">
         <label className="sr-only" htmlFor="rich-font-select">
           Font
         </label>
@@ -41,7 +41,7 @@ export default function RichTextToolbar({ value, onChange }: RichTextToolbarProp
           id="rich-font-select"
           value={value.fontFamily}
           onChange={(event) => updateValue({ fontFamily: event.target.value })}
-          className="h-7 min-w-[155px] rounded-sm border border-blue-300 bg-white px-2 text-[11px] text-slate-700 focus:border-blue-400 focus:outline-none"
+          className="h-6 min-w-[130px] border border-[#7f7f7f] border-t-[#808080] border-l-[#808080] border-r-white border-b-white bg-white px-1 text-[11px] text-[#1e395b] focus:outline-none"
         >
           {AIM_FONT_OPTIONS.map((fontName) => (
             <option key={fontName} value={fontName}>
@@ -50,7 +50,7 @@ export default function RichTextToolbar({ value, onChange }: RichTextToolbarProp
           ))}
         </select>
 
-        <div className="flex items-center gap-1 border-l border-blue-200 pl-2">
+        <div className="ml-1 flex items-center gap-1 border-l border-[#b3b3b3] pl-1">
           <button
             type="button"
             aria-label="Bold"
@@ -78,7 +78,7 @@ export default function RichTextToolbar({ value, onChange }: RichTextToolbarProp
         </div>
       </div>
 
-      <div className="mt-2 flex flex-wrap gap-1.5">
+      <div className="mt-1 flex flex-wrap gap-1">
         {AIM_COLOR_OPTIONS.map((color) => {
           const isActive = value.color.toLowerCase() === color.value.toLowerCase();
           return (
@@ -88,10 +88,10 @@ export default function RichTextToolbar({ value, onChange }: RichTextToolbarProp
               title={color.name}
               aria-label={color.name}
               onClick={() => updateValue({ color: color.value })}
-              className={`h-3.5 w-3.5 rounded-sm border transition-all ${
+              className={`h-3.5 w-3.5 border ${
                 isActive
-                  ? 'border-blue-500 ring-1 ring-blue-400'
-                  : 'border-blue-200 hover:border-blue-300 hover:scale-105'
+                  ? 'border-[#0b3f9c] shadow-[inset_0_0_0_1px_#ffffff]'
+                  : 'border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080]'
               }`}
               style={{ backgroundColor: color.value }}
             />
@@ -100,7 +100,7 @@ export default function RichTextToolbar({ value, onChange }: RichTextToolbarProp
       </div>
 
       <p
-        className="mt-2 truncate rounded-sm border border-blue-200 bg-white px-2 py-1 text-[11px] text-slate-600"
+        className="mt-1 truncate border border-[#5a5a5a] border-t-[#808080] border-l-[#808080] border-r-[#b6b6b6] border-b-[#b6b6b6] bg-[#0c0c0c] px-1 py-1 text-[11px]"
         style={{
           fontFamily: value.fontFamily || DEFAULT_RICH_TEXT_FORMAT.fontFamily,
           color: value.color || DEFAULT_RICH_TEXT_FORMAT.color,
@@ -109,7 +109,7 @@ export default function RichTextToolbar({ value, onChange }: RichTextToolbarProp
           textDecoration: value.underline ? 'underline' : 'none',
         }}
       >
-        Preview: AIM 5.5 Style
+        Preview: Away message style
       </p>
     </div>
   );
