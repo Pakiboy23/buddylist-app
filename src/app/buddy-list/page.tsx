@@ -2704,6 +2704,7 @@ function BuddyListContent() {
           roomName={activeRoom.name}
           currentUserId={userId}
           currentUserScreenname={screenname}
+          isAdminUser={isAdminUser}
           onBack={handleBackFromRoom}
           onLeave={handleLeaveCurrentRoom}
           onSignOff={handleSignOff}

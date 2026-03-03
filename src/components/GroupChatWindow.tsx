@@ -41,6 +41,7 @@ interface GroupChatWindowProps {
   roomName: string;
   currentUserId: string;
   currentUserScreenname: string;
+  isAdminUser?: boolean;
   onBack: () => void;
   onLeave: () => void;
   onSignOff?: () => void;
@@ -70,6 +71,7 @@ export default function GroupChatWindow({
   roomName,
   currentUserId,
   currentUserScreenname,
+  isAdminUser = false,
   onBack,
   onLeave,
   onSignOff,
@@ -88,7 +90,31 @@ export default function GroupChatWindow({
   const [format, setFormat] = useState<RichTextFormat>(DEFAULT_RICH_TEXT_FORMAT);
   const [showFormatting, setShowFormatting] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [isAdminActionBusy, setIsAdminActionBusy] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const getAccessToken = useCallback(async () => {
+    const { data, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) {
+      console.error('Failed to read session token:', sessionError.message);
+      return null;
+    }
+
+    return data.session?.access_token ?? null;
+  }, []);
+
+  const readApiError = async (response: Response) => {
+    try {
+      const payload = (await response.json()) as { error?: string };
+      if (payload?.error) {
+        return payload.error;
+      }
+    } catch {
+      // ignore parse failures and fall back to status text
+    }
+
+    return `Request failed (${response.status}).`;
+  };
 
   useEffect(() => {
     screennameMapRef.current = screennameMap;
@@ -236,6 +262,18 @@ export default function GroupChatWindow({
       },
     );
 
+    roomChannel.on(
+      'postgres_changes',
+      { event: 'DELETE', schema: 'public', table: 'room_messages', filter: `room_id=eq.${roomId}` },
+      (payload) => {
+        const deleted = payload.old as { id?: string };
+        if (!deleted?.id) {
+          return;
+        }
+        setMessages((previous) => previous.filter((message) => message.id !== deleted.id));
+      },
+    );
+
     roomChannel.subscribe((status) => {
       if (status === 'SUBSCRIBED') {
         void roomChannel.track({
@@ -328,6 +366,51 @@ export default function GroupChatWindow({
     setFormat((previous) => ({ ...previous, underline: !previous.underline }));
   };
 
+  const runAdminChatAction = useCallback(
+    async (payload: { action: 'delete_message'; messageId: string } | { action: 'clear_room' | 'reset_room'; roomId: string }) => {
+      if (!isAdminUser || isAdminActionBusy) {
+        return;
+      }
+
+      setIsAdminActionBusy(true);
+      setError(null);
+
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        setError('Session expired. Please sign on again.');
+        setIsAdminActionBusy(false);
+        return;
+      }
+
+      const response = await fetch('/api/admin/chat-room', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorMessage = await readApiError(response);
+        setError(errorMessage);
+        setIsAdminActionBusy(false);
+        return;
+      }
+
+      if (payload.action === 'delete_message') {
+        setMessages((previous) => previous.filter((message) => message.id !== payload.messageId));
+      }
+
+      if (payload.action === 'clear_room' || payload.action === 'reset_room') {
+        setMessages([]);
+      }
+
+      setIsAdminActionBusy(false);
+    },
+    [getAccessToken, isAdminActionBusy, isAdminUser],
+  );
+
   const xpTinyToolbarButtonClass = (active = false) =>
     `inline-flex h-5 min-w-5 items-center justify-center border px-1 text-[11px] font-bold text-[#1e395b] ${
       active
@@ -347,6 +430,36 @@ export default function GroupChatWindow({
         <div className="flex h-full min-h-0 flex-col bg-[#ece9d8] font-[Tahoma,Arial,sans-serif] text-[11px]">
           <div className="m-2 mb-0 flex min-h-0 flex-1 flex-col overflow-y-auto border-2 border-t-[#808080] border-l-[#808080] border-b-white border-r-white bg-white p-2">
             <p className="mb-0.5 font-bold text-[#1e395b]">Room: #{roomName}</p>
+            {isAdminUser ? (
+              <div className="mb-2 flex flex-wrap gap-1">
+                <button
+                  type="button"
+                  disabled={isAdminActionBusy}
+                  onClick={() => {
+                    const confirmed = window.confirm('Clear all messages from this room?');
+                    if (confirmed) {
+                      void runAdminChatAction({ action: 'clear_room', roomId });
+                    }
+                  }}
+                  className="border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-2 py-0.5 text-[10px] font-bold text-[#1e395b] disabled:opacity-60"
+                >
+                  Clear Room
+                </button>
+                <button
+                  type="button"
+                  disabled={isAdminActionBusy}
+                  onClick={() => {
+                    const confirmed = window.confirm('Reset this room (clear messages and active-room state)?');
+                    if (confirmed) {
+                      void runAdminChatAction({ action: 'reset_room', roomId });
+                    }
+                  }}
+                  className="border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-2 py-0.5 text-[10px] font-bold text-[#7b1f1f] disabled:opacity-60"
+                >
+                  Reset Room
+                </button>
+              </div>
+            ) : null}
             <p className="mb-2 truncate text-[11px] text-[#4f607c]">
               Participants:{' '}
               {participants.length === 0
@@ -385,6 +498,22 @@ export default function GroupChatWindow({
                         className="aim-rich-html text-gray-900"
                         dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(message.content) }}
                       />
+                      {isAdminUser ? (
+                        <button
+                          type="button"
+                          disabled={isAdminActionBusy}
+                          onClick={() => {
+                            const confirmed = window.confirm('Delete this message?');
+                            if (confirmed) {
+                              void runAdminChatAction({ action: 'delete_message', messageId: message.id });
+                            }
+                          }}
+                          className="ml-1 border border-[#b95f5f] bg-[#ffe5e5] px-1 py-0 text-[10px] font-bold text-[#8b2020] disabled:opacity-60"
+                          title="Delete message"
+                        >
+                          Del
+                        </button>
+                      ) : null}
                     </div>
                   );
                 })}
