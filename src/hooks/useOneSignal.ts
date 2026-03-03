@@ -46,7 +46,13 @@ export function useOneSignal(userId: string | null) {
         .eq('id', userId);
 
       if (error) {
-        console.error('Failed syncing OneSignal subscription ID:', error.message);
+        if (error.message?.includes('onesignal_id')) {
+          console.error(
+            'Failed syncing OneSignal subscription ID: users.onesignal_id column is missing. Run supabase/onesignal_users.sql.',
+          );
+        } else {
+          console.error('Failed syncing OneSignal subscription ID:', error.message);
+        }
         return;
       }
 

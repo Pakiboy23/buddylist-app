@@ -152,7 +152,14 @@ async function resolveOneSignalPlayerIds(
     .not('onesignal_id', 'is', null);
 
   if (error) {
-    console.error('Failed to resolve OneSignal IDs:', error.message);
+    const errorMessage = error.message ?? 'Unknown users lookup error.';
+    if (errorMessage.includes('onesignal_id')) {
+      throw new Error(
+        'users.onesignal_id column is missing. Run supabase/onesignal_users.sql in the SQL editor.',
+      );
+    }
+
+    console.error('Failed to resolve OneSignal IDs:', errorMessage);
     return [];
   }
 
@@ -241,7 +248,15 @@ Deno.serve(async (request) => {
     });
   }
 
-  const oneSignalPlayerIds = await resolveOneSignalPlayerIds(admin, recipientUserIds);
+  let oneSignalPlayerIds: string[] = [];
+  try {
+    oneSignalPlayerIds = await resolveOneSignalPlayerIds(admin, recipientUserIds);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown recipient lookup error.';
+    console.error('Failed resolving OneSignal IDs:', message);
+    return jsonResponse({ error: message }, 500);
+  }
+
   if (oneSignalPlayerIds.length === 0) {
     return jsonResponse({
       ok: true,

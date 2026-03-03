@@ -1,6 +1,6 @@
 -- Trigger webhook for push notifications on new messages.
 -- Works without the supabase_functions schema by using pg_net directly.
--- Replace <PROJECT_REF> with your Supabase project ref.
+-- Project ref: keckqpadzxwwmagnmpuk.
 
 create extension if not exists pg_net;
 
@@ -11,7 +11,7 @@ security definer
 set search_path = public
 as $$
 declare
-  v_url text := 'https://<PROJECT_REF>.supabase.co/functions/v1/send-push';
+  v_url text := 'https://keckqpadzxwwmagnmpuk.supabase.co/functions/v1/send-push';
   v_headers jsonb := jsonb_build_object('Content-Type', 'application/json');
   v_body jsonb;
 begin
