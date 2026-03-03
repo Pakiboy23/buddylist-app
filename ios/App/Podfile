@@ -21,4 +21,21 @@ end
 
 post_install do |installer|
   assertDeploymentTarget(installer)
+
+  installer.pods_project.targets.each do |target|
+    target.build_phases.each do |phase|
+      next unless phase.respond_to?(:name) && phase.name == '[CP] Copy XCFrameworks'
+
+      # Xcode 14+: marks the script as always out of date
+      # (unchecked "Based on dependency analysis")
+      if phase.respond_to?(:always_out_of_date)
+        phase.always_out_of_date = '1'
+      end
+
+      # Older Xcode versions may use this flag name.
+      if phase.respond_to?(:based_on_dependency_analysis)
+        phase.based_on_dependency_analysis = '0'
+      end
+    end
+  end
 end
