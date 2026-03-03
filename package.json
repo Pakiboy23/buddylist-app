@@ -7,6 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "android:sync": "npx cap sync android",
+    "android:bundle:release": "cd android && ./gradlew bundleRelease",
+    "android:bundle:release:clean": "cd android && ./gradlew clean bundleRelease",
     "postinstall": "patch-package"
   },
   "dependencies": {

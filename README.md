@@ -116,6 +116,10 @@ npx cap open ios
 npx cap open android
 ```
 
+Android Play release docs:
+
+- See [ANDROID_PLAY_RELEASE.md](/Users/syedshariff/buddylist/ANDROID_PLAY_RELEASE.md)
+
 Current native-shell behavior:
 - no pull-to-refresh bounce (`overscroll-behavior-y: none`)
 - no viewport zoom (`maximum-scale=1`, `user-scalable=0`)
