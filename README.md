@@ -9,6 +9,7 @@ A retro AIM-style messaging app built with Next.js + Supabase, now mobile-first 
   - recovery code flow
   - admin-issued one-time reset ticket fallback
 - Chat rooms support persistent membership (`activeRooms`) and unread room counters across refresh/re-login.
+- Direct-message unread state is persisted in DB (`user_dm_state`) for multi-device consistency.
 - Global listener shows incoming notification banners outside active views.
 - DM behavior:
   - incoming DMs no longer force-open the chat window
@@ -24,6 +25,10 @@ A retro AIM-style messaging app built with Next.js + Supabase, now mobile-first 
   - other users get stable deterministic colors (per sender id)
 - Capacitor mobile wrapper is configured with status bar + safe-area aware layout behavior.
 - Chat room state now exposes sync status (`hydrating`, `syncing`, `live`, `error`) with manual resync in Buddy List.
+- UI preferences/drafts now use a versioned local cache (`buddylist:ui:v1:<userId>`) with legacy-key migration.
+- DM and room chat support soft edit/delete and emoji reactions.
+- DM and room chat support file attachments via Supabase Storage (`chat-media`) + metadata tables.
+- Offline-safe local outbox (`buddylist:outbox:v1:<userId>`) retries queued DM/room sends with backoff.
 
 ## Stack
 
@@ -79,6 +84,9 @@ supabase/gtm_plan.sql
 supabase/chat_rooms.sql
 supabase/password_recovery_admin.sql
 supabase/persistent_chat_state.sql
+supabase/dm_state.sql
+supabase/message_enhancements.sql
+supabase/chat_media.sql
 ```
 
 3. (Optional but recommended) seed at least one admin:
@@ -129,6 +137,7 @@ Current native-shell behavior:
 - no long-press text callout (`-webkit-touch-callout: none`)
 - safe-area aware glossy header
 - status bar configured in `capacitor.config.ts`
+- push roadmap stays Supabase-first (DB/edge/webhook), avoiding Xcode-native push setup.
 
 ## Auth Model
 
@@ -160,6 +169,7 @@ Recovery model:
 - Banner click behavior:
   - DM banner routes to `?dm=<senderId>`
   - Room banner routes to `?room=<roomName>`
+- Push direction for this app is Supabase-first (DB/webhook/edge integration), not Xcode-native push wiring.
 
 ### Room Persistence
 
@@ -183,6 +193,9 @@ Recovery model:
 - `src/components/RetroWindow.tsx` - top-level mobile window shell + centered glossy titlebar
 - `src/app/buddy-list/page.tsx` - buddy list, DM windows, room controls, admin reset UI
 - `src/lib/passwordRecovery.ts` - recovery/ticket crypto + workflows
+- `src/lib/clientStorage.ts` - safe typed local persistence with versioned envelopes
+- `src/lib/chatMedia.ts` - attachment validation + Supabase Storage upload helpers
+- `src/lib/outbox.ts` - offline outbox queue schema + retry metadata
 - `src/lib/roomName.ts` - shared room normalization helpers
 - `capacitor.config.ts` - iOS/Android wrapper configuration
 - `src/app/api/admin/password-reset-audit/route.ts` - admin-only recovery audit feed

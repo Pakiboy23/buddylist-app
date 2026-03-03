@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from 'react';
 import { getSessionOrNull } from '@/lib/authClient';
+import { getRaw, removeValue, setVersionedData, subscribeToStorageKey } from '@/lib/clientStorage';
 import { normalizeRoomKey, normalizeRoomName } from '@/lib/roomName';
 import { initSoundSystem, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
@@ -40,10 +41,12 @@ const SOUND_MAP: Record<SoundType, string> = {
   message: '/sounds/im_receive.mp3',
 };
 
-const CHAT_STATE_CACHE_PREFIX = 'buddylist:chatstate:';
+const CHAT_STATE_CACHE_PREFIX = 'buddylist:chatstate:v2:';
+const LEGACY_CHAT_STATE_CACHE_PREFIX = 'buddylist:chatstate:';
 const CHAT_STATE_CACHE_VERSION = 2;
 const CHAT_STATE_WRITE_DEBOUNCE_MS = 180;
 const CHAT_STATE_ROOM_LIMIT = 250;
+const CHAT_STATE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 interface UserActiveRoomRow {
   user_id?: string;
@@ -66,10 +69,16 @@ interface PersistedChatState {
   rooms: StoredRoomState[];
 }
 
+type CacheSource = 'current' | 'legacy' | 'none';
+
 const ChatContext = createContext<ChatContextValue | null>(null);
 
 function getCacheKey(userId: string) {
   return `${CHAT_STATE_CACHE_PREFIX}${userId}`;
+}
+
+function getLegacyCacheKey(userId: string) {
+  return `${LEGACY_CHAT_STATE_CACHE_PREFIX}${userId}`;
 }
 
 function sortRooms(rooms: StoredRoomState[]) {
@@ -109,64 +118,91 @@ function coerceStoredRoom(value: unknown): StoredRoomState | null {
   };
 }
 
-function parseCachedRooms(userId: string): StoredRoomState[] {
-  if (typeof window === 'undefined') {
-    return [];
+function parseCachedPayload(raw: string | null): PersistedChatState | null {
+  if (!raw) {
+    return null;
   }
 
   try {
-    const raw = window.localStorage.getItem(getCacheKey(userId));
-    if (!raw) {
-      return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object') {
+      return null;
     }
 
-    const parsed = JSON.parse(raw) as PersistedChatState;
-    if (!parsed || !Array.isArray(parsed.rooms)) {
-      return [];
+    const candidate = parsed as {
+      version?: unknown;
+      savedAt?: unknown;
+      rooms?: unknown;
+      data?: { rooms?: unknown };
+    };
+
+    const dataRooms = candidate.data && typeof candidate.data === 'object' ? candidate.data.rooms : undefined;
+    const rooms = Array.isArray(candidate.rooms) ? candidate.rooms : Array.isArray(dataRooms) ? dataRooms : null;
+    if (!rooms) {
+      return null;
     }
 
-    if (typeof parsed.version === 'number' && parsed.version > CHAT_STATE_CACHE_VERSION) {
-      return [];
-    }
-
-    const normalizedRooms = parsed.rooms
-      .map((room) => coerceStoredRoom(room))
-      .filter((room): room is StoredRoomState => Boolean(room));
-    return sortRooms(
-      Array.from(new Map(normalizedRooms.map((room) => [room.roomKey, room])).values()),
-    );
+    return {
+      version: typeof candidate.version === 'number' ? candidate.version : undefined,
+      savedAt: typeof candidate.savedAt === 'string' ? candidate.savedAt : undefined,
+      rooms: rooms as StoredRoomState[],
+    };
   } catch {
+    return null;
+  }
+}
+
+function normalizeCachedRooms(payload: PersistedChatState | null) {
+  if (!payload) {
     return [];
   }
+
+  if (typeof payload.version === 'number' && payload.version > CHAT_STATE_CACHE_VERSION) {
+    return [];
+  }
+
+  if (typeof payload.savedAt === 'string') {
+    const savedAtMs = Date.parse(payload.savedAt);
+    if (Number.isNaN(savedAtMs) || Date.now() - savedAtMs > CHAT_STATE_CACHE_TTL_MS) {
+      return [];
+    }
+  }
+
+  const normalizedRooms = payload.rooms
+    .map((room) => coerceStoredRoom(room))
+    .filter((room): room is StoredRoomState => Boolean(room));
+  return sortRooms(
+    Array.from(new Map(normalizedRooms.map((room) => [room.roomKey, room])).values()),
+  );
+}
+
+function parseCachedRooms(userId: string): { rooms: StoredRoomState[]; source: CacheSource } {
+  const currentPayload = parseCachedPayload(getRaw(getCacheKey(userId)));
+  const currentRooms = normalizeCachedRooms(currentPayload);
+  if (currentRooms.length > 0) {
+    return { rooms: currentRooms, source: 'current' };
+  }
+
+  const legacyPayload = parseCachedPayload(getRaw(getLegacyCacheKey(userId)));
+  const legacyRooms = normalizeCachedRooms(legacyPayload);
+  if (legacyRooms.length > 0) {
+    return { rooms: legacyRooms, source: 'legacy' };
+  }
+
+  return { rooms: [], source: 'none' };
 }
 
 function writeCachedRooms(userId: string, rooms: StoredRoomState[]) {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  try {
-    const payload: PersistedChatState = {
-      version: CHAT_STATE_CACHE_VERSION,
-      savedAt: new Date().toISOString(),
-      rooms,
-    };
-    window.localStorage.setItem(getCacheKey(userId), JSON.stringify(payload));
-  } catch {
-    // Ignore cache write failures (private mode / quota / storage restrictions).
-  }
+  void setVersionedData(getCacheKey(userId), CHAT_STATE_CACHE_VERSION, { rooms }, { maxBytes: 96 * 1024 });
 }
 
 function deleteCachedRooms(userId: string | null) {
-  if (typeof window === 'undefined' || !userId) {
+  if (!userId) {
     return;
   }
 
-  try {
-    window.localStorage.removeItem(getCacheKey(userId));
-  } catch {
-    // Ignore cache cleanup failures.
-  }
+  removeValue(getCacheKey(userId));
+  removeValue(getLegacyCacheKey(userId));
 }
 
 function mapRowsToStoredRooms(rows: UserActiveRoomRow[]) {
@@ -366,8 +402,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       setIsHydrated(false);
       setSyncState('hydrating');
-      const cachedRooms = parseCachedRooms(userId);
+      const { rooms: cachedRooms, source } = parseCachedRooms(userId);
       setRooms(cachedRooms.length > 0 ? cachedRooms : []);
+      if (source === 'legacy') {
+        writeCachedRooms(userId, cachedRooms);
+        removeValue(getLegacyCacheKey(userId));
+      }
 
       await syncFromServer();
       if (!isCancelled) {
@@ -431,6 +471,21 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [syncFromServer, userId]);
+
+  useEffect(() => {
+    if (!userId) {
+      return;
+    }
+
+    const unsubscribe = subscribeToStorageKey(getCacheKey(userId), (rawValue) => {
+      const nextRooms = normalizeCachedRooms(parseCachedPayload(rawValue));
+      setRooms((previous) => (areRoomsEqual(previous, nextRooms) ? previous : nextRooms));
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [userId]);
 
   useEffect(() => {
     if (!userId) {

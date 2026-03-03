@@ -53,6 +53,7 @@ function normalizeTextContent(content: string | null | undefined, fallback: stri
 
 export default function GlobalNotificationListener() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserScreenname, setCurrentUserScreenname] = useState('');
   const [bannerQueue, setBannerQueue] = useState<BannerData[]>([]);
 
   const pathname = usePathname();
@@ -62,6 +63,7 @@ export default function GlobalNotificationListener() {
   const { activeRooms, incrementUnread, playChatSound } = useChatContext();
 
   const currentUserIdRef = useRef(currentUserId);
+  const currentUserScreennameRef = useRef(currentUserScreenname);
   const activeRoomsRef = useRef(activeRooms);
   const pathnameRef = useRef(pathname);
   const searchParamsRef = useRef(searchParams.toString());
@@ -76,6 +78,10 @@ export default function GlobalNotificationListener() {
   useEffect(() => {
     currentUserIdRef.current = currentUserId;
   }, [currentUserId]);
+
+  useEffect(() => {
+    currentUserScreennameRef.current = currentUserScreenname.trim().toLowerCase();
+  }, [currentUserScreenname]);
 
   useEffect(() => {
     activeRoomsRef.current = activeRooms;
@@ -182,6 +188,41 @@ export default function GlobalNotificationListener() {
       subscription.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (!currentUserId) {
+      setCurrentUserScreenname('');
+      return;
+    }
+
+    let isCancelled = false;
+
+    const loadCurrentUserScreenname = async () => {
+      const { data, error } = await supabase
+        .from('users')
+        .select('screenname')
+        .eq('id', currentUserId)
+        .maybeSingle();
+
+      if (isCancelled) {
+        return;
+      }
+
+      if (error) {
+        console.error('Global listener failed to resolve current user screenname:', error.message);
+        return;
+      }
+
+      const profile = data as UserProfileLookup | null;
+      setCurrentUserScreenname(profile?.screenname?.trim() || '');
+    };
+
+    void loadCurrentUserScreenname();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [currentUserId]);
 
   const enqueueBanner = useCallback((banner: BannerData) => {
     playChatSoundRef.current('message');
@@ -405,11 +446,18 @@ export default function GlobalNotificationListener() {
               return;
             }
 
+            const previewText = normalizeTextContent(incoming.content, 'New room message.');
+            const mentionToken = currentUserScreennameRef.current
+              ? `@${currentUserScreennameRef.current}`
+              : '';
+            const isMention =
+              Boolean(mentionToken) &&
+              previewText.toLowerCase().includes(mentionToken);
             const senderName = await resolveSenderNameById(senderId);
             void incrementUnreadRef.current(activeRoomName);
             enqueueBanner({
-              senderName,
-              messagePreview: normalizeTextContent(incoming.content, 'New room message.'),
+              senderName: isMention ? `${senderName} (mention)` : senderName,
+              messagePreview: isMention ? `Mention: ${previewText}` : previewText,
               targetPath: `${BUDDY_LIST_PATH}?room=${encodeURIComponent(activeRoomName)}`,
               variant: 'room',
             });

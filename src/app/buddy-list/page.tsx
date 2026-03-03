@@ -5,6 +5,24 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import ChatWindow, { ChatMessage } from '@/components/ChatWindow';
 import GroupChatWindow from '@/components/GroupChatWindow';
 import { getAccessTokenOrNull, getSessionOrNull } from '@/lib/authClient';
+import {
+  getRaw,
+  getVersionedData,
+  removeValue,
+  setVersionedData,
+  subscribeToStorageKey,
+} from '@/lib/clientStorage';
+import { uploadChatMediaFile } from '@/lib/chatMedia';
+import {
+  createOutboxItem,
+  getOutboxStorageKey,
+  isOutboxItemDue,
+  loadOutbox,
+  markOutboxAttemptFailure,
+  normalizeOutboxItems,
+  type OutboxItem,
+  saveOutbox,
+} from '@/lib/outbox';
 import { initSoundSystem, playFallbackTone, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
 import { normalizeRoomKey, sameRoom } from '@/lib/roomName';
@@ -23,6 +41,13 @@ interface UserProfile {
 interface BuddyRelationshipRow {
   buddy_id: string;
   status: 'pending' | 'accepted';
+}
+
+interface UserDmStateRow {
+  user_id?: string;
+  buddy_id: string | null;
+  unread_count: number | null;
+  updated_at?: string | null;
 }
 
 interface Buddy {
@@ -93,6 +118,14 @@ const BUDDY_LIST_PATH = '/buddy-list';
 const AVAILABLE_STATUS = 'Available';
 const AWAY_STATUS = 'Away';
 const KNOWN_STATUSES = ['Available', 'Away', 'Invisible', 'Busy', 'Be Right Back'] as const;
+const UI_CACHE_KEY_PREFIX = 'buddylist:ui:v1:';
+const UI_CACHE_VERSION = 1;
+const UI_CACHE_MAX_BYTES = 96 * 1024;
+const UI_MAX_CUSTOM_PRESETS = 24;
+const UI_MAX_COOLDOWN_ENTRIES = 220;
+const UI_MAX_DRAFT_ITEMS = 48;
+const UI_MAX_DRAFT_LENGTH = 1600;
+const UI_COOLDOWN_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const AWAY_PRESETS_STORAGE_KEY = 'buddylist:away-presets';
 const AWAY_SETTINGS_STORAGE_KEY = 'buddylist:away-settings';
 const AWAY_COOLDOWN_STORAGE_KEY = 'buddylist:away-cooldowns';
@@ -108,6 +141,197 @@ const DEFAULT_AWAY_PRESETS: AwayPreset[] = [
   { id: 'lunch', label: 'Lunch', message: 'Out for lunch (%d %t). Leave me a message.', builtIn: true },
   { id: 'afk', label: 'AFK', message: "AFK for a bit. I'll get back to you soon.", builtIn: true },
 ];
+
+interface UiDraftState {
+  dm: Record<string, string>;
+  rooms: Record<string, string>;
+}
+
+interface UiCachePayloadV1 {
+  buddySortMode: BuddySortMode;
+  awaySettings: {
+    autoAwayEnabled: boolean;
+    autoAwayMinutes: number;
+    autoReturnOnActivity: boolean;
+  };
+  awayPresets: Array<{
+    id: string;
+    label: string;
+    message: string;
+  }>;
+  awayCooldowns: Record<string, number>;
+  drafts: UiDraftState;
+}
+
+function getUiCacheKey(userId: string) {
+  return `${UI_CACHE_KEY_PREFIX}${userId}`;
+}
+
+function isBuddySortMode(value: string): value is BuddySortMode {
+  return value === 'online_then_alpha' || value === 'alpha' || value === 'recent_activity';
+}
+
+function normalizeUiCachePayload(value: unknown): UiCachePayloadV1 | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const candidate = value as Partial<UiCachePayloadV1>;
+  const awaySettings = candidate.awaySettings;
+  const drafts = candidate.drafts;
+
+  if (
+    !candidate.buddySortMode ||
+    !isBuddySortMode(candidate.buddySortMode) ||
+    !awaySettings ||
+    typeof awaySettings !== 'object' ||
+    !drafts ||
+    typeof drafts !== 'object'
+  ) {
+    return null;
+  }
+
+  const normalizedPresets = Array.isArray(candidate.awayPresets)
+    ? candidate.awayPresets
+        .filter(
+          (preset) =>
+            preset &&
+            typeof preset === 'object' &&
+            typeof (preset as { id?: unknown }).id === 'string' &&
+            typeof (preset as { label?: unknown }).label === 'string' &&
+            typeof (preset as { message?: unknown }).message === 'string',
+        )
+        .map((preset) => ({
+          id: (preset as { id: string }).id,
+          label: (preset as { label: string }).label.trim() || 'Custom',
+          message: (preset as { message: string }).message,
+        }))
+    : [];
+
+  const normalizedCooldowns =
+    candidate.awayCooldowns && typeof candidate.awayCooldowns === 'object'
+      ? Object.fromEntries(
+          Object.entries(candidate.awayCooldowns).filter(
+            ([key, timestamp]) =>
+              typeof key === 'string' &&
+              key.trim().length > 0 &&
+              typeof timestamp === 'number' &&
+              Number.isFinite(timestamp),
+          ),
+        )
+      : {};
+
+  const normalizedDmDrafts =
+    drafts.dm && typeof drafts.dm === 'object'
+      ? Object.fromEntries(
+          Object.entries(drafts.dm).filter(
+            ([key, draft]) => typeof key === 'string' && typeof draft === 'string',
+          ),
+        )
+      : {};
+
+  const normalizedRoomDrafts =
+    drafts.rooms && typeof drafts.rooms === 'object'
+      ? Object.fromEntries(
+          Object.entries(drafts.rooms).filter(
+            ([key, draft]) => typeof key === 'string' && typeof draft === 'string',
+          ),
+        )
+      : {};
+
+  const minutesCandidate = Number(awaySettings.autoAwayMinutes);
+  const normalizedMinutes = AUTO_AWAY_MINUTE_OPTIONS.includes(
+    minutesCandidate as (typeof AUTO_AWAY_MINUTE_OPTIONS)[number],
+  )
+    ? minutesCandidate
+    : 10;
+
+  return {
+    buddySortMode: candidate.buddySortMode,
+    awaySettings: {
+      autoAwayEnabled: Boolean(awaySettings.autoAwayEnabled),
+      autoAwayMinutes: normalizedMinutes,
+      autoReturnOnActivity: Boolean(awaySettings.autoReturnOnActivity),
+    },
+    awayPresets: normalizedPresets,
+    awayCooldowns: normalizedCooldowns,
+    drafts: {
+      dm: normalizedDmDrafts,
+      rooms: normalizedRoomDrafts,
+    },
+  };
+}
+
+function normalizeCustomPresets(presets: AwayPreset[]) {
+  const custom = presets.filter((preset) => !preset.builtIn);
+  const byId = new Map<string, { id: string; label: string; message: string }>();
+
+  for (const preset of custom) {
+    const id = preset.id.trim();
+    if (!id) {
+      continue;
+    }
+    byId.set(id, {
+      id,
+      label: preset.label.trim() || 'Custom',
+      message: preset.message,
+    });
+  }
+
+  return Array.from(byId.values()).slice(0, UI_MAX_CUSTOM_PRESETS);
+}
+
+function normalizeCooldowns(input: Record<string, number>) {
+  const now = Date.now();
+  const rows = Object.entries(input)
+    .filter(([, timestamp]) => now - timestamp <= UI_COOLDOWN_RETENTION_MS)
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, UI_MAX_COOLDOWN_ENTRIES);
+  return Object.fromEntries(rows);
+}
+
+function normalizeDraftMap(input: Record<string, string>) {
+  const trimmed = Object.entries(input)
+    .filter(([key, value]) => key.trim().length > 0 && typeof value === 'string' && value.length > 0)
+    .map(([key, value]) => [key, value.slice(0, UI_MAX_DRAFT_LENGTH)] as const)
+    .slice(0, UI_MAX_DRAFT_ITEMS);
+  return Object.fromEntries(trimmed);
+}
+
+function compactUiCachePayload(payload: UiCachePayloadV1) {
+  const compacted: UiCachePayloadV1 = {
+    ...payload,
+    awayPresets: payload.awayPresets.slice(0, UI_MAX_CUSTOM_PRESETS),
+    awayCooldowns: normalizeCooldowns(payload.awayCooldowns),
+    drafts: {
+      dm: normalizeDraftMap(payload.drafts.dm),
+      rooms: normalizeDraftMap(payload.drafts.rooms),
+    },
+  };
+
+  const orderedDraftEntries = [
+    ...Object.entries(compacted.drafts.dm).map(([key, value]) => ({ type: 'dm' as const, key, value })),
+    ...Object.entries(compacted.drafts.rooms).map(([key, value]) => ({ type: 'room' as const, key, value })),
+  ].sort((left, right) => right.value.length - left.value.length);
+
+  while (
+    new TextEncoder().encode(JSON.stringify(compacted)).length > UI_CACHE_MAX_BYTES &&
+    orderedDraftEntries.length > 0
+  ) {
+    const largest = orderedDraftEntries.shift();
+    if (!largest) {
+      break;
+    }
+
+    if (largest.type === 'dm') {
+      delete compacted.drafts.dm[largest.key];
+    } else {
+      delete compacted.drafts.rooms[largest.key];
+    }
+  }
+
+  return compacted;
+}
 
 function normalizeStatusLabel(input: string | null | undefined): string {
   const value = (input ?? '').trim();
@@ -208,6 +432,24 @@ function normalizeTimestampMs(value: string | null | undefined) {
   return Number.isNaN(parsed) ? 0 : parsed;
 }
 
+function mapRowsToUnreadDirectMessages(rows: UserDmStateRow[]) {
+  const next: Record<string, number> = {};
+  for (const row of rows) {
+    const buddyId = typeof row.buddy_id === 'string' ? row.buddy_id : '';
+    if (!buddyId) {
+      continue;
+    }
+    const unreadCount =
+      typeof row.unread_count === 'number' && Number.isFinite(row.unread_count)
+        ? Math.max(0, Math.floor(row.unread_count))
+        : 0;
+    if (unreadCount > 0) {
+      next[buddyId] = unreadCount;
+    }
+  }
+  return next;
+}
+
 function getDmTypingChannelKey(leftUserId: string, rightUserId: string) {
   return [leftUserId, rightUserId].sort().join(':');
 }
@@ -262,6 +504,9 @@ function BuddyListContent() {
   const [isActiveChatsOpen, setIsActiveChatsOpen] = useState(true);
   const [buddySortMode, setBuddySortMode] = useState<BuddySortMode>('online_then_alpha');
   const [buddyLastMessageAt, setBuddyLastMessageAt] = useState<Record<string, string>>({});
+  const [isUiCacheHydrated, setIsUiCacheHydrated] = useState(false);
+  const [awayReplyCooldowns, setAwayReplyCooldowns] = useState<Record<string, number>>({});
+  const [draftCache, setDraftCache] = useState<UiDraftState>({ dm: {}, rooms: {} });
 
   const [isRecoverySetupOpen, setIsRecoverySetupOpen] = useState(false);
   const [recoveryCodeDraft, setRecoveryCodeDraft] = useState('');
@@ -308,6 +553,7 @@ function BuddyListContent() {
   const [chatError, setChatError] = useState<string | null>(null);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [initialUnreadForActiveRoom, setInitialUnreadForActiveRoom] = useState(0);
+  const [outboxItems, setOutboxItems] = useState<OutboxItem[]>([]);
 
   const previousOnlineBuddyIdsRef = useRef<Set<string>>(new Set());
   const hasPresenceSyncedRef = useRef(false);
@@ -323,6 +569,8 @@ function BuddyListContent() {
   const activeDmTypingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const lastDmTypingSentAtRef = useRef(0);
   const dmTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const outboxItemsRef = useRef<OutboxItem[]>([]);
+  const isFlushingOutboxRef = useRef(false);
   const playSound = useSoundPlayer();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -364,131 +612,202 @@ function BuddyListContent() {
   }, [screenname]);
 
   useEffect(() => {
-    if (!userId || typeof window === 'undefined') {
+    awayReplyCooldownRef.current = awayReplyCooldowns;
+  }, [awayReplyCooldowns]);
+
+  useEffect(() => {
+    outboxItemsRef.current = outboxItems;
+  }, [outboxItems]);
+
+  const applyUiCachePayload = useCallback((payload: UiCachePayloadV1) => {
+    const normalized = compactUiCachePayload(payload);
+    setAwayPresets([...DEFAULT_AWAY_PRESETS, ...normalized.awayPresets]);
+    setIsAutoAwayEnabled(normalized.awaySettings.autoAwayEnabled);
+    setAutoAwayMinutes(normalized.awaySettings.autoAwayMinutes);
+    setAutoReturnOnActivity(normalized.awaySettings.autoReturnOnActivity);
+    setBuddySortMode(normalized.buddySortMode);
+    setAwayReplyCooldowns(normalized.awayCooldowns);
+    setDraftCache(normalized.drafts);
+  }, []);
+
+  useEffect(() => {
+    if (!userId) {
+      setIsUiCacheHydrated(false);
       return;
     }
 
-    try {
-      const presetsRaw = window.localStorage.getItem(`${AWAY_PRESETS_STORAGE_KEY}:${userId}`);
+    const defaultPayload: UiCachePayloadV1 = {
+      buddySortMode: 'online_then_alpha',
+      awaySettings: {
+        autoAwayEnabled: true,
+        autoAwayMinutes: 10,
+        autoReturnOnActivity: true,
+      },
+      awayPresets: [],
+      awayCooldowns: {},
+      drafts: {
+        dm: {},
+        rooms: {},
+      },
+    };
+
+    const cacheKey = getUiCacheKey(userId);
+    const hasV1Cache = Boolean(getRaw(cacheKey));
+    let payload = getVersionedData<UiCachePayloadV1>(cacheKey, {
+      version: UI_CACHE_VERSION,
+      fallback: defaultPayload,
+      guard: (value): value is UiCachePayloadV1 => Boolean(normalizeUiCachePayload(value)),
+      migrate: (legacy) => normalizeUiCachePayload(legacy),
+    });
+
+    if (!hasV1Cache) {
+      const legacyPayload = { ...defaultPayload };
+
+      const presetsRaw = getRaw(`${AWAY_PRESETS_STORAGE_KEY}:${userId}`);
       if (presetsRaw) {
-        const parsed = JSON.parse(presetsRaw) as Array<{ id: string; label: string; message: string }>;
-        const validCustomPresets = parsed
-          .filter(
-            (preset) =>
-              preset &&
-              typeof preset.id === 'string' &&
-              typeof preset.label === 'string' &&
-              typeof preset.message === 'string',
-          )
-          .map((preset) => ({
-            id: preset.id,
-            label: preset.label.trim() || 'Custom',
-            message: preset.message,
-          }));
-
-        setAwayPresets([...DEFAULT_AWAY_PRESETS, ...validCustomPresets]);
-      } else {
-        setAwayPresets(DEFAULT_AWAY_PRESETS);
+        try {
+          const parsed = JSON.parse(presetsRaw) as Array<{ id?: string; label?: string; message?: string }>;
+          legacyPayload.awayPresets = parsed
+            .filter(
+              (preset) =>
+                typeof preset?.id === 'string' &&
+                typeof preset?.label === 'string' &&
+                typeof preset?.message === 'string',
+            )
+            .map((preset) => ({
+              id: preset.id!,
+              label: preset.label!.trim() || 'Custom',
+              message: preset.message!,
+            }));
+        } catch {
+          legacyPayload.awayPresets = [];
+        }
       }
-    } catch {
-      setAwayPresets(DEFAULT_AWAY_PRESETS);
-    }
 
-    try {
-      const settingsRaw = window.localStorage.getItem(`${AWAY_SETTINGS_STORAGE_KEY}:${userId}`);
+      const settingsRaw = getRaw(`${AWAY_SETTINGS_STORAGE_KEY}:${userId}`);
       if (settingsRaw) {
-        const parsed = JSON.parse(settingsRaw) as {
-          autoAwayEnabled?: boolean;
-          autoAwayMinutes?: number;
-          autoReturnOnActivity?: boolean;
-        };
-
-        if (typeof parsed.autoAwayEnabled === 'boolean') {
-          setIsAutoAwayEnabled(parsed.autoAwayEnabled);
-        }
-
-        if (
-          typeof parsed.autoAwayMinutes === 'number' &&
-          AUTO_AWAY_MINUTE_OPTIONS.includes(parsed.autoAwayMinutes as (typeof AUTO_AWAY_MINUTE_OPTIONS)[number])
-        ) {
-          setAutoAwayMinutes(parsed.autoAwayMinutes);
-        }
-
-        if (typeof parsed.autoReturnOnActivity === 'boolean') {
-          setAutoReturnOnActivity(parsed.autoReturnOnActivity);
+        try {
+          const parsed = JSON.parse(settingsRaw) as {
+            autoAwayEnabled?: boolean;
+            autoAwayMinutes?: number;
+            autoReturnOnActivity?: boolean;
+          };
+          if (typeof parsed.autoAwayEnabled === 'boolean') {
+            legacyPayload.awaySettings.autoAwayEnabled = parsed.autoAwayEnabled;
+          }
+          if (
+            typeof parsed.autoAwayMinutes === 'number' &&
+            AUTO_AWAY_MINUTE_OPTIONS.includes(parsed.autoAwayMinutes as (typeof AUTO_AWAY_MINUTE_OPTIONS)[number])
+          ) {
+            legacyPayload.awaySettings.autoAwayMinutes = parsed.autoAwayMinutes;
+          }
+          if (typeof parsed.autoReturnOnActivity === 'boolean') {
+            legacyPayload.awaySettings.autoReturnOnActivity = parsed.autoReturnOnActivity;
+          }
+        } catch {
+          // Ignore legacy parse failures.
         }
       }
-    } catch {
-      // Keep default settings.
-    }
 
-    try {
-      const sortRaw = window.localStorage.getItem(`${BUDDY_SORT_STORAGE_KEY}:${userId}`);
-      if (
-        sortRaw === 'online_then_alpha' ||
-        sortRaw === 'alpha' ||
-        sortRaw === 'recent_activity'
-      ) {
-        setBuddySortMode(sortRaw);
-      } else {
-        setBuddySortMode('online_then_alpha');
+      const sortRaw = getRaw(`${BUDDY_SORT_STORAGE_KEY}:${userId}`);
+      if (typeof sortRaw === 'string' && isBuddySortMode(sortRaw)) {
+        legacyPayload.buddySortMode = sortRaw;
       }
-    } catch {
-      setBuddySortMode('online_then_alpha');
-    }
 
-    try {
-      const cooldownRaw = window.localStorage.getItem(`${AWAY_COOLDOWN_STORAGE_KEY}:${userId}`);
+      const cooldownRaw = getRaw(`${AWAY_COOLDOWN_STORAGE_KEY}:${userId}`);
       if (cooldownRaw) {
-        const parsed = JSON.parse(cooldownRaw) as Record<string, number>;
-        awayReplyCooldownRef.current = Object.fromEntries(
-          Object.entries(parsed).filter(([, value]) => typeof value === 'number' && Number.isFinite(value)),
-        );
-      } else {
-        awayReplyCooldownRef.current = {};
+        try {
+          const parsed = JSON.parse(cooldownRaw) as Record<string, number>;
+          legacyPayload.awayCooldowns = Object.fromEntries(
+            Object.entries(parsed).filter(([, value]) => typeof value === 'number' && Number.isFinite(value)),
+          );
+        } catch {
+          legacyPayload.awayCooldowns = {};
+        }
       }
-    } catch {
-      awayReplyCooldownRef.current = {};
-    }
-  }, [userId]);
 
-  useEffect(() => {
-    if (!userId || typeof window === 'undefined') {
-      return;
-    }
-    window.localStorage.setItem(`${BUDDY_SORT_STORAGE_KEY}:${userId}`, buddySortMode);
-  }, [buddySortMode, userId]);
+      payload = legacyPayload;
 
-  useEffect(() => {
-    if (!userId || typeof window === 'undefined') {
-      return;
+      removeValue(`${AWAY_PRESETS_STORAGE_KEY}:${userId}`);
+      removeValue(`${AWAY_SETTINGS_STORAGE_KEY}:${userId}`);
+      removeValue(`${BUDDY_SORT_STORAGE_KEY}:${userId}`);
+      removeValue(`${AWAY_COOLDOWN_STORAGE_KEY}:${userId}`);
     }
 
-    const customPresets = awayPresets
-      .filter((preset) => !preset.builtIn)
-      .map((preset) => ({
-        id: preset.id,
-        label: preset.label,
-        message: preset.message,
-      }));
-
-    window.localStorage.setItem(`${AWAY_PRESETS_STORAGE_KEY}:${userId}`, JSON.stringify(customPresets));
-  }, [awayPresets, userId]);
+    const normalized = compactUiCachePayload(payload);
+    applyUiCachePayload(normalized);
+    setIsUiCacheHydrated(true);
+    void setVersionedData(cacheKey, UI_CACHE_VERSION, normalized, {
+      maxBytes: UI_CACHE_MAX_BYTES,
+      compact: (envelope) => ({
+        ...envelope,
+        data: compactUiCachePayload(envelope.data),
+      }),
+    });
+  }, [applyUiCachePayload, userId]);
 
   useEffect(() => {
-    if (!userId || typeof window === 'undefined') {
+    if (!userId || !isUiCacheHydrated) {
       return;
     }
 
-    window.localStorage.setItem(
-      `${AWAY_SETTINGS_STORAGE_KEY}:${userId}`,
-      JSON.stringify({
+    const payload: UiCachePayloadV1 = compactUiCachePayload({
+      buddySortMode,
+      awaySettings: {
         autoAwayEnabled: isAutoAwayEnabled,
         autoAwayMinutes,
         autoReturnOnActivity,
+      },
+      awayPresets: normalizeCustomPresets(awayPresets),
+      awayCooldowns: awayReplyCooldowns,
+      drafts: draftCache,
+    });
+
+    void setVersionedData(getUiCacheKey(userId), UI_CACHE_VERSION, payload, {
+      maxBytes: UI_CACHE_MAX_BYTES,
+      compact: (envelope) => ({
+        ...envelope,
+        data: compactUiCachePayload(envelope.data),
       }),
-    );
-  }, [autoAwayMinutes, autoReturnOnActivity, isAutoAwayEnabled, userId]);
+    });
+  }, [
+    autoAwayMinutes,
+    autoReturnOnActivity,
+    awayPresets,
+    awayReplyCooldowns,
+    buddySortMode,
+    draftCache,
+    isUiCacheHydrated,
+    isAutoAwayEnabled,
+    userId,
+  ]);
+
+  useEffect(() => {
+    if (!userId) {
+      return;
+    }
+
+    const unsubscribe = subscribeToStorageKey(getUiCacheKey(userId), (rawValue) => {
+      if (!rawValue) {
+        return;
+      }
+
+      try {
+        const parsed = JSON.parse(rawValue) as { data?: unknown };
+        const normalized = normalizeUiCachePayload(parsed?.data);
+        if (!normalized) {
+          return;
+        }
+        applyUiCachePayload(normalized);
+      } catch {
+        // Ignore malformed storage events.
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [applyUiCachePayload, userId]);
 
   useEffect(() => {
     if (selectedAwayPresetId === '__custom__') {
@@ -522,6 +841,210 @@ function BuddyListContent() {
       return 'Request failed.';
     }
   };
+
+  useEffect(() => {
+    if (!userId) {
+      setOutboxItems([]);
+      return;
+    }
+    setOutboxItems(loadOutbox(userId));
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId) {
+      return;
+    }
+    saveOutbox(userId, outboxItems);
+  }, [outboxItems, userId]);
+
+  useEffect(() => {
+    if (!userId) {
+      return;
+    }
+
+    const unsubscribe = subscribeToStorageKey(getOutboxStorageKey(userId), () => {
+      setOutboxItems(loadOutbox(userId));
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, [userId]);
+
+  const flushOutbox = useCallback(async () => {
+    if (!userId || isFlushingOutboxRef.current) {
+      return;
+    }
+
+    const snapshot = outboxItemsRef.current;
+    if (snapshot.length === 0) {
+      return;
+    }
+
+    isFlushingOutboxRef.current = true;
+    try {
+      let nextItems = [...snapshot];
+      const nowMs = Date.now();
+
+      for (const item of snapshot) {
+        if (!isOutboxItemDue(item, nowMs)) {
+          continue;
+        }
+
+        if (item.type === 'dm') {
+          const { data, error } = await supabase
+            .from('messages')
+            .insert({
+              sender_id: userId,
+              receiver_id: item.targetId,
+              content: item.content,
+            })
+            .select('id,sender_id,receiver_id,content,created_at,edited_at,deleted_at,deleted_by')
+            .single();
+
+          if (error) {
+            nextItems = nextItems.map((candidate) =>
+              candidate.id === item.id ? markOutboxAttemptFailure(candidate, error.message) : candidate,
+            );
+            continue;
+          }
+
+          const insertedMessage = data as ChatMessage;
+          setBuddyLastMessageAt((previous) => ({
+            ...previous,
+            [item.targetId]: insertedMessage.created_at,
+          }));
+          if (activeChatBuddyIdRef.current === item.targetId) {
+            setChatMessages((previous) =>
+              previous.some((message) => message.id === insertedMessage.id)
+                ? previous
+                : [...previous, insertedMessage],
+            );
+          }
+          nextItems = nextItems.filter((candidate) => candidate.id !== item.id);
+          continue;
+        }
+
+        const { error } = await supabase.from('room_messages').insert({
+          room_id: item.targetId,
+          sender_id: userId,
+          content: item.content,
+        });
+        if (error) {
+          nextItems = nextItems.map((candidate) =>
+            candidate.id === item.id ? markOutboxAttemptFailure(candidate, error.message) : candidate,
+          );
+          continue;
+        }
+        nextItems = nextItems.filter((candidate) => candidate.id !== item.id);
+      }
+
+      setOutboxItems(normalizeOutboxItems(nextItems));
+    } finally {
+      isFlushingOutboxRef.current = false;
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId || typeof window === 'undefined' || typeof document === 'undefined') {
+      return;
+    }
+
+    const handleOnline = () => {
+      void flushOutbox();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void flushOutbox();
+      }
+    };
+
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        void flushOutbox();
+      }
+    }, 8000);
+
+    window.addEventListener('online', handleOnline);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    void flushOutbox();
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.clearInterval(intervalId);
+    };
+  }, [flushOutbox, userId]);
+
+  useEffect(() => {
+    if (!userId || outboxItems.length === 0 || typeof navigator === 'undefined' || !navigator.onLine) {
+      return;
+    }
+
+    void flushOutbox();
+  }, [flushOutbox, outboxItems.length, userId]);
+
+  const queueOutboxMessage = useCallback(
+    (item: { type: 'dm' | 'room'; targetId: string; content: string }) => {
+      if (!userId) {
+        return false;
+      }
+
+      const trimmedContent = item.content.trim();
+      if (!trimmedContent) {
+        return false;
+      }
+
+      const entry = createOutboxItem({
+        type: item.type,
+        targetId: item.targetId,
+        content: trimmedContent,
+      });
+      setOutboxItems((previous) => normalizeOutboxItems([...previous, entry]));
+      return true;
+    },
+    [userId],
+  );
+
+  const updateDmDraft = useCallback((buddyId: string, draft: string) => {
+    if (!buddyId) {
+      return;
+    }
+
+    setDraftCache((previous) => {
+      const nextDm = { ...previous.dm };
+      const trimmedDraft = draft.slice(0, UI_MAX_DRAFT_LENGTH);
+      if (trimmedDraft.trim().length === 0) {
+        delete nextDm[buddyId];
+      } else {
+        nextDm[buddyId] = trimmedDraft;
+      }
+      return {
+        ...previous,
+        dm: nextDm,
+      };
+    });
+  }, []);
+
+  const updateRoomDraft = useCallback((roomName: string, draft: string) => {
+    const roomKey = normalizeRoomKey(roomName);
+    if (!roomKey) {
+      return;
+    }
+
+    setDraftCache((previous) => {
+      const nextRoomDrafts = { ...previous.rooms };
+      const trimmedDraft = draft.slice(0, UI_MAX_DRAFT_LENGTH);
+      if (trimmedDraft.trim().length === 0) {
+        delete nextRoomDrafts[roomKey];
+      } else {
+        nextRoomDrafts[roomKey] = trimmedDraft;
+      }
+      return {
+        ...previous,
+        rooms: nextRoomDrafts,
+      };
+    });
+  }, []);
 
   const loadBuddies = useCallback(async (targetUserId: string) => {
     setIsLoadingBuddies(true);
@@ -590,6 +1113,21 @@ function BuddyListContent() {
     );
     setIsLoadingBuddies(false);
     setHasLoadedBuddies(true);
+  }, []);
+
+  const syncUnreadDirectFromServer = useCallback(async (targetUserId: string) => {
+    const { data, error } = await supabase
+      .from('user_dm_state')
+      .select('user_id,buddy_id,unread_count,updated_at')
+      .eq('user_id', targetUserId);
+
+    if (error) {
+      console.error('Failed to sync DM unread state:', error.message);
+      return;
+    }
+
+    const rows = (data ?? []) as UserDmStateRow[];
+    setUnreadDirectMessages(mapRowsToUnreadDirectMessages(rows));
   }, []);
 
   useEffect(() => {
@@ -715,6 +1253,7 @@ function BuddyListContent() {
       setIsAdminUser(adminFlag);
       setIsBootstrapping(false);
       void loadBuddies(session.user.id);
+      void syncUnreadDirectFromServer(session.user.id);
     };
 
     void bootstrapUser();
@@ -728,7 +1267,7 @@ function BuddyListContent() {
     return () => {
       subscription.unsubscribe();
     };
-  }, [loadBuddies, router]);
+  }, [loadBuddies, router, syncUnreadDirectFromServer]);
 
   useEffect(() => {
     if (!userId) {
@@ -750,6 +1289,78 @@ function BuddyListContent() {
       void supabase.removeChannel(buddiesChannel);
     };
   }, [loadBuddies, userId]);
+
+  useEffect(() => {
+    if (!userId) {
+      setUnreadDirectMessages({});
+      return;
+    }
+
+    void syncUnreadDirectFromServer(userId);
+
+    const dmStateChannel = supabase
+      .channel(`dm_state:${userId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'user_dm_state', filter: `user_id=eq.${userId}` },
+        (payload) => {
+          if (payload.eventType === 'DELETE') {
+            const deletedRow = payload.old as Partial<UserDmStateRow>;
+            const deletedBuddyId = typeof deletedRow.buddy_id === 'string' ? deletedRow.buddy_id : '';
+            if (!deletedBuddyId) {
+              return;
+            }
+
+            setUnreadDirectMessages((previous) => {
+              if (!(deletedBuddyId in previous)) {
+                return previous;
+              }
+              const next = { ...previous };
+              delete next[deletedBuddyId];
+              return next;
+            });
+            return;
+          }
+
+          const nextRow = payload.new as UserDmStateRow;
+          const buddyId = typeof nextRow.buddy_id === 'string' ? nextRow.buddy_id : '';
+          if (!buddyId) {
+            return;
+          }
+
+          const unreadCount =
+            typeof nextRow.unread_count === 'number' && Number.isFinite(nextRow.unread_count)
+              ? Math.max(0, Math.floor(nextRow.unread_count))
+              : 0;
+
+          setUnreadDirectMessages((previous) => {
+            if (unreadCount <= 0) {
+              if (!(buddyId in previous)) {
+                return previous;
+              }
+
+              const next = { ...previous };
+              delete next[buddyId];
+              return next;
+            }
+
+            if (previous[buddyId] === unreadCount) {
+              return previous;
+            }
+
+            return {
+              ...previous,
+              [buddyId]: unreadCount,
+            };
+          });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(dmStateChannel);
+    };
+  }, [syncUnreadDirectFromServer, userId]);
 
   useEffect(() => {
     if (!userId) {
@@ -1005,7 +1616,7 @@ function BuddyListContent() {
       const chatFilter = `and(sender_id.eq.${userId},receiver_id.eq.${buddyId}),and(sender_id.eq.${buddyId},receiver_id.eq.${userId})`;
       const { data, error } = await supabase
         .from('messages')
-        .select('id,sender_id,receiver_id,content,created_at')
+        .select('id,sender_id,receiver_id,content,created_at,edited_at,deleted_at,deleted_by')
         .or(chatFilter)
         .order('created_at', { ascending: true })
         .limit(200);
@@ -1060,7 +1671,20 @@ function BuddyListContent() {
       delete next[buddyId];
       return next;
     });
-  }, []);
+
+    if (!userId) {
+      return;
+    }
+
+    void supabase
+      .rpc('clear_dm_unread', { p_buddy_id: buddyId })
+      .then(({ error }) => {
+        if (error) {
+          console.error('Failed to clear DM unread state:', error.message);
+          void syncUnreadDirectFromServer(userId);
+        }
+      });
+  }, [syncUnreadDirectFromServer, userId]);
 
   const openChatWindowForId = useCallback(
     (buddyId: string) => {
@@ -1211,13 +1835,7 @@ function BuddyListContent() {
         ...awayReplyCooldownRef.current,
         [senderId]: now,
       };
-
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem(
-          `${AWAY_COOLDOWN_STORAGE_KEY}:${userId}`,
-          JSON.stringify(awayReplyCooldownRef.current),
-        );
-      }
+      setAwayReplyCooldowns(awayReplyCooldownRef.current);
     },
     [buddyRows, temporaryChatProfiles, userId],
   );
@@ -1308,6 +1926,29 @@ function BuddyListContent() {
 
         incrementUnreadDirectMessages(senderId);
       })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, (payload) => {
+        const updatedMessage = payload.new as ChatMessage;
+        if (!updatedMessage?.id || !userId) {
+          return;
+        }
+
+        const isRelevantToUser =
+          updatedMessage.sender_id === userId || updatedMessage.receiver_id === userId;
+        if (!isRelevantToUser) {
+          return;
+        }
+
+        const isRelevantToActiveChat =
+          (updatedMessage.sender_id === userId && updatedMessage.receiver_id === activeChatBuddyIdRef.current) ||
+          (updatedMessage.receiver_id === userId && updatedMessage.sender_id === activeChatBuddyIdRef.current);
+        if (!isRelevantToActiveChat) {
+          return;
+        }
+
+        setChatMessages((previous) =>
+          previous.map((message) => (message.id === updatedMessage.id ? { ...message, ...updatedMessage } : message)),
+        );
+      })
       .subscribe();
 
     return () => {
@@ -1321,6 +1962,9 @@ function BuddyListContent() {
     setInitialUnreadForActiveChat(0);
     setInitialUnreadForActiveRoom(0);
     setActiveDmTypingText(null);
+    setIsUiCacheHydrated(false);
+    setDraftCache({ dm: {}, rooms: {} });
+    setAwayReplyCooldowns({});
     setAwaySinceAt(null);
     autoAwayTriggeredRef.current = false;
     await resetChatState();
@@ -1729,10 +2373,22 @@ function BuddyListContent() {
   };
 
   const handleSendMessage = useCallback(
-    async (content: string) => {
+    async (content: string, attachments: File[] = []) => {
       if (!userId || !activeChatBuddyId) {
         return;
       }
+
+      const trimmedContent = content.trim();
+      const normalizedAttachments = Array.isArray(attachments) ? attachments : [];
+      if (!trimmedContent && normalizedAttachments.length === 0) {
+        return;
+      }
+
+      const messageContent = trimmedContent
+        ? content
+        : normalizedAttachments.length === 1
+          ? 'Sent an attachment.'
+          : 'Sent attachments.';
 
       setIsSendingMessage(true);
       setChatError(null);
@@ -1742,14 +2398,29 @@ function BuddyListContent() {
         .insert({
           sender_id: userId,
           receiver_id: activeChatBuddyId,
-          content,
+          content: messageContent,
         })
-        .select('id,sender_id,receiver_id,content,created_at')
+        .select('id,sender_id,receiver_id,content,created_at,edited_at,deleted_at,deleted_by')
         .single();
 
       setIsSendingMessage(false);
 
       if (error) {
+        const isLikelyNetworkIssue =
+          (typeof navigator !== 'undefined' && !navigator.onLine) ||
+          /network|fetch|offline|timeout/i.test(error.message);
+        if (isLikelyNetworkIssue && normalizedAttachments.length === 0) {
+          const queued = queueOutboxMessage({
+            type: 'dm',
+            targetId: activeChatBuddyId,
+            content: messageContent,
+          });
+          if (queued) {
+            setChatError('Offline: message queued and will retry automatically.');
+            return;
+          }
+        }
+
         setChatError(error.message);
         throw error;
       }
@@ -1765,8 +2436,59 @@ function BuddyListContent() {
           ? previous
           : [...previous, insertedMessage],
       );
+
+      if (normalizedAttachments.length > 0) {
+        const attachmentRows: Array<{
+          message_id: number;
+          uploader_id: string;
+          bucket: string;
+          storage_path: string;
+          file_name: string;
+          mime_type: string;
+          size_bytes: number;
+        }> = [];
+
+        for (const file of normalizedAttachments) {
+          try {
+            const uploaded = await uploadChatMediaFile({ userId, file });
+            attachmentRows.push({
+              message_id: insertedMessage.id,
+              uploader_id: userId,
+              bucket: uploaded.bucket,
+              storage_path: uploaded.storagePath,
+              file_name: uploaded.fileName,
+              mime_type: uploaded.mimeType,
+              size_bytes: uploaded.sizeBytes,
+            });
+          } catch (uploadError) {
+            const message =
+              uploadError instanceof Error ? uploadError.message : 'Attachment upload failed.';
+            setChatError(message);
+          }
+        }
+
+        if (attachmentRows.length > 0) {
+          const { error: attachmentInsertError } = await supabase
+            .from('message_attachments')
+            .insert(attachmentRows);
+          if (attachmentInsertError) {
+            setChatError(attachmentInsertError.message);
+          }
+        }
+      }
     },
-    [activeChatBuddyId, userId],
+    [activeChatBuddyId, queueOutboxMessage, userId],
+  );
+
+  const handleQueueRoomMessage = useCallback(
+    ({ roomId, content }: { roomId: string; content: string }) => {
+      return queueOutboxMessage({
+        type: 'room',
+        targetId: roomId,
+        content,
+      });
+    },
+    [queueOutboxMessage],
   );
 
   const requestedRoomName = searchParams.get('room')?.trim() ?? '';
@@ -2107,6 +2829,12 @@ function BuddyListContent() {
           : syncState === 'live'
             ? `Live${lastSyncedAt ? ` (${new Date(lastSyncedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})` : ''}`
             : 'Idle';
+  const pendingOutboxCount = outboxItems.length;
+  const outboxSummary =
+    pendingOutboxCount === 0
+      ? 'Outbox empty'
+      : `${pendingOutboxCount} queued${pendingOutboxCount === 1 ? '' : ' messages'}`;
+  const latestOutboxError = outboxItems.find((item) => item.lastError)?.lastError ?? null;
 
   const renderDirectMessageRow = (buddy: (typeof acceptedBuddies)[number]) => {
     const unreadDirectCount = unreadDirectMessages[buddy.id] ?? 0;
@@ -2290,9 +3018,15 @@ function BuddyListContent() {
                 <div className="min-w-0">
                   <p className="font-bold uppercase tracking-wide text-[#4b668b]">Room State</p>
                   <p className="truncate">{chatSyncSummary}</p>
+                  <p className="truncate">{outboxSummary}</p>
                   {lastSyncError ? (
                     <p className="truncate font-semibold text-[#8b2020]" title={lastSyncError}>
                       {lastSyncError}
+                    </p>
+                  ) : null}
+                  {latestOutboxError ? (
+                    <p className="truncate font-semibold text-[#8b2020]" title={latestOutboxError}>
+                      {latestOutboxError}
                     </p>
                   ) : null}
                 </div>
@@ -3046,9 +3780,11 @@ function BuddyListContent() {
             currentUserId={userId}
             messages={chatMessages}
             initialUnreadCount={initialUnreadForActiveChat}
+            initialDraft={draftCache.dm[activeChatBuddy.id] ?? ''}
             typingText={activeDmTypingText}
             onSendMessage={handleSendMessage}
             onTypingActivity={sendDmTypingPulse}
+            onDraftChange={(draft) => updateDmDraft(activeChatBuddy.id, draft)}
             onClose={closeChatWindow}
             onSignOff={handleSignOff}
             isLoading={isChatLoading}
@@ -3070,6 +3806,9 @@ function BuddyListContent() {
           currentUserId={userId}
           currentUserScreenname={screenname}
           initialUnreadCount={initialUnreadForActiveRoom}
+          initialDraft={draftCache.rooms[normalizeRoomKey(activeRoom.name)] ?? ''}
+          onDraftChange={(draft) => updateRoomDraft(activeRoom.name, draft)}
+          onQueueRoomMessage={handleQueueRoomMessage}
           onBack={handleBackFromRoom}
           onLeave={handleLeaveCurrentRoom}
           onSignOff={handleSignOff}

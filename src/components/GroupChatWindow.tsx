@@ -3,6 +3,13 @@
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import RetroWindow from '@/components/RetroWindow';
 import RichTextToolbar from '@/components/RichTextToolbar';
+import {
+  CHAT_MEDIA_MAX_ATTACHMENTS,
+  type ChatMediaAttachmentRecord,
+  formatFileSize,
+  uploadChatMediaFile,
+  validateChatMediaFile,
+} from '@/lib/chatMedia';
 import { supabase } from '@/lib/supabase';
 import {
   DEFAULT_RICH_TEXT_FORMAT,
@@ -19,6 +26,9 @@ interface RoomMessage {
   sender_id: string;
   content: string;
   created_at: string;
+  edited_at?: string | null;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 }
 
 interface RoomParticipant {
@@ -42,13 +52,26 @@ interface RoomProfile {
   screenname: string | null;
 }
 
+interface RoomMessageReactionRow {
+  message_id: string;
+  user_id: string;
+  emoji: string;
+}
+
+interface RoomMessageAttachmentRow extends ChatMediaAttachmentRecord {
+  message_id: string;
+}
+
 interface GroupChatWindowProps {
   roomId: string;
   roomName: string;
   currentUserId: string;
   currentUserScreenname: string;
   initialUnreadCount?: number;
+  initialDraft?: string;
   typingUsers?: string[];
+  onDraftChange?: (draft: string) => void;
+  onQueueRoomMessage?: (payload: { roomId: string; content: string }) => void;
   onBack: () => void;
   onLeave: () => void;
   onSignOff?: () => void;
@@ -64,6 +87,7 @@ const GROUP_SENDER_COLOR_CLASSES = [
   'text-fuchsia-600',
   'text-sky-600',
 ] as const;
+const REACTION_OPTIONS = ['👍', '❤️', '😂', '😮', '😢'] as const;
 
 function getStableSenderColorClass(senderId: string) {
   let hash = 0;
@@ -79,7 +103,10 @@ export default function GroupChatWindow({
   currentUserId,
   currentUserScreenname,
   initialUnreadCount = 0,
+  initialDraft = '',
   typingUsers = [],
+  onDraftChange,
+  onQueueRoomMessage,
   onBack,
   onLeave,
   onSignOff,
@@ -94,14 +121,25 @@ export default function GroupChatWindow({
 
   const [isLoadingMessages, setIsLoadingMessages] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [draft, setDraft] = useState('');
+  const [draft, setDraft] = useState(initialDraft);
   const [format, setFormat] = useState<RichTextFormat>(DEFAULT_RICH_TEXT_FORMAT);
   const [showFormatting, setShowFormatting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState('');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [isDeletingMessageId, setIsDeletingMessageId] = useState<string | null>(null);
+  const [reactionRows, setReactionRows] = useState<RoomMessageReactionRow[]>([]);
+  const [attachmentRows, setAttachmentRows] = useState<RoomMessageAttachmentRow[]>([]);
+  const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
+  const [reactionError, setReactionError] = useState<string | null>(null);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [attachmentLoadError, setAttachmentLoadError] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [hasLiveMessageSinceOpen, setHasLiveMessageSinceOpen] = useState(false);
   const [typingMap, setTypingMap] = useState<Record<string, string>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
   const roomChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const lastTypingSentAtRef = useRef(0);
   const typingTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -109,6 +147,157 @@ export default function GroupChatWindow({
   useEffect(() => {
     screennameMapRef.current = screennameMap;
   }, [screennameMap]);
+
+  useEffect(() => {
+    setDraft(initialDraft);
+  }, [initialDraft]);
+
+  useEffect(() => {
+    const messageIds = messages.map((message) => message.id);
+    if (messageIds.length === 0) {
+      setReactionRows([]);
+      return;
+    }
+
+    let isCancelled = false;
+
+    const loadReactions = async () => {
+      const { data, error } = await supabase
+        .from('room_message_reactions')
+        .select('message_id,user_id,emoji')
+        .in('message_id', messageIds);
+
+      if (isCancelled) {
+        return;
+      }
+
+      if (error) {
+        setReactionError(error.message);
+        return;
+      }
+
+      setReactionError(null);
+      setReactionRows((data ?? []) as RoomMessageReactionRow[]);
+    };
+
+    void loadReactions();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [messages]);
+
+  useEffect(() => {
+    const messageIdSet = new Set(messages.map((message) => message.id));
+    if (messageIdSet.size === 0) {
+      return;
+    }
+
+    const channel = supabase
+      .channel(`room_message_reactions:${roomId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'room_message_reactions' }, (payload) => {
+        const incoming = payload.new as RoomMessageReactionRow;
+        if (!messageIdSet.has(incoming.message_id)) {
+          return;
+        }
+
+        setReactionRows((previous) =>
+          previous.some(
+            (row) =>
+              row.message_id === incoming.message_id && row.user_id === incoming.user_id && row.emoji === incoming.emoji,
+          )
+            ? previous
+            : [...previous, incoming],
+        );
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'room_message_reactions' }, (payload) => {
+        const deleted = payload.old as RoomMessageReactionRow;
+        if (!messageIdSet.has(deleted.message_id)) {
+          return;
+        }
+
+        setReactionRows((previous) =>
+          previous.filter(
+            (row) =>
+              !(
+                row.message_id === deleted.message_id &&
+                row.user_id === deleted.user_id &&
+                row.emoji === deleted.emoji
+              ),
+          ),
+        );
+      })
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [messages, roomId]);
+
+  useEffect(() => {
+    const messageIds = messages.map((message) => message.id);
+    if (messageIds.length === 0) {
+      setAttachmentRows([]);
+      return;
+    }
+
+    let isCancelled = false;
+    const loadAttachments = async () => {
+      const { data, error } = await supabase
+        .from('room_message_attachments')
+        .select('id,message_id,bucket,storage_path,file_name,mime_type,size_bytes')
+        .in('message_id', messageIds)
+        .order('created_at', { ascending: true });
+
+      if (isCancelled) {
+        return;
+      }
+
+      if (error) {
+        setAttachmentLoadError(error.message);
+        return;
+      }
+
+      setAttachmentLoadError(null);
+      setAttachmentRows((data ?? []) as RoomMessageAttachmentRow[]);
+    };
+
+    void loadAttachments();
+    return () => {
+      isCancelled = true;
+    };
+  }, [messages]);
+
+  useEffect(() => {
+    const messageIdSet = new Set(messages.map((message) => message.id));
+    if (messageIdSet.size === 0) {
+      return;
+    }
+
+    const channel = supabase
+      .channel(`room_message_attachments:${roomId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'room_message_attachments' }, (payload) => {
+        const incoming = payload.new as RoomMessageAttachmentRow;
+        if (!messageIdSet.has(incoming.message_id)) {
+          return;
+        }
+        setAttachmentRows((previous) =>
+          previous.some((attachment) => attachment.id === incoming.id) ? previous : [...previous, incoming],
+        );
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'room_message_attachments' }, (payload) => {
+        const deleted = payload.old as { id?: string };
+        if (typeof deleted.id !== 'string') {
+          return;
+        }
+        setAttachmentRows((previous) => previous.filter((attachment) => attachment.id !== deleted.id));
+      })
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [messages, roomId]);
 
   const ensureScreennames = useCallback(async (userIds: string[]) => {
     const uniqueUserIds = [...new Set(userIds.filter(Boolean))];
@@ -171,7 +360,7 @@ export default function GroupChatWindow({
 
       const { data, error: messagesError } = await supabase
         .from('room_messages')
-        .select('id,room_id,sender_id,content,created_at')
+        .select('id,room_id,sender_id,content,created_at,edited_at,deleted_at,deleted_by')
         .eq('room_id', roomId)
         .order('created_at', { ascending: true })
         .limit(300);
@@ -254,6 +443,21 @@ export default function GroupChatWindow({
       },
     );
 
+    roomChannel.on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'room_messages', filter: `room_id=eq.${roomId}` },
+      (payload) => {
+        const updated = payload.new as RoomMessage;
+        if (!updated?.id) {
+          return;
+        }
+
+        setMessages((previous) =>
+          previous.map((message) => (message.id === updated.id ? { ...message, ...updated } : message)),
+        );
+      },
+    );
+
     roomChannel.on('broadcast', { event: 'typing' }, (event) => {
       const payload = event.payload as RoomTypingPayload;
       const typingUserId = typeof payload.userId === 'string' ? payload.userId : '';
@@ -307,17 +511,58 @@ export default function GroupChatWindow({
     };
   }, [clearUnreads, currentUserId, currentUserScreenname, ensureScreennames, roomId, roomName]);
 
+  const clearPendingAttachments = useCallback(() => {
+    setPendingAttachments([]);
+    if (attachmentInputRef.current) {
+      attachmentInputRef.current.value = '';
+    }
+  }, []);
+
+  const handleSelectAttachments = (files: FileList | null) => {
+    if (!files || files.length === 0) {
+      return;
+    }
+
+    const selected = Array.from(files);
+    const validationError = selected.map((file) => validateChatMediaFile(file)).find(Boolean);
+    if (validationError) {
+      setAttachmentError(validationError);
+      return;
+    }
+
+    setAttachmentError(null);
+    setPendingAttachments((previous) => {
+      const existingKeys = new Set(previous.map((file) => `${file.name}:${file.size}:${file.lastModified}`));
+      const combined = [...previous];
+      for (const file of selected) {
+        const key = `${file.name}:${file.size}:${file.lastModified}`;
+        if (!existingKeys.has(key)) {
+          combined.push(file);
+          existingKeys.add(key);
+        }
+      }
+      if (combined.length > CHAT_MEDIA_MAX_ATTACHMENTS) {
+        setAttachmentError(`Max ${CHAT_MEDIA_MAX_ATTACHMENTS} attachments per message.`);
+      }
+      return combined.slice(0, CHAT_MEDIA_MAX_ATTACHMENTS);
+    });
+  };
+
   const handleSendMessage = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmed = draft.trim();
-    if (!trimmed || isSending) {
+    if ((!trimmed && pendingAttachments.length === 0) || isSending) {
       return;
     }
 
     setIsSending(true);
     setError(null);
 
-    const formatted = formatRichText(trimmed, format);
+    const formatted = trimmed
+      ? formatRichText(trimmed, format)
+      : pendingAttachments.length === 1
+        ? 'Sent an attachment.'
+        : 'Sent attachments.';
     const { data, error: sendError } = await supabase
       .from('room_messages')
       .insert({
@@ -325,17 +570,72 @@ export default function GroupChatWindow({
         sender_id: currentUserId,
         content: formatted,
       })
-      .select('id,room_id,sender_id,content,created_at')
+      .select('id,room_id,sender_id,content,created_at,edited_at,deleted_at,deleted_by')
       .single();
 
     setIsSending(false);
 
     if (sendError) {
-      setError(sendError.message);
+      const retryableNetworkError =
+        typeof navigator !== 'undefined' &&
+        !navigator.onLine &&
+        pendingAttachments.length === 0 &&
+        Boolean(trimmed);
+      if (retryableNetworkError) {
+        onQueueRoomMessage?.({
+          roomId,
+          content: formatted,
+        });
+        setDraft('');
+        onDraftChange?.('');
+        setError('Offline: message queued and will retry automatically.');
+      } else {
+        setError(sendError.message);
+      }
       return;
     }
 
     const insertedMessage = data as RoomMessage;
+    if (pendingAttachments.length > 0) {
+      const attachmentRowsToInsert: Array<{
+        message_id: string;
+        uploader_id: string;
+        bucket: string;
+        storage_path: string;
+        file_name: string;
+        mime_type: string;
+        size_bytes: number;
+      }> = [];
+
+      for (const file of pendingAttachments) {
+        try {
+          const uploaded = await uploadChatMediaFile({ userId: currentUserId, file });
+          attachmentRowsToInsert.push({
+            message_id: insertedMessage.id,
+            uploader_id: currentUserId,
+            bucket: uploaded.bucket,
+            storage_path: uploaded.storagePath,
+            file_name: uploaded.fileName,
+            mime_type: uploaded.mimeType,
+            size_bytes: uploaded.sizeBytes,
+          });
+        } catch (uploadError) {
+          const message =
+            uploadError instanceof Error ? uploadError.message : 'Attachment upload failed.';
+          setError(message);
+        }
+      }
+
+      if (attachmentRowsToInsert.length > 0) {
+        const { error: attachmentInsertError } = await supabase
+          .from('room_message_attachments')
+          .insert(attachmentRowsToInsert);
+        if (attachmentInsertError) {
+          setError(attachmentInsertError.message);
+        }
+      }
+    }
+
     setMessages((previous) =>
       previous.some((message) => message.id === insertedMessage.id)
         ? previous
@@ -343,6 +643,9 @@ export default function GroupChatWindow({
     );
     setHasLiveMessageSinceOpen(true);
     setDraft('');
+    onDraftChange?.('');
+    clearPendingAttachments();
+    setAttachmentError(null);
   };
 
   const handleDraftKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -357,6 +660,7 @@ export default function GroupChatWindow({
       const selectionEnd = textarea.selectionEnd ?? textarea.value.length;
       const nextDraft = `${draft.slice(0, selectionStart)}\n${draft.slice(selectionEnd)}`;
       setDraft(nextDraft);
+      onDraftChange?.(nextDraft);
       window.requestAnimationFrame(() => {
         textarea.selectionStart = selectionStart + 1;
         textarea.selectionEnd = selectionStart + 1;
@@ -365,7 +669,7 @@ export default function GroupChatWindow({
     }
 
     event.preventDefault();
-    if (isSending || !draft.trim()) {
+    if (isSending || (!draft.trim() && pendingAttachments.length === 0)) {
       return;
     }
 
@@ -396,8 +700,111 @@ export default function GroupChatWindow({
 
   const handleDraftChange = (nextValue: string) => {
     setDraft(nextValue);
+    onDraftChange?.(nextValue);
     if (nextValue.trim()) {
       notifyTyping();
+    }
+  };
+
+  const removePendingAttachment = (targetIndex: number) => {
+    setPendingAttachments((previous) => {
+      const next = previous.filter((_, index) => index !== targetIndex);
+      if (next.length === 0 && attachmentInputRef.current) {
+        attachmentInputRef.current.value = '';
+      }
+      return next;
+    });
+  };
+
+  const startEditingMessage = (message: RoomMessage) => {
+    if (message.sender_id !== currentUserId || message.deleted_at) {
+      return;
+    }
+
+    setEditingMessageId(message.id);
+    setEditDraft(htmlToPlainText(message.content));
+  };
+
+  const cancelEditingMessage = () => {
+    setEditingMessageId(null);
+    setEditDraft('');
+  };
+
+  const saveEditedMessage = async (messageId: string) => {
+    const trimmed = editDraft.trim();
+    if (!trimmed || isSavingEdit) {
+      return;
+    }
+
+    setIsSavingEdit(true);
+    const updatedContent = formatRichText(trimmed, DEFAULT_RICH_TEXT_FORMAT);
+    const { error } = await supabase
+      .from('room_messages')
+      .update({
+        content: updatedContent,
+        edited_at: new Date().toISOString(),
+      })
+      .eq('id', messageId)
+      .eq('sender_id', currentUserId);
+
+    setIsSavingEdit(false);
+    if (error) {
+      return;
+    }
+
+    cancelEditingMessage();
+  };
+
+  const softDeleteMessage = async (messageId: string) => {
+    if (isDeletingMessageId === messageId) {
+      return;
+    }
+
+    setIsDeletingMessageId(messageId);
+    const { error } = await supabase
+      .from('room_messages')
+      .update({
+        deleted_at: new Date().toISOString(),
+        deleted_by: currentUserId,
+      })
+      .eq('id', messageId)
+      .eq('sender_id', currentUserId);
+    setIsDeletingMessageId(null);
+
+    if (error) {
+      return;
+    }
+
+    if (editingMessageId === messageId) {
+      cancelEditingMessage();
+    }
+  };
+
+  const toggleReaction = async (messageId: string, emoji: string) => {
+    const summary = reactionSummaryByMessageId.get(messageId);
+    const hasReaction = summary?.mine.has(emoji) ?? false;
+    setReactionError(null);
+
+    if (hasReaction) {
+      const { error } = await supabase
+        .from('room_message_reactions')
+        .delete()
+        .eq('message_id', messageId)
+        .eq('user_id', currentUserId)
+        .eq('emoji', emoji);
+      if (error) {
+        setReactionError(error.message);
+      }
+      return;
+    }
+
+    const { error } = await supabase.from('room_message_reactions').insert({
+      message_id: messageId,
+      user_id: currentUserId,
+      emoji,
+    });
+    if (error) {
+      setReactionError(error.message);
     }
   };
 
@@ -440,6 +847,41 @@ export default function GroupChatWindow({
     }
     return `${resolvedTypingUsers[0]}, ${resolvedTypingUsers[1]} +${resolvedTypingUsers.length - 2} more typing...`;
   }, [resolvedTypingUsers]);
+
+  const reactionSummaryByMessageId = useMemo(() => {
+    const summary = new Map<string, { counts: Record<string, number>; mine: Set<string> }>();
+
+    for (const row of reactionRows) {
+      if (!summary.has(row.message_id)) {
+        summary.set(row.message_id, {
+          counts: {},
+          mine: new Set<string>(),
+        });
+      }
+
+      const target = summary.get(row.message_id);
+      if (!target) {
+        continue;
+      }
+
+      target.counts[row.emoji] = (target.counts[row.emoji] ?? 0) + 1;
+      if (row.user_id === currentUserId) {
+        target.mine.add(row.emoji);
+      }
+    }
+
+    return summary;
+  }, [currentUserId, reactionRows]);
+
+  const attachmentsByMessageId = useMemo(() => {
+    const grouped = new Map<string, RoomMessageAttachmentRow[]>();
+    for (const attachment of attachmentRows) {
+      const existing = grouped.get(attachment.message_id) ?? [];
+      existing.push(attachment);
+      grouped.set(attachment.message_id, existing);
+    }
+    return grouped;
+  }, [attachmentRows]);
 
   const normalizedInitialUnreadCount = Math.max(0, Math.floor(initialUnreadCount));
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
@@ -528,16 +970,25 @@ export default function GroupChatWindow({
                 {messages.map((message, index) => {
                   const senderName = screennameMap[message.sender_id] || 'Unknown User';
                   const isMine = message.sender_id === currentUserId;
+                  const isDeleted = Boolean(message.deleted_at);
+                  const isEditing = editingMessageId === message.id;
                   const isMatch = normalizedSearchQuery ? Boolean(messageMatches.get(message.id)) : false;
                   const senderClassName = isMine
                     ? 'text-blue-600'
                     : getStableSenderColorClass(message.sender_id);
+                  const plainMessageText = htmlToPlainText(message.content).toLowerCase();
+                  const isMentioningCurrentUser =
+                    !isMine &&
+                    plainMessageText.includes(`@${currentUserScreenname.trim().toLowerCase()}`);
                   const timestampDate = new Date(message.created_at);
                   const timestamp = timestampDate.toLocaleTimeString([], {
                     hour: '2-digit',
                     minute: '2-digit',
                   });
                   const fullTimestamp = timestampDate.toLocaleString();
+                  const reactionSummary = reactionSummaryByMessageId.get(message.id);
+                  const messageAttachments = attachmentsByMessageId.get(message.id) ?? [];
+                  const isEdited = Boolean(message.edited_at && !message.deleted_at);
 
                   return (
                     <div
@@ -547,7 +998,9 @@ export default function GroupChatWindow({
                           ? isMatch
                             ? 'rounded bg-[#fffbe7] px-1'
                             : 'px-1 opacity-50'
-                          : undefined
+                          : isMentioningCurrentUser
+                            ? 'rounded bg-[#fffbe7] px-1'
+                            : undefined
                       }
                     >
                       {separatorIndex === index ? (
@@ -560,11 +1013,104 @@ export default function GroupChatWindow({
                         <span className={`font-bold ${senderClassName}`}>
                           {isMine ? 'You' : senderName}:
                         </span>
-                        <span
-                          className="aim-rich-html text-gray-900"
-                          dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(message.content) }}
-                        />
+                        {isEditing ? (
+                          <span className="flex min-w-0 flex-1 items-center gap-1">
+                            <input
+                              value={editDraft}
+                              onChange={(event) => setEditDraft(event.target.value)}
+                              className="h-6 min-w-0 flex-1 border border-[#7f9db9] border-t-[#808080] border-l-[#808080] border-r-white border-b-white bg-white px-1 text-[11px] focus:outline-none"
+                              maxLength={1500}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => void saveEditedMessage(message.id)}
+                              disabled={isSavingEdit || !editDraft.trim()}
+                              className="border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-1 py-0.5 text-[10px] font-bold text-[#1e395b] disabled:opacity-60"
+                            >
+                              Save
+                            </button>
+                            <button
+                              type="button"
+                              onClick={cancelEditingMessage}
+                              className="border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-1 py-0.5 text-[10px] font-bold text-[#1e395b]"
+                            >
+                              Cancel
+                            </button>
+                          </span>
+                        ) : isDeleted ? (
+                          <span className="italic text-gray-500">This message was deleted.</span>
+                        ) : (
+                          <span
+                            className="aim-rich-html text-gray-900"
+                            dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(message.content) }}
+                          />
+                        )}
+                        {isEdited ? <span className="text-[10px] italic text-gray-500">(edited)</span> : null}
+                        {isMine && !isDeleted && !isEditing ? (
+                          <span className="ml-1 inline-flex gap-1 text-[10px]">
+                            <button
+                              type="button"
+                              onClick={() => startEditingMessage(message)}
+                              className="text-[#1f4f9e] underline"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void softDeleteMessage(message.id)}
+                              disabled={isDeletingMessageId === message.id}
+                              className="text-[#8b2020] underline disabled:opacity-60"
+                            >
+                              {isDeletingMessageId === message.id ? '...' : 'Delete'}
+                            </button>
+                          </span>
+                        ) : null}
                       </div>
+                      {!isDeleted && messageAttachments.length > 0 ? (
+                        <div className="mt-1 space-y-0.5 pl-12">
+                          {messageAttachments.map((attachment) => {
+                            const { data } = supabase.storage
+                              .from(attachment.bucket)
+                              .getPublicUrl(attachment.storage_path);
+                            return (
+                              <a
+                                key={attachment.id}
+                                href={data.publicUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="block text-[10px] text-[#1f4f9e] underline"
+                                title={attachment.storage_path}
+                              >
+                                📎 {attachment.file_name}
+                                {attachment.size_bytes ? ` (${formatFileSize(attachment.size_bytes)})` : ''}
+                              </a>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+                      {!isDeleted ? (
+                        <div className="mt-0.5 flex flex-wrap items-center gap-1 pl-12">
+                          {REACTION_OPTIONS.map((emoji) => {
+                            const count = reactionSummary?.counts[emoji] ?? 0;
+                            const mine = reactionSummary?.mine.has(emoji) ?? false;
+                            return (
+                              <button
+                                key={`${message.id}-${emoji}`}
+                                type="button"
+                                onClick={() => void toggleReaction(message.id, emoji)}
+                                className={`rounded border px-1 py-[1px] text-[10px] ${
+                                  mine
+                                    ? 'border-[#2b8f3f] bg-[#e6f8ec] text-[#1c6a2f]'
+                                    : 'border-[#b7c4d8] bg-[#f6f9ff] text-[#355178]'
+                                }`}
+                              >
+                                {emoji}
+                                {count > 0 ? ` ${count}` : ''}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : null}
                     </div>
                   );
                 })}
@@ -572,6 +1118,8 @@ export default function GroupChatWindow({
               </div>
             )}
           </div>
+          {reactionError ? <p className="mx-2 mt-1 text-[10px] text-red-700">{reactionError}</p> : null}
+          {attachmentLoadError ? <p className="mx-2 mt-1 text-[10px] text-red-700">{attachmentLoadError}</p> : null}
 
           <div className="mx-2 mb-2 flex items-center gap-1 border border-[#b7b7b7] bg-[#ece9d8] px-1 py-1">
             <button
@@ -616,6 +1164,22 @@ export default function GroupChatWindow({
             </button>
             <button
               type="button"
+              onClick={() => attachmentInputRef.current?.click()}
+              className={xpTinyToolbarButtonClass(pendingAttachments.length > 0)}
+              aria-label="Attach files"
+              title="Attach files"
+            >
+              📎
+            </button>
+            <input
+              ref={attachmentInputRef}
+              type="file"
+              multiple
+              onChange={(event) => handleSelectAttachments(event.target.files)}
+              className="hidden"
+            />
+            <button
+              type="button"
               onClick={onLeave}
               className={`${xpTinyToolbarButtonClass()} ml-auto text-[#7b1f1f]`}
               aria-label="Leave room"
@@ -635,6 +1199,26 @@ export default function GroupChatWindow({
             <p className="mx-2 mb-1 text-[11px] italic text-[#2d5c9a]">{typingText}</p>
           ) : null}
 
+          {pendingAttachments.length > 0 ? (
+            <div className="mx-2 mb-2 space-y-1 border border-[#b7b7b7] bg-[#f6f9ff] p-1">
+              {pendingAttachments.map((file, index) => (
+                <div key={`${file.name}-${file.size}-${file.lastModified}`} className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1 truncate text-[10px] text-[#1e395b]">
+                    📎 {file.name} ({formatFileSize(file.size)})
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removePendingAttachment(index)}
+                    className="border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-1 text-[10px] font-bold text-[#8b2020]"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {attachmentError ? <p className="mx-2 mb-1 text-[10px] text-red-700">{attachmentError}</p> : null}
+
           <div className="m-2 mt-0 flex items-stretch gap-2">
             <form
               onSubmit={handleSendMessage}
@@ -651,7 +1235,7 @@ export default function GroupChatWindow({
               />
               <button
                 type="submit"
-                disabled={isSending || !draft.trim()}
+                disabled={isSending || (!draft.trim() && pendingAttachments.length === 0)}
                 className="min-w-[74px] border-2 border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-2 text-[11px] font-bold text-[#1e395b] disabled:opacity-60"
               >
                 {isSending ? '...' : 'Send'}

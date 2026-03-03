@@ -1,8 +1,14 @@
 'use client';
 
-import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import RetroWindow from '@/components/RetroWindow';
 import RichTextToolbar from '@/components/RichTextToolbar';
+import {
+  CHAT_MEDIA_MAX_ATTACHMENTS,
+  type ChatMediaAttachmentRecord,
+  formatFileSize,
+  validateChatMediaFile,
+} from '@/lib/chatMedia';
 import {
   DEFAULT_RICH_TEXT_FORMAT,
   formatRichText,
@@ -10,6 +16,7 @@ import {
   RichTextFormat,
   sanitizeRichTextHtml,
 } from '@/lib/richText';
+import { supabase } from '@/lib/supabase';
 
 export interface ChatMessage {
   id: number;
@@ -17,6 +24,9 @@ export interface ChatMessage {
   receiver_id: string;
   content: string;
   created_at: string;
+  edited_at?: string | null;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 }
 
 interface ChatWindowProps {
@@ -25,14 +35,28 @@ interface ChatWindowProps {
   currentUserId: string;
   messages: ChatMessage[];
   initialUnreadCount?: number;
+  initialDraft?: string;
   typingText?: string | null;
-  onSendMessage: (content: string) => Promise<void> | void;
+  onSendMessage: (content: string, attachments?: File[]) => Promise<void> | void;
   onTypingActivity?: () => void;
+  onDraftChange?: (draft: string) => void;
   onClose: () => void;
   onSignOff?: () => void;
   isSending?: boolean;
   isLoading?: boolean;
 }
+
+interface MessageReactionRow {
+  message_id: number;
+  user_id: string;
+  emoji: string;
+}
+
+interface MessageAttachmentRow extends ChatMediaAttachmentRecord {
+  message_id: number;
+}
+
+const REACTION_OPTIONS = ['👍', '❤️', '😂', '😮', '😢'] as const;
 
 export default function ChatWindow({
   buddyScreenname,
@@ -40,23 +64,189 @@ export default function ChatWindow({
   currentUserId,
   messages,
   initialUnreadCount = 0,
+  initialDraft = '',
   typingText = null,
   onSendMessage,
   onTypingActivity,
+  onDraftChange,
   onClose,
   onSignOff,
   isSending = false,
   isLoading = false,
 }: ChatWindowProps) {
-  const [draft, setDraft] = useState('');
+  const [draft, setDraft] = useState(initialDraft);
   const [format, setFormat] = useState<RichTextFormat>(DEFAULT_RICH_TEXT_FORMAT);
   const [showFormatting, setShowFormatting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
+  const [editDraft, setEditDraft] = useState('');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [isDeletingMessageId, setIsDeletingMessageId] = useState<number | null>(null);
+  const [reactionRows, setReactionRows] = useState<MessageReactionRow[]>([]);
+  const [attachmentRows, setAttachmentRows] = useState<MessageAttachmentRow[]>([]);
+  const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
+  const [reactionError, setReactionError] = useState<string | null>(null);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [attachmentLoadError, setAttachmentLoadError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages]);
+
+  useEffect(() => {
+    setDraft(initialDraft);
+  }, [initialDraft]);
+
+  useEffect(() => {
+    const messageIds = messages.map((message) => message.id);
+    if (messageIds.length === 0) {
+      setReactionRows([]);
+      return;
+    }
+
+    let isCancelled = false;
+
+    const loadReactions = async () => {
+      const { data, error } = await supabase
+        .from('message_reactions')
+        .select('message_id,user_id,emoji')
+        .in('message_id', messageIds);
+
+      if (isCancelled) {
+        return;
+      }
+
+      if (error) {
+        setReactionError(error.message);
+        return;
+      }
+
+      setReactionError(null);
+      setReactionRows((data ?? []) as MessageReactionRow[]);
+    };
+
+    void loadReactions();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [messages]);
+
+  useEffect(() => {
+    const messageIdSet = new Set(messages.map((message) => message.id));
+    if (messageIdSet.size === 0) {
+      return;
+    }
+
+    const channel = supabase
+      .channel(`message_reactions:dm_window:${currentUserId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'message_reactions' }, (payload) => {
+        const incoming = payload.new as MessageReactionRow;
+        if (!messageIdSet.has(incoming.message_id)) {
+          return;
+        }
+
+        setReactionRows((previous) =>
+          previous.some(
+            (row) =>
+              row.message_id === incoming.message_id && row.user_id === incoming.user_id && row.emoji === incoming.emoji,
+          )
+            ? previous
+            : [...previous, incoming],
+        );
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'message_reactions' }, (payload) => {
+        const deleted = payload.old as MessageReactionRow;
+        if (!messageIdSet.has(deleted.message_id)) {
+          return;
+        }
+
+        setReactionRows((previous) =>
+          previous.filter(
+            (row) =>
+              !(
+                row.message_id === deleted.message_id &&
+                row.user_id === deleted.user_id &&
+                row.emoji === deleted.emoji
+              ),
+          ),
+        );
+      })
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [currentUserId, messages]);
+
+  useEffect(() => {
+    const messageIds = messages.map((message) => message.id);
+    if (messageIds.length === 0) {
+      setAttachmentRows([]);
+      return;
+    }
+
+    let isCancelled = false;
+    const loadAttachments = async () => {
+      const { data, error } = await supabase
+        .from('message_attachments')
+        .select('id,message_id,bucket,storage_path,file_name,mime_type,size_bytes')
+        .in('message_id', messageIds)
+        .order('created_at', { ascending: true });
+
+      if (isCancelled) {
+        return;
+      }
+
+      if (error) {
+        setAttachmentLoadError(error.message);
+        return;
+      }
+
+      setAttachmentLoadError(null);
+      setAttachmentRows((data ?? []) as MessageAttachmentRow[]);
+    };
+
+    void loadAttachments();
+    return () => {
+      isCancelled = true;
+    };
+  }, [messages]);
+
+  useEffect(() => {
+    const messageIdSet = new Set(messages.map((message) => message.id));
+    if (messageIdSet.size === 0) {
+      return;
+    }
+
+    const channel = supabase
+      .channel(`message_attachments:dm_window:${currentUserId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'message_attachments' }, (payload) => {
+        const incoming = payload.new as MessageAttachmentRow;
+        if (!messageIdSet.has(incoming.message_id)) {
+          return;
+        }
+
+        setAttachmentRows((previous) =>
+          previous.some((attachment) => attachment.id === incoming.id) ? previous : [...previous, incoming],
+        );
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'message_attachments' }, (payload) => {
+        const deleted = payload.old as { id?: string };
+        if (typeof deleted.id !== 'string') {
+          return;
+        }
+
+        setAttachmentRows((previous) => previous.filter((attachment) => attachment.id !== deleted.id));
+      })
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [currentUserId, messages]);
 
   const normalizedInitialUnreadCount = Math.max(0, Math.floor(initialUnreadCount));
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
@@ -82,17 +272,92 @@ export default function ChatWindow({
       ? Math.max(0, messages.length - normalizedInitialUnreadCount)
       : null;
 
+  const reactionSummaryByMessageId = useMemo(() => {
+    const summary = new Map<number, { counts: Record<string, number>; mine: Set<string> }>();
+
+    for (const row of reactionRows) {
+      if (!summary.has(row.message_id)) {
+        summary.set(row.message_id, {
+          counts: {},
+          mine: new Set<string>(),
+        });
+      }
+
+      const target = summary.get(row.message_id);
+      if (!target) {
+        continue;
+      }
+
+      target.counts[row.emoji] = (target.counts[row.emoji] ?? 0) + 1;
+      if (row.user_id === currentUserId) {
+        target.mine.add(row.emoji);
+      }
+    }
+
+    return summary;
+  }, [currentUserId, reactionRows]);
+
+  const attachmentsByMessageId = useMemo(() => {
+    const grouped = new Map<number, MessageAttachmentRow[]>();
+    for (const attachment of attachmentRows) {
+      const existing = grouped.get(attachment.message_id) ?? [];
+      existing.push(attachment);
+      grouped.set(attachment.message_id, existing);
+    }
+    return grouped;
+  }, [attachmentRows]);
+
+  const clearPendingAttachments = useCallback(() => {
+    setPendingAttachments([]);
+    if (attachmentInputRef.current) {
+      attachmentInputRef.current.value = '';
+    }
+  }, []);
+
+  const handleSelectAttachments = (files: FileList | null) => {
+    if (!files || files.length === 0) {
+      return;
+    }
+
+    const selected = Array.from(files);
+    const validationError = selected.map((file) => validateChatMediaFile(file)).find(Boolean);
+    if (validationError) {
+      setAttachmentError(validationError);
+      return;
+    }
+
+    setAttachmentError(null);
+    setPendingAttachments((previous) => {
+      const existingKeys = new Set(previous.map((file) => `${file.name}:${file.size}:${file.lastModified}`));
+      const combined = [...previous];
+      for (const file of selected) {
+        const key = `${file.name}:${file.size}:${file.lastModified}`;
+        if (!existingKeys.has(key)) {
+          combined.push(file);
+          existingKeys.add(key);
+        }
+      }
+      if (combined.length > CHAT_MEDIA_MAX_ATTACHMENTS) {
+        setAttachmentError(`Max ${CHAT_MEDIA_MAX_ATTACHMENTS} attachments per message.`);
+      }
+      return combined.slice(0, CHAT_MEDIA_MAX_ATTACHMENTS);
+    });
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmed = draft.trim();
-    if (!trimmed || isSending) {
+    if ((!trimmed && pendingAttachments.length === 0) || isSending) {
       return;
     }
 
     try {
-      const formatted = formatRichText(trimmed, format);
-      await Promise.resolve(onSendMessage(formatted));
+      const formatted = trimmed ? formatRichText(trimmed, format) : '';
+      await Promise.resolve(onSendMessage(formatted, pendingAttachments));
       setDraft('');
+      onDraftChange?.('');
+      clearPendingAttachments();
+      setAttachmentError(null);
     } catch {
       // Keep the draft intact if the send fails.
     }
@@ -110,6 +375,7 @@ export default function ChatWindow({
       const selectionEnd = textarea.selectionEnd ?? textarea.value.length;
       const nextDraft = `${draft.slice(0, selectionStart)}\n${draft.slice(selectionEnd)}`;
       setDraft(nextDraft);
+      onDraftChange?.(nextDraft);
       window.requestAnimationFrame(() => {
         textarea.selectionStart = selectionStart + 1;
         textarea.selectionEnd = selectionStart + 1;
@@ -118,7 +384,7 @@ export default function ChatWindow({
     }
 
     event.preventDefault();
-    if (isSending || !draft.trim()) {
+    if (isSending || (!draft.trim() && pendingAttachments.length === 0)) {
       return;
     }
 
@@ -127,8 +393,111 @@ export default function ChatWindow({
 
   const handleDraftChange = (nextValue: string) => {
     setDraft(nextValue);
+    onDraftChange?.(nextValue);
     if (nextValue.trim()) {
       onTypingActivity?.();
+    }
+  };
+
+  const removePendingAttachment = (targetIndex: number) => {
+    setPendingAttachments((previous) => {
+      const next = previous.filter((_, index) => index !== targetIndex);
+      if (next.length === 0 && attachmentInputRef.current) {
+        attachmentInputRef.current.value = '';
+      }
+      return next;
+    });
+  };
+
+  const startEditingMessage = (message: ChatMessage) => {
+    if (message.sender_id !== currentUserId || message.deleted_at) {
+      return;
+    }
+
+    setEditingMessageId(message.id);
+    setEditDraft(htmlToPlainText(message.content));
+  };
+
+  const cancelEditingMessage = () => {
+    setEditingMessageId(null);
+    setEditDraft('');
+  };
+
+  const saveEditedMessage = async (messageId: number) => {
+    const trimmed = editDraft.trim();
+    if (!trimmed || isSavingEdit) {
+      return;
+    }
+
+    setIsSavingEdit(true);
+    const updatedContent = formatRichText(trimmed, DEFAULT_RICH_TEXT_FORMAT);
+    const { error } = await supabase
+      .from('messages')
+      .update({
+        content: updatedContent,
+        edited_at: new Date().toISOString(),
+      })
+      .eq('id', messageId)
+      .eq('sender_id', currentUserId);
+
+    setIsSavingEdit(false);
+    if (error) {
+      return;
+    }
+
+    cancelEditingMessage();
+  };
+
+  const softDeleteMessage = async (messageId: number) => {
+    if (isDeletingMessageId === messageId) {
+      return;
+    }
+
+    setIsDeletingMessageId(messageId);
+    const { error } = await supabase
+      .from('messages')
+      .update({
+        deleted_at: new Date().toISOString(),
+        deleted_by: currentUserId,
+      })
+      .eq('id', messageId)
+      .eq('sender_id', currentUserId);
+    setIsDeletingMessageId(null);
+
+    if (error) {
+      return;
+    }
+
+    if (editingMessageId === messageId) {
+      cancelEditingMessage();
+    }
+  };
+
+  const toggleReaction = async (messageId: number, emoji: string) => {
+    const summary = reactionSummaryByMessageId.get(messageId);
+    const hasReaction = summary?.mine.has(emoji) ?? false;
+    setReactionError(null);
+
+    if (hasReaction) {
+      const { error } = await supabase
+        .from('message_reactions')
+        .delete()
+        .eq('message_id', messageId)
+        .eq('user_id', currentUserId)
+        .eq('emoji', emoji);
+      if (error) {
+        setReactionError(error.message);
+      }
+      return;
+    }
+
+    const { error } = await supabase.from('message_reactions').insert({
+      message_id: messageId,
+      user_id: currentUserId,
+      emoji,
+    });
+    if (error) {
+      setReactionError(error.message);
     }
   };
 
@@ -208,6 +577,8 @@ export default function ChatWindow({
               <div className="space-y-1">
                 {messages.map((message, index) => {
                   const isMine = message.sender_id === currentUserId;
+                  const isDeleted = Boolean(message.deleted_at);
+                  const isEditing = editingMessageId === message.id;
                   const isMatch = normalizedSearchQuery ? Boolean(messageMatches.get(message.id)) : false;
                   const timestampDate = new Date(message.created_at);
                   const timestamp = timestampDate.toLocaleTimeString([], {
@@ -216,6 +587,9 @@ export default function ChatWindow({
                   });
                   const fullTimestamp = timestampDate.toLocaleString();
                   const senderClassName = isMine ? 'text-blue-600' : 'text-emerald-600';
+                  const reactionSummary = reactionSummaryByMessageId.get(message.id);
+                  const messageAttachments = attachmentsByMessageId.get(message.id) ?? [];
+                  const isEdited = Boolean(message.edited_at && !message.deleted_at);
 
                   return (
                     <div
@@ -238,11 +612,104 @@ export default function ChatWindow({
                         <span className={`font-bold ${senderClassName}`}>
                           {isMine ? 'You' : buddyScreenname}:
                         </span>
-                        <span
-                          className="aim-rich-html text-gray-900"
-                          dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(message.content) }}
-                        />
+                        {isEditing ? (
+                          <span className="flex min-w-0 flex-1 items-center gap-1">
+                            <input
+                              value={editDraft}
+                              onChange={(event) => setEditDraft(event.target.value)}
+                              className="h-6 min-w-0 flex-1 border border-[#7f9db9] border-t-[#808080] border-l-[#808080] border-r-white border-b-white bg-white px-1 text-[11px] focus:outline-none"
+                              maxLength={1000}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => void saveEditedMessage(message.id)}
+                              disabled={isSavingEdit || !editDraft.trim()}
+                              className="border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-1 py-0.5 text-[10px] font-bold text-[#1e395b] disabled:opacity-60"
+                            >
+                              Save
+                            </button>
+                            <button
+                              type="button"
+                              onClick={cancelEditingMessage}
+                              className="border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-1 py-0.5 text-[10px] font-bold text-[#1e395b]"
+                            >
+                              Cancel
+                            </button>
+                          </span>
+                        ) : isDeleted ? (
+                          <span className="italic text-gray-500">This message was deleted.</span>
+                        ) : (
+                          <span
+                            className="aim-rich-html text-gray-900"
+                            dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(message.content) }}
+                          />
+                        )}
+                        {isEdited ? <span className="text-[10px] italic text-gray-500">(edited)</span> : null}
+                        {isMine && !isDeleted && !isEditing ? (
+                          <span className="ml-1 inline-flex gap-1 text-[10px]">
+                            <button
+                              type="button"
+                              onClick={() => startEditingMessage(message)}
+                              className="text-[#1f4f9e] underline"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void softDeleteMessage(message.id)}
+                              disabled={isDeletingMessageId === message.id}
+                              className="text-[#8b2020] underline disabled:opacity-60"
+                            >
+                              {isDeletingMessageId === message.id ? '...' : 'Delete'}
+                            </button>
+                          </span>
+                        ) : null}
                       </div>
+                      {!isDeleted && messageAttachments.length > 0 ? (
+                        <div className="mt-1 space-y-0.5 pl-12">
+                          {messageAttachments.map((attachment) => {
+                            const { data } = supabase.storage
+                              .from(attachment.bucket)
+                              .getPublicUrl(attachment.storage_path);
+                            return (
+                              <a
+                                key={attachment.id}
+                                href={data.publicUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="block text-[10px] text-[#1f4f9e] underline"
+                                title={attachment.storage_path}
+                              >
+                                📎 {attachment.file_name}
+                                {attachment.size_bytes ? ` (${formatFileSize(attachment.size_bytes)})` : ''}
+                              </a>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+                      {!isDeleted ? (
+                        <div className="mt-0.5 flex flex-wrap items-center gap-1 pl-12">
+                          {REACTION_OPTIONS.map((emoji) => {
+                            const count = reactionSummary?.counts[emoji] ?? 0;
+                            const mine = reactionSummary?.mine.has(emoji) ?? false;
+                            return (
+                              <button
+                                key={`${message.id}-${emoji}`}
+                                type="button"
+                                onClick={() => void toggleReaction(message.id, emoji)}
+                                className={`rounded border px-1 py-[1px] text-[10px] ${
+                                  mine
+                                    ? 'border-[#2b8f3f] bg-[#e6f8ec] text-[#1c6a2f]'
+                                    : 'border-[#b7c4d8] bg-[#f6f9ff] text-[#355178]'
+                                }`}
+                              >
+                                {emoji}
+                                {count > 0 ? ` ${count}` : ''}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : null}
                     </div>
                   );
                 })}
@@ -250,6 +717,8 @@ export default function ChatWindow({
               </div>
             )}
           </div>
+          {reactionError ? <p className="mx-2 mt-1 text-[10px] text-red-700">{reactionError}</p> : null}
+          {attachmentLoadError ? <p className="mx-2 mt-1 text-[10px] text-red-700">{attachmentLoadError}</p> : null}
 
           <div className="mx-2 mb-2 flex items-center gap-1 border border-[#b7b7b7] bg-[#ece9d8] px-1 py-1">
             <button
@@ -292,6 +761,22 @@ export default function ChatWindow({
             >
               ☺
             </button>
+            <button
+              type="button"
+              onClick={() => attachmentInputRef.current?.click()}
+              className={xpTinyToolbarButtonClass(pendingAttachments.length > 0)}
+              aria-label="Attach files"
+              title="Attach files"
+            >
+              📎
+            </button>
+            <input
+              ref={attachmentInputRef}
+              type="file"
+              multiple
+              onChange={(event) => handleSelectAttachments(event.target.files)}
+              className="hidden"
+            />
           </div>
 
           {showFormatting ? (
@@ -303,6 +788,26 @@ export default function ChatWindow({
           {typingText ? (
             <p className="mx-2 mb-1 text-[11px] italic text-[#2d5c9a]">{typingText}</p>
           ) : null}
+
+          {pendingAttachments.length > 0 ? (
+            <div className="mx-2 mb-2 space-y-1 border border-[#b7b7b7] bg-[#f6f9ff] p-1">
+              {pendingAttachments.map((file, index) => (
+                <div key={`${file.name}-${file.size}-${file.lastModified}`} className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1 truncate text-[10px] text-[#1e395b]">
+                    📎 {file.name} ({formatFileSize(file.size)})
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removePendingAttachment(index)}
+                    className="border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-1 text-[10px] font-bold text-[#8b2020]"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {attachmentError ? <p className="mx-2 mb-1 text-[10px] text-red-700">{attachmentError}</p> : null}
 
           <div className="m-2 mt-0 flex items-stretch gap-2">
             <form
@@ -320,7 +825,7 @@ export default function ChatWindow({
               />
               <button
                 type="submit"
-                disabled={isSending || !draft.trim()}
+                disabled={isSending || (!draft.trim() && pendingAttachments.length === 0)}
                 className="min-w-[74px] border-2 border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-2 text-[11px] font-bold text-[#1e395b] disabled:opacity-60"
               >
                 {isSending ? '...' : 'Send'}
