@@ -166,7 +166,7 @@ export default function GroupChatWindow({
   }, [ensureScreennames, roomId]);
 
   useEffect(() => {
-    const roomChannel = supabase.channel(`active_chat_room:${roomId}:${currentUserId}`, {
+    const roomChannel = supabase.channel(`active_chat_room:${roomId}`, {
       config: {
         presence: {
           key: currentUserId,
