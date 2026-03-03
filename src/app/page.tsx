@@ -4,9 +4,11 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import RetroWindow from '@/components/RetroWindow';
 import { getSessionOrNull } from '@/lib/authClient';
+import { initSoundSystem, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
 
-const SIGN_ON_SOUND = '/signon.wav';
+const SIGN_ON_SOUND = '/sounds/aol-welcome.mp3';
+const SIGN_ON_FALLBACK_SOUND = '/sounds/aim.mp3';
 type AuthView = 'sign-on' | 'forgot-password' | 'redeem-ticket';
 
 interface ResetApiSuccess {
@@ -36,17 +38,17 @@ export default function Home() {
   const router = useRouter();
 
   const playSignOnSound = useCallback(async () => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
     try {
-      const audio = new Audio(SIGN_ON_SOUND);
-      audio.preload = 'auto';
-      await audio.play();
+      const played = await playUiSound(SIGN_ON_SOUND, {
+        volume: 0.85,
+        fallbackSrc: SIGN_ON_FALLBACK_SOUND,
+      });
+      if (!played) {
+        return;
+      }
       await new Promise((resolve) => setTimeout(resolve, 220));
     } catch {
-      // Ignore playback failures (missing file, autoplay rules, etc.).
+      // Ignore playback failures.
     }
   }, []);
 
@@ -64,6 +66,10 @@ export default function Home() {
     },
     [playSignOnSound, router],
   );
+
+  useEffect(() => {
+    initSoundSystem();
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -326,18 +332,31 @@ export default function Home() {
   };
 
   return (
-    <main className="h-[100dvh] overflow-hidden">
-      <RetroWindow title="AOL Instant Messenger - Sign On">
-        <form onSubmit={handlePrimarySubmit} className="mx-auto w-full max-w-md space-y-4 pb-6 text-[13px] font-sans">
-          <div className="grid grid-cols-3 gap-2">
+    <main className="relative h-[100dvh] overflow-hidden bg-[radial-gradient(circle_at_10%_15%,#c5ddff_0%,#eaf2ff_34%,#f6f9ff_62%,#dce9ff_100%)]">
+      <div className="pointer-events-none absolute -left-14 top-8 h-44 w-44 rounded-full bg-blue-200/45 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-20 right-10 h-60 w-60 rounded-full bg-cyan-200/40 blur-3xl" />
+
+      <RetroWindow title="BuddyList Messenger - Sign On">
+        <form
+          onSubmit={handlePrimarySubmit}
+          className="mx-auto flex w-full max-w-3xl flex-col gap-4 pb-6 text-[13px] font-sans text-blue-900"
+        >
+          <div className="rounded-xl border border-blue-200 bg-white/85 px-4 py-3 shadow-[0_8px_20px_rgba(11,62,143,0.12)] backdrop-blur-sm">
+            <p className="text-[15px] font-black uppercase tracking-[0.09em] text-[#0d4da3]">BuddyList Access</p>
+            <p className="mt-1 text-[12px] font-semibold text-blue-700/90">
+              Secure sign-on, recovery code reset, and admin ticket redemption in one place.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 rounded-xl border border-blue-200 bg-white/70 p-2">
             <button
               type="button"
               onClick={() => switchAuthView('sign-on')}
               disabled={isLoading}
-              className={`min-h-[40px] cursor-pointer rounded-md border px-2 py-2 text-[11px] font-bold transition disabled:opacity-50 ${
+              className={`min-h-[42px] cursor-pointer rounded-lg border px-2 py-2 text-[11px] font-black tracking-wide transition disabled:opacity-50 ${
                 authView === 'sign-on'
-                  ? 'border-blue-600 bg-gradient-to-b from-blue-300 to-blue-600 text-white'
-                  : 'border-blue-300 bg-white text-blue-700 hover:bg-blue-50'
+                  ? 'border-blue-700 bg-gradient-to-b from-blue-300 to-blue-700 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]'
+                  : 'border-blue-200 bg-white text-blue-700 hover:bg-blue-50'
               }`}
             >
               Sign On
@@ -346,10 +365,10 @@ export default function Home() {
               type="button"
               onClick={() => switchAuthView('forgot-password')}
               disabled={isLoading}
-              className={`min-h-[40px] cursor-pointer rounded-md border px-2 py-2 text-[11px] font-bold transition disabled:opacity-50 ${
+              className={`min-h-[42px] cursor-pointer rounded-lg border px-2 py-2 text-[11px] font-black tracking-wide transition disabled:opacity-50 ${
                 authView === 'forgot-password'
-                  ? 'border-blue-600 bg-gradient-to-b from-blue-300 to-blue-600 text-white'
-                  : 'border-blue-300 bg-white text-blue-700 hover:bg-blue-50'
+                  ? 'border-blue-700 bg-gradient-to-b from-blue-300 to-blue-700 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]'
+                  : 'border-blue-200 bg-white text-blue-700 hover:bg-blue-50'
               }`}
             >
               Recovery Code
@@ -358,30 +377,38 @@ export default function Home() {
               type="button"
               onClick={() => switchAuthView('redeem-ticket')}
               disabled={isLoading}
-              className={`min-h-[40px] cursor-pointer rounded-md border px-2 py-2 text-[11px] font-bold transition disabled:opacity-50 ${
+              className={`min-h-[42px] cursor-pointer rounded-lg border px-2 py-2 text-[11px] font-black tracking-wide transition disabled:opacity-50 ${
                 authView === 'redeem-ticket'
-                  ? 'border-blue-600 bg-gradient-to-b from-blue-300 to-blue-600 text-white'
-                  : 'border-blue-300 bg-white text-blue-700 hover:bg-blue-50'
+                  ? 'border-blue-700 bg-gradient-to-b from-blue-300 to-blue-700 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]'
+                  : 'border-blue-200 bg-white text-blue-700 hover:bg-blue-50'
               }`}
             >
               Redeem Ticket
             </button>
           </div>
 
-          <div className="grid grid-cols-[92px_1fr] gap-3">
-            <div className="flex flex-col items-center justify-between rounded-md border border-blue-200 bg-[#f2e7ab] px-2 py-2">
-              <span className="text-[34px] leading-none">🏃</span>
-              <p className="text-[11px] font-bold tracking-wide text-[#0d4da3]">AIM</p>
-            </div>
-
-            <div className="space-y-2">
+          <div className="grid gap-3 rounded-xl border border-blue-200 bg-white/80 p-3 shadow-[0_12px_22px_rgba(11,62,143,0.1)] lg:grid-cols-[170px_1fr]">
+            <aside className="flex flex-col justify-between rounded-lg border border-blue-200 bg-gradient-to-b from-[#fdf3be] via-[#f8e588] to-[#ebd16d] px-3 py-3">
               <div>
-                <label className="mb-1 block text-[12px] font-bold uppercase tracking-wide">Screen Name</label>
+                <span className="text-[35px] leading-none">🏃</span>
+                <p className="mt-2 text-[11px] font-black uppercase tracking-[0.12em] text-[#0d4da3]">AIM Style</p>
+              </div>
+              <div className="mt-5 rounded-md border border-blue-200 bg-white/70 px-2 py-2 text-[11px] font-semibold text-blue-800">
+                <p>{authView === 'sign-on' ? (isSignUp ? 'Create mode' : 'Sign-on mode') : 'Recovery mode'}</p>
+                <p className="mt-1 text-blue-700/90">{isLoading ? 'Contacting server...' : 'Ready'}</p>
+              </div>
+            </aside>
+
+            <div className="space-y-2.5">
+              <div>
+                <label className="mb-1 block text-[11px] font-black uppercase tracking-[0.1em] text-blue-800">
+                  Screen Name
+                </label>
                 <input
                   type="text"
                   value={screenname}
                   onChange={(e) => setScreenname(e.target.value)}
-                  className="min-h-[44px] w-full rounded-md border border-blue-300 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_3px_rgba(37,99,235,0.18)] focus:outline-none"
+                  className="min-h-[46px] w-full rounded-lg border border-blue-300 bg-white px-3 py-2 text-[14px] font-semibold shadow-[inset_0_1px_3px_rgba(37,99,235,0.16)] focus:outline-none focus:ring-2 focus:ring-blue-300"
                   placeholder="e.g. sk8erboi99"
                   disabled={isLoading}
                   autoComplete="username"
@@ -391,36 +418,38 @@ export default function Home() {
               {authView === 'sign-on' && (
                 <>
                   <div>
-                    <label className="mb-1 block text-[12px] font-bold uppercase tracking-wide">Password</label>
+                    <label className="mb-1 block text-[11px] font-black uppercase tracking-[0.1em] text-blue-800">
+                      Password
+                    </label>
                     <input
                       type="password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="min-h-[44px] w-full rounded-md border border-blue-300 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_3px_rgba(37,99,235,0.18)] focus:outline-none"
+                      className="min-h-[46px] w-full rounded-lg border border-blue-300 bg-white px-3 py-2 text-[14px] font-semibold shadow-[inset_0_1px_3px_rgba(37,99,235,0.16)] focus:outline-none focus:ring-2 focus:ring-blue-300"
                       placeholder="Enter password"
                       disabled={isLoading}
                       autoComplete={isSignUp ? 'new-password' : 'current-password'}
                     />
                   </div>
 
-                  <div className="space-y-1 pt-1">
-                    <label className="flex items-center gap-2 text-[12px] font-semibold">
+                  <div className="grid gap-1.5 rounded-lg border border-blue-100 bg-blue-50/80 px-3 py-2">
+                    <label className="flex items-center gap-2 text-[12px] font-bold text-blue-800">
                       <input
                         type="checkbox"
                         checked={savePassword}
                         onChange={(e) => setSavePassword(e.target.checked)}
                         disabled={isLoading}
-                        className="h-5 w-5 rounded border border-blue-300 bg-white checked:bg-blue-600 disabled:opacity-60"
+                        className="h-4 w-4 rounded border border-blue-300 bg-white checked:bg-blue-600 disabled:opacity-60"
                       />
                       Save password
                     </label>
-                    <label className="flex items-center gap-2 text-[12px] font-semibold">
+                    <label className="flex items-center gap-2 text-[12px] font-bold text-blue-800">
                       <input
                         type="checkbox"
                         checked={autoLogin}
                         onChange={(e) => setAutoLogin(e.target.checked)}
                         disabled={isLoading}
-                        className="h-5 w-5 rounded border border-blue-300 bg-white checked:bg-blue-600 disabled:opacity-60"
+                        className="h-4 w-4 rounded border border-blue-300 bg-white checked:bg-blue-600 disabled:opacity-60"
                       />
                       Auto-login
                     </label>
@@ -431,35 +460,41 @@ export default function Home() {
               {authView === 'forgot-password' && (
                 <>
                   <div>
-                    <label className="mb-1 block text-[12px] font-bold uppercase tracking-wide">Recovery Code</label>
+                    <label className="mb-1 block text-[11px] font-black uppercase tracking-[0.1em] text-blue-800">
+                      Recovery Code
+                    </label>
                     <input
                       type="text"
                       value={recoveryCode}
                       onChange={(e) => setRecoveryCode(e.target.value)}
-                      className="min-h-[44px] w-full rounded-md border border-blue-300 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_3px_rgba(37,99,235,0.18)] focus:outline-none"
+                      className="min-h-[46px] w-full rounded-lg border border-blue-300 bg-white px-3 py-2 text-[14px] font-semibold shadow-[inset_0_1px_3px_rgba(37,99,235,0.16)] focus:outline-none focus:ring-2 focus:ring-blue-300"
                       placeholder="XXXXXX-XXXXXX-XXXXXX"
                       disabled={isLoading}
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-[12px] font-bold uppercase tracking-wide">New Password</label>
+                    <label className="mb-1 block text-[11px] font-black uppercase tracking-[0.1em] text-blue-800">
+                      New Password
+                    </label>
                     <input
                       type="password"
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
-                      className="min-h-[44px] w-full rounded-md border border-blue-300 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_3px_rgba(37,99,235,0.18)] focus:outline-none"
+                      className="min-h-[46px] w-full rounded-lg border border-blue-300 bg-white px-3 py-2 text-[14px] font-semibold shadow-[inset_0_1px_3px_rgba(37,99,235,0.16)] focus:outline-none focus:ring-2 focus:ring-blue-300"
                       placeholder="Create new password"
                       disabled={isLoading}
                       autoComplete="new-password"
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-[12px] font-bold uppercase tracking-wide">Confirm Password</label>
+                    <label className="mb-1 block text-[11px] font-black uppercase tracking-[0.1em] text-blue-800">
+                      Confirm Password
+                    </label>
                     <input
                       type="password"
                       value={confirmNewPassword}
                       onChange={(e) => setConfirmNewPassword(e.target.value)}
-                      className="min-h-[44px] w-full rounded-md border border-blue-300 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_3px_rgba(37,99,235,0.18)] focus:outline-none"
+                      className="min-h-[46px] w-full rounded-lg border border-blue-300 bg-white px-3 py-2 text-[14px] font-semibold shadow-[inset_0_1px_3px_rgba(37,99,235,0.16)] focus:outline-none focus:ring-2 focus:ring-blue-300"
                       placeholder="Confirm new password"
                       disabled={isLoading}
                       autoComplete="new-password"
@@ -471,35 +506,41 @@ export default function Home() {
               {authView === 'redeem-ticket' && (
                 <>
                   <div>
-                    <label className="mb-1 block text-[12px] font-bold uppercase tracking-wide">Admin Ticket</label>
+                    <label className="mb-1 block text-[11px] font-black uppercase tracking-[0.1em] text-blue-800">
+                      Admin Ticket
+                    </label>
                     <input
                       type="text"
                       value={resetTicket}
                       onChange={(e) => setResetTicket(e.target.value)}
-                      className="min-h-[44px] w-full rounded-md border border-blue-300 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_3px_rgba(37,99,235,0.18)] focus:outline-none"
+                      className="min-h-[46px] w-full rounded-lg border border-blue-300 bg-white px-3 py-2 text-[14px] font-semibold shadow-[inset_0_1px_3px_rgba(37,99,235,0.16)] focus:outline-none focus:ring-2 focus:ring-blue-300"
                       placeholder="TKT-XXXX-XXXX-XXXX"
                       disabled={isLoading}
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-[12px] font-bold uppercase tracking-wide">New Password</label>
+                    <label className="mb-1 block text-[11px] font-black uppercase tracking-[0.1em] text-blue-800">
+                      New Password
+                    </label>
                     <input
                       type="password"
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
-                      className="min-h-[44px] w-full rounded-md border border-blue-300 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_3px_rgba(37,99,235,0.18)] focus:outline-none"
+                      className="min-h-[46px] w-full rounded-lg border border-blue-300 bg-white px-3 py-2 text-[14px] font-semibold shadow-[inset_0_1px_3px_rgba(37,99,235,0.16)] focus:outline-none focus:ring-2 focus:ring-blue-300"
                       placeholder="Create new password"
                       disabled={isLoading}
                       autoComplete="new-password"
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-[12px] font-bold uppercase tracking-wide">Confirm Password</label>
+                    <label className="mb-1 block text-[11px] font-black uppercase tracking-[0.1em] text-blue-800">
+                      Confirm Password
+                    </label>
                     <input
                       type="password"
                       value={confirmNewPassword}
                       onChange={(e) => setConfirmNewPassword(e.target.value)}
-                      className="min-h-[44px] w-full rounded-md border border-blue-300 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_3px_rgba(37,99,235,0.18)] focus:outline-none"
+                      className="min-h-[46px] w-full rounded-lg border border-blue-300 bg-white px-3 py-2 text-[14px] font-semibold shadow-[inset_0_1px_3px_rgba(37,99,235,0.16)] focus:outline-none focus:ring-2 focus:ring-blue-300"
                       placeholder="Confirm new password"
                       disabled={isLoading}
                       autoComplete="new-password"
@@ -510,29 +551,32 @@ export default function Home() {
             </div>
           </div>
 
-          <p className="min-h-[44px] rounded-md border border-blue-200 bg-white px-3 py-2 text-[12px] font-bold leading-snug text-blue-700">
+          <p className="min-h-[48px] rounded-lg border border-blue-200 bg-white/95 px-3 py-2 text-[12px] font-bold leading-snug text-blue-700">
             {statusMsg}
           </p>
 
           {rotatedRecoveryCode && (
-            <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] text-amber-900">
+            <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] text-amber-900">
               <p className="font-bold">Your recovery code has been rotated. Save this now:</p>
               <p className="mt-1 break-all font-mono text-[13px] font-bold">{rotatedRecoveryCode}</p>
               <button
                 type="button"
                 onClick={() => void copyRecoveryCode()}
-                className="mt-2 min-h-[36px] rounded-md border border-amber-500 bg-gradient-to-b from-amber-100 to-amber-300 px-3 py-1 text-xs font-semibold text-amber-900"
+                className="mt-2 min-h-[38px] rounded-lg border border-amber-500 bg-gradient-to-b from-amber-100 to-amber-300 px-3 py-1 text-xs font-semibold text-amber-900"
               >
                 Copy recovery code
               </button>
             </div>
           )}
 
-          <div className="flex items-center justify-end">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-blue-700/80">
+              {authView === 'sign-on' ? (isSignUp ? 'Create account flow' : 'Existing account flow') : 'Password recovery flow'}
+            </div>
             <button
               type="submit"
               disabled={isLoading}
-              className="min-h-[44px] min-w-[148px] cursor-pointer rounded-md border border-blue-500 bg-gradient-to-b from-blue-200 via-blue-300 to-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:from-blue-300 hover:to-blue-600 disabled:opacity-50"
+              className="min-h-[46px] min-w-[170px] cursor-pointer rounded-lg border border-blue-600 bg-gradient-to-b from-blue-200 via-blue-300 to-blue-600 px-4 py-2 text-sm font-black text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.45)] transition hover:from-blue-300 hover:to-blue-700 disabled:opacity-50"
             >
               {isLoading
                 ? authView === 'forgot-password'
@@ -553,12 +597,12 @@ export default function Home() {
           </div>
 
           {authView === 'sign-on' ? (
-            <div className="space-y-1">
+            <div className="grid gap-1.5 rounded-lg border border-blue-100 bg-white/65 p-2">
               <button
                 type="button"
                 onClick={toggleMode}
                 disabled={isLoading}
-                className="min-h-[44px] cursor-pointer text-left text-[12px] font-bold text-blue-700 underline underline-offset-2 disabled:opacity-50"
+                className="min-h-[40px] cursor-pointer rounded px-2 text-left text-[12px] font-bold text-blue-700 underline underline-offset-2 hover:bg-blue-50 disabled:opacity-50"
               >
                 {isSignUp ? 'Already have a screen name? Sign On.' : "Don't have a screen name? Get one here."}
               </button>
@@ -566,7 +610,7 @@ export default function Home() {
                 type="button"
                 onClick={() => switchAuthView('forgot-password')}
                 disabled={isLoading}
-                className="min-h-[44px] cursor-pointer text-left text-[12px] font-bold text-blue-700 underline underline-offset-2 disabled:opacity-50"
+                className="min-h-[40px] cursor-pointer rounded px-2 text-left text-[12px] font-bold text-blue-700 underline underline-offset-2 hover:bg-blue-50 disabled:opacity-50"
               >
                 Forgot password? Use Recovery Code.
               </button>
@@ -574,7 +618,7 @@ export default function Home() {
                 type="button"
                 onClick={() => switchAuthView('redeem-ticket')}
                 disabled={isLoading}
-                className="min-h-[44px] cursor-pointer text-left text-[12px] font-bold text-blue-700 underline underline-offset-2 disabled:opacity-50"
+                className="min-h-[40px] cursor-pointer rounded px-2 text-left text-[12px] font-bold text-blue-700 underline underline-offset-2 hover:bg-blue-50 disabled:opacity-50"
               >
                 Have an admin reset ticket?
               </button>
@@ -584,7 +628,7 @@ export default function Home() {
               type="button"
               onClick={() => switchAuthView('sign-on')}
               disabled={isLoading}
-              className="min-h-[44px] cursor-pointer text-left text-[12px] font-bold text-blue-700 underline underline-offset-2 disabled:opacity-50"
+              className="min-h-[42px] w-fit cursor-pointer rounded-lg border border-blue-200 bg-white px-3 text-left text-[12px] font-bold text-blue-700 underline underline-offset-2 hover:bg-blue-50 disabled:opacity-50"
             >
               Back to Sign On
             </button>

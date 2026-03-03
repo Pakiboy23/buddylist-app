@@ -13,6 +13,7 @@ import {
 import { getSessionOrNull } from '@/lib/authClient';
 import { useOneSignal } from '@/hooks/useOneSignal';
 import { normalizeRoomKey, normalizeRoomName } from '@/lib/roomName';
+import { initSoundSystem, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
 
 type SoundType = 'join' | 'leave' | 'message';
@@ -212,16 +213,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     userIdRef.current = userId;
   }, [userId]);
 
-  const playChatSound = useCallback((type: SoundType) => {
-    if (typeof window === 'undefined') {
-      return;
-    }
+  useEffect(() => {
+    initSoundSystem();
+  }, []);
 
-    const src = SOUND_MAP[type];
-    const audio = new Audio(src);
-    void audio.play().catch(() => {
-      console.log('Audio blocked - click once to unlock.');
-    });
+  const playChatSound = useCallback((type: SoundType) => {
+    void playUiSound(SOUND_MAP[type]);
   }, []);
 
   const syncFromServer = useCallback(async () => {

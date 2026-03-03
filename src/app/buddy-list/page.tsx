@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import ChatWindow, { ChatMessage } from '@/components/ChatWindow';
 import GroupChatWindow from '@/components/GroupChatWindow';
 import { getAccessTokenOrNull, getSessionOrNull } from '@/lib/authClient';
+import { initSoundSystem, playFallbackTone, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
 import { normalizeRoomKey, sameRoom } from '@/lib/roomName';
 import RetroWindow from '@/components/RetroWindow';
@@ -67,10 +68,10 @@ interface AwayPreset {
   builtIn?: boolean;
 }
 
-const SIGN_ON_SOUND = '/signon.wav';
-const SIGN_OFF_SOUND = '/doorslam.wav';
-const INCOMING_MESSAGE_SOUND = '/imrcv.wav';
-const NEW_MESSAGE_SOUND = '/newmessage.wav';
+const SIGN_ON_SOUND = '/sounds/aol-welcome.mp3';
+const SIGN_OFF_SOUND = '/sounds/goodbye.mp3';
+const INCOMING_MESSAGE_SOUND = '/sounds/im_receive.mp3';
+const NEW_MESSAGE_SOUND = '/sounds/aim-instant-message.mp3';
 const BUDDY_LIST_PATH = '/buddy-list';
 const AVAILABLE_STATUS = 'Available';
 const AWAY_STATUS = 'Away';
@@ -170,22 +171,12 @@ function resolveStatusFields({
 }
 
 function useSoundPlayer() {
-  const audioCacheRef = useRef<Record<string, HTMLAudioElement>>({});
+  useEffect(() => {
+    initSoundSystem();
+  }, []);
 
   return useCallback((src: string) => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    if (!audioCacheRef.current[src]) {
-      const audio = new Audio(src);
-      audio.preload = 'auto';
-      audioCacheRef.current[src] = audio;
-    }
-
-    const audio = audioCacheRef.current[src];
-    audio.currentTime = 0;
-    void audio.play().catch(() => undefined);
+    void playUiSound(src);
   }, []);
 }
 
@@ -415,41 +406,11 @@ function BuddyListContent() {
   }, [awayPresets, selectedAwayPresetId]);
 
   const playIncomingAlert = useCallback(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    const tryPlay = (src: string) => {
-      const audio = new Audio(src);
-      audio.preload = 'auto';
-      return audio.play();
-    };
-
-    void tryPlay(INCOMING_MESSAGE_SOUND)
-      .catch(() => tryPlay(NEW_MESSAGE_SOUND))
-      .catch(() => {
-        const AudioContextConstructor =
-          window.AudioContext ||
-          (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-
-        if (!AudioContextConstructor) {
-          return;
-        }
-
-        const audioContext = new AudioContextConstructor();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-
-        oscillator.type = 'sine';
-        oscillator.frequency.value = 880;
-        gainNode.gain.value = 0.06;
-
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-
-        oscillator.start();
-        oscillator.stop(audioContext.currentTime + 0.13);
-      });
+    void playUiSound(INCOMING_MESSAGE_SOUND, { fallbackSrc: NEW_MESSAGE_SOUND }).then((played) => {
+      if (!played) {
+        playFallbackTone();
+      }
+    });
   }, []);
 
   const getAccessToken = useCallback(async () => {
