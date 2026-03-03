@@ -18,10 +18,12 @@ A retro AIM-style messaging app built with Next.js + Supabase, now mobile-first 
   - collapsible rich text toolbar in compose area
   - compact `<` / `X` room controls
   - smooth auto-scroll to newest message
+  - inline message search in DM and room windows
 - Sender names are color-differentiated in DM and group chat:
   - `You` is always blue
   - other users get stable deterministic colors (per sender id)
 - Capacitor mobile wrapper is configured with status bar + safe-area aware layout behavior.
+- Chat room state now exposes sync status (`hydrating`, `syncing`, `live`, `error`) with manual resync in Buddy List.
 
 ## Stack
 

@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import {
   DEFAULT_RICH_TEXT_FORMAT,
   formatRichText,
+  htmlToPlainText,
   RichTextFormat,
   sanitizeRichTextHtml,
 } from '@/lib/richText';
@@ -96,6 +97,7 @@ export default function GroupChatWindow({
   const [draft, setDraft] = useState('');
   const [format, setFormat] = useState<RichTextFormat>(DEFAULT_RICH_TEXT_FORMAT);
   const [showFormatting, setShowFormatting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [hasLiveMessageSinceOpen, setHasLiveMessageSinceOpen] = useState(false);
   const [typingMap, setTypingMap] = useState<Record<string, string>>({});
@@ -440,6 +442,24 @@ export default function GroupChatWindow({
   }, [resolvedTypingUsers]);
 
   const normalizedInitialUnreadCount = Math.max(0, Math.floor(initialUnreadCount));
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const messageMatches = useMemo(() => {
+    const matches = new Map<string, boolean>();
+    if (!normalizedSearchQuery) {
+      return matches;
+    }
+
+    for (const message of messages) {
+      const plainText = htmlToPlainText(message.content).toLowerCase();
+      matches.set(message.id, plainText.includes(normalizedSearchQuery));
+    }
+
+    return matches;
+  }, [messages, normalizedSearchQuery]);
+  const searchMatchCount = useMemo(
+    () => Array.from(messageMatches.values()).filter(Boolean).length,
+    [messageMatches],
+  );
   const separatorIndex =
     !isLoadingMessages &&
     !hasLiveMessageSinceOpen &&
@@ -471,6 +491,34 @@ export default function GroupChatWindow({
                     .join(', ')}
             </p>
 
+            <div className="mb-2 border border-[#a8a8a8] border-t-white border-l-white border-r-[#a8a8a8] border-b-[#a8a8a8] bg-[#f4f7fc] px-2 py-1 text-[11px] text-[#1e395b]">
+              <div className="flex items-center gap-2">
+                <label htmlFor="room-search-input" className="shrink-0 font-bold">
+                  Search:
+                </label>
+                <input
+                  id="room-search-input"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder={`Find in #${roomName}`}
+                  className="h-6 min-w-0 flex-1 border border-[#7f9db9] border-t-[#808080] border-l-[#808080] border-r-white border-b-white bg-white px-1.5 text-[11px] focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  disabled={!searchQuery}
+                  className="h-6 shrink-0 border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-2 text-[10px] font-bold text-[#1e395b] disabled:opacity-50"
+                >
+                  Clear
+                </button>
+              </div>
+              {normalizedSearchQuery ? (
+                <p className="mt-1 text-[10px] text-[#4f607c]">
+                  {searchMatchCount} {searchMatchCount === 1 ? 'match' : 'matches'}
+                </p>
+              ) : null}
+            </div>
+
             {isLoadingMessages && <p className="italic text-slate-500">Loading room history...</p>}
             {!isLoadingMessages && messages.length === 0 && (
               <p className="italic text-slate-500">No messages yet. Start the room conversation.</p>
@@ -480,6 +528,7 @@ export default function GroupChatWindow({
                 {messages.map((message, index) => {
                   const senderName = screennameMap[message.sender_id] || 'Unknown User';
                   const isMine = message.sender_id === currentUserId;
+                  const isMatch = normalizedSearchQuery ? Boolean(messageMatches.get(message.id)) : false;
                   const senderClassName = isMine
                     ? 'text-blue-600'
                     : getStableSenderColorClass(message.sender_id);
@@ -491,7 +540,16 @@ export default function GroupChatWindow({
                   const fullTimestamp = timestampDate.toLocaleString();
 
                   return (
-                    <div key={message.id}>
+                    <div
+                      key={message.id}
+                      className={
+                        normalizedSearchQuery
+                          ? isMatch
+                            ? 'rounded bg-[#fffbe7] px-1'
+                            : 'px-1 opacity-50'
+                          : undefined
+                      }
+                    >
                       {separatorIndex === index ? (
                         <p className="aim-new-messages-separator">New messages</p>
                       ) : null}

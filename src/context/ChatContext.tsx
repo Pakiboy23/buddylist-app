@@ -16,11 +16,15 @@ import { initSoundSystem, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
 
 type SoundType = 'join' | 'leave' | 'message';
+export type ChatSyncState = 'idle' | 'hydrating' | 'syncing' | 'live' | 'error';
 
 interface ChatContextValue {
   activeRooms: string[];
   unreadMessages: Record<string, number>;
   isHydrated: boolean;
+  syncState: ChatSyncState;
+  lastSyncedAt: string | null;
+  lastSyncError: string | null;
   playChatSound: (type: SoundType) => void;
   joinRoom: (roomName: string) => Promise<void>;
   leaveRoom: (roomName: string) => Promise<void>;
@@ -37,6 +41,9 @@ const SOUND_MAP: Record<SoundType, string> = {
 };
 
 const CHAT_STATE_CACHE_PREFIX = 'buddylist:chatstate:';
+const CHAT_STATE_CACHE_VERSION = 2;
+const CHAT_STATE_WRITE_DEBOUNCE_MS = 180;
+const CHAT_STATE_ROOM_LIMIT = 250;
 
 interface UserActiveRoomRow {
   user_id?: string;
@@ -54,6 +61,8 @@ interface StoredRoomState {
 }
 
 interface PersistedChatState {
+  version?: number;
+  savedAt?: string;
   rooms: StoredRoomState[];
 }
 
@@ -71,7 +80,7 @@ function sortRooms(rooms: StoredRoomState[]) {
       return rightTime - leftTime;
     }
     return left.roomName.localeCompare(right.roomName, undefined, { sensitivity: 'base' });
-  });
+  }).slice(0, CHAT_STATE_ROOM_LIMIT);
 }
 
 function coerceStoredRoom(value: unknown): StoredRoomState | null {
@@ -116,6 +125,10 @@ function parseCachedRooms(userId: string): StoredRoomState[] {
       return [];
     }
 
+    if (typeof parsed.version === 'number' && parsed.version > CHAT_STATE_CACHE_VERSION) {
+      return [];
+    }
+
     const normalizedRooms = parsed.rooms
       .map((room) => coerceStoredRoom(room))
       .filter((room): room is StoredRoomState => Boolean(room));
@@ -133,7 +146,11 @@ function writeCachedRooms(userId: string, rooms: StoredRoomState[]) {
   }
 
   try {
-    const payload: PersistedChatState = { rooms };
+    const payload: PersistedChatState = {
+      version: CHAT_STATE_CACHE_VERSION,
+      savedAt: new Date().toISOString(),
+      rooms,
+    };
     window.localStorage.setItem(getCacheKey(userId), JSON.stringify(payload));
   } catch {
     // Ignore cache write failures (private mode / quota / storage restrictions).
@@ -176,6 +193,27 @@ function mapRowsToStoredRooms(rows: UserActiveRoomRow[]) {
   return sortRooms(Array.from(new Map(mapped.map((room) => [room.roomKey, room])).values()));
 }
 
+function areRoomsEqual(left: StoredRoomState[], right: StoredRoomState[]) {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  for (let index = 0; index < left.length; index += 1) {
+    const leftRoom = left[index];
+    const rightRoom = right[index];
+    if (
+      leftRoom.roomKey !== rightRoom.roomKey ||
+      leftRoom.roomName !== rightRoom.roomName ||
+      leftRoom.unreadCount !== rightRoom.unreadCount ||
+      leftRoom.updatedAt !== rightRoom.updatedAt
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function upsertRoomState(
   previous: StoredRoomState[],
   room: StoredRoomState,
@@ -198,9 +236,14 @@ function upsertRoomState(
 export function ChatProvider({ children }: { children: ReactNode }) {
   const [userId, setUserId] = useState<string | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
+  const [syncState, setSyncState] = useState<ChatSyncState>('idle');
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const [lastSyncError, setLastSyncError] = useState<string | null>(null);
   const [rooms, setRooms] = useState<StoredRoomState[]>([]);
   const roomsRef = useRef<StoredRoomState[]>([]);
   const userIdRef = useRef<string | null>(null);
+  const cacheWriteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const syncInFlightRef = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
     roomsRef.current = rooms;
@@ -219,25 +262,51 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const syncFromServer = useCallback(async () => {
+    if (syncInFlightRef.current) {
+      await syncInFlightRef.current;
+      return;
+    }
+
     const sessionUserId = userIdRef.current;
     if (!sessionUserId) {
       setRooms([]);
+      setSyncState('idle');
+      setLastSyncError(null);
       return;
     }
 
-    const { data, error } = await supabase
-      .from('user_active_rooms')
-      .select('user_id,room_key,room_name,unread_count,updated_at')
-      .eq('user_id', sessionUserId)
-      .order('updated_at', { ascending: false });
+    const syncPromise = (async () => {
+      setSyncState('syncing');
+      setLastSyncError(null);
 
-    if (error) {
-      console.error('Failed to sync persistent chat state:', error.message);
-      return;
+      const { data, error } = await supabase
+        .from('user_active_rooms')
+        .select('user_id,room_key,room_name,unread_count,updated_at')
+        .eq('user_id', sessionUserId)
+        .order('updated_at', { ascending: false });
+
+      if (error) {
+        setSyncState('error');
+        setLastSyncError(error.message);
+        console.error('Failed to sync persistent chat state:', error.message);
+        return;
+      }
+
+      const rows = (data ?? []) as UserActiveRoomRow[];
+      const nextRooms = mapRowsToStoredRooms(rows);
+      setRooms((previous) => (areRoomsEqual(previous, nextRooms) ? previous : nextRooms));
+      setLastSyncedAt(new Date().toISOString());
+      setSyncState('live');
+    })();
+
+    syncInFlightRef.current = syncPromise;
+    try {
+      await syncPromise;
+    } finally {
+      if (syncInFlightRef.current === syncPromise) {
+        syncInFlightRef.current = null;
+      }
     }
-
-    const rows = (data ?? []) as UserActiveRoomRow[];
-    setRooms(mapRowsToStoredRooms(rows));
   }, []);
 
   useEffect(() => {
@@ -252,6 +321,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       if (!session) {
         setIsHydrated(true);
         setRooms([]);
+        setSyncState('idle');
+        setLastSyncedAt(null);
+        setLastSyncError(null);
       }
     };
 
@@ -264,6 +336,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         setUserId(null);
         setRooms([]);
         setIsHydrated(true);
+        setSyncState('idle');
+        setLastSyncedAt(null);
+        setLastSyncError(null);
         return;
       }
 
@@ -283,16 +358,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       if (!userId) {
         setRooms([]);
         setIsHydrated(true);
+        setSyncState('idle');
+        setLastSyncedAt(null);
+        setLastSyncError(null);
         return;
       }
 
       setIsHydrated(false);
+      setSyncState('hydrating');
       const cachedRooms = parseCachedRooms(userId);
-      if (cachedRooms.length > 0) {
-        setRooms(cachedRooms);
-      } else {
-        setRooms([]);
-      }
+      setRooms(cachedRooms.length > 0 ? cachedRooms : []);
 
       await syncFromServer();
       if (!isCancelled) {
@@ -309,11 +384,53 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!userId) {
+      if (cacheWriteTimeoutRef.current) {
+        clearTimeout(cacheWriteTimeoutRef.current);
+        cacheWriteTimeoutRef.current = null;
+      }
       return;
     }
 
-    writeCachedRooms(userId, rooms);
+    if (cacheWriteTimeoutRef.current) {
+      clearTimeout(cacheWriteTimeoutRef.current);
+    }
+
+    cacheWriteTimeoutRef.current = setTimeout(() => {
+      writeCachedRooms(userId, rooms);
+      cacheWriteTimeoutRef.current = null;
+    }, CHAT_STATE_WRITE_DEBOUNCE_MS);
+
+    return () => {
+      if (cacheWriteTimeoutRef.current) {
+        clearTimeout(cacheWriteTimeoutRef.current);
+        cacheWriteTimeoutRef.current = null;
+      }
+    };
   }, [rooms, userId]);
+
+  useEffect(() => {
+    if (!userId || typeof window === 'undefined' || typeof document === 'undefined') {
+      return;
+    }
+
+    const handleOnline = () => {
+      void syncFromServer();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void syncFromServer();
+      }
+    };
+
+    window.addEventListener('online', handleOnline);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [syncFromServer, userId]);
 
   useEffect(() => {
     if (!userId) {
@@ -510,6 +627,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const resetChatState = useCallback(async () => {
     deleteCachedRooms(userIdRef.current);
     setRooms([]);
+    setLastSyncedAt(null);
+    setLastSyncError(null);
+    setSyncState('idle');
   }, []);
 
   const activeRooms = useMemo(() => rooms.map((room) => room.roomName), [rooms]);
@@ -527,6 +647,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       activeRooms,
       unreadMessages,
       isHydrated,
+      syncState,
+      lastSyncedAt,
+      lastSyncError,
       playChatSound,
       joinRoom,
       leaveRoom,
@@ -539,6 +662,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       activeRooms,
       unreadMessages,
       isHydrated,
+      syncState,
+      lastSyncedAt,
+      lastSyncError,
       playChatSound,
       joinRoom,
       leaveRoom,

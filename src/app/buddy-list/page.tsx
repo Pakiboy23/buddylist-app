@@ -326,7 +326,18 @@ function BuddyListContent() {
   const playSound = useSoundPlayer();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { activeRooms, unreadMessages, joinRoom, leaveRoom, clearUnreads, resetChatState } = useChatContext();
+  const {
+    activeRooms,
+    unreadMessages,
+    joinRoom,
+    leaveRoom,
+    clearUnreads,
+    resetChatState,
+    syncFromServer,
+    syncState,
+    lastSyncedAt,
+    lastSyncError,
+  } = useChatContext();
 
   useEffect(() => {
     activeChatBuddyIdRef.current = activeChatBuddyId;
@@ -2085,6 +2096,17 @@ function BuddyListContent() {
   const showSplitPresenceSections = buddySortMode === 'online_then_alpha';
   const onlineBuddiesSorted = alphabeticallySortedAcceptedBuddies.filter((buddy) => buddy.isOnline);
   const offlineBuddiesSorted = alphabeticallySortedAcceptedBuddies.filter((buddy) => !buddy.isOnline);
+  const isChatSyncBusy = syncState === 'hydrating' || syncState === 'syncing';
+  const chatSyncSummary =
+    syncState === 'hydrating'
+      ? 'Hydrating from cache...'
+      : syncState === 'syncing'
+        ? 'Syncing with server...'
+        : syncState === 'error'
+          ? 'Sync issue'
+          : syncState === 'live'
+            ? `Live${lastSyncedAt ? ` (${new Date(lastSyncedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})` : ''}`
+            : 'Idle';
 
   const renderDirectMessageRow = (buddy: (typeof acceptedBuddies)[number]) => {
     const unreadDirectCount = unreadDirectMessages[buddy.id] ?? 0;
@@ -2264,6 +2286,25 @@ function BuddyListContent() {
                 </>
               ) : null}
               {awayModalError ? <p className="mt-2 font-semibold text-red-700">{awayModalError}</p> : null}
+              <div className="mt-2 flex items-center justify-between gap-2 border border-[#d0d9e8] bg-[#f8fbff] px-2 py-1.5 text-[10px] text-[#355178]">
+                <div className="min-w-0">
+                  <p className="font-bold uppercase tracking-wide text-[#4b668b]">Room State</p>
+                  <p className="truncate">{chatSyncSummary}</p>
+                  {lastSyncError ? (
+                    <p className="truncate font-semibold text-[#8b2020]" title={lastSyncError}>
+                      {lastSyncError}
+                    </p>
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void syncFromServer()}
+                  disabled={isChatSyncBusy}
+                  className="min-h-[28px] shrink-0 border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-2 text-[10px] font-bold text-[#1e395b] disabled:opacity-60"
+                >
+                  {isChatSyncBusy ? 'Syncing...' : 'Sync Now'}
+                </button>
+              </div>
             </div>
 
             {isCurrentUserAway ? (
