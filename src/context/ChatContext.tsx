@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from 'react';
 import { getSessionOrNull } from '@/lib/authClient';
+import { useOneSignal } from '@/hooks/useOneSignal';
 import { normalizeRoomKey, normalizeRoomName } from '@/lib/roomName';
 import { supabase } from '@/lib/supabase';
 
@@ -200,6 +201,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [rooms, setRooms] = useState<StoredRoomState[]>([]);
   const roomsRef = useRef<StoredRoomState[]>([]);
   const userIdRef = useRef<string | null>(null);
+
+  useOneSignal(userId);
 
   useEffect(() => {
     roomsRef.current = rooms;
