@@ -1,0 +1,29 @@
+diff --git a/node_modules/@capacitor/local-notifications/ios/Sources/LocalNotificationsPlugin/LocalNotificationsHandler.swift b/node_modules/@capacitor/local-notifications/ios/Sources/LocalNotificationsPlugin/LocalNotificationsHandler.swift
+index e0bf257..08475e2 100644
+--- a/node_modules/@capacitor/local-notifications/ios/Sources/LocalNotificationsPlugin/LocalNotificationsHandler.swift
++++ b/node_modules/@capacitor/local-notifications/ios/Sources/LocalNotificationsPlugin/LocalNotificationsHandler.swift
+@@ -38,7 +38,8 @@ public class LocalNotificationsHandler: NSObject, NotificationHandlerProtocol {
+         return [
+             .badge,
+             .sound,
+-            .alert
++            .list,
++            .banner
+         ]
+     }
+ 
+diff --git a/node_modules/@capacitor/local-notifications/ios/Sources/LocalNotificationsPlugin/LocalNotificationsPlugin.swift b/node_modules/@capacitor/local-notifications/ios/Sources/LocalNotificationsPlugin/LocalNotificationsPlugin.swift
+index 463be9a..a8fbbf8 100644
+--- a/node_modules/@capacitor/local-notifications/ios/Sources/LocalNotificationsPlugin/LocalNotificationsPlugin.swift
++++ b/node_modules/@capacitor/local-notifications/ios/Sources/LocalNotificationsPlugin/LocalNotificationsPlugin.swift
+@@ -255,9 +255,7 @@ public class LocalNotificationsPlugin: CAPPlugin, CAPBridgedPlugin {
+             content.threadIdentifier = threadIdentifier
+         }
+ 
+-        if let summaryArgument = notification["summaryArgument"] as? String {
+-            content.summaryArgument = summaryArgument
+-        }
++        // summaryArgument is deprecated/ignored on iOS 15+.
+ 
+         if let sound = notification["sound"] as? String {
+             content.sound = UNNotificationSound(named: UNNotificationSoundName(sound))

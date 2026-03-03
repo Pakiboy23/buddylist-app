@@ -1,7 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import type { LocalNotificationsPlugin } from '@capacitor/local-notifications';
 import IncomingMessageBanner from '@/components/IncomingMessageBanner';
 import { useChatContext } from '@/context/ChatContext';
 import { getSessionOrNull } from '@/lib/authClient';
@@ -63,6 +65,9 @@ export default function GlobalNotificationListener() {
   const playChatSoundRef = useRef(playChatSound);
   const roomNameCacheRef = useRef<Record<string, string>>({});
   const senderNameCacheRef = useRef<Record<string, string>>({});
+  const localNotificationsRef = useRef<LocalNotificationsPlugin | null>(null);
+  const localNotificationsEnabledRef = useRef(false);
+  const nextLocalNotificationIdRef = useRef(1);
 
   useEffect(() => {
     currentUserIdRef.current = currentUserId;
@@ -87,6 +92,61 @@ export default function GlobalNotificationListener() {
   useEffect(() => {
     playChatSoundRef.current = playChatSound;
   }, [playChatSound]);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) {
+      return;
+    }
+
+    let isCancelled = false;
+    let removeActionListener: (() => void) | null = null;
+
+    const initializeLocalNotifications = async () => {
+      try {
+        const { LocalNotifications } = await import('@capacitor/local-notifications');
+        if (isCancelled) {
+          return;
+        }
+
+        localNotificationsRef.current = LocalNotifications;
+
+        let permissions = await LocalNotifications.checkPermissions();
+        if (permissions.display !== 'granted') {
+          permissions = await LocalNotifications.requestPermissions();
+        }
+        localNotificationsEnabledRef.current = permissions.display === 'granted';
+
+        const listener = await LocalNotifications.addListener(
+          'localNotificationActionPerformed',
+          (event) => {
+            const rawExtra = event.notification.extra as
+              | { targetPath?: unknown }
+              | undefined;
+            const targetPath =
+              typeof rawExtra?.targetPath === 'string' ? rawExtra.targetPath : '';
+            if (targetPath.startsWith(BUDDY_LIST_PATH)) {
+              router.push(targetPath);
+            }
+          },
+        );
+
+        removeActionListener = () => {
+          listener.remove();
+        };
+      } catch (error) {
+        console.error('Failed initializing local notifications:', error);
+      }
+    };
+
+    void initializeLocalNotifications();
+
+    return () => {
+      isCancelled = true;
+      localNotificationsRef.current = null;
+      localNotificationsEnabledRef.current = false;
+      removeActionListener?.();
+    };
+  }, [router]);
 
   useEffect(() => {
     let isMounted = true;
@@ -121,6 +181,27 @@ export default function GlobalNotificationListener() {
 
   const enqueueBanner = useCallback((banner: BannerData) => {
     playChatSoundRef.current('message');
+
+    const localNotifications = localNotificationsRef.current;
+    if (Capacitor.isNativePlatform() && localNotifications && localNotificationsEnabledRef.current) {
+      const notificationId = nextLocalNotificationIdRef.current++;
+      void localNotifications
+        .schedule({
+          notifications: [
+            {
+              id: notificationId,
+              title: banner.senderName,
+              body: banner.messagePreview,
+              schedule: { at: new Date(Date.now() + 200) },
+              extra: { targetPath: banner.targetPath },
+            },
+          ],
+        })
+        .catch((error) => {
+          console.error('Failed scheduling local notification:', error);
+        });
+    }
+
     setBannerQueue((previous) => [...previous, banner]);
   }, []);
 
