@@ -1,0 +1,47 @@
+diff --git a/node_modules/onesignal-cordova-plugin/src/ios/OneSignalPush.m b/node_modules/onesignal-cordova-plugin/src/ios/OneSignalPush.m
+index ef465dd..50027b6 100644
+--- a/node_modules/onesignal-cordova-plugin/src/ios/OneSignalPush.m
++++ b/node_modules/onesignal-cordova-plugin/src/ios/OneSignalPush.m
+@@ -71,7 +71,7 @@ void successCallbackBoolean(NSString *callbackId, bool param) {
+   [pluginCommandDelegate sendPluginResult:commandResult callbackId:callbackId];
+ }
+ 
+-void successCallbackNSInteger(NSString *callbackId, int param) {
++void successCallbackNSInteger(NSString *callbackId, NSInteger param) {
+   CDVPluginResult *commandResult =
+       [CDVPluginResult resultWithStatus:CDVCommandStatus_OK
+                      messageAsNSInteger:param];
+@@ -120,11 +120,14 @@ void processNotificationClicked(OSNotificationClickEvent *event) {
+ void initOneSignalObject(NSDictionary *launchOptions) {
+   OneSignalWrapper.sdkType = @"cordova";
+   OneSignalWrapper.sdkVersion = @"050301";
++#pragma clang diagnostic push
++#pragma clang diagnostic ignored "-Wnonnull"
+   [OneSignal initialize:nil withLaunchOptions:launchOptions];
++#pragma clang diagnostic pop
+ }
+ 
+ /** Helper method to return NSNull if string is empty or nil **/
+-NSString *getStringOrNSNull(NSString *string) {
++id getStringOrNSNull(NSString *string) {
+   // length method can be used on nil and strings
+   if (string.length > 0) {
+     return string;
+@@ -455,7 +458,7 @@ - (void)requestPermission:(CDVInvokedUrlCommand *)command {
+ - (void)permissionNative:(CDVInvokedUrlCommand *)command {
+   OSNotificationPermission permissionNative =
+       [OneSignal.Notifications permissionNative];
+-  successCallbackNSInteger(command.callbackId, permissionNative);
++  successCallbackNSInteger(command.callbackId, (NSInteger)permissionNative);
+ }
+ 
+ - (void)getPermissionInternal:(CDVInvokedUrlCommand *)command {
+@@ -772,7 +775,7 @@ - (void)setupDefaultLiveActivity:(CDVInvokedUrlCommand *)command {
+   NSDictionary *options = command.arguments[0];
+   LiveActivitySetupOptions *laOptions = nil;
+ 
+-  if (options != [NSNull null]) {
++  if ([options isKindOfClass:[NSDictionary class]]) {
+     laOptions = [LiveActivitySetupOptions alloc];
+     [laOptions setEnablePushToStart:[options[@"enablePushToStart"] boolValue]];
+     [laOptions
