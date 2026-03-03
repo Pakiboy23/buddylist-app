@@ -41,14 +41,12 @@ export default function ChatWindow({
 }: ChatWindowProps) {
   const [draft, setDraft] = useState('');
   const [format, setFormat] = useState<RichTextFormat>(DEFAULT_RICH_TEXT_FORMAT);
-  const historyRef = useRef<HTMLDivElement>(null);
+  const [showFormatting, setShowFormatting] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!historyRef.current) {
-      return;
-    }
-    historyRef.current.scrollTop = historyRef.current.scrollHeight;
-  }, [messages, isLoading]);
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [messages]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -95,7 +93,7 @@ export default function ChatWindow({
 
   return (
     <div className="fixed inset-0 z-40">
-      <RetroWindow title={`IM with ${buddyScreenname}`} showBackButton onBack={onClose}>
+      <RetroWindow title={`IM with ${buddyScreenname}`} showBackButton backButtonLabel="<" onBack={onClose}>
         <div className="flex h-full min-h-0 flex-col gap-2 text-sm">
           <div
             className="aim-rich-html rounded-md border border-blue-200 bg-white px-3 py-2 font-semibold text-blue-700"
@@ -105,50 +103,54 @@ export default function ChatWindow({
           />
 
           <div
-            ref={historyRef}
-            className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-blue-200 bg-white p-3 shadow-[inset_0_1px_4px_rgba(37,99,235,0.12)]"
+            className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-blue-200 bg-white px-3 py-2"
           >
             {isLoading && <p className="italic text-slate-500">Loading conversation...</p>}
             {!isLoading && messages.length === 0 && (
               <p className="italic text-slate-500">No messages yet. Say hey.</p>
             )}
-            {!isLoading &&
-              messages.map((message) => {
-                const isMine = message.sender_id === currentUserId;
-                const timestamp = new Date(message.created_at).toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                });
+            {!isLoading && (
+              <div className="space-y-1">
+                {messages.map((message) => {
+                  const isMine = message.sender_id === currentUserId;
+                  const timestamp = new Date(message.created_at).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  });
 
-                return (
-                  <div
-                    key={message.id}
-                    className={`mb-2 flex ${isMine ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div
-                      className={`max-w-[88%] rounded-md border px-3 py-2 ${
-                        isMine
-                          ? 'border-blue-300 bg-blue-50 text-right'
-                          : 'border-slate-300 bg-slate-50'
-                      }`}
-                    >
-                      <p className="mb-1 text-[11px] font-bold text-slate-500">
-                        {isMine ? 'You' : buddyScreenname} at {timestamp}
-                      </p>
-                      <div
-                        className="aim-rich-html whitespace-pre-wrap break-words text-sm"
+                  return (
+                    <div key={message.id} className="flex flex-wrap items-baseline gap-x-1 text-sm leading-5">
+                      <span className="text-xs text-gray-500">[{timestamp}]</span>
+                      <span className="font-bold text-blue-600">{isMine ? 'You' : buddyScreenname}:</span>
+                      <span
+                        className="aim-rich-html text-gray-900"
                         dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(message.content) }}
                       />
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+                <div ref={messagesEndRef} />
+              </div>
+            )}
           </div>
 
-          <div className="shrink-0 rounded-lg border border-blue-200 bg-white/90 p-2">
-            <RichTextToolbar value={format} onChange={setFormat} />
+          <div className="shrink-0 border-t border-blue-200 bg-white/95 px-2 pb-2 pt-2 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+            {showFormatting ? (
+              <div className="mb-2 rounded-md border border-blue-200 bg-blue-50/40 p-2">
+                <RichTextToolbar value={format} onChange={setFormat} />
+              </div>
+            ) : null}
 
-            <form onSubmit={handleSubmit} className="mt-2 flex items-end gap-2">
+            <form onSubmit={handleSubmit} className="flex items-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowFormatting((previous) => !previous)}
+                className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border border-blue-300 bg-gradient-to-b from-white via-blue-50 to-blue-200 px-2 text-sm font-bold text-blue-800 shadow-sm transition hover:from-blue-50 hover:to-blue-300"
+                aria-label="Toggle formatting"
+                title="Toggle formatting"
+              >
+                A
+              </button>
               <textarea
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
@@ -169,18 +171,6 @@ export default function ChatWindow({
             <p className="mt-1 text-[11px] text-slate-500">
               Enter to send. Cmd/Ctrl + Enter for a new line.
             </p>
-
-            <div className="mt-2 rounded-md border border-blue-200 bg-white px-2 py-1 text-[11px]">
-              <span className="mr-1 font-bold text-slate-500">Message Preview:</span>
-              <span
-                className="aim-rich-html"
-                dangerouslySetInnerHTML={{
-                  __html: sanitizeRichTextHtml(
-                    formatRichText(draft || 'Type a message to preview styles.', format),
-                  ),
-                }}
-              />
-            </div>
           </div>
         </div>
       </RetroWindow>
