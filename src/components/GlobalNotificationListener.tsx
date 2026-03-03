@@ -16,6 +16,8 @@ interface BannerData {
   messagePreview: string;
   targetPath: string;
   variant: 'room' | 'dm';
+  count?: number;
+  queuedAtMs?: number;
 }
 
 interface MessageInsert {
@@ -41,6 +43,8 @@ interface ChatRoomLookup {
 }
 
 const BUDDY_LIST_PATH = '/buddy-list';
+const MAX_BANNER_QUEUE = 20;
+const BANNER_DEDUPE_WINDOW_MS = 2000;
 
 function normalizeTextContent(content: string | null | undefined, fallback: string) {
   const text = htmlToPlainText(content ?? '').trim();
@@ -202,7 +206,46 @@ export default function GlobalNotificationListener() {
         });
     }
 
-    setBannerQueue((previous) => [...previous, banner]);
+    setBannerQueue((previous) => {
+      const now = Date.now();
+      const next = [...previous];
+      let dedupeIndex = -1;
+      for (let index = next.length - 1; index >= 0; index -= 1) {
+        const queuedBanner = next[index];
+        if (
+          queuedBanner.targetPath === banner.targetPath &&
+          typeof queuedBanner.queuedAtMs === 'number' &&
+          now - queuedBanner.queuedAtMs <= BANNER_DEDUPE_WINDOW_MS
+        ) {
+          dedupeIndex = index;
+          break;
+        }
+      }
+
+      if (dedupeIndex >= 0) {
+        const existing = next[dedupeIndex];
+        next[dedupeIndex] = {
+          ...existing,
+          senderName: banner.senderName,
+          messagePreview: banner.messagePreview,
+          variant: banner.variant,
+          count: Math.max(1, existing.count ?? 1) + 1,
+          queuedAtMs: now,
+        };
+      } else {
+        next.push({
+          ...banner,
+          count: Math.max(1, banner.count ?? 1),
+          queuedAtMs: now,
+        });
+      }
+
+      if (next.length > MAX_BANNER_QUEUE) {
+        return next.slice(next.length - MAX_BANNER_QUEUE);
+      }
+
+      return next;
+    });
   }, []);
 
   const resolveSenderNameById = useCallback(async (senderId: string, fallbackScreenname?: string | null) => {
@@ -390,6 +433,7 @@ export default function GlobalNotificationListener() {
       senderName={activeBanner.senderName}
       messagePreview={activeBanner.messagePreview}
       variant={activeBanner.variant}
+      count={activeBanner.count}
       onClose={() => setBannerQueue((previous) => previous.slice(1))}
       onClick={() => {
         const targetPath = activeBanner.targetPath;

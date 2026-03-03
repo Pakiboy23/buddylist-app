@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, KeyboardEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import RetroWindow from '@/components/RetroWindow';
 import RichTextToolbar from '@/components/RichTextToolbar';
 import { supabase } from '@/lib/supabase';
@@ -31,6 +31,11 @@ interface RoomPresenceMeta {
   online_at?: string;
 }
 
+interface RoomTypingPayload {
+  userId?: string;
+  screenname?: string;
+}
+
 interface RoomProfile {
   id: string;
   screenname: string | null;
@@ -41,6 +46,8 @@ interface GroupChatWindowProps {
   roomName: string;
   currentUserId: string;
   currentUserScreenname: string;
+  initialUnreadCount?: number;
+  typingUsers?: string[];
   onBack: () => void;
   onLeave: () => void;
   onSignOff?: () => void;
@@ -70,6 +77,8 @@ export default function GroupChatWindow({
   roomName,
   currentUserId,
   currentUserScreenname,
+  initialUnreadCount = 0,
+  typingUsers = [],
   onBack,
   onLeave,
   onSignOff,
@@ -88,7 +97,12 @@ export default function GroupChatWindow({
   const [format, setFormat] = useState<RichTextFormat>(DEFAULT_RICH_TEXT_FORMAT);
   const [showFormatting, setShowFormatting] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [hasLiveMessageSinceOpen, setHasLiveMessageSinceOpen] = useState(false);
+  const [typingMap, setTypingMap] = useState<Record<string, string>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const roomChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const lastTypingSentAtRef = useRef(0);
+  const typingTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   useEffect(() => {
     screennameMapRef.current = screennameMap;
@@ -192,6 +206,7 @@ export default function GroupChatWindow({
         },
       },
     });
+    roomChannelRef.current = roomChannel;
 
     roomChannel.on('presence', { event: 'sync' }, () => {
       const presenceState = roomChannel.presenceState() as Record<string, RoomPresenceMeta[]>;
@@ -231,10 +246,45 @@ export default function GroupChatWindow({
         setMessages((previous) =>
           previous.some((message) => message.id === incoming.id) ? previous : [...previous, incoming],
         );
+        setHasLiveMessageSinceOpen(true);
         void clearUnreads(roomName);
         void ensureScreennames([incoming.sender_id]);
       },
     );
+
+    roomChannel.on('broadcast', { event: 'typing' }, (event) => {
+      const payload = event.payload as RoomTypingPayload;
+      const typingUserId = typeof payload.userId === 'string' ? payload.userId : '';
+      if (!typingUserId || typingUserId === currentUserId) {
+        return;
+      }
+
+      const typingScreenname =
+        (typeof payload.screenname === 'string' && payload.screenname.trim()) ||
+        screennameMapRef.current[typingUserId] ||
+        'Unknown User';
+
+      setTypingMap((previous) => ({
+        ...previous,
+        [typingUserId]: typingScreenname,
+      }));
+
+      if (typingTimeoutsRef.current[typingUserId]) {
+        clearTimeout(typingTimeoutsRef.current[typingUserId]);
+      }
+
+      typingTimeoutsRef.current[typingUserId] = setTimeout(() => {
+        setTypingMap((previous) => {
+          if (!(typingUserId in previous)) {
+            return previous;
+          }
+
+          const next = { ...previous };
+          delete next[typingUserId];
+          return next;
+        });
+      }, 3500);
+    });
 
     roomChannel.subscribe((status) => {
       if (status === 'SUBSCRIBED') {
@@ -247,8 +297,11 @@ export default function GroupChatWindow({
     });
 
     return () => {
+      roomChannelRef.current = null;
       void roomChannel.untrack();
       roomChannel.unsubscribe();
+      Object.values(typingTimeoutsRef.current).forEach((timeoutId) => clearTimeout(timeoutId));
+      typingTimeoutsRef.current = {};
     };
   }, [clearUnreads, currentUserId, currentUserScreenname, ensureScreennames, roomId, roomName]);
 
@@ -286,6 +339,7 @@ export default function GroupChatWindow({
         ? previous
         : [...previous, insertedMessage],
     );
+    setHasLiveMessageSinceOpen(true);
     setDraft('');
   };
 
@@ -316,6 +370,35 @@ export default function GroupChatWindow({
     textarea.form?.requestSubmit();
   };
 
+  const notifyTyping = () => {
+    const now = Date.now();
+    if (now - lastTypingSentAtRef.current < 1200) {
+      return;
+    }
+    lastTypingSentAtRef.current = now;
+
+    const roomChannel = roomChannelRef.current;
+    if (!roomChannel) {
+      return;
+    }
+
+    void roomChannel.send({
+      type: 'broadcast',
+      event: 'typing',
+      payload: {
+        userId: currentUserId,
+        screenname: currentUserScreenname,
+      },
+    });
+  };
+
+  const handleDraftChange = (nextValue: string) => {
+    setDraft(nextValue);
+    if (nextValue.trim()) {
+      notifyTyping();
+    }
+  };
+
   const toggleBold = () => {
     setFormat((previous) => ({ ...previous, bold: !previous.bold }));
   };
@@ -334,6 +417,36 @@ export default function GroupChatWindow({
         ? 'border-[#7f7f7f] border-t-[#9d9d9d] border-l-[#9d9d9d] border-r-white border-b-white bg-[#dde4ef]'
         : 'border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8]'
     }`;
+
+  const resolvedTypingUsers = useMemo(() => {
+    const names = [
+      ...Object.values(typingMap).filter(Boolean),
+      ...typingUsers.filter(Boolean),
+    ].filter((name) => name !== currentUserScreenname);
+    return Array.from(new Set(names));
+  }, [currentUserScreenname, typingMap, typingUsers]);
+
+  const typingText = useMemo(() => {
+    if (resolvedTypingUsers.length === 0) {
+      return null;
+    }
+    if (resolvedTypingUsers.length === 1) {
+      return `${resolvedTypingUsers[0]} is typing...`;
+    }
+    if (resolvedTypingUsers.length === 2) {
+      return `${resolvedTypingUsers[0]}, ${resolvedTypingUsers[1]} are typing...`;
+    }
+    return `${resolvedTypingUsers[0]}, ${resolvedTypingUsers[1]} +${resolvedTypingUsers.length - 2} more typing...`;
+  }, [resolvedTypingUsers]);
+
+  const normalizedInitialUnreadCount = Math.max(0, Math.floor(initialUnreadCount));
+  const separatorIndex =
+    !isLoadingMessages &&
+    !hasLiveMessageSinceOpen &&
+    normalizedInitialUnreadCount > 0 &&
+    messages.length > 0
+      ? Math.max(0, messages.length - normalizedInitialUnreadCount)
+      : null;
 
   return (
     <div className="fixed inset-0 z-50">
@@ -364,27 +477,36 @@ export default function GroupChatWindow({
             )}
             {!isLoadingMessages && (
               <div className="space-y-1">
-                {messages.map((message) => {
+                {messages.map((message, index) => {
                   const senderName = screennameMap[message.sender_id] || 'Unknown User';
                   const isMine = message.sender_id === currentUserId;
                   const senderClassName = isMine
                     ? 'text-blue-600'
                     : getStableSenderColorClass(message.sender_id);
-                  const timestamp = new Date(message.created_at).toLocaleTimeString([], {
+                  const timestampDate = new Date(message.created_at);
+                  const timestamp = timestampDate.toLocaleTimeString([], {
                     hour: '2-digit',
                     minute: '2-digit',
                   });
+                  const fullTimestamp = timestampDate.toLocaleString();
 
                   return (
-                    <div key={message.id} className="flex flex-wrap items-baseline gap-x-1 leading-4">
-                      <span className="text-[11px] text-gray-500">[{timestamp}]</span>
-                      <span className={`font-bold ${senderClassName}`}>
-                        {isMine ? 'You' : senderName}:
-                      </span>
-                      <span
-                        className="aim-rich-html text-gray-900"
-                        dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(message.content) }}
-                      />
+                    <div key={message.id}>
+                      {separatorIndex === index ? (
+                        <p className="aim-new-messages-separator">New messages</p>
+                      ) : null}
+                      <div className="flex flex-wrap items-baseline gap-x-1 leading-4">
+                        <span className="text-[11px] text-gray-500" title={fullTimestamp}>
+                          [{timestamp}]
+                        </span>
+                        <span className={`font-bold ${senderClassName}`}>
+                          {isMine ? 'You' : senderName}:
+                        </span>
+                        <span
+                          className="aim-rich-html text-gray-900"
+                          dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(message.content) }}
+                        />
+                      </div>
                     </div>
                   );
                 })}
@@ -428,6 +550,14 @@ export default function GroupChatWindow({
             </button>
             <button
               type="button"
+              className={xpTinyToolbarButtonClass()}
+              aria-label="Emoji picker coming soon"
+              title="Emoji picker coming soon"
+            >
+              ☺
+            </button>
+            <button
+              type="button"
               onClick={onLeave}
               className={`${xpTinyToolbarButtonClass()} ml-auto text-[#7b1f1f]`}
               aria-label="Leave room"
@@ -443,6 +573,10 @@ export default function GroupChatWindow({
             </div>
           ) : null}
 
+          {typingText ? (
+            <p className="mx-2 mb-1 text-[11px] italic text-[#2d5c9a]">{typingText}</p>
+          ) : null}
+
           <div className="m-2 mt-0 flex items-stretch gap-2">
             <form
               onSubmit={handleSendMessage}
@@ -450,7 +584,7 @@ export default function GroupChatWindow({
             >
               <textarea
                 value={draft}
-                onChange={(event) => setDraft(event.target.value)}
+                onChange={(event) => handleDraftChange(event.target.value)}
                 onKeyDown={handleDraftKeyDown}
                 placeholder={`Message #${roomName}`}
                 className="h-full min-h-0 flex-1 resize-none bg-white px-2 py-1 text-[11px] focus:outline-none"

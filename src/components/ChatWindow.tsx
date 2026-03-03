@@ -23,7 +23,10 @@ interface ChatWindowProps {
   buddyStatusMessage: string | null;
   currentUserId: string;
   messages: ChatMessage[];
+  initialUnreadCount?: number;
+  typingText?: string | null;
   onSendMessage: (content: string) => Promise<void> | void;
+  onTypingActivity?: () => void;
   onClose: () => void;
   onSignOff?: () => void;
   isSending?: boolean;
@@ -35,7 +38,10 @@ export default function ChatWindow({
   buddyStatusMessage,
   currentUserId,
   messages,
+  initialUnreadCount = 0,
+  typingText = null,
   onSendMessage,
+  onTypingActivity,
   onClose,
   onSignOff,
   isSending = false,
@@ -49,6 +55,12 @@ export default function ChatWindow({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages]);
+
+  const normalizedInitialUnreadCount = Math.max(0, Math.floor(initialUnreadCount));
+  const separatorIndex =
+    !isLoading && normalizedInitialUnreadCount > 0 && messages.length > 0
+      ? Math.max(0, messages.length - normalizedInitialUnreadCount)
+      : null;
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -91,6 +103,13 @@ export default function ChatWindow({
     }
 
     textarea.form?.requestSubmit();
+  };
+
+  const handleDraftChange = (nextValue: string) => {
+    setDraft(nextValue);
+    if (nextValue.trim()) {
+      onTypingActivity?.();
+    }
   };
 
   const toggleBold = () => {
@@ -139,24 +158,33 @@ export default function ChatWindow({
             )}
             {!isLoading && (
               <div className="space-y-1">
-                {messages.map((message) => {
+                {messages.map((message, index) => {
                   const isMine = message.sender_id === currentUserId;
-                  const timestamp = new Date(message.created_at).toLocaleTimeString([], {
+                  const timestampDate = new Date(message.created_at);
+                  const timestamp = timestampDate.toLocaleTimeString([], {
                     hour: '2-digit',
                     minute: '2-digit',
                   });
+                  const fullTimestamp = timestampDate.toLocaleString();
                   const senderClassName = isMine ? 'text-blue-600' : 'text-emerald-600';
 
                   return (
-                    <div key={message.id} className="flex flex-wrap items-baseline gap-x-1 leading-4">
-                      <span className="text-[11px] text-gray-500">[{timestamp}]</span>
-                      <span className={`font-bold ${senderClassName}`}>
-                        {isMine ? 'You' : buddyScreenname}:
-                      </span>
-                      <span
-                        className="aim-rich-html text-gray-900"
-                        dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(message.content) }}
-                      />
+                    <div key={message.id}>
+                      {separatorIndex === index ? (
+                        <p className="aim-new-messages-separator">New messages</p>
+                      ) : null}
+                      <div className="flex flex-wrap items-baseline gap-x-1 leading-4">
+                        <span className="text-[11px] text-gray-500" title={fullTimestamp}>
+                          [{timestamp}]
+                        </span>
+                        <span className={`font-bold ${senderClassName}`}>
+                          {isMine ? 'You' : buddyScreenname}:
+                        </span>
+                        <span
+                          className="aim-rich-html text-gray-900"
+                          dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(message.content) }}
+                        />
+                      </div>
                     </div>
                   );
                 })}
@@ -198,12 +226,24 @@ export default function ChatWindow({
             >
               🔗
             </button>
+            <button
+              type="button"
+              className={xpTinyToolbarButtonClass()}
+              aria-label="Emoji picker coming soon"
+              title="Emoji picker coming soon"
+            >
+              ☺
+            </button>
           </div>
 
           {showFormatting ? (
             <div className="mx-2 mb-2 border border-[#b7b7b7] bg-[#ece9d8] p-1">
               <RichTextToolbar value={format} onChange={setFormat} />
             </div>
+          ) : null}
+
+          {typingText ? (
+            <p className="mx-2 mb-1 text-[11px] italic text-[#2d5c9a]">{typingText}</p>
           ) : null}
 
           <div className="m-2 mt-0 flex items-stretch gap-2">
@@ -213,7 +253,7 @@ export default function ChatWindow({
             >
               <textarea
                 value={draft}
-                onChange={(event) => setDraft(event.target.value)}
+                onChange={(event) => handleDraftChange(event.target.value)}
                 onKeyDown={handleDraftKeyDown}
                 placeholder="Type your message..."
                 className="h-full min-h-0 flex-1 resize-none bg-white px-2 py-1 text-[11px] focus:outline-none"

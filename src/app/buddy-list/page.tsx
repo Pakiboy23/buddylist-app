@@ -34,6 +34,8 @@ interface Buddy {
   relationshipStatus: 'pending' | 'accepted';
 }
 
+type BuddySortMode = 'online_then_alpha' | 'alpha' | 'recent_activity';
+
 interface PendingRequest {
   senderId: string;
   screenname: string;
@@ -79,8 +81,11 @@ const KNOWN_STATUSES = ['Available', 'Away', 'Invisible', 'Busy', 'Be Right Back
 const AWAY_PRESETS_STORAGE_KEY = 'buddylist:away-presets';
 const AWAY_SETTINGS_STORAGE_KEY = 'buddylist:away-settings';
 const AWAY_COOLDOWN_STORAGE_KEY = 'buddylist:away-cooldowns';
+const BUDDY_SORT_STORAGE_KEY = 'buddylist:buddy-sort';
 const AWAY_AUTO_REPLY_PREFIX = '[Auto-Reply]';
 const AWAY_AUTO_REPLY_COOLDOWN_MS = 10 * 60 * 1000;
+const TYPING_THROTTLE_MS = 1200;
+const TYPING_TTL_MS = 3500;
 const AUTO_AWAY_MINUTE_OPTIONS = [5, 10, 15, 30] as const;
 const DEFAULT_AWAY_PRESETS: AwayPreset[] = [
   { id: 'simple-plan', label: 'Simple Plan', message: "Hey %n, I'm away right now. Back at %t.", builtIn: true },
@@ -180,6 +185,18 @@ function useSoundPlayer() {
   }, []);
 }
 
+function normalizeTimestampMs(value: string | null | undefined) {
+  if (!value) {
+    return 0;
+  }
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function getDmTypingChannelKey(leftUserId: string, rightUserId: string) {
+  return [leftUserId, rightUserId].sort().join(':');
+}
+
 function BuddyListContent() {
   const [userId, setUserId] = useState<string | null>(null);
   const [screenname, setScreenname] = useState('Loading...');
@@ -208,6 +225,8 @@ function BuddyListContent() {
   const [isBuddiesOpen, setIsBuddiesOpen] = useState(true);
   const [isOfflineOpen, setIsOfflineOpen] = useState(true);
   const [isActiveChatsOpen, setIsActiveChatsOpen] = useState(true);
+  const [buddySortMode, setBuddySortMode] = useState<BuddySortMode>('online_then_alpha');
+  const [buddyLastMessageAt, setBuddyLastMessageAt] = useState<Record<string, string>>({});
 
   const [isRecoverySetupOpen, setIsRecoverySetupOpen] = useState(false);
   const [recoveryCodeDraft, setRecoveryCodeDraft] = useState('');
@@ -234,6 +253,7 @@ function BuddyListContent() {
   const [adminResetError, setAdminResetError] = useState<string | null>(null);
   const [isIssuingAdminReset, setIsIssuingAdminReset] = useState(false);
   const [issuedAdminTicket, setIssuedAdminTicket] = useState<{ ticket: string; expiresAt: string } | null>(null);
+  const [confirmAdminResetAction, setConfirmAdminResetAction] = useState(false);
 
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
   const [pendingRequestError, setPendingRequestError] = useState<string | null>(null);
@@ -243,10 +263,13 @@ function BuddyListContent() {
 
   const [activeChatBuddyId, setActiveChatBuddyId] = useState<string | null>(null);
   const [unreadDirectMessages, setUnreadDirectMessages] = useState<Record<string, number>>({});
+  const [initialUnreadForActiveChat, setInitialUnreadForActiveChat] = useState(0);
+  const [activeDmTypingText, setActiveDmTypingText] = useState<string | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [initialUnreadForActiveRoom, setInitialUnreadForActiveRoom] = useState(0);
 
   const previousOnlineBuddyIdsRef = useRef<Set<string>>(new Set());
   const hasPresenceSyncedRef = useRef(false);
@@ -259,6 +282,9 @@ function BuddyListContent() {
   const screennameRef = useRef(screenname);
   const autoAwayTriggeredRef = useRef(false);
   const awayReplyCooldownRef = useRef<Record<string, number>>({});
+  const activeDmTypingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const lastDmTypingSentAtRef = useRef(0);
+  const dmTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const playSound = useSoundPlayer();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -348,6 +374,21 @@ function BuddyListContent() {
     }
 
     try {
+      const sortRaw = window.localStorage.getItem(`${BUDDY_SORT_STORAGE_KEY}:${userId}`);
+      if (
+        sortRaw === 'online_then_alpha' ||
+        sortRaw === 'alpha' ||
+        sortRaw === 'recent_activity'
+      ) {
+        setBuddySortMode(sortRaw);
+      } else {
+        setBuddySortMode('online_then_alpha');
+      }
+    } catch {
+      setBuddySortMode('online_then_alpha');
+    }
+
+    try {
       const cooldownRaw = window.localStorage.getItem(`${AWAY_COOLDOWN_STORAGE_KEY}:${userId}`);
       if (cooldownRaw) {
         const parsed = JSON.parse(cooldownRaw) as Record<string, number>;
@@ -361,6 +402,13 @@ function BuddyListContent() {
       awayReplyCooldownRef.current = {};
     }
   }, [userId]);
+
+  useEffect(() => {
+    if (!userId || typeof window === 'undefined') {
+      return;
+    }
+    window.localStorage.setItem(`${BUDDY_SORT_STORAGE_KEY}:${userId}`, buddySortMode);
+  }, [buddySortMode, userId]);
 
   useEffect(() => {
     if (!userId || typeof window === 'undefined') {
@@ -787,6 +835,36 @@ function BuddyListContent() {
     () => buddies.filter((buddy) => buddy.relationshipStatus === 'pending'),
     [buddies],
   );
+  const alphabeticallySortedAcceptedBuddies = useMemo(
+    () =>
+      [...acceptedBuddies].sort((left, right) =>
+        left.screenname.localeCompare(right.screenname, undefined, { sensitivity: 'base' }),
+      ),
+    [acceptedBuddies],
+  );
+  const recentActivitySortedAcceptedBuddies = useMemo(
+    () =>
+      [...acceptedBuddies].sort((left, right) => {
+        const rightTime = normalizeTimestampMs(buddyLastMessageAt[right.id]);
+        const leftTime = normalizeTimestampMs(buddyLastMessageAt[left.id]);
+        if (leftTime !== rightTime) {
+          return rightTime - leftTime;
+        }
+        return left.screenname.localeCompare(right.screenname, undefined, { sensitivity: 'base' });
+      }),
+    [acceptedBuddies, buddyLastMessageAt],
+  );
+  const sortedDirectMessageBuddies = useMemo(() => {
+    if (buddySortMode === 'alpha') {
+      return alphabeticallySortedAcceptedBuddies;
+    }
+    if (buddySortMode === 'recent_activity') {
+      return recentActivitySortedAcceptedBuddies;
+    }
+    const online = alphabeticallySortedAcceptedBuddies.filter((buddy) => buddy.isOnline);
+    const offline = alphabeticallySortedAcceptedBuddies.filter((buddy) => !buddy.isOnline);
+    return [...online, ...offline];
+  }, [alphabeticallySortedAcceptedBuddies, buddySortMode, recentActivitySortedAcceptedBuddies]);
   const onlineBuddies = useMemo(
     () => acceptedBuddies.filter((buddy) => buddy.isOnline),
     [acceptedBuddies],
@@ -894,7 +972,15 @@ function BuddyListContent() {
         return;
       }
 
-      setChatMessages((data ?? []) as ChatMessage[]);
+      const loadedMessages = (data ?? []) as ChatMessage[];
+      setChatMessages(loadedMessages);
+      const latestMessage = loadedMessages[loadedMessages.length - 1];
+      if (latestMessage?.created_at) {
+        setBuddyLastMessageAt((previous) => ({
+          ...previous,
+          [buddyId]: latestMessage.created_at,
+        }));
+      }
       setIsChatLoading(false);
     },
     [userId],
@@ -929,6 +1015,8 @@ function BuddyListContent() {
 
   const openChatWindowForId = useCallback(
     (buddyId: string) => {
+      setInitialUnreadForActiveChat(unreadDirectMessages[buddyId] ?? 0);
+      setActiveDmTypingText(null);
       setSelectedBuddyId(buddyId);
       setActiveChatBuddyId(buddyId);
       activeChatBuddyIdRef.current = buddyId;
@@ -936,8 +1024,83 @@ function BuddyListContent() {
       router.replace(`${BUDDY_LIST_PATH}?dm=${encodeURIComponent(buddyId)}`, { scroll: false });
       void loadConversation(buddyId);
     },
-    [clearUnreadDirectMessages, loadConversation, router],
+    [clearUnreadDirectMessages, loadConversation, router, unreadDirectMessages],
   );
+
+  useEffect(() => {
+    lastDmTypingSentAtRef.current = 0;
+  }, [activeChatBuddyId]);
+
+  useEffect(() => {
+    if (!userId || !activeChatBuddyId) {
+      setActiveDmTypingText(null);
+      return;
+    }
+
+    const channelKey = getDmTypingChannelKey(userId, activeChatBuddyId);
+    const typingChannel = supabase.channel(`dm_typing:${channelKey}`);
+    activeDmTypingChannelRef.current = typingChannel;
+
+    typingChannel.on('broadcast', { event: 'typing' }, (event) => {
+      const payload = event.payload as { senderId?: string; screenname?: string };
+      const senderId = typeof payload.senderId === 'string' ? payload.senderId : '';
+      if (!senderId || senderId === userId || senderId !== activeChatBuddyIdRef.current) {
+        return;
+      }
+
+      const senderName =
+        (typeof payload.screenname === 'string' && payload.screenname.trim()) ||
+        buddyRows.find((buddy) => buddy.id === senderId)?.screenname ||
+        temporaryChatProfiles[senderId]?.screenname ||
+        'Buddy';
+      setActiveDmTypingText(`${senderName} is typing...`);
+
+      if (dmTypingTimeoutRef.current) {
+        clearTimeout(dmTypingTimeoutRef.current);
+      }
+      dmTypingTimeoutRef.current = setTimeout(() => {
+        setActiveDmTypingText(null);
+      }, TYPING_TTL_MS);
+    });
+
+    typingChannel.subscribe();
+
+    return () => {
+      activeDmTypingChannelRef.current = null;
+      setActiveDmTypingText(null);
+      if (dmTypingTimeoutRef.current) {
+        clearTimeout(dmTypingTimeoutRef.current);
+        dmTypingTimeoutRef.current = null;
+      }
+      void supabase.removeChannel(typingChannel);
+    };
+  }, [activeChatBuddyId, buddyRows, temporaryChatProfiles, userId]);
+
+  const sendDmTypingPulse = useCallback(() => {
+    if (!userId || !activeChatBuddyId) {
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastDmTypingSentAtRef.current < TYPING_THROTTLE_MS) {
+      return;
+    }
+    lastDmTypingSentAtRef.current = now;
+
+    const typingChannel = activeDmTypingChannelRef.current;
+    if (!typingChannel) {
+      return;
+    }
+
+    void typingChannel.send({
+      type: 'broadcast',
+      event: 'typing',
+      payload: {
+        senderId: userId,
+        screenname: screennameRef.current,
+      },
+    });
+  }, [activeChatBuddyId, userId]);
 
   const handleAcceptPendingRequest = useCallback(
     (senderId: string) => {
@@ -1025,6 +1188,17 @@ function BuddyListContent() {
 
         const senderId = incomingMessage.sender_id;
         const incomingContent = typeof incomingMessage.content === 'string' ? incomingMessage.content : '';
+        setBuddyLastMessageAt((previous) => {
+          const current = normalizeTimestampMs(previous[senderId]);
+          const incoming = normalizeTimestampMs(incomingMessage.created_at);
+          if (incoming <= current) {
+            return previous;
+          }
+          return {
+            ...previous,
+            [senderId]: incomingMessage.created_at,
+          };
+        });
         void sendAutoAwayReply(senderId, incomingContent);
         const isBuddy = acceptedBuddyIdsRef.current.has(senderId);
         const isTemporarilyAllowed = temporaryChatAllowedIdsRef.current.has(senderId);
@@ -1074,6 +1248,7 @@ function BuddyListContent() {
 
         if (activeChatBuddyIdRef.current === senderId) {
           clearUnreadDirectMessages(senderId);
+          setInitialUnreadForActiveChat(0);
           setChatMessages((previous) =>
             previous.some((message) => message.id === incomingMessage.id)
               ? previous
@@ -1094,6 +1269,9 @@ function BuddyListContent() {
   const handleSignOff = async () => {
     setIsHeaderMenuOpen(false);
     setUnreadDirectMessages({});
+    setInitialUnreadForActiveChat(0);
+    setInitialUnreadForActiveRoom(0);
+    setActiveDmTypingText(null);
     setAwaySinceAt(null);
     autoAwayTriggeredRef.current = false;
     await resetChatState();
@@ -1314,11 +1492,16 @@ function BuddyListContent() {
     setAdminResetScreenname('');
     setAdminResetError(null);
     setIssuedAdminTicket(null);
+    setConfirmAdminResetAction(false);
     setIsAdminResetOpen(true);
   };
 
   const handleIssueAdminResetTicket = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!confirmAdminResetAction) {
+      setAdminResetError('Confirm this admin action before issuing a reset ticket.');
+      return;
+    }
     const target = adminResetScreenname.trim();
     if (!target) {
       setAdminResetError('Enter a screen name.');
@@ -1489,6 +1672,11 @@ function BuddyListContent() {
       }
 
       const insertedMessage = data as ChatMessage;
+      setBuddyLastMessageAt((previous) => ({
+        ...previous,
+        [activeChatBuddyId]: insertedMessage.created_at,
+      }));
+      setInitialUnreadForActiveChat(0);
       setChatMessages((previous) =>
         previous.some((message) => message.id === insertedMessage.id)
           ? previous
@@ -1573,12 +1761,13 @@ function BuddyListContent() {
 
   const openRoomView = useCallback(
     async (room: ChatRoom) => {
+      setInitialUnreadForActiveRoom(getUnreadCountForRoom(room.name));
       await joinRoom(room.name);
       await clearUnreads(room.name);
       setActiveRoom(room);
       router.replace(`${BUDDY_LIST_PATH}?room=${encodeURIComponent(room.name)}`, { scroll: false });
     },
-    [clearUnreads, joinRoom, router],
+    [clearUnreads, getUnreadCountForRoom, joinRoom, router],
   );
 
   const handleOpenActiveRoom = useCallback(
@@ -1610,6 +1799,7 @@ function BuddyListContent() {
   );
 
   const handleBackFromRoom = useCallback(() => {
+    setInitialUnreadForActiveRoom(0);
     setActiveRoom(null);
     router.push(BUDDY_LIST_PATH);
   }, [router]);
@@ -1624,6 +1814,7 @@ function BuddyListContent() {
       await leaveRoom(normalizedRoomName);
 
       if (activeRoom && sameRoom(activeRoom.name, normalizedRoomName)) {
+        setInitialUnreadForActiveRoom(0);
         setActiveRoom(null);
         router.push(BUDDY_LIST_PATH);
       }
@@ -1658,6 +1849,7 @@ function BuddyListContent() {
         }
 
         await joinRoom(resolvedRoom.name);
+        setInitialUnreadForActiveRoom(getUnreadCountForRoom(resolvedRoom.name));
         await clearUnreads(resolvedRoom.name);
         setActiveRoom(resolvedRoom);
       } catch (error) {
@@ -1672,7 +1864,7 @@ function BuddyListContent() {
     return () => {
       isCancelled = true;
     };
-  }, [activeRoom, clearUnreads, joinRoom, requestedRoomName, resolveRoomByName, userId]);
+  }, [activeRoom, clearUnreads, getUnreadCountForRoom, joinRoom, requestedRoomName, resolveRoomByName, userId]);
 
   useEffect(() => {
     if (!userId || !requestedDirectMessageUserId || requestedRoomName) {
@@ -1782,6 +1974,12 @@ function BuddyListContent() {
   const closeChatWindow = () => {
     setActiveChatBuddyId(null);
     activeChatBuddyIdRef.current = null;
+    setInitialUnreadForActiveChat(0);
+    setActiveDmTypingText(null);
+    if (dmTypingTimeoutRef.current) {
+      clearTimeout(dmTypingTimeoutRef.current);
+      dmTypingTimeoutRef.current = null;
+    }
     setChatMessages([]);
     setChatError(null);
     setIsChatLoading(false);
@@ -1812,6 +2010,83 @@ function BuddyListContent() {
     'w-full border border-[#7f9db9] border-t-[#808080] border-l-[#808080] border-r-white border-b-white bg-white px-2 py-1.5 text-[11px] focus:outline-none';
   const xpModalButtonClass =
     'min-h-[30px] border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-3 text-[11px] font-bold text-[#1e395b]';
+  const showSplitPresenceSections = buddySortMode === 'online_then_alpha';
+  const onlineBuddiesSorted = alphabeticallySortedAcceptedBuddies.filter((buddy) => buddy.isOnline);
+  const offlineBuddiesSorted = alphabeticallySortedAcceptedBuddies.filter((buddy) => !buddy.isOnline);
+
+  const renderDirectMessageRow = (buddy: (typeof acceptedBuddies)[number]) => {
+    const unreadDirectCount = unreadDirectMessages[buddy.id] ?? 0;
+    const isSelected = selectedBuddyId === buddy.id;
+    const resolvedBuddyStatus = resolveStatusFields({
+      status: buddy.status,
+      awayMessage: buddy.away_message,
+      statusMessage: buddy.status_msg,
+    });
+    const isBuddyAway = normalizeStatusLabel(resolvedBuddyStatus.status) === AWAY_STATUS;
+    const awayLine = resolveAwayTemplate(
+      resolvedBuddyStatus.awayMessage || 'Away',
+      buddy.screenname,
+      screenname,
+    );
+
+    return (
+      <button
+        key={buddy.id}
+        type="button"
+        onClick={() => handleOpenChat(buddy.id)}
+        className={`group flex min-h-[44px] w-full items-center justify-between border-b border-[#edf2f8] px-3 py-2 text-left transition ${
+          isSelected
+            ? 'bg-[#316ac5] text-white'
+            : 'text-[#1e395b] hover:bg-[#316ac5] hover:text-white'
+        }`}
+      >
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className="aim-list-kind-chip" aria-hidden="true">
+              @
+            </span>
+            <span
+              className={`inline-flex h-2.5 w-2.5 items-center justify-center border ${
+                isSelected
+                  ? 'border-white bg-white'
+                  : isBuddyAway
+                    ? 'border-[#8a8a8a] bg-[#f0d75d]'
+                    : buddy.isOnline
+                      ? 'border-[#2b8f3f] bg-[#35b556]'
+                      : 'border-[#6f6f6f] bg-[#b9b9b9]'
+              }`}
+            />
+            <span
+              className={`truncate font-bold ${
+                isBuddyAway && !isSelected ? 'italic text-gray-500 group-hover:text-white' : ''
+              }`}
+            >
+              {buddy.screenname}
+            </span>
+          </div>
+          {isBuddyAway ? (
+            <p
+              className={`w-full truncate pl-7 text-[10px] italic ${
+                isSelected ? 'text-blue-100' : 'text-gray-500 group-hover:text-blue-100'
+              }`}
+              title={awayLine}
+            >
+              {awayLine}
+            </p>
+          ) : null}
+        </div>
+        {unreadDirectCount > 0 ? (
+          <span
+            className={`ml-2 shrink-0 rounded-full border border-white bg-gradient-to-b from-red-400 to-red-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm shadow-black/50 ${
+              isSelected ? '' : 'aim-unread-badge-pulse'
+            }`}
+          >
+            {unreadDirectCount}
+          </span>
+        ) : null}
+      </button>
+    );
+  };
   const xpModalPrimaryButtonClass =
     'min-h-[30px] border border-[#1f4f9e] border-t-[#a7c7ff] border-l-[#a7c7ff] border-r-[#173f80] border-b-[#173f80] bg-gradient-to-b from-[#86bbff] to-[#3579d6] px-3 text-[11px] font-bold text-white [text-shadow:0_1px_0_rgba(0,0,0,0.35)] disabled:opacity-60';
 
@@ -1820,8 +2095,7 @@ function BuddyListContent() {
       (selectedBuddyId && acceptedBuddies.some((buddy) => buddy.id === selectedBuddyId)
         ? selectedBuddyId
         : null) ??
-      onlineBuddies[0]?.id ??
-      acceptedBuddies[0]?.id ??
+      sortedDirectMessageBuddies[0]?.id ??
       null;
 
     if (!fallbackBuddyId) {
@@ -1951,11 +2225,31 @@ function BuddyListContent() {
                   <span className="inline-flex h-4 w-4 items-center justify-center border border-[#7f7f7f] bg-[#ece9d8] text-[11px] leading-none">
                     {isBuddiesOpen ? '-' : '+'}
                   </span>
-                  <span>Buddies ({onlineBuddies.length}/{acceptedBuddies.length})</span>
+                  <span>
+                    {showSplitPresenceSections
+                      ? `Direct Messages - Online (${onlineBuddies.length}/${acceptedBuddies.length})`
+                      : `Direct Messages (${acceptedBuddies.length})`}
+                  </span>
                 </button>
 
                 {isBuddiesOpen ? (
                   <div>
+                    <div className="flex items-center justify-between border-b border-[#dce5f2] bg-[#f7faff] px-3 py-1.5">
+                      <label htmlFor="buddy-sort-mode" className="text-[10px] font-bold uppercase tracking-wide text-[#4c6182]">
+                        Sort
+                      </label>
+                      <select
+                        id="buddy-sort-mode"
+                        value={buddySortMode}
+                        onChange={(event) => setBuddySortMode(event.target.value as BuddySortMode)}
+                        className="min-h-[24px] border border-[#7f9db9] border-t-[#808080] border-l-[#808080] border-r-white border-b-white bg-white px-1 py-0.5 text-[11px] text-[#1e395b]"
+                      >
+                        <option value="online_then_alpha">Online then A-Z</option>
+                        <option value="alpha">A-Z</option>
+                        <option value="recent_activity">Recent activity</option>
+                      </select>
+                    </div>
+
                     {isBootstrapping ? <p className="px-3 py-2 italic text-slate-500">Dialing in...</p> : null}
                     {!isBootstrapping && isLoadingBuddies ? (
                       <p className="px-3 py-2 italic text-slate-500">Loading your buddy list...</p>
@@ -1964,70 +2258,9 @@ function BuddyListContent() {
                       <p className="px-3 py-2 italic text-slate-500">List is empty.</p>
                     ) : null}
                     {!isBootstrapping &&
-                      onlineBuddies.map((buddy) => {
-                        const unreadDirectCount = unreadDirectMessages[buddy.id] ?? 0;
-                        const isSelected = selectedBuddyId === buddy.id;
-                        const resolvedBuddyStatus = resolveStatusFields({
-                          status: buddy.status,
-                          awayMessage: buddy.away_message,
-                          statusMessage: buddy.status_msg,
-                        });
-                        const isBuddyAway = normalizeStatusLabel(resolvedBuddyStatus.status) === AWAY_STATUS;
-                        const awayLine = resolveAwayTemplate(
-                          resolvedBuddyStatus.awayMessage || 'Away',
-                          buddy.screenname,
-                          screenname,
-                        );
-
-                        return (
-                          <button
-                            key={buddy.id}
-                            type="button"
-                            onClick={() => handleOpenChat(buddy.id)}
-                            className={`group flex min-h-[44px] w-full items-center justify-between border-b border-[#edf2f8] px-3 py-2 text-left transition ${
-                              isSelected
-                                ? 'bg-[#316ac5] text-white'
-                                : 'text-[#1e395b] hover:bg-[#316ac5] hover:text-white'
-                            }`}
-                          >
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-1.5">
-                                <span
-                                  className={`inline-flex h-2.5 w-2.5 items-center justify-center border ${
-                                    isSelected
-                                      ? 'border-white bg-white'
-                                      : isBuddyAway
-                                        ? 'border-[#8a8a8a] bg-[#f0d75d]'
-                                        : 'border-[#2b8f3f] bg-[#35b556]'
-                                  }`}
-                                />
-                                <span
-                                  className={`truncate font-bold ${
-                                    isBuddyAway && !isSelected ? 'italic text-gray-500 group-hover:text-white' : ''
-                                  }`}
-                                >
-                                  {buddy.screenname}
-                                </span>
-                              </div>
-                              {isBuddyAway ? (
-                                <p
-                                  className={`w-full truncate pl-4 text-[10px] italic ${
-                                    isSelected ? 'text-blue-100' : 'text-gray-500 group-hover:text-blue-100'
-                                  }`}
-                                  title={awayLine}
-                                >
-                                  {awayLine}
-                                </p>
-                              ) : null}
-                            </div>
-                            {unreadDirectCount > 0 ? (
-                              <span className="ml-2 shrink-0 rounded-full border border-white bg-gradient-to-b from-red-400 to-red-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm shadow-black/50">
-                                {unreadDirectCount}
-                              </span>
-                            ) : null}
-                          </button>
-                        );
-                      })}
+                      (showSplitPresenceSections ? onlineBuddiesSorted : sortedDirectMessageBuddies).map((buddy) =>
+                        renderDirectMessageRow(buddy),
+                      )}
 
                     {pendingBuddies.length > 0 ? (
                       <div className="border-b border-[#e5ecf5] px-3 py-2">
@@ -2043,85 +2276,22 @@ function BuddyListContent() {
                 ) : null}
               </div>
 
-              <div className="select-none">
-                <button
-                  type="button"
-                  onClick={() => setIsOfflineOpen((previous) => !previous)}
-                  className={xpGroupHeaderClass}
-                >
-                  <span className="inline-flex h-4 w-4 items-center justify-center border border-[#7f7f7f] bg-[#ece9d8] text-[11px] leading-none">
-                    {isOfflineOpen ? '-' : '+'}
-                  </span>
-                  <span>Offline ({offlineBuddies.length}/{acceptedBuddies.length})</span>
-                </button>
+              {showSplitPresenceSections ? (
+                <div className="select-none">
+                  <button
+                    type="button"
+                    onClick={() => setIsOfflineOpen((previous) => !previous)}
+                    className={xpGroupHeaderClass}
+                  >
+                    <span className="inline-flex h-4 w-4 items-center justify-center border border-[#7f7f7f] bg-[#ece9d8] text-[11px] leading-none">
+                      {isOfflineOpen ? '-' : '+'}
+                    </span>
+                    <span>Direct Messages - Offline ({offlineBuddies.length}/{acceptedBuddies.length})</span>
+                  </button>
 
-                {isOfflineOpen
-                  ? offlineBuddies.map((buddy) => {
-                      const unreadDirectCount = unreadDirectMessages[buddy.id] ?? 0;
-                      const isSelected = selectedBuddyId === buddy.id;
-                      const resolvedBuddyStatus = resolveStatusFields({
-                        status: buddy.status,
-                        awayMessage: buddy.away_message,
-                        statusMessage: buddy.status_msg,
-                      });
-                      const isBuddyAway = normalizeStatusLabel(resolvedBuddyStatus.status) === AWAY_STATUS;
-                      const awayLine = resolveAwayTemplate(
-                        resolvedBuddyStatus.awayMessage || 'Away',
-                        buddy.screenname,
-                        screenname,
-                      );
-
-                      return (
-                        <button
-                          key={buddy.id}
-                          type="button"
-                          onClick={() => handleOpenChat(buddy.id)}
-                          className={`group flex min-h-[44px] w-full items-center justify-between border-b border-[#edf2f8] px-3 py-2 text-left transition ${
-                            isSelected
-                              ? 'bg-[#316ac5] text-white'
-                              : 'text-[#1e395b] hover:bg-[#316ac5] hover:text-white'
-                          }`}
-                        >
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <span
-                                className={`inline-flex h-2.5 w-2.5 items-center justify-center border ${
-                                  isSelected
-                                    ? 'border-white bg-white'
-                                    : isBuddyAway
-                                      ? 'border-[#8a8a8a] bg-[#f0d75d]'
-                                      : 'border-[#7d7d7d] bg-[#d8d8d8]'
-                                }`}
-                              />
-                              <span
-                                className={`truncate font-bold ${
-                                  isBuddyAway && !isSelected ? 'italic text-gray-500 group-hover:text-white' : ''
-                                }`}
-                              >
-                                {buddy.screenname}
-                              </span>
-                            </div>
-                            {isBuddyAway ? (
-                              <p
-                                className={`w-full truncate pl-4 text-[10px] italic ${
-                                  isSelected ? 'text-blue-100' : 'text-gray-500 group-hover:text-blue-100'
-                                }`}
-                                title={awayLine}
-                              >
-                                {awayLine}
-                              </p>
-                            ) : null}
-                          </div>
-                          {unreadDirectCount > 0 ? (
-                            <span className="ml-2 shrink-0 rounded-full border border-white bg-gradient-to-b from-red-400 to-red-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm shadow-black/50">
-                              {unreadDirectCount}
-                            </span>
-                          ) : null}
-                        </button>
-                      );
-                    })
-                  : null}
-              </div>
+                  {isOfflineOpen ? offlineBuddiesSorted.map((buddy) => renderDirectMessageRow(buddy)) : null}
+                </div>
+              ) : null}
 
               <div className="select-none">
                 <button
@@ -2132,7 +2302,7 @@ function BuddyListContent() {
                   <span className="inline-flex h-4 w-4 items-center justify-center border border-[#7f7f7f] bg-[#ece9d8] text-[11px] leading-none">
                     {isActiveChatsOpen ? '-' : '+'}
                   </span>
-                  <span>Active Chats ({activeRooms.length})</span>
+                  <span>Group Rooms ({activeRooms.length})</span>
                 </button>
 
                 {isActiveChatsOpen ? (
@@ -2141,6 +2311,7 @@ function BuddyListContent() {
                   ) : (
                     activeRooms.map((roomName) => {
                       const unreadCount = getUnreadCountForRoom(roomName);
+                      const isRoomSelected = Boolean(activeRoom && sameRoom(activeRoom.name, roomName));
 
                       return (
                         <div key={roomName} className="flex items-stretch border-b border-[#edf2f8]">
@@ -2149,9 +2320,18 @@ function BuddyListContent() {
                             onClick={() => void handleOpenActiveRoom(roomName)}
                             className="group flex min-h-[44px] flex-1 items-center justify-between px-3 py-2 text-left text-[#1e395b] transition hover:bg-[#316ac5] hover:text-white"
                           >
-                            <span className="truncate font-bold">#{roomName}</span>
+                            <div className="flex min-w-0 items-center gap-1.5">
+                              <span className="aim-list-kind-chip" aria-hidden="true">
+                                #
+                              </span>
+                              <span className="truncate font-bold">{roomName}</span>
+                            </div>
                             {unreadCount > 0 ? (
-                              <span className="ml-2 shrink-0 rounded-full border border-white bg-gradient-to-b from-red-400 to-red-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm shadow-black/50">
+                              <span
+                                className={`ml-2 shrink-0 rounded-full border border-white bg-gradient-to-b from-red-400 to-red-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm shadow-black/50 ${
+                                  isRoomSelected ? '' : 'aim-unread-badge-pulse'
+                                }`}
+                              >
                                 {unreadCount}
                               </span>
                             ) : null}
@@ -2275,9 +2455,10 @@ function BuddyListContent() {
                 Admin Password Reset
               </div>
               <form onSubmit={handleIssueAdminResetTicket} className={xpModalBodyClass}>
-                <p className="border border-[#7f9db9] bg-[#eaf2ff] px-2 py-1.5 text-[11px] text-[#1f4f9e]">
-                  Issue a one-time password reset ticket for out-of-band delivery.
-                </p>
+                <div className="border border-[#b95f5f] bg-[#fff0f0] px-2 py-1.5 text-[11px] text-[#8b2020]">
+                  <p className="font-bold uppercase tracking-wide">Admin Tools</p>
+                  <p className="mt-1">Issue a one-time password reset ticket for out-of-band delivery.</p>
+                </div>
                 <div>
                   <label htmlFor="admin-reset-screenname" className="mb-1 block text-[12px] font-semibold text-slate-700">
                     Target screen name
@@ -2291,6 +2472,17 @@ function BuddyListContent() {
                     disabled={isIssuingAdminReset}
                   />
                 </div>
+
+                <label className="flex items-start gap-2 border border-[#d8c48b] bg-[#fff9e6] px-2 py-1.5 text-[11px] text-[#6e4c00]">
+                  <input
+                    type="checkbox"
+                    checked={confirmAdminResetAction}
+                    onChange={(event) => setConfirmAdminResetAction(event.target.checked)}
+                    disabled={isIssuingAdminReset}
+                    className="mt-[1px] h-3.5 w-3.5 accent-[#8b2020]"
+                  />
+                  <span>I confirm this is an authorized reset request and the ticket will be shared securely.</span>
+                </label>
 
                 {adminResetError && (
                   <p className="border border-[#b95f5f] bg-[#ffe5e5] px-2 py-1.5 text-[11px] text-[#8b2020]">
@@ -2327,7 +2519,7 @@ function BuddyListContent() {
                   </button>
                   <button
                     type="submit"
-                    disabled={isIssuingAdminReset}
+                    disabled={isIssuingAdminReset || !confirmAdminResetAction}
                     className={xpModalPrimaryButtonClass}
                   >
                     {isIssuingAdminReset ? 'Issuing...' : 'Issue Ticket'}
@@ -2680,11 +2872,15 @@ function BuddyListContent() {
       {activeChatBuddy && userId && (
         <>
           <ChatWindow
+            key={activeChatBuddy.id}
             buddyScreenname={activeChatBuddy.screenname}
             buddyStatusMessage={activeChatBuddyStatusMessage || AVAILABLE_STATUS}
             currentUserId={userId}
             messages={chatMessages}
+            initialUnreadCount={initialUnreadForActiveChat}
+            typingText={activeDmTypingText}
             onSendMessage={handleSendMessage}
+            onTypingActivity={sendDmTypingPulse}
             onClose={closeChatWindow}
             onSignOff={handleSignOff}
             isLoading={isChatLoading}
@@ -2700,10 +2896,12 @@ function BuddyListContent() {
 
       {activeRoom && userId && (
         <GroupChatWindow
+          key={activeRoom.id}
           roomId={activeRoom.id}
           roomName={activeRoom.name}
           currentUserId={userId}
           currentUserScreenname={screenname}
+          initialUnreadCount={initialUnreadForActiveRoom}
           onBack={handleBackFromRoom}
           onLeave={handleLeaveCurrentRoom}
           onSignOff={handleSignOff}
