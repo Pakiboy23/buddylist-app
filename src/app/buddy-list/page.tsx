@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import ChatWindow, { ChatMessage } from '@/components/ChatWindow';
 import GroupChatWindow from '@/components/GroupChatWindow';
 import RichTextToolbar from '@/components/RichTextToolbar';
+import { getAccessTokenOrNull, getSessionOrNull } from '@/lib/authClient';
 import { supabase } from '@/lib/supabase';
 import {
   DEFAULT_RICH_TEXT_FORMAT,
@@ -285,11 +286,7 @@ function BuddyListContent() {
   }, []);
 
   const getAccessToken = useCallback(async () => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    return session?.access_token ?? null;
+    return getAccessTokenOrNull();
   }, []);
 
   const readApiError = async (response: Response) => {
@@ -370,7 +367,7 @@ function BuddyListContent() {
 
   useEffect(() => {
     const bootstrapUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = await getSessionOrNull();
       if (!session) {
         router.push('/');
         return;
@@ -1125,6 +1122,7 @@ function BuddyListContent() {
   );
 
   const requestedRoomName = searchParams.get('room')?.trim() ?? '';
+  const requestedDirectMessageUserId = searchParams.get('dm')?.trim() ?? '';
 
   const getUnreadCountForRoom = useCallback(
     (roomName: string) => {
@@ -1298,6 +1296,57 @@ function BuddyListContent() {
       isCancelled = true;
     };
   }, [activeRoom, clearUnreads, joinRoom, requestedRoomName, resolveRoomByName, userId]);
+
+  useEffect(() => {
+    if (!userId || !requestedDirectMessageUserId || requestedRoomName) {
+      return;
+    }
+
+    if (requestedDirectMessageUserId === userId) {
+      router.replace(BUDDY_LIST_PATH, { scroll: false });
+      return;
+    }
+
+    let isCancelled = false;
+
+    void (async () => {
+      const { data: profileData, error: profileError } = await supabase
+        .from('users')
+        .select('id,screenname,status_msg')
+        .eq('id', requestedDirectMessageUserId)
+        .maybeSingle();
+
+      if (isCancelled) {
+        return;
+      }
+
+      if (profileError) {
+        console.error('Failed to load direct message profile:', profileError.message);
+      } else if (profileData) {
+        const profile = profileData as UserProfile;
+        setTemporaryChatProfiles((previous) => ({
+          ...previous,
+          [requestedDirectMessageUserId]: {
+            screenname: profile.screenname?.trim() || 'Unknown User',
+            status_msg: profile.status_msg ?? null,
+          },
+        }));
+      }
+
+      setTemporaryChatAllowedIds((previous) =>
+        previous.includes(requestedDirectMessageUserId)
+          ? previous
+          : [...previous, requestedDirectMessageUserId],
+      );
+
+      openChatWindowForId(requestedDirectMessageUserId);
+      router.replace(BUDDY_LIST_PATH, { scroll: false });
+    })();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [openChatWindowForId, requestedDirectMessageUserId, requestedRoomName, router, userId]);
 
   const openSetupWindow = () => {
     const parsed = parseStatusMessage(statusMsg);

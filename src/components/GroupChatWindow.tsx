@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { FormEvent, KeyboardEvent, useCallback, useEffect, useRef, useState } from 'react';
 import RetroWindow from '@/components/RetroWindow';
 import RichTextToolbar from '@/components/RichTextToolbar';
 import { supabase } from '@/lib/supabase';
@@ -269,6 +269,33 @@ export default function GroupChatWindow({
     setDraft('');
   };
 
+  const handleDraftKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== 'Enter' || event.nativeEvent.isComposing) {
+      return;
+    }
+
+    const textarea = event.currentTarget;
+    if (event.metaKey || event.ctrlKey) {
+      event.preventDefault();
+      const selectionStart = textarea.selectionStart ?? textarea.value.length;
+      const selectionEnd = textarea.selectionEnd ?? textarea.value.length;
+      const nextDraft = `${draft.slice(0, selectionStart)}\n${draft.slice(selectionEnd)}`;
+      setDraft(nextDraft);
+      window.requestAnimationFrame(() => {
+        textarea.selectionStart = selectionStart + 1;
+        textarea.selectionEnd = selectionStart + 1;
+      });
+      return;
+    }
+
+    event.preventDefault();
+    if (isSending || !draft.trim()) {
+      return;
+    }
+
+    textarea.form?.requestSubmit();
+  };
+
   return (
     <div className="fixed inset-0 z-50">
       <RetroWindow
@@ -349,6 +376,7 @@ export default function GroupChatWindow({
               <textarea
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
+                onKeyDown={handleDraftKeyDown}
                 placeholder={`Message #${roomName}`}
                 className="min-h-[44px] max-h-36 flex-1 resize-none rounded-md border border-blue-300 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_3px_rgba(37,99,235,0.18)] focus:outline-none"
                 maxLength={1500}
@@ -362,6 +390,9 @@ export default function GroupChatWindow({
                 {isSending ? '...' : 'Send'}
               </button>
             </form>
+            <p className="mt-1 text-[11px] text-slate-500">
+              Enter to send. Cmd/Ctrl + Enter for a new line.
+            </p>
 
             {error && <p className="mt-2 text-sm text-red-700">{error}</p>}
           </div>

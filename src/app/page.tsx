@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import RetroWindow from '@/components/RetroWindow';
+import { getSessionOrNull } from '@/lib/authClient';
 import { supabase } from '@/lib/supabase';
 
 const SIGN_ON_SOUND = '/signon.wav';
@@ -68,9 +69,7 @@ export default function Home() {
     let isMounted = true;
 
     const checkSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const session = await getSessionOrNull();
 
       if (!isMounted || !session) {
         return;
@@ -116,6 +115,9 @@ export default function Home() {
 
   const switchAuthView = (nextView: AuthView) => {
     setAuthView(nextView);
+    if (nextView !== 'sign-on') {
+      setIsSignUp(false);
+    }
     setRotatedRecoveryCode(null);
     applyViewStatusMessage(nextView, isSignUp);
   };
@@ -327,6 +329,45 @@ export default function Home() {
     <main className="h-[100dvh] overflow-hidden">
       <RetroWindow title="AOL Instant Messenger - Sign On">
         <form onSubmit={handlePrimarySubmit} className="mx-auto w-full max-w-md space-y-4 pb-6 text-[13px] font-sans">
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              type="button"
+              onClick={() => switchAuthView('sign-on')}
+              disabled={isLoading}
+              className={`min-h-[40px] cursor-pointer rounded-md border px-2 py-2 text-[11px] font-bold transition disabled:opacity-50 ${
+                authView === 'sign-on'
+                  ? 'border-blue-600 bg-gradient-to-b from-blue-300 to-blue-600 text-white'
+                  : 'border-blue-300 bg-white text-blue-700 hover:bg-blue-50'
+              }`}
+            >
+              Sign On
+            </button>
+            <button
+              type="button"
+              onClick={() => switchAuthView('forgot-password')}
+              disabled={isLoading}
+              className={`min-h-[40px] cursor-pointer rounded-md border px-2 py-2 text-[11px] font-bold transition disabled:opacity-50 ${
+                authView === 'forgot-password'
+                  ? 'border-blue-600 bg-gradient-to-b from-blue-300 to-blue-600 text-white'
+                  : 'border-blue-300 bg-white text-blue-700 hover:bg-blue-50'
+              }`}
+            >
+              Recovery Code
+            </button>
+            <button
+              type="button"
+              onClick={() => switchAuthView('redeem-ticket')}
+              disabled={isLoading}
+              className={`min-h-[40px] cursor-pointer rounded-md border px-2 py-2 text-[11px] font-bold transition disabled:opacity-50 ${
+                authView === 'redeem-ticket'
+                  ? 'border-blue-600 bg-gradient-to-b from-blue-300 to-blue-600 text-white'
+                  : 'border-blue-300 bg-white text-blue-700 hover:bg-blue-50'
+              }`}
+            >
+              Redeem Ticket
+            </button>
+          </div>
+
           <div className="grid grid-cols-[92px_1fr] gap-3">
             <div className="flex flex-col items-center justify-between rounded-md border border-blue-200 bg-[#f2e7ab] px-2 py-2">
               <span className="text-[34px] leading-none">🏃</span>

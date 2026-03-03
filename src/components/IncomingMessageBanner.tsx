@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 interface IncomingMessageBannerProps {
   senderName: string;
@@ -54,9 +55,13 @@ export default function IncomingMessageBanner({
     };
   }, [dismissBanner]);
 
-  return (
+  if (typeof document === 'undefined') {
+    return null;
+  }
+
+  return createPortal(
     <div
-      className={`fixed left-0 top-0 z-50 w-full transform transition-transform duration-300 ease-out ${
+      className={`fixed left-0 top-0 z-[9999] w-full transform transition-transform duration-300 ease-out ${
         isVisible ? 'translate-y-0' : '-translate-y-full'
       }`}
       style={{ paddingTop: 'max(env(safe-area-inset-top), 1rem)' }}
@@ -87,6 +92,7 @@ export default function IncomingMessageBanner({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
