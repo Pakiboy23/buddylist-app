@@ -65,8 +65,9 @@ export default function GroupChatWindow({
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [format, setFormat] = useState<RichTextFormat>(DEFAULT_RICH_TEXT_FORMAT);
+  const [showFormatting, setShowFormatting] = useState(false);
   const [isSending, setIsSending] = useState(false);
-  const historyRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     screennameMapRef.current = screennameMap;
@@ -117,11 +118,8 @@ export default function GroupChatWindow({
   }, [currentUserId, currentUserScreenname]);
 
   useEffect(() => {
-    if (!historyRef.current) {
-      return;
-    }
-    historyRef.current.scrollTop = historyRef.current.scrollHeight;
-  }, [messages, isLoadingMessages]);
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [messages]);
 
   useEffect(() => {
     void clearUnreads(roomName);
@@ -300,16 +298,19 @@ export default function GroupChatWindow({
   return (
     <div className="fixed inset-0 z-50">
       <RetroWindow
-        title={`Chat Room: ${roomName}`}
+        title={`#${roomName}`}
         showBackButton
+        backButtonLabel="<"
         onBack={onBack}
         headerActions={
           <button
             type="button"
             onClick={onLeave}
-            className="inline-flex min-h-[44px] items-center justify-center rounded-md border border-white/40 bg-white/20 px-3 text-xs font-bold text-white transition-colors hover:bg-white/30"
+            className="inline-flex min-h-[38px] min-w-[38px] items-center justify-center rounded-md border border-white/40 bg-white/20 px-2 text-xs font-bold text-white transition-colors hover:bg-white/30"
+            aria-label="Leave room"
+            title="Leave room"
           >
-            Leave Room
+            X
           </button>
         }
       >
@@ -337,43 +338,54 @@ export default function GroupChatWindow({
             </div>
           </div>
 
-          <div
-            ref={historyRef}
-            className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-blue-200 bg-white px-3 py-3 shadow-[inset_0_1px_4px_rgba(37,99,235,0.12)]"
-          >
+          <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-blue-200 bg-white px-3 py-2">
             {isLoadingMessages && <p className="italic text-slate-500">Loading room history...</p>}
             {!isLoadingMessages && messages.length === 0 && (
               <p className="italic text-slate-500">No messages yet. Start the room conversation.</p>
             )}
-            {!isLoadingMessages &&
-              messages.map((message) => {
-                const senderName = screennameMap[message.sender_id] || 'Unknown User';
-                const isMine = message.sender_id === currentUserId;
-                const timestamp = new Date(message.created_at).toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                });
+            {!isLoadingMessages && (
+              <div className="space-y-1">
+                {messages.map((message) => {
+                  const senderName = screennameMap[message.sender_id] || 'Unknown User';
+                  const isMine = message.sender_id === currentUserId;
+                  const timestamp = new Date(message.created_at).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  });
 
-                return (
-                  <div key={message.id} className="mb-3">
-                    <p className="mb-1 text-[11px] font-bold text-slate-500">
-                      {isMine ? 'You' : senderName} at {timestamp}
-                    </p>
-                    <div
-                      className={`aim-rich-html rounded-md border px-3 py-2 text-sm ${
-                        isMine ? 'border-blue-300 bg-blue-50' : 'border-slate-300 bg-slate-50'
-                      }`}
-                      dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(message.content) }}
-                    />
-                  </div>
-                );
-              })}
+                  return (
+                    <div key={message.id} className="flex flex-wrap items-baseline gap-x-1 text-sm leading-5">
+                      <span className="text-xs text-gray-500">[{timestamp}]</span>
+                      <span className="font-bold text-blue-600">{isMine ? 'You' : senderName}:</span>
+                      <span
+                        className="aim-rich-html text-gray-900"
+                        dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(message.content) }}
+                      />
+                    </div>
+                  );
+                })}
+                <div ref={messagesEndRef} />
+              </div>
+            )}
           </div>
 
-          <div className="mt-2 shrink-0 rounded-lg border border-blue-200 bg-white/90 p-2">
-            <RichTextToolbar value={format} onChange={setFormat} />
+          <div className="mt-2 shrink-0 border-t border-blue-200 bg-white/95 px-2 pb-2 pt-2 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+            {showFormatting ? (
+              <div className="mb-2 rounded-md border border-blue-200 bg-blue-50/40 p-2">
+                <RichTextToolbar value={format} onChange={setFormat} />
+              </div>
+            ) : null}
 
-            <form onSubmit={handleSendMessage} className="mt-2 flex items-end gap-2">
+            <form onSubmit={handleSendMessage} className="flex items-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowFormatting((previous) => !previous)}
+                className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border border-blue-300 bg-gradient-to-b from-white via-blue-50 to-blue-200 px-2 text-sm font-bold text-blue-800 shadow-sm transition hover:from-blue-50 hover:to-blue-300"
+                aria-label="Toggle formatting"
+                title="Toggle formatting"
+              >
+                A
+              </button>
               <textarea
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
