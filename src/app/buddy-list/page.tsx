@@ -15,6 +15,7 @@ import {
   RichTextFormat,
   sanitizeRichTextHtml,
 } from '@/lib/richText';
+import { normalizeRoomKey, sameRoom } from '@/lib/roomName';
 import RetroWindow from '@/components/RetroWindow';
 import { useChatContext } from '@/context/ChatContext';
 
@@ -70,10 +71,6 @@ const STATUS_OPTIONS = ['Available', 'Away', 'Busy', 'Be Right Back'] as const;
 const BUDDY_LIST_PATH = '/buddy-list';
 
 type StatusType = (typeof STATUS_OPTIONS)[number];
-
-function normalizeRoomKey(roomName: string) {
-  return roomName.trim().replace(/^#+/, '').toLowerCase();
-}
 
 function buildStatusMessage(statusType: StatusType, customMessage: string) {
   const trimmedMessage = customMessage.trim();
@@ -852,7 +849,7 @@ function BuddyListContent() {
   }, [openChatWindowForId, playIncomingAlert, userId]);
 
   const handleSignOff = async () => {
-    resetChatState();
+    await resetChatState();
     await supabase.auth.signOut();
     router.push('/');
   };
@@ -1195,9 +1192,9 @@ function BuddyListContent() {
   }, []);
 
   const openRoomView = useCallback(
-    (room: ChatRoom) => {
-      joinRoom(room.name);
-      clearUnreads(room.name);
+    async (room: ChatRoom) => {
+      await joinRoom(room.name);
+      await clearUnreads(room.name);
       setActiveRoom(room);
       router.replace(`${BUDDY_LIST_PATH}?room=${encodeURIComponent(room.name)}`, { scroll: false });
     },
@@ -1216,12 +1213,12 @@ function BuddyListContent() {
       try {
         const resolvedRoom = await resolveRoomByName(roomName, false);
         if (!resolvedRoom) {
-          leaveRoom(roomName);
+          await leaveRoom(roomName);
           setRoomJoinError('That room no longer exists.');
           return;
         }
 
-        openRoomView(resolvedRoom);
+        await openRoomView(resolvedRoom);
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Could not open room right now.';
         setRoomJoinError(message);
@@ -1238,15 +1235,15 @@ function BuddyListContent() {
   }, [router]);
 
   const handleLeaveRoom = useCallback(
-    (roomName: string) => {
+    async (roomName: string) => {
       const normalizedRoomName = roomName.trim();
       if (!normalizedRoomName) {
         return;
       }
 
-      leaveRoom(normalizedRoomName);
+      await leaveRoom(normalizedRoomName);
 
-      if (activeRoom && normalizeRoomKey(activeRoom.name) === normalizeRoomKey(normalizedRoomName)) {
+      if (activeRoom && sameRoom(activeRoom.name, normalizedRoomName)) {
         setActiveRoom(null);
         router.push(BUDDY_LIST_PATH);
       }
@@ -1259,7 +1256,7 @@ function BuddyListContent() {
       return;
     }
 
-    handleLeaveRoom(activeRoom.name);
+    void handleLeaveRoom(activeRoom.name);
   }, [activeRoom, handleLeaveRoom]);
 
   useEffect(() => {
@@ -1267,7 +1264,7 @@ function BuddyListContent() {
       return;
     }
 
-    if (activeRoom && normalizeRoomKey(activeRoom.name) === normalizeRoomKey(requestedRoomName)) {
+    if (activeRoom && sameRoom(activeRoom.name, requestedRoomName)) {
       return;
     }
 
@@ -1280,8 +1277,8 @@ function BuddyListContent() {
           return;
         }
 
-        joinRoom(resolvedRoom.name);
-        clearUnreads(resolvedRoom.name);
+        await joinRoom(resolvedRoom.name);
+        await clearUnreads(resolvedRoom.name);
         setActiveRoom(resolvedRoom);
       } catch (error) {
         if (isCancelled) {
@@ -1392,9 +1389,9 @@ function BuddyListContent() {
         return;
       }
 
-      openRoomView(resolvedRoom);
-      setShowRoomsWindow(false);
-    } catch (error) {
+        await openRoomView(resolvedRoom);
+        setShowRoomsWindow(false);
+      } catch (error) {
       const message = error instanceof Error ? error.message : 'Could not join room right now.';
       setRoomJoinError(message);
     } finally {
@@ -1552,7 +1549,7 @@ function BuddyListContent() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleLeaveRoom(roomName)}
+                        onClick={() => void handleLeaveRoom(roomName)}
                         className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border border-blue-300 bg-gradient-to-b from-white via-slate-100 to-slate-200 px-3 text-xs font-bold text-slate-700 shadow-sm transition hover:from-slate-50 hover:to-slate-300"
                         aria-label={`Leave ${roomName}`}
                         title="Leave room"

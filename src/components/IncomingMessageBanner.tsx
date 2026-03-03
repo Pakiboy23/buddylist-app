@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 interface IncomingMessageBannerProps {
   senderName: string;
   messagePreview: string;
+  variant: 'room' | 'dm';
   onClose: () => void;
   onClick: () => void;
 }
@@ -16,6 +17,7 @@ const AUTO_DISMISS_MS = 4000;
 export default function IncomingMessageBanner({
   senderName,
   messagePreview,
+  variant,
   onClose,
   onClick,
 }: IncomingMessageBannerProps) {
@@ -74,7 +76,7 @@ export default function IncomingMessageBanner({
             className="flex min-h-[44px] flex-1 items-start gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-white/10"
           >
             <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/20 text-lg">
-              🏃
+              {variant === 'dm' ? '✉' : '🏃'}
             </span>
             <span className="min-w-0 text-white [text-shadow:0_1px_1px_rgba(0,0,0,0.45)]">
               <span className="block truncate text-sm font-bold">{senderName}</span>

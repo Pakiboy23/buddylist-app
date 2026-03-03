@@ -1,17 +1,19 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import IncomingMessageBanner from '@/components/IncomingMessageBanner';
 import { useChatContext } from '@/context/ChatContext';
 import { getSessionOrNull } from '@/lib/authClient';
-import { supabase } from '@/lib/supabase';
+import { normalizeRoomName, sameRoom } from '@/lib/roomName';
 import { htmlToPlainText } from '@/lib/richText';
+import { supabase } from '@/lib/supabase';
 
 interface BannerData {
   senderName: string;
   messagePreview: string;
   targetPath: string;
+  variant: 'room' | 'dm';
 }
 
 interface MessageInsert {
@@ -19,13 +21,13 @@ interface MessageInsert {
   receiver_id?: string | null;
   screenname?: string | null;
   content?: string | null;
-  room_name?: string | null;
 }
 
 interface RoomMessageInsert {
+  id?: string | null;
+  room_id?: string | null;
   sender_id?: string | null;
   content?: string | null;
-  room_id?: string | null;
 }
 
 interface UserProfileLookup {
@@ -38,37 +40,29 @@ interface ChatRoomLookup {
 
 const BUDDY_LIST_PATH = '/buddy-list';
 
-function normalizeRoomName(roomName: string) {
-  return roomName.trim().replace(/^#+/, '');
-}
-
-function normalizeRoomKey(roomName: string) {
-  return normalizeRoomName(roomName).toLowerCase();
+function normalizeTextContent(content: string | null | undefined, fallback: string) {
+  const text = htmlToPlainText(content ?? '').trim();
+  return text || fallback;
 }
 
 export default function GlobalNotificationListener() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [currentScreenname, setCurrentScreenname] = useState<string>('');
-  const [bannerData, setBannerData] = useState<BannerData | null>(null);
-  const { activeRooms, incrementUnread, playChatSound } = useChatContext();
+  const [bannerQueue, setBannerQueue] = useState<BannerData[]>([]);
+
+  const pathname = usePathname();
   const searchParams = useSearchParams();
-  const currentScreennameRef = useRef(currentScreenname);
-  const searchParamsRef = useRef(searchParams.toString());
-  const currentUserIdRef = useRef<string | null>(currentUserId);
+  const router = useRouter();
+
+  const { activeRooms, incrementUnread, playChatSound } = useChatContext();
+
+  const currentUserIdRef = useRef(currentUserId);
   const activeRoomsRef = useRef(activeRooms);
+  const pathnameRef = useRef(pathname);
+  const searchParamsRef = useRef(searchParams.toString());
   const incrementUnreadRef = useRef(incrementUnread);
   const playChatSoundRef = useRef(playChatSound);
   const roomNameCacheRef = useRef<Record<string, string>>({});
   const senderNameCacheRef = useRef<Record<string, string>>({});
-  const router = useRouter();
-
-  useEffect(() => {
-    currentScreennameRef.current = currentScreenname;
-  }, [currentScreenname]);
-
-  useEffect(() => {
-    searchParamsRef.current = searchParams.toString();
-  }, [searchParams]);
 
   useEffect(() => {
     currentUserIdRef.current = currentUserId;
@@ -77,6 +71,14 @@ export default function GlobalNotificationListener() {
   useEffect(() => {
     activeRoomsRef.current = activeRooms;
   }, [activeRooms]);
+
+  useEffect(() => {
+    pathnameRef.current = pathname;
+  }, [pathname]);
+
+  useEffect(() => {
+    searchParamsRef.current = searchParams.toString();
+  }, [searchParams]);
 
   useEffect(() => {
     incrementUnreadRef.current = incrementUnread;
@@ -89,53 +91,26 @@ export default function GlobalNotificationListener() {
   useEffect(() => {
     let isMounted = true;
 
-    const loadSessionProfile = async () => {
+    const loadSession = async () => {
       const session = await getSessionOrNull();
-
-      if (!isMounted || !session) {
-        setCurrentUserId(null);
-        setCurrentScreenname('');
+      if (!isMounted) {
         return;
       }
-
-      const metadataScreenname =
-        typeof session.user.user_metadata?.screenname === 'string'
-          ? session.user.user_metadata.screenname.trim()
-          : '';
-
-      const { data: profileData } = await supabase
-        .from('users')
-        .select('screenname')
-        .eq('id', session.user.id)
-        .maybeSingle();
-
-      const profile = profileData as UserProfileLookup | null;
-      const fallbackName = session.user.email?.split('@')[0] ?? '';
-      const resolvedScreenname = profile?.screenname?.trim() || metadataScreenname || fallbackName;
-
-      setCurrentUserId(session.user.id);
-      setCurrentScreenname(resolvedScreenname);
+      setCurrentUserId(session?.user.id ?? null);
+      if (!session) {
+        setBannerQueue([]);
+      }
     };
 
-    void loadSessionProfile();
+    void loadSession();
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCurrentUserId(session?.user.id ?? null);
       if (!session) {
-        setCurrentUserId(null);
-        setCurrentScreenname('');
-        setBannerData(null);
-        return;
+        setBannerQueue([]);
       }
-
-      const metadataScreenname =
-        typeof session.user.user_metadata?.screenname === 'string'
-          ? session.user.user_metadata.screenname.trim()
-          : '';
-      const fallbackName = session.user.email?.split('@')[0] ?? '';
-      setCurrentUserId(session.user.id);
-      setCurrentScreenname(metadataScreenname || fallbackName);
     });
 
     return () => {
@@ -144,9 +119,79 @@ export default function GlobalNotificationListener() {
     };
   }, []);
 
+  const enqueueBanner = useCallback((banner: BannerData) => {
+    playChatSoundRef.current('message');
+    setBannerQueue((previous) => [...previous, banner]);
+  }, []);
+
+  const resolveSenderNameById = useCallback(async (senderId: string, fallbackScreenname?: string | null) => {
+    if (typeof fallbackScreenname === 'string' && fallbackScreenname.trim()) {
+      return fallbackScreenname.trim();
+    }
+
+    const cached = senderNameCacheRef.current[senderId];
+    if (cached) {
+      return cached;
+    }
+
+    const { data: senderData, error } = await supabase
+      .from('users')
+      .select('screenname')
+      .eq('id', senderId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Global listener failed to resolve sender name:', error.message);
+    }
+
+    const sender = senderData as UserProfileLookup | null;
+    const resolved = sender?.screenname?.trim() || 'Unknown User';
+    senderNameCacheRef.current[senderId] = resolved;
+    return resolved;
+  }, []);
+
+  const resolveRoomNameById = useCallback(async (roomId: string) => {
+    const cached = roomNameCacheRef.current[roomId];
+    if (cached) {
+      return cached;
+    }
+
+    const { data: roomData, error } = await supabase
+      .from('chat_rooms')
+      .select('name')
+      .eq('id', roomId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Global listener failed to resolve room name:', error.message);
+      return '';
+    }
+
+    const room = roomData as ChatRoomLookup | null;
+    const resolvedRoom = normalizeRoomName(room?.name ?? '');
+    if (!resolvedRoom) {
+      return '';
+    }
+
+    roomNameCacheRef.current[roomId] = resolvedRoom;
+    return resolvedRoom;
+  }, []);
+
+  const getCurrentView = useMemo(
+    () => () => {
+      const params = new URLSearchParams(searchParamsRef.current);
+      return {
+        pathname: pathnameRef.current,
+        dm: params.get('dm') ?? '',
+        room: normalizeRoomName(params.get('room') ?? ''),
+      };
+    },
+    [],
+  );
+
   useEffect(() => {
-    const channel = supabase
-      .channel('global_notifications')
+    const messagesChannel = supabase
+      .channel('global_notifications_messages')
       .on(
         'postgres_changes',
         {
@@ -155,118 +200,49 @@ export default function GlobalNotificationListener() {
           table: 'messages',
         },
         (payload) => {
-          console.log('Global Listener heard message:', payload);
-
-          const currentUserIdValue = currentUserIdRef.current;
-          const currentScreennameValue = currentScreennameRef.current.trim();
-          if (!currentUserIdValue && !currentScreennameValue) {
+          const currentUser = currentUserIdRef.current;
+          if (!currentUser) {
             return;
           }
 
           const incoming = payload.new as MessageInsert;
           const senderId = typeof incoming.sender_id === 'string' ? incoming.sender_id : '';
           const receiverId = typeof incoming.receiver_id === 'string' ? incoming.receiver_id : '';
-          const currentSearchParams = new URLSearchParams(searchParamsRef.current);
 
-          // Direct message flow: notify globally unless user is already in that same DM.
-          if (receiverId && senderId) {
-            if (!currentUserIdValue || receiverId !== currentUserIdValue || senderId === currentUserIdValue) {
-              return;
-            }
-
-            const currentDmUserId = currentSearchParams.get('dm') ?? '';
-            if (currentDmUserId === senderId) {
-              return;
-            }
-
-            void (async () => {
-              let senderName =
-                typeof incoming.screenname === 'string' && incoming.screenname.trim()
-                  ? incoming.screenname.trim()
-                  : senderNameCacheRef.current[senderId];
-
-              if (!senderName) {
-                const { data: senderData, error: senderError } = await supabase
-                  .from('users')
-                  .select('screenname')
-                  .eq('id', senderId)
-                  .maybeSingle();
-
-                if (senderError) {
-                  console.error('Global listener failed to resolve DM sender name:', senderError.message);
-                }
-
-                const sender = senderData as UserProfileLookup | null;
-                senderName =
-                  typeof sender?.screenname === 'string' && sender.screenname.trim()
-                    ? sender.screenname.trim()
-                    : 'Unknown User';
-                senderNameCacheRef.current[senderId] = senderName;
-              }
-
-              playChatSoundRef.current('message');
-              setBannerData({
-                senderName,
-                messagePreview: htmlToPlainText(incoming.content ?? '').trim() || 'New direct message.',
-                targetPath: `${BUDDY_LIST_PATH}?dm=${encodeURIComponent(senderId)}`,
-              });
-            })();
-
+          if (!senderId || !receiverId) {
             return;
           }
 
-          const incomingRoom = normalizeRoomName(
-            typeof incoming.room_name === 'string' ? incoming.room_name : '',
-          );
-          if (!incomingRoom) {
+          if (receiverId !== currentUser || senderId === currentUser) {
             return;
           }
 
-          const senderScreenname =
-            typeof incoming.screenname === 'string' ? incoming.screenname.trim() : '';
-          const normalizedCurrentScreenname = currentScreennameValue.toLowerCase();
-          if (
-            senderScreenname &&
-            normalizedCurrentScreenname &&
-            senderScreenname.toLowerCase() === normalizedCurrentScreenname
-          ) {
+          const view = getCurrentView();
+          if (view.pathname === BUDDY_LIST_PATH && view.dm === senderId) {
             return;
           }
 
-          if (
-            incoming.sender_id &&
-            currentUserIdValue &&
-            incoming.sender_id === currentUserIdValue
-          ) {
-            return;
-          }
-
-          const incomingRoomKey = normalizeRoomKey(incomingRoom);
-          if (!incomingRoomKey) {
-            return;
-          }
-
-          const activeRoomName = activeRoomsRef.current.find(
-            (activeRoom) => normalizeRoomKey(activeRoom) === incomingRoomKey,
-          );
-          if (!activeRoomName) {
-            return;
-          }
-
-          const currentUrlRoom = normalizeRoomName(currentSearchParams.get('room') ?? '');
-          if (normalizeRoomKey(currentUrlRoom) === incomingRoomKey) {
-            return;
-          }
-
-          incrementUnreadRef.current(activeRoomName);
-          playChatSoundRef.current('message');
-          setBannerData({
-            senderName: senderScreenname || activeRoomName,
-            messagePreview: htmlToPlainText(incoming.content ?? '').trim() || 'New room message.',
-            targetPath: `${BUDDY_LIST_PATH}?room=${encodeURIComponent(activeRoomName)}`,
-          });
+          void (async () => {
+            const senderName = await resolveSenderNameById(senderId, incoming.screenname);
+            enqueueBanner({
+              senderName,
+              messagePreview: normalizeTextContent(incoming.content, 'New direct message.'),
+              targetPath: `${BUDDY_LIST_PATH}?dm=${encodeURIComponent(senderId)}`,
+              variant: 'dm',
+            });
+          })();
         },
       )
+      .subscribe();
+
+    return () => {
+      messagesChannel.unsubscribe();
+    };
+  }, [enqueueBanner, getCurrentView, resolveSenderNameById]);
+
+  useEffect(() => {
+    const roomMessagesChannel = supabase
+      .channel('global_notifications_room_messages')
       .on(
         'postgres_changes',
         {
@@ -275,89 +251,43 @@ export default function GlobalNotificationListener() {
           table: 'room_messages',
         },
         (payload) => {
-          console.log('Global Listener heard room message:', payload);
-
-          const currentUserIdValue = currentUserIdRef.current;
-          if (!currentUserIdValue) {
+          const currentUser = currentUserIdRef.current;
+          if (!currentUser) {
             return;
           }
 
           const incoming = payload.new as RoomMessageInsert;
           const senderId = typeof incoming.sender_id === 'string' ? incoming.sender_id : '';
           const roomId = typeof incoming.room_id === 'string' ? incoming.room_id : '';
-          if (!senderId || !roomId || senderId === currentUserIdValue) {
+          if (!senderId || !roomId || senderId === currentUser) {
             return;
           }
 
           void (async () => {
-            let incomingRoomName = roomNameCacheRef.current[roomId];
-            if (!incomingRoomName) {
-              const { data: roomData, error: roomError } = await supabase
-                .from('chat_rooms')
-                .select('name')
-                .eq('id', roomId)
-                .maybeSingle();
-
-              if (roomError) {
-                console.error('Global listener failed to resolve room name:', roomError.message);
-                return;
-              }
-
-              const room = roomData as ChatRoomLookup | null;
-              incomingRoomName =
-                typeof room?.name === 'string' ? normalizeRoomName(room.name) : '';
-              if (!incomingRoomName) {
-                return;
-              }
-
-              roomNameCacheRef.current[roomId] = incomingRoomName;
-            }
-
-            const incomingRoomKey = normalizeRoomKey(incomingRoomName);
-            if (!incomingRoomKey) {
+            const roomName = await resolveRoomNameById(roomId);
+            if (!roomName) {
               return;
             }
 
-            const activeRoomName = activeRoomsRef.current.find(
-              (activeRoom) => normalizeRoomKey(activeRoom) === incomingRoomKey,
+            const activeRoomName = activeRoomsRef.current.find((room) =>
+              sameRoom(room, roomName),
             );
             if (!activeRoomName) {
               return;
             }
 
-            const currentUrlRoom = normalizeRoomName(
-              new URLSearchParams(searchParamsRef.current).get('room') ?? '',
-            );
-            if (normalizeRoomKey(currentUrlRoom) === incomingRoomKey) {
+            const view = getCurrentView();
+            if (view.pathname === BUDDY_LIST_PATH && view.room && sameRoom(view.room, roomName)) {
               return;
             }
 
-            let senderName = senderNameCacheRef.current[senderId];
-            if (!senderName) {
-              const { data: senderData, error: senderError } = await supabase
-                .from('users')
-                .select('screenname')
-                .eq('id', senderId)
-                .maybeSingle();
-
-              if (senderError) {
-                console.error('Global listener failed to resolve sender name:', senderError.message);
-              }
-
-              const sender = senderData as UserProfileLookup | null;
-              senderName =
-                typeof sender?.screenname === 'string' && sender.screenname.trim()
-                  ? sender.screenname.trim()
-                  : 'Unknown User';
-              senderNameCacheRef.current[senderId] = senderName;
-            }
-
-            incrementUnreadRef.current(activeRoomName);
-            playChatSoundRef.current('message');
-            setBannerData({
+            const senderName = await resolveSenderNameById(senderId);
+            void incrementUnreadRef.current(activeRoomName);
+            enqueueBanner({
               senderName,
-              messagePreview: htmlToPlainText(incoming.content ?? '').trim() || 'New room message.',
+              messagePreview: normalizeTextContent(incoming.content, 'New room message.'),
               targetPath: `${BUDDY_LIST_PATH}?room=${encodeURIComponent(activeRoomName)}`,
+              variant: 'room',
             });
           })();
         },
@@ -365,19 +295,26 @@ export default function GlobalNotificationListener() {
       .subscribe();
 
     return () => {
-      channel.unsubscribe();
+      roomMessagesChannel.unsubscribe();
     };
-  }, []);
+  }, [enqueueBanner, getCurrentView, resolveRoomNameById, resolveSenderNameById]);
 
-  return bannerData ? (
+  const activeBanner = bannerQueue[0] ?? null;
+  if (!activeBanner) {
+    return null;
+  }
+
+  return (
     <IncomingMessageBanner
-      senderName={bannerData.senderName}
-      messagePreview={bannerData.messagePreview}
-      onClose={() => setBannerData(null)}
+      senderName={activeBanner.senderName}
+      messagePreview={activeBanner.messagePreview}
+      variant={activeBanner.variant}
+      onClose={() => setBannerQueue((previous) => previous.slice(1))}
       onClick={() => {
-        setBannerData(null);
-        router.push(bannerData.targetPath);
+        const targetPath = activeBanner.targetPath;
+        setBannerQueue((previous) => previous.slice(1));
+        router.push(targetPath);
       }}
     />
-  ) : null;
+  );
 }

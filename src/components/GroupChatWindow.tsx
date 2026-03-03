@@ -124,7 +124,7 @@ export default function GroupChatWindow({
   }, [messages, isLoadingMessages]);
 
   useEffect(() => {
-    clearUnreads(roomName);
+    void clearUnreads(roomName);
   }, [clearUnreads, roomName]);
 
   useEffect(() => {
@@ -166,7 +166,7 @@ export default function GroupChatWindow({
   }, [ensureScreennames, roomId]);
 
   useEffect(() => {
-    const roomChannel = supabase.channel('active_chat_room', {
+    const roomChannel = supabase.channel(`active_chat_room:${roomId}:${currentUserId}`, {
       config: {
         presence: {
           key: currentUserId,
@@ -212,6 +212,7 @@ export default function GroupChatWindow({
         setMessages((previous) =>
           previous.some((message) => message.id === incoming.id) ? previous : [...previous, incoming],
         );
+        void clearUnreads(roomName);
         void ensureScreennames([incoming.sender_id]);
       },
     );
@@ -230,7 +231,7 @@ export default function GroupChatWindow({
       void roomChannel.untrack();
       roomChannel.unsubscribe();
     };
-  }, [currentUserId, currentUserScreenname, ensureScreennames, roomId]);
+  }, [clearUnreads, currentUserId, currentUserScreenname, ensureScreennames, roomId, roomName]);
 
   const handleSendMessage = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
