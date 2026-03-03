@@ -898,7 +898,7 @@ function BuddyListContent() {
               receiver_id: item.targetId,
               content: item.content,
             })
-            .select('*')
+            .select('id,sender_id,receiver_id,content,created_at,edited_at,deleted_at,deleted_by')
             .single();
 
           if (error) {
@@ -1616,7 +1616,7 @@ function BuddyListContent() {
       const chatFilter = `and(sender_id.eq.${userId},receiver_id.eq.${buddyId}),and(sender_id.eq.${buddyId},receiver_id.eq.${userId})`;
       const { data, error } = await supabase
         .from('messages')
-        .select('*')
+        .select('id,sender_id,receiver_id,content,created_at,edited_at,deleted_at,deleted_by')
         .or(chatFilter)
         .order('created_at', { ascending: true })
         .limit(200);
@@ -2400,7 +2400,7 @@ function BuddyListContent() {
           receiver_id: activeChatBuddyId,
           content: messageContent,
         })
-        .select('*')
+        .select('id,sender_id,receiver_id,content,created_at,edited_at,deleted_at,deleted_by')
         .single();
 
       setIsSendingMessage(false);
