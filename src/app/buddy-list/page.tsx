@@ -3087,6 +3087,7 @@ function BuddyListContent() {
                       </label>
                       <select
                         id="buddy-sort-mode"
+                        title="Buddy Sort Mode"
                         value={buddySortMode}
                         onChange={(event) => setBuddySortMode(event.target.value as BuddySortMode)}
                         className="min-h-[24px] border border-[#7f9db9] border-t-[#808080] border-l-[#808080] border-r-white border-b-white bg-white px-1 py-0.5 text-[11px] text-[#1e395b]"
