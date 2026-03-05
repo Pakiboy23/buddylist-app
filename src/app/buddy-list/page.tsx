@@ -26,6 +26,12 @@ import {
 import { initSoundSystem, playFallbackTone, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
 import { normalizeRoomKey, sameRoom } from '@/lib/roomName';
+import {
+  applyDmStateEvent,
+  mapRowsToUnreadDirectMessages,
+  type DmStateEventType,
+  type UserDmStateRowLite,
+} from '@/lib/unread-dm';
 import RetroWindow from '@/components/RetroWindow';
 import { useChatContext } from '@/context/ChatContext';
 
@@ -41,13 +47,6 @@ interface UserProfile {
 interface BuddyRelationshipRow {
   buddy_id: string;
   status: 'pending' | 'accepted';
-}
-
-interface UserDmStateRow {
-  user_id?: string;
-  buddy_id: string | null;
-  unread_count: number | null;
-  updated_at?: string | null;
 }
 
 interface Buddy {
@@ -110,8 +109,10 @@ interface AwayPreset {
   builtIn?: boolean;
 }
 
-const SIGN_ON_SOUND = '/sounds/aol-welcome.mp3';
-const SIGN_OFF_SOUND = '/sounds/goodbye.mp3';
+const SELF_SIGN_OFF_SOUND = '/sounds/goodbye.mp3';
+const BUDDY_SIGN_ON_SOUND = '/sounds/door_creak.mp3';
+const BUDDY_SIGN_OFF_SOUND = '/sounds/door_slam.mp3';
+const BUDDY_GOING_AWAY_SOUND = '/sounds/door_slam.mp3';
 const INCOMING_MESSAGE_SOUND = '/sounds/im_receive.mp3';
 const NEW_MESSAGE_SOUND = '/sounds/aim-instant-message.mp3';
 const BUDDY_LIST_PATH = '/buddy-list';
@@ -432,24 +433,6 @@ function normalizeTimestampMs(value: string | null | undefined) {
   return Number.isNaN(parsed) ? 0 : parsed;
 }
 
-function mapRowsToUnreadDirectMessages(rows: UserDmStateRow[]) {
-  const next: Record<string, number> = {};
-  for (const row of rows) {
-    const buddyId = typeof row.buddy_id === 'string' ? row.buddy_id : '';
-    if (!buddyId) {
-      continue;
-    }
-    const unreadCount =
-      typeof row.unread_count === 'number' && Number.isFinite(row.unread_count)
-        ? Math.max(0, Math.floor(row.unread_count))
-        : 0;
-    if (unreadCount > 0) {
-      next[buddyId] = unreadCount;
-    }
-  }
-  return next;
-}
-
 function getDmTypingChannelKey(leftUserId: string, rightUserId: string) {
   return [leftUserId, rightUserId].sort().join(':');
 }
@@ -496,7 +479,6 @@ function BuddyListContent() {
 
   const [buddyRows, setBuddyRows] = useState<Buddy[]>([]);
   const [isLoadingBuddies, setIsLoadingBuddies] = useState(false);
-  const [hasLoadedBuddies, setHasLoadedBuddies] = useState(false);
   const [selectedBuddyId, setSelectedBuddyId] = useState<string | null>(null);
   const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
   const [isBuddiesOpen, setIsBuddiesOpen] = useState(true);
@@ -555,8 +537,8 @@ function BuddyListContent() {
   const [initialUnreadForActiveRoom, setInitialUnreadForActiveRoom] = useState(0);
   const [outboxItems, setOutboxItems] = useState<OutboxItem[]>([]);
 
-  const previousOnlineBuddyIdsRef = useRef<Set<string>>(new Set());
   const hasPresenceSyncedRef = useRef(false);
+  const isSigningOffRef = useRef(false);
   const activeChatBuddyIdRef = useRef<string | null>(null);
   const acceptedBuddyIdsRef = useRef<Set<string>>(new Set());
   const pendingRequestsRef = useRef<PendingRequest[]>([]);
@@ -567,6 +549,7 @@ function BuddyListContent() {
   const autoAwayTriggeredRef = useRef(false);
   const awayReplyCooldownRef = useRef<Record<string, number>>({});
   const activeDmTypingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const presenceChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const lastDmTypingSentAtRef = useRef(0);
   const dmTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const outboxItemsRef = useRef<OutboxItem[]>([]);
@@ -1058,7 +1041,6 @@ function BuddyListContent() {
     if (relationshipsError) {
       console.error('Failed to load buddies:', relationshipsError.message);
       setIsLoadingBuddies(false);
-      setHasLoadedBuddies(true);
       return;
     }
 
@@ -1068,7 +1050,6 @@ function BuddyListContent() {
       setBuddyRows([]);
       setSelectedBuddyId(null);
       setIsLoadingBuddies(false);
-      setHasLoadedBuddies(true);
       return;
     }
 
@@ -1112,7 +1093,6 @@ function BuddyListContent() {
         : (dedupedRows[0]?.id ?? null),
     );
     setIsLoadingBuddies(false);
-    setHasLoadedBuddies(true);
   }, []);
 
   const syncUnreadDirectFromServer = useCallback(async (targetUserId: string) => {
@@ -1126,7 +1106,7 @@ function BuddyListContent() {
       return;
     }
 
-    const rows = (data ?? []) as UserDmStateRow[];
+    const rows = (data ?? []) as UserDmStateRowLite[];
     setUnreadDirectMessages(mapRowsToUnreadDirectMessages(rows));
   }, []);
 
@@ -1137,8 +1117,6 @@ function BuddyListContent() {
         router.push('/');
         return;
       }
-
-      setHasLoadedBuddies(false);
 
       const metaScreenname =
         typeof session.user.user_metadata?.screenname === 'string'
@@ -1304,55 +1282,13 @@ function BuddyListContent() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'user_dm_state', filter: `user_id=eq.${userId}` },
         (payload) => {
-          if (payload.eventType === 'DELETE') {
-            const deletedRow = payload.old as Partial<UserDmStateRow>;
-            const deletedBuddyId = typeof deletedRow.buddy_id === 'string' ? deletedRow.buddy_id : '';
-            if (!deletedBuddyId) {
-              return;
-            }
+          const eventType = payload.eventType as DmStateEventType;
+          const row =
+            payload.eventType === 'DELETE'
+              ? (payload.old as Partial<UserDmStateRowLite>)
+              : (payload.new as UserDmStateRowLite);
 
-            setUnreadDirectMessages((previous) => {
-              if (!(deletedBuddyId in previous)) {
-                return previous;
-              }
-              const next = { ...previous };
-              delete next[deletedBuddyId];
-              return next;
-            });
-            return;
-          }
-
-          const nextRow = payload.new as UserDmStateRow;
-          const buddyId = typeof nextRow.buddy_id === 'string' ? nextRow.buddy_id : '';
-          if (!buddyId) {
-            return;
-          }
-
-          const unreadCount =
-            typeof nextRow.unread_count === 'number' && Number.isFinite(nextRow.unread_count)
-              ? Math.max(0, Math.floor(nextRow.unread_count))
-              : 0;
-
-          setUnreadDirectMessages((previous) => {
-            if (unreadCount <= 0) {
-              if (!(buddyId in previous)) {
-                return previous;
-              }
-
-              const next = { ...previous };
-              delete next[buddyId];
-              return next;
-            }
-
-            if (previous[buddyId] === unreadCount) {
-              return previous;
-            }
-
-            return {
-              ...previous,
-              [buddyId]: unreadCount,
-            };
-          });
+          setUnreadDirectMessages((previous) => applyDmStateEvent(previous, eventType, row));
         },
       )
       .subscribe();
@@ -1375,10 +1311,26 @@ function BuddyListContent() {
           return;
         }
 
+        let buddyWentAway = false;
+        let buddyCameBack = false;
         setBuddyRows((previous) =>
           previous.map((buddy) => {
             if (buddy.id !== updated.id) {
               return buddy;
+            }
+
+            const nextStatus =
+              typeof updated.status === 'string'
+                ? updated.status
+                : updated.status === null
+                  ? null
+                  : buddy.status;
+            const wasAway = normalizeStatusLabel(buddy.status) === AWAY_STATUS;
+            const isAway = normalizeStatusLabel(nextStatus) === AWAY_STATUS;
+            if (!wasAway && isAway) {
+              buddyWentAway = true;
+            } else if (wasAway && !isAway) {
+              buddyCameBack = true;
             }
 
             return {
@@ -1387,12 +1339,7 @@ function BuddyListContent() {
                 typeof updated.screenname === 'string' && updated.screenname.trim()
                   ? updated.screenname
                   : buddy.screenname,
-              status:
-                typeof updated.status === 'string'
-                  ? updated.status
-                  : updated.status === null
-                    ? null
-                    : buddy.status,
+              status: nextStatus,
               away_message:
                 typeof updated.away_message === 'string'
                   ? updated.away_message
@@ -1408,6 +1355,14 @@ function BuddyListContent() {
             };
           }),
         );
+
+        if (updated.id !== userId && acceptedBuddyIdsRef.current.has(updated.id)) {
+          if (buddyWentAway) {
+            playSound(BUDDY_GOING_AWAY_SOUND);
+          } else if (buddyCameBack) {
+            playSound(BUDDY_SIGN_ON_SOUND);
+          }
+        }
 
         if (updated.id === userId) {
           if (typeof updated.screenname === 'string' && updated.screenname.trim()) {
@@ -1440,7 +1395,7 @@ function BuddyListContent() {
     return () => {
       void supabase.removeChannel(usersChannel);
     };
-  }, [awayMessage, statusMsg, userId, userStatus]);
+  }, [awayMessage, playSound, statusMsg, userId, userStatus]);
 
   useEffect(() => {
     if (!userId) {
@@ -1448,7 +1403,7 @@ function BuddyListContent() {
     }
 
     hasPresenceSyncedRef.current = false;
-    previousOnlineBuddyIdsRef.current = new Set();
+    isSigningOffRef.current = false;
 
     const presenceChannel = supabase.channel('buddylist-presence', {
       config: {
@@ -1457,10 +1412,38 @@ function BuddyListContent() {
         },
       },
     });
+    presenceChannelRef.current = presenceChannel;
+
+    presenceChannel.on('presence', { event: 'join' }, (payload) => {
+      if (!hasPresenceSyncedRef.current || isSigningOffRef.current) {
+        return;
+      }
+
+      const joinedUserId = typeof payload.key === 'string' ? payload.key : '';
+      if (!joinedUserId || joinedUserId === userId || !acceptedBuddyIdsRef.current.has(joinedUserId)) {
+        return;
+      }
+
+      playSound(BUDDY_SIGN_ON_SOUND);
+    });
+
+    presenceChannel.on('presence', { event: 'leave' }, (payload) => {
+      if (!hasPresenceSyncedRef.current || isSigningOffRef.current) {
+        return;
+      }
+
+      const leftUserId = typeof payload.key === 'string' ? payload.key : '';
+      if (!leftUserId || leftUserId === userId || !acceptedBuddyIdsRef.current.has(leftUserId)) {
+        return;
+      }
+
+      playSound(BUDDY_SIGN_OFF_SOUND);
+    });
 
     presenceChannel.on('presence', { event: 'sync' }, () => {
       const state = presenceChannel.presenceState();
       setOnlineUserIds(new Set(Object.keys(state)));
+      hasPresenceSyncedRef.current = true;
     });
 
     presenceChannel.subscribe((status) => {
@@ -1473,10 +1456,13 @@ function BuddyListContent() {
     });
 
     return () => {
+      if (presenceChannelRef.current === presenceChannel) {
+        presenceChannelRef.current = null;
+      }
       void presenceChannel.untrack();
       void supabase.removeChannel(presenceChannel);
     };
-  }, [userId]);
+  }, [playSound, userId]);
 
   const buddies = useMemo(
     () =>
@@ -1577,33 +1563,6 @@ function BuddyListContent() {
     acceptedBuddyIdsRef.current = new Set(acceptedBuddies.map((buddy) => buddy.id));
   }, [acceptedBuddies]);
 
-  useEffect(() => {
-    if (!hasLoadedBuddies) {
-      return;
-    }
-
-    const currentOnlineBuddyIds = new Set(onlineBuddies.map((buddy) => buddy.id));
-    if (!hasPresenceSyncedRef.current) {
-      hasPresenceSyncedRef.current = true;
-      previousOnlineBuddyIdsRef.current = currentOnlineBuddyIds;
-      return;
-    }
-
-    currentOnlineBuddyIds.forEach((buddyId) => {
-      if (!previousOnlineBuddyIdsRef.current.has(buddyId)) {
-        playSound(SIGN_ON_SOUND);
-      }
-    });
-
-    previousOnlineBuddyIdsRef.current.forEach((buddyId) => {
-      if (!currentOnlineBuddyIds.has(buddyId)) {
-        playSound(SIGN_OFF_SOUND);
-      }
-    });
-
-    previousOnlineBuddyIdsRef.current = currentOnlineBuddyIds;
-  }, [hasLoadedBuddies, onlineBuddies, playSound]);
-
   const loadConversation = useCallback(
     async (buddyId: string) => {
       if (!userId) {
@@ -1645,17 +1604,6 @@ function BuddyListContent() {
     },
     [userId],
   );
-
-  const incrementUnreadDirectMessages = useCallback((buddyId: string) => {
-    if (!buddyId) {
-      return;
-    }
-
-    setUnreadDirectMessages((previous) => ({
-      ...previous,
-      [buddyId]: (previous[buddyId] ?? 0) + 1,
-    }));
-  }, []);
 
   const clearUnreadDirectMessages = useCallback((buddyId: string) => {
     if (!buddyId) {
@@ -1924,7 +1872,7 @@ function BuddyListContent() {
           return;
         }
 
-        incrementUnreadDirectMessages(senderId);
+        // `user_dm_state` is the source of truth for unread DM counts.
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, (payload) => {
         const updatedMessage = payload.new as ChatMessage;
@@ -1954,9 +1902,11 @@ function BuddyListContent() {
     return () => {
       void supabase.removeChannel(globalMessagesChannel);
     };
-  }, [clearUnreadDirectMessages, incrementUnreadDirectMessages, playIncomingAlert, sendAutoAwayReply, userId]);
+  }, [clearUnreadDirectMessages, playIncomingAlert, sendAutoAwayReply, userId]);
 
   const handleSignOff = async () => {
+    isSigningOffRef.current = true;
+    playSound(SELF_SIGN_OFF_SOUND);
     setIsHeaderMenuOpen(false);
     setUnreadDirectMessages({});
     setInitialUnreadForActiveChat(0);
@@ -1967,9 +1917,23 @@ function BuddyListContent() {
     setAwayReplyCooldowns({});
     setAwaySinceAt(null);
     autoAwayTriggeredRef.current = false;
-    await resetChatState();
-    await supabase.auth.signOut();
-    router.push('/');
+    let didCompleteSignOut = false;
+    try {
+      const activePresenceChannel = presenceChannelRef.current;
+      if (activePresenceChannel) {
+        await activePresenceChannel.untrack();
+        await supabase.removeChannel(activePresenceChannel);
+        presenceChannelRef.current = null;
+      }
+      await resetChatState();
+      await supabase.auth.signOut();
+      didCompleteSignOut = true;
+      router.push('/');
+    } finally {
+      if (!didCompleteSignOut) {
+        isSigningOffRef.current = false;
+      }
+    }
   };
 
   const updateStatus = useCallback(
@@ -1979,6 +1943,7 @@ function BuddyListContent() {
       }
 
       const normalizedStatus = normalizeStatusLabel(newStatus);
+      const wasAway = normalizeStatusLabel(userStatusRef.current) === AWAY_STATUS;
       const normalizedAwayMessage = (message ?? '').trim();
       const nextAwayMessage = normalizedStatus === AWAY_STATUS ? normalizedAwayMessage : '';
       const resolvedStatusAwayMessage =
@@ -2008,9 +1973,14 @@ function BuddyListContent() {
       setAwaySinceAt((previous) =>
         normalizedStatus === AWAY_STATUS ? previous ?? new Date().toISOString() : null,
       );
+      if (!wasAway && normalizedStatus === AWAY_STATUS) {
+        playSound(BUDDY_GOING_AWAY_SOUND);
+      } else if (wasAway && normalizedStatus !== AWAY_STATUS) {
+        playSound(BUDDY_SIGN_ON_SOUND);
+      }
       return true;
     },
-    [userId],
+    [playSound, userId],
   );
 
   const openAwayModal = useCallback(() => {
@@ -2856,6 +2826,9 @@ function BuddyListContent() {
         key={buddy.id}
         type="button"
         onClick={() => handleOpenChat(buddy.id)}
+        data-testid={`dm-row-${buddy.id}`}
+        data-unread-dm={unreadDirectCount}
+        data-screenname={buddy.screenname}
         className={`group flex min-h-[44px] w-full items-center justify-between border-b border-[#edf2f8] px-3 py-2 text-left transition ${
           isSelected
             ? 'bg-[#316ac5] text-white'
@@ -2899,6 +2872,8 @@ function BuddyListContent() {
         </div>
         {unreadDirectCount > 0 ? (
           <span
+            data-testid={`dm-unread-${buddy.id}`}
+            aria-label={`Unread from ${buddy.screenname}: ${unreadDirectCount}`}
             className={`ml-2 shrink-0 rounded-full border border-white bg-gradient-to-b from-red-400 to-red-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm shadow-black/50 ${
               isSelected ? '' : 'aim-unread-badge-pulse'
             }`}

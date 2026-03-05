@@ -57,12 +57,27 @@ A retro AIM-style messaging app built with Next.js + Supabase, now mobile-first 
 
 ## Environment Variables
 
-Create `.env.local` with:
+Copy `.env.example` to `.env.local`, then fill in values:
+
+```bash
+cp .env.example .env.local
+```
+
+`.env.local` should contain:
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...
+```
+
+Optional E2E (Playwright) env vars for seeded test users:
+
+```bash
+PLAYWRIGHT_USER_A_SCREENNAME=...
+PLAYWRIGHT_USER_A_PASSWORD=...
+PLAYWRIGHT_USER_B_SCREENNAME=...
+PLAYWRIGHT_USER_B_PASSWORD=...
 ```
 
 Notes:
@@ -205,6 +220,8 @@ Recovery model:
 ```bash
 npm run lint
 npm run build
+npm run test:unit
+npm run test:e2e
 ```
 
 ## Troubleshooting

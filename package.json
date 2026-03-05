@@ -7,6 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "npm run test:unit",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
+    "test:e2e": "playwright test",
     "android:sync": "npx cap sync android",
     "android:bundle:release": "cd android && ./gradlew bundleRelease",
     "android:bundle:release:clean": "cd android && ./gradlew clean bundleRelease",
@@ -22,6 +26,7 @@
     "react-dom": "19.2.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.56.1",
     "@capacitor/cli": "^8.1.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
@@ -32,6 +37,7 @@
     "eslint-config-next": "16.1.6",
     "patch-package": "^8.0.1",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.4"
   }
 }
