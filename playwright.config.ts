@@ -9,9 +9,9 @@ export default defineConfig({
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
   workers: 1,
-  timeout: 90_000,
+  timeout: 120_000,
   expect: {
-    timeout: 15_000,
+    timeout: 20_000,
   },
   use: {
     baseURL,

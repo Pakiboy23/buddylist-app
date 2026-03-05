@@ -3135,12 +3135,16 @@ function BuddyListContent() {
                     activeRooms.map((roomName) => {
                       const unreadCount = getUnreadCountForRoom(roomName);
                       const isRoomSelected = Boolean(activeRoom && sameRoom(activeRoom.name, roomName));
+                      const normalizedRoomKey = normalizeRoomKey(roomName);
 
                       return (
                         <div key={roomName} className="flex items-stretch border-b border-[#edf2f8]">
                           <button
                             type="button"
                             onClick={() => void handleOpenActiveRoom(roomName)}
+                            data-testid={`room-row-${normalizedRoomKey}`}
+                            data-room-name={roomName}
+                            data-room-unread={unreadCount}
                             className="group flex min-h-[44px] flex-1 items-center justify-between px-3 py-2 text-left text-[#1e395b] transition hover:bg-[#316ac5] hover:text-white"
                           >
                             <div className="flex min-w-0 items-center gap-1.5">
@@ -3151,6 +3155,8 @@ function BuddyListContent() {
                             </div>
                             {unreadCount > 0 ? (
                               <span
+                                data-testid={`room-unread-${normalizedRoomKey}`}
+                                aria-label={`Unread in ${roomName}: ${unreadCount}`}
                                 className={`ml-2 shrink-0 rounded-full border border-white bg-gradient-to-b from-red-400 to-red-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm shadow-black/50 ${
                                   isRoomSelected ? '' : 'aim-unread-badge-pulse'
                                 }`}
