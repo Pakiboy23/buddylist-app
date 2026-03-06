@@ -14,6 +14,7 @@ import {
 } from '@/lib/clientStorage';
 import { uploadChatMediaFile } from '@/lib/chatMedia';
 import {
+  createClientMessageId,
   createOutboxItem,
   getOutboxStorageKey,
   isOutboxItemDue,
@@ -23,6 +24,11 @@ import {
   type OutboxItem,
   saveOutbox,
 } from '@/lib/outbox';
+import {
+  DIRECT_MESSAGE_SELECT_FIELDS,
+  sendDirectMessageWithClientMessageId,
+  sendRoomMessageWithClientMessageId,
+} from '@/lib/messageIdempotency';
 import { initSoundSystem, playFallbackTone, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
 import { normalizeRoomKey, sameRoom } from '@/lib/roomName';
@@ -535,6 +541,7 @@ function BuddyListContent() {
   const [chatError, setChatError] = useState<string | null>(null);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [initialUnreadForActiveRoom, setInitialUnreadForActiveRoom] = useState(0);
+  const [activeRoomReloadToken, setActiveRoomReloadToken] = useState(0);
   const [outboxItems, setOutboxItems] = useState<OutboxItem[]>([]);
 
   const hasPresenceSyncedRef = useRef(false);
@@ -874,15 +881,12 @@ function BuddyListContent() {
         }
 
         if (item.type === 'dm') {
-          const { data, error } = await supabase
-            .from('messages')
-            .insert({
-              sender_id: userId,
-              receiver_id: item.targetId,
-              content: item.content,
-            })
-            .select('id,sender_id,receiver_id,content,created_at,edited_at,deleted_at,deleted_by')
-            .single();
+          const { data, error } = await sendDirectMessageWithClientMessageId({
+            senderId: userId,
+            receiverId: item.targetId,
+            content: item.content,
+            clientMessageId: item.id,
+          });
 
           if (error) {
             nextItems = nextItems.map((candidate) =>
@@ -907,16 +911,20 @@ function BuddyListContent() {
           continue;
         }
 
-        const { error } = await supabase.from('room_messages').insert({
-          room_id: item.targetId,
-          sender_id: userId,
+        const { data, error } = await sendRoomMessageWithClientMessageId({
+          roomId: item.targetId,
+          senderId: userId,
           content: item.content,
+          clientMessageId: item.id,
         });
         if (error) {
           nextItems = nextItems.map((candidate) =>
             candidate.id === item.id ? markOutboxAttemptFailure(candidate, error.message) : candidate,
           );
           continue;
+        }
+        if (activeRoom?.id === item.targetId && data) {
+          setActiveRoomReloadToken((previous) => previous + 1);
         }
         nextItems = nextItems.filter((candidate) => candidate.id !== item.id);
       }
@@ -925,7 +933,7 @@ function BuddyListContent() {
     } finally {
       isFlushingOutboxRef.current = false;
     }
-  }, [userId]);
+  }, [activeRoom?.id, userId]);
 
   useEffect(() => {
     if (!userId || typeof window === 'undefined' || typeof document === 'undefined') {
@@ -967,7 +975,7 @@ function BuddyListContent() {
   }, [flushOutbox, outboxItems.length, userId]);
 
   const queueOutboxMessage = useCallback(
-    (item: { type: 'dm' | 'room'; targetId: string; content: string }) => {
+    (item: { type: 'dm' | 'room'; targetId: string; content: string; clientMessageId?: string }) => {
       if (!userId) {
         return false;
       }
@@ -981,6 +989,7 @@ function BuddyListContent() {
         type: item.type,
         targetId: item.targetId,
         content: trimmedContent,
+        clientMessageId: item.clientMessageId,
       });
       setOutboxItems((previous) => normalizeOutboxItems([...previous, entry]));
       return true;
@@ -1575,7 +1584,7 @@ function BuddyListContent() {
       const chatFilter = `and(sender_id.eq.${userId},receiver_id.eq.${buddyId}),and(sender_id.eq.${buddyId},receiver_id.eq.${userId})`;
       const { data, error } = await supabase
         .from('messages')
-        .select('id,sender_id,receiver_id,content,created_at,edited_at,deleted_at,deleted_by')
+        .select(DIRECT_MESSAGE_SELECT_FIELDS)
         .or(chatFilter)
         .order('created_at', { ascending: true })
         .limit(200);
@@ -2359,19 +2368,17 @@ function BuddyListContent() {
         : normalizedAttachments.length === 1
           ? 'Sent an attachment.'
           : 'Sent attachments.';
+      const clientMessageId = createClientMessageId();
 
       setIsSendingMessage(true);
       setChatError(null);
 
-      const { data, error } = await supabase
-        .from('messages')
-        .insert({
-          sender_id: userId,
-          receiver_id: activeChatBuddyId,
-          content: messageContent,
-        })
-        .select('id,sender_id,receiver_id,content,created_at,edited_at,deleted_at,deleted_by')
-        .single();
+      const { data, error } = await sendDirectMessageWithClientMessageId({
+        senderId: userId,
+        receiverId: activeChatBuddyId,
+        content: messageContent,
+        clientMessageId,
+      });
 
       setIsSendingMessage(false);
 
@@ -2384,6 +2391,7 @@ function BuddyListContent() {
             type: 'dm',
             targetId: activeChatBuddyId,
             content: messageContent,
+            clientMessageId,
           });
           if (queued) {
             setChatError('Offline: message queued and will retry automatically.');
@@ -2451,11 +2459,12 @@ function BuddyListContent() {
   );
 
   const handleQueueRoomMessage = useCallback(
-    ({ roomId, content }: { roomId: string; content: string }) => {
+    ({ roomId, content, clientMessageId }: { roomId: string; content: string; clientMessageId?: string }) => {
       return queueOutboxMessage({
         type: 'room',
         targetId: roomId,
         content,
+        clientMessageId,
       });
     },
     [queueOutboxMessage],
@@ -3789,6 +3798,7 @@ function BuddyListContent() {
           currentUserScreenname={screenname}
           initialUnreadCount={initialUnreadForActiveRoom}
           initialDraft={draftCache.rooms[normalizeRoomKey(activeRoom.name)] ?? ''}
+          reloadToken={activeRoomReloadToken}
           onDraftChange={(draft) => updateRoomDraft(activeRoom.name, draft)}
           onQueueRoomMessage={handleQueueRoomMessage}
           onBack={handleBackFromRoom}

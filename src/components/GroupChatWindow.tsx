@@ -19,6 +19,11 @@ import {
   sanitizeRichTextHtml,
 } from '@/lib/richText';
 import { useChatContext } from '@/context/ChatContext';
+import { createClientMessageId } from '@/lib/outbox';
+import {
+  ROOM_MESSAGE_SELECT_FIELDS,
+  sendRoomMessageWithClientMessageId,
+} from '@/lib/messageIdempotency';
 
 interface RoomMessage {
   id: string;
@@ -26,6 +31,7 @@ interface RoomMessage {
   sender_id: string;
   content: string;
   created_at: string;
+  client_msg_id?: string | null;
   edited_at?: string | null;
   deleted_at?: string | null;
   deleted_by?: string | null;
@@ -71,10 +77,11 @@ interface GroupChatWindowProps {
   initialDraft?: string;
   typingUsers?: string[];
   onDraftChange?: (draft: string) => void;
-  onQueueRoomMessage?: (payload: { roomId: string; content: string }) => void;
+  onQueueRoomMessage?: (payload: { roomId: string; content: string; clientMessageId?: string }) => void;
   onBack: () => void;
   onLeave: () => void;
   onSignOff?: () => void;
+  reloadToken?: number;
 }
 
 const GROUP_SENDER_COLOR_CLASSES = [
@@ -109,6 +116,7 @@ export default function GroupChatWindow({
   onBack,
   onLeave,
   onSignOff,
+  reloadToken = 0,
 }: GroupChatWindowProps) {
   const { clearUnreads } = useChatContext();
   const [messages, setMessages] = useState<RoomMessage[]>([]);
@@ -359,7 +367,7 @@ export default function GroupChatWindow({
 
       const { data, error: messagesError } = await supabase
         .from('room_messages')
-        .select('id,room_id,sender_id,content,created_at,edited_at,deleted_at,deleted_by')
+        .select(ROOM_MESSAGE_SELECT_FIELDS)
         .eq('room_id', roomId)
         .order('created_at', { ascending: true })
         .limit(300);
@@ -386,7 +394,7 @@ export default function GroupChatWindow({
     return () => {
       isCancelled = true;
     };
-  }, [ensureScreennames, roomId]);
+  }, [ensureScreennames, reloadToken, roomId]);
 
   useEffect(() => {
     const roomChannel = supabase.channel(`active_chat_room:${roomId}`, {
@@ -562,28 +570,27 @@ export default function GroupChatWindow({
       : pendingAttachments.length === 1
         ? 'Sent an attachment.'
         : 'Sent attachments.';
-    const { data, error: sendError } = await supabase
-      .from('room_messages')
-      .insert({
-        room_id: roomId,
-        sender_id: currentUserId,
-        content: formatted,
-      })
-      .select('id,room_id,sender_id,content,created_at,edited_at,deleted_at,deleted_by')
-      .single();
+    const clientMessageId = createClientMessageId();
+    const { data, error: sendError } = await sendRoomMessageWithClientMessageId({
+      roomId,
+      senderId: currentUserId,
+      content: formatted,
+      clientMessageId,
+    });
 
     setIsSending(false);
 
     if (sendError) {
       const retryableNetworkError =
-        typeof navigator !== 'undefined' &&
-        !navigator.onLine &&
         pendingAttachments.length === 0 &&
-        Boolean(trimmed);
+        Boolean(trimmed) &&
+        ((typeof navigator !== 'undefined' && !navigator.onLine) ||
+          /network|fetch|offline|timeout/i.test(sendError.message));
       if (retryableNetworkError) {
         onQueueRoomMessage?.({
           roomId,
           content: formatted,
+          clientMessageId,
         });
         setDraft('');
         onDraftChange?.('');
