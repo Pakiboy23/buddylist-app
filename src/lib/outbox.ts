@@ -21,6 +21,7 @@ export interface NewOutboxItem {
   type: OutboxItemType;
   targetId: string;
   content: string;
+  clientMessageId?: string;
 }
 
 const OUTBOX_STORAGE_KEY_PREFIX = 'buddylist:outbox:v1:';
@@ -35,6 +36,12 @@ export function getOutboxStorageKey(userId: string) {
 
 function nowIsoString() {
   return new Date().toISOString();
+}
+
+export function createClientMessageId() {
+  return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
 }
 
 function computeNextAttemptIso(attempts: number) {
@@ -139,10 +146,7 @@ export function saveOutbox(userId: string, items: OutboxItem[]) {
 }
 
 export function createOutboxItem(input: NewOutboxItem): OutboxItem {
-  const id =
-    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
+  const id = input.clientMessageId?.trim() || createClientMessageId();
   const createdAt = nowIsoString();
   return {
     id,
@@ -173,4 +177,3 @@ export function isOutboxItemDue(item: OutboxItem, nowMs = Date.now()) {
   }
   return nowMs >= nextAttemptMs;
 }
-

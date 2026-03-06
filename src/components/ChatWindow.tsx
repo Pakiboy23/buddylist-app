@@ -24,6 +24,7 @@ export interface ChatMessage {
   receiver_id: string;
   content: string;
   created_at: string;
+  client_msg_id?: string | null;
   edited_at?: string | null;
   deleted_at?: string | null;
   deleted_by?: string | null;
