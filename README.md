@@ -99,6 +99,8 @@ supabase/gtm_plan.sql
 supabase/chat_rooms.sql
 supabase/password_recovery_admin.sql
 supabase/persistent_chat_state.sql
+supabase/room_participants.sql
+supabase/room_unread_fanout.sql
 supabase/dm_state.sql
 supabase/message_enhancements.sql
 supabase/chat_media.sql

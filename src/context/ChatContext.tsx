@@ -29,7 +29,6 @@ interface ChatContextValue {
   playChatSound: (type: SoundType) => void;
   joinRoom: (roomName: string) => Promise<void>;
   leaveRoom: (roomName: string) => Promise<void>;
-  incrementUnread: (roomName: string) => Promise<void>;
   clearUnreads: (roomName: string) => Promise<void>;
   resetChatState: () => Promise<void>;
   syncFromServer: () => Promise<void>;
@@ -639,46 +638,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     [syncFromServer],
   );
 
-  const incrementUnread = useCallback(
-    async (roomName: string) => {
-      const normalizedName = normalizeRoomName(roomName);
-      const roomKey = normalizeRoomKey(normalizedName);
-      if (!normalizedName || !roomKey) {
-        return;
-      }
-
-      const trackedRoom = roomsRef.current.find((room) => room.roomKey === roomKey);
-      if (!trackedRoom) {
-        return;
-      }
-
-      setRooms((previous) =>
-        sortRooms(
-          previous.map((room) =>
-            room.roomKey === roomKey
-              ? {
-                  ...room,
-                  unreadCount: room.unreadCount + 1,
-                  updatedAt: new Date().toISOString(),
-                }
-              : room,
-          ),
-        ),
-      );
-
-      if (!userIdRef.current) {
-        return;
-      }
-
-      const { error } = await supabase.rpc('bump_room_unread', { p_room_name: trackedRoom.roomName });
-      if (error) {
-        console.error('Failed to increment unread count:', error.message);
-        await syncFromServer();
-      }
-    },
-    [syncFromServer],
-  );
-
   const resetChatState = useCallback(async () => {
     deleteCachedRooms(userIdRef.current);
     setRooms([]);
@@ -708,7 +667,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       playChatSound,
       joinRoom,
       leaveRoom,
-      incrementUnread,
       clearUnreads,
       resetChatState,
       syncFromServer,
@@ -723,7 +681,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       playChatSound,
       joinRoom,
       leaveRoom,
-      incrementUnread,
       clearUnreads,
       resetChatState,
       syncFromServer,

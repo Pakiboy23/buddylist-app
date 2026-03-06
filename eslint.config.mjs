@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "test-results/**",
+    "playwright-report/**",
     // Generated Capacitor/Cordova web assets bundled into Android output.
     "android/app/src/main/assets/public/**",
   ]),

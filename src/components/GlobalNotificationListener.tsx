@@ -60,14 +60,13 @@ export default function GlobalNotificationListener() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  const { activeRooms, incrementUnread, playChatSound } = useChatContext();
+  const { activeRooms, playChatSound } = useChatContext();
 
   const currentUserIdRef = useRef(currentUserId);
   const currentUserScreennameRef = useRef(currentUserScreenname);
   const activeRoomsRef = useRef(activeRooms);
   const pathnameRef = useRef(pathname);
   const searchParamsRef = useRef(searchParams.toString());
-  const incrementUnreadRef = useRef(incrementUnread);
   const playChatSoundRef = useRef(playChatSound);
   const roomNameCacheRef = useRef<Record<string, string>>({});
   const senderNameCacheRef = useRef<Record<string, string>>({});
@@ -94,10 +93,6 @@ export default function GlobalNotificationListener() {
   useEffect(() => {
     searchParamsRef.current = searchParams.toString();
   }, [searchParams]);
-
-  useEffect(() => {
-    incrementUnreadRef.current = incrementUnread;
-  }, [incrementUnread]);
 
   useEffect(() => {
     playChatSoundRef.current = playChatSound;
@@ -454,7 +449,6 @@ export default function GlobalNotificationListener() {
               Boolean(mentionToken) &&
               previewText.toLowerCase().includes(mentionToken);
             const senderName = await resolveSenderNameById(senderId);
-            void incrementUnreadRef.current(activeRoomName);
             enqueueBanner({
               senderName: isMention ? `${senderName} (mention)` : senderName,
               messagePreview: isMention ? `Mention: ${previewText}` : previewText,
