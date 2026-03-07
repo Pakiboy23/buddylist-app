@@ -336,19 +336,19 @@ export default function Home() {
       <div className="pointer-events-none absolute -left-14 top-8 h-44 w-44 rounded-full bg-blue-200/45 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-20 right-10 h-60 w-60 rounded-full bg-cyan-200/40 blur-3xl" />
 
-      <RetroWindow title="BuddyList Messenger - Sign On">
+      <RetroWindow title="BuddyList — Secure Access">
         <form
           onSubmit={handlePrimarySubmit}
           className="mx-auto flex w-full max-w-3xl flex-col gap-4 pb-6 text-[13px] font-sans text-blue-900"
         >
-          <div className="rounded-xl border border-blue-200 bg-white/85 px-4 py-3 shadow-[0_8px_20px_rgba(11,62,143,0.12)] backdrop-blur-sm">
-            <p className="text-[15px] font-black uppercase tracking-[0.09em] text-[#0d4da3]">BuddyList Access</p>
+          <div className="rounded-[1.4rem] border border-white/65 bg-white/75 px-4 py-3 shadow-[0_16px_34px_rgba(15,23,42,0.13)] backdrop-blur-lg">
+            <p className="text-[15px] font-semibold tracking-[0.02em] text-slate-800">BuddyList Access</p>
             <p className="mt-1 text-[12px] font-semibold text-blue-700/90">
               Secure sign-on, recovery code reset, and admin ticket redemption in one place.
             </p>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 rounded-xl border border-blue-200 bg-white/70 p-2">
+          <div className="grid grid-cols-3 gap-2 rounded-2xl border border-white/60 bg-white/65 p-2 backdrop-blur-md">
             <button
               type="button"
               onClick={() => switchAuthView('sign-on')}
@@ -387,11 +387,11 @@ export default function Home() {
             </button>
           </div>
 
-          <div className="grid gap-3 rounded-xl border border-blue-200 bg-white/80 p-3 shadow-[0_12px_22px_rgba(11,62,143,0.1)] lg:grid-cols-[170px_1fr]">
-            <aside className="flex flex-col justify-between rounded-lg border border-blue-200 bg-gradient-to-b from-[#fdf3be] via-[#f8e588] to-[#ebd16d] px-3 py-3">
+          <div className="grid gap-3 rounded-[1.5rem] border border-white/65 bg-white/72 p-4 shadow-[0_18px_34px_rgba(15,23,42,0.14)] backdrop-blur-xl lg:grid-cols-[170px_1fr]">
+            <aside className="flex flex-col justify-between rounded-lg border border-blue-200 bg-white/75 backdrop-blur-sm px-3 py-3">
               <div>
-                <span className="text-[35px] leading-none">🏃</span>
-                <p className="mt-2 text-[11px] font-black uppercase tracking-[0.12em] text-[#0d4da3]">AIM Style</p>
+                <span className="text-[35px] leading-none">✦</span>
+                <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Premium UI</p>
               </div>
               <div className="mt-5 rounded-md border border-blue-200 bg-white/70 px-2 py-2 text-[11px] font-semibold text-blue-800">
                 <p>{authView === 'sign-on' ? (isSignUp ? 'Create mode' : 'Sign-on mode') : 'Recovery mode'}</p>
