@@ -2783,17 +2783,13 @@ function BuddyListContent() {
         statusMessage: activeChatBuddy.status_msg,
       }).statusMessage
     : null;
-  const xpRaisedButtonClass =
-    'min-h-[32px] border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-2 text-[11px] font-bold text-[#1e395b] disabled:opacity-60 active:border-t-[#808080] active:border-l-[#808080] active:border-r-white active:border-b-white';
-  const xpGroupHeaderClass =
-    'flex min-h-[38px] w-full items-center gap-2 border-y border-[#c3d4e6] bg-[#e6eff8] px-3 py-2 text-left text-[12px] font-bold text-[#1e395b]';
-  const xpModalFrameClass =
-    'border-2 border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] p-1 shadow-[2px_2px_0_rgba(0,0,0,0.25)]';
-  const xpModalBodyClass = 'space-y-3 px-2 pb-2 text-[11px] text-[#1e395b]';
-  const xpModalInputClass =
-    'w-full border border-[#7f9db9] border-t-[#808080] border-l-[#808080] border-r-white border-b-white bg-white px-2 py-1.5 text-[11px] focus:outline-none';
-  const xpModalButtonClass =
-    'min-h-[30px] border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-3 text-[11px] font-bold text-[#1e395b]';
+  const secondaryButtonClass = 'aim-button-secondary';
+  const sectionHeaderClass = 'aim-section-header';
+  const modalFrameClass = 'aim-modal-frame';
+  const modalHeaderClass = 'aim-modal-header';
+  const modalBodyClass = 'aim-modal-body space-y-3';
+  const modalInputClass = 'aim-control';
+  const modalButtonClass = 'aim-button-secondary';
   const showSplitPresenceSections = buddySortMode === 'online_then_alpha';
   const onlineBuddiesSorted = alphabeticallySortedAcceptedBuddies.filter((buddy) => buddy.isOnline);
   const offlineBuddiesSorted = alphabeticallySortedAcceptedBuddies.filter((buddy) => !buddy.isOnline);
@@ -2838,11 +2834,7 @@ function BuddyListContent() {
         data-testid={`dm-row-${buddy.id}`}
         data-unread-dm={unreadDirectCount}
         data-screenname={buddy.screenname}
-        className={`group flex min-h-[44px] w-full items-center justify-between border-b border-[#edf2f8] px-3 py-2 text-left transition ${
-          isSelected
-            ? 'bg-[#316ac5] text-white'
-            : 'text-[#1e395b] hover:bg-[#316ac5] hover:text-white'
-        }`}
+        className={`aim-list-row group ${isSelected ? 'aim-list-row-active' : ''}`}
       >
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">
@@ -2854,10 +2846,10 @@ function BuddyListContent() {
                 isSelected
                   ? 'border-white bg-white'
                   : isBuddyAway
-                    ? 'border-[#8a8a8a] bg-[#f0d75d]'
+                    ? 'border-slate-400 bg-amber-300'
                     : buddy.isOnline
-                      ? 'border-[#2b8f3f] bg-[#35b556]'
-                      : 'border-[#6f6f6f] bg-[#b9b9b9]'
+                      ? 'border-emerald-700 bg-emerald-500'
+                      : 'border-slate-500 bg-slate-300'
               }`}
             />
             <span
@@ -2883,9 +2875,7 @@ function BuddyListContent() {
           <span
             data-testid={`dm-unread-${buddy.id}`}
             aria-label={`Unread from ${buddy.screenname}: ${unreadDirectCount}`}
-            className={`ml-2 shrink-0 rounded-full border border-white bg-gradient-to-b from-red-400 to-red-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm shadow-black/50 ${
-              isSelected ? '' : 'aim-unread-badge-pulse'
-            }`}
+            className={`aim-pill-unread ml-2 ${isSelected ? '' : 'aim-unread-badge-pulse'}`}
           >
             {unreadDirectCount}
           </span>
@@ -2893,8 +2883,7 @@ function BuddyListContent() {
       </button>
     );
   };
-  const xpModalPrimaryButtonClass =
-    'min-h-[30px] border border-[#1f4f9e] border-t-[#a7c7ff] border-l-[#a7c7ff] border-r-[#173f80] border-b-[#173f80] bg-gradient-to-b from-[#86bbff] to-[#3579d6] px-3 text-[11px] font-bold text-white [text-shadow:0_1px_0_rgba(0,0,0,0.35)] disabled:opacity-60';
+  const modalPrimaryButtonClass = 'aim-button-primary';
 
   const handleOpenImFromActionBar = () => {
     const fallbackBuddyId =
@@ -2929,38 +2918,46 @@ function BuddyListContent() {
   );
 
   return (
-    <main className="h-[100dvh] overflow-hidden">
+    <main className="h-[100dvh] overflow-hidden bg-transparent">
       <RetroWindow
         title="Buddy List"
-        variant="xp_shell"
-        xpTitleText="Buddy List"
-        onXpSignOff={() => setIsHeaderMenuOpen((previous) => !previous)}
+        headerActions={
+          <button
+            type="button"
+            onClick={() => setIsHeaderMenuOpen((previous) => !previous)}
+            className="aim-window-icon-button"
+            aria-label="Buddy list actions"
+            title="Buddy list actions"
+          >
+            ⋯
+          </button>
+        }
       >
-        <div className="relative flex h-full min-h-0 flex-col font-[Tahoma,Arial,sans-serif] text-[11px] text-[#1e395b]">
+        <div className="aim-glass-shell relative flex h-full min-h-0 flex-col text-[12px] text-slate-700">
           {isHeaderMenuOpen ? (
             <div className="fixed inset-0 z-30" onClick={() => setIsHeaderMenuOpen(false)}>
               <div
-                className="absolute right-2 top-[calc(env(safe-area-inset-top)+3.2rem)] w-44 border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] p-1 shadow-[2px_2px_0_rgba(0,0,0,0.18)]"
+                className="aim-menu-surface absolute right-2 top-[calc(env(safe-area-inset-top)+3.2rem)] w-52 p-1.5"
                 onClick={(event) => event.stopPropagation()}
               >
                 <button
                   type="button"
                   onClick={() => void handleSignOff()}
-                  className="block w-full border border-transparent px-2 py-1 text-left text-[11px] font-bold text-[#1e395b] hover:border-[#1f4f9e] hover:bg-[#316ac5] hover:text-white"
+                  className="aim-menu-item"
                 >
                   Sign Off
                 </button>
                 <button
                   type="button"
                   onClick={openAwayModal}
-                  className="mt-0.5 block w-full border border-transparent px-2 py-1 text-left text-[11px] font-bold text-[#1e395b] hover:border-[#1f4f9e] hover:bg-[#316ac5] hover:text-white"
+                  className="aim-menu-item mt-0.5"
                 >
                   Set Away Message
                 </button>
                 <button
                   type="button"
                   onClick={openAddWindow}
-                  className="mt-0.5 block w-full border border-transparent px-2 py-1 text-left text-[11px] font-bold text-[#1e395b] hover:border-[#1f4f9e] hover:bg-[#316ac5] hover:text-white"
+                  className="aim-menu-item mt-0.5"
                 >
                   Add Buddy
                 </button>
@@ -2968,7 +2965,7 @@ function BuddyListContent() {
                   <button
                     type="button"
                     onClick={handleSetupAction}
-                    className="mt-0.5 block w-full border border-transparent px-2 py-1 text-left text-[11px] font-bold text-[#1e395b] hover:border-[#1f4f9e] hover:bg-[#316ac5] hover:text-white"
+                    className="aim-menu-item mt-0.5"
                   >
                     Admin Reset
                   </button>
@@ -2978,38 +2975,38 @@ function BuddyListContent() {
           ) : null}
 
           <div className="min-h-0 flex-1 overflow-y-auto pb-20">
-            <div className="border-b border-[#d0d7e5] bg-[#f4f7fc] px-3 py-2">
+            <div className="border-b border-white/55 bg-white/35 px-4 py-3">
               {!isCurrentUserAway ? (
                 <>
-                  <p className="truncate text-[11px] font-bold text-[#1e395b]">{screenname}</p>
-                  <p className="truncate text-[11px] italic text-[#5b708f]">{statusMsg || AVAILABLE_STATUS}</p>
+                  <p className="truncate text-[11px] font-bold text-slate-700">{screenname}</p>
+                  <p className="truncate text-[11px] italic text-slate-500">{statusMsg || AVAILABLE_STATUS}</p>
                   <div className="mt-2 flex items-center gap-2">
                     <button
                       type="button"
                       disabled
-                      className="min-h-[32px] border border-[#7f7f7f] border-t-[#a7a7a7] border-l-[#a7a7a7] border-r-white border-b-white bg-[#dfe6f1] px-2 font-bold text-[#1e395b]"
+                      className={secondaryButtonClass}
                     >
                       Available
                     </button>
-                    <button type="button" onClick={openAwayModal} className={xpRaisedButtonClass}>
+                    <button type="button" onClick={openAwayModal} className={secondaryButtonClass}>
                       Set Away Message
                     </button>
                   </div>
                 </>
               ) : null}
               {awayModalError ? <p className="mt-2 font-semibold text-red-700">{awayModalError}</p> : null}
-              <div className="mt-2 flex items-center justify-between gap-2 border border-[#d0d9e8] bg-[#f8fbff] px-2 py-1.5 text-[10px] text-[#355178]">
+              <div className="aim-glass-panel-soft mt-2 flex items-center justify-between gap-2 px-3 py-2 text-[11px] text-slate-600">
                 <div className="min-w-0">
-                  <p className="font-bold uppercase tracking-wide text-[#4b668b]">Room State</p>
+                  <p className="font-semibold uppercase tracking-wide text-slate-500">Room State</p>
                   <p className="truncate">{chatSyncSummary}</p>
                   <p className="truncate">{outboxSummary}</p>
                   {lastSyncError ? (
-                    <p className="truncate font-semibold text-[#8b2020]" title={lastSyncError}>
+                    <p className="truncate font-semibold text-red-700" title={lastSyncError}>
                       {lastSyncError}
                     </p>
                   ) : null}
                   {latestOutboxError ? (
-                    <p className="truncate font-semibold text-[#8b2020]" title={latestOutboxError}>
+                    <p className="truncate font-semibold text-red-700" title={latestOutboxError}>
                       {latestOutboxError}
                     </p>
                   ) : null}
@@ -3018,7 +3015,7 @@ function BuddyListContent() {
                   type="button"
                   onClick={() => void syncFromServer()}
                   disabled={isChatSyncBusy}
-                  className="min-h-[28px] shrink-0 border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-2 text-[10px] font-bold text-[#1e395b] disabled:opacity-60"
+                  className="aim-button-secondary shrink-0"
                 >
                   {isChatSyncBusy ? 'Syncing...' : 'Sync Now'}
                 </button>
@@ -3026,34 +3023,34 @@ function BuddyListContent() {
             </div>
 
             {isCurrentUserAway ? (
-              <div className="flex flex-col items-center space-y-1.5 border-y border-[#9e9e9e] bg-[#ffffe1] px-3 py-3 text-center">
-                <p className="text-[12px] font-semibold text-[#4d5874]">You are currently Away.</p>
+              <div className="mx-3 mt-2 flex flex-col items-center space-y-1.5 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-3 text-center">
+                <p className="text-[12px] font-semibold text-slate-600">You are currently Away.</p>
                 <p className="w-full break-words text-[11px] italic text-gray-600">
                   {resolveAwayTemplate(awayMessage || 'Away from keyboard.', screenname, screenname)}
                 </p>
                 {awaySinceAt ? (
-                  <p className="text-[10px] text-[#4d5874]">
+                  <p className="text-[10px] text-slate-500">
                     Away since {new Date(awaySinceAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 ) : null}
                 <button
                   type="button"
                   onClick={handleImBack}
-                  className={xpRaisedButtonClass}
+                  className={secondaryButtonClass}
                 >
                   I&apos;m Back
                 </button>
               </div>
             ) : null}
 
-            <div className="bg-white">
+            <div className="bg-transparent">
               <div className="select-none">
                 <button
                   type="button"
                   onClick={() => setIsBuddiesOpen((previous) => !previous)}
-                  className={xpGroupHeaderClass}
+                  className={sectionHeaderClass}
                 >
-                  <span className="inline-flex h-4 w-4 items-center justify-center border border-[#7f7f7f] bg-[#ece9d8] text-[11px] leading-none">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-slate-300 bg-white text-[11px] leading-none">
                     {isBuddiesOpen ? '-' : '+'}
                   </span>
                   <span>
@@ -3065,8 +3062,8 @@ function BuddyListContent() {
 
                 {isBuddiesOpen ? (
                   <div>
-                    <div className="flex items-center justify-between border-b border-[#dce5f2] bg-[#f7faff] px-3 py-1.5">
-                      <label htmlFor="buddy-sort-mode" className="text-[10px] font-bold uppercase tracking-wide text-[#4c6182]">
+                    <div className="flex items-center justify-between border-b border-slate-200 bg-white/60 px-3 py-2">
+                      <label htmlFor="buddy-sort-mode" className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                         Sort
                       </label>
                       <select
@@ -3074,7 +3071,7 @@ function BuddyListContent() {
                         title="Buddy Sort Mode"
                         value={buddySortMode}
                         onChange={(event) => setBuddySortMode(event.target.value as BuddySortMode)}
-                        className="min-h-[24px] border border-[#7f9db9] border-t-[#808080] border-l-[#808080] border-r-white border-b-white bg-white px-1 py-0.5 text-[11px] text-[#1e395b]"
+                        className="aim-control aim-control-inline"
                       >
                         <option value="online_then_alpha">Online then A-Z</option>
                         <option value="alpha">A-Z</option>
@@ -3095,8 +3092,8 @@ function BuddyListContent() {
                       )}
 
                     {pendingBuddies.length > 0 ? (
-                      <div className="border-b border-[#e5ecf5] px-3 py-2">
-                        <p className="font-bold text-[#536b89]">Pending ({pendingBuddies.length})</p>
+                      <div className="border-b border-slate-200 px-3 py-2">
+                        <p className="font-semibold text-slate-600">Pending ({pendingBuddies.length})</p>
                         {pendingBuddies.map((buddy) => (
                           <p key={buddy.id} className="truncate italic text-slate-500">
                             {buddy.screenname}
@@ -3113,9 +3110,9 @@ function BuddyListContent() {
                   <button
                     type="button"
                     onClick={() => setIsOfflineOpen((previous) => !previous)}
-                    className={xpGroupHeaderClass}
+                    className={sectionHeaderClass}
                   >
-                    <span className="inline-flex h-4 w-4 items-center justify-center border border-[#7f7f7f] bg-[#ece9d8] text-[11px] leading-none">
+                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-slate-300 bg-white text-[11px] leading-none">
                       {isOfflineOpen ? '-' : '+'}
                     </span>
                     <span>Direct Messages - Offline ({offlineBuddies.length}/{acceptedBuddies.length})</span>
@@ -3129,9 +3126,9 @@ function BuddyListContent() {
                 <button
                   type="button"
                   onClick={() => setIsActiveChatsOpen((previous) => !previous)}
-                  className={xpGroupHeaderClass}
+                  className={sectionHeaderClass}
                 >
-                  <span className="inline-flex h-4 w-4 items-center justify-center border border-[#7f7f7f] bg-[#ece9d8] text-[11px] leading-none">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-slate-300 bg-white text-[11px] leading-none">
                     {isActiveChatsOpen ? '-' : '+'}
                   </span>
                   <span>Group Rooms ({activeRooms.length})</span>
@@ -3147,14 +3144,14 @@ function BuddyListContent() {
                       const normalizedRoomKey = normalizeRoomKey(roomName);
 
                       return (
-                        <div key={roomName} className="flex items-stretch border-b border-[#edf2f8]">
+                        <div key={roomName} className="flex items-stretch border-b border-slate-100">
                           <button
                             type="button"
                             onClick={() => void handleOpenActiveRoom(roomName)}
                             data-testid={`room-row-${normalizedRoomKey}`}
                             data-room-name={roomName}
                             data-room-unread={unreadCount}
-                            className="group flex min-h-[44px] flex-1 items-center justify-between px-3 py-2 text-left text-[#1e395b] transition hover:bg-[#316ac5] hover:text-white"
+                            className={`aim-list-row group flex-1 ${isRoomSelected ? 'aim-list-row-active' : ''}`}
                           >
                             <div className="flex min-w-0 items-center gap-1.5">
                               <span className="aim-list-kind-chip" aria-hidden="true">
@@ -3166,9 +3163,7 @@ function BuddyListContent() {
                               <span
                                 data-testid={`room-unread-${normalizedRoomKey}`}
                                 aria-label={`Unread in ${roomName}: ${unreadCount}`}
-                                className={`ml-2 shrink-0 rounded-full border border-white bg-gradient-to-b from-red-400 to-red-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm shadow-black/50 ${
-                                  isRoomSelected ? '' : 'aim-unread-badge-pulse'
-                                }`}
+                                className={`aim-pill-unread ml-2 ${isRoomSelected ? '' : 'aim-unread-badge-pulse'}`}
                               >
                                 {unreadCount}
                               </span>
@@ -3177,7 +3172,7 @@ function BuddyListContent() {
                           <button
                             type="button"
                             onClick={() => void handleLeaveRoom(roomName)}
-                            className="my-1 mr-2 inline-flex min-h-[32px] min-w-[32px] items-center justify-center border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-2 text-[11px] font-bold text-[#7b1f1f] transition hover:bg-[#f6eaea]"
+                            className="my-1 mr-2 inline-flex min-h-[34px] min-w-[34px] items-center justify-center rounded-xl border border-red-200 bg-red-50 px-2 text-[11px] font-semibold text-red-700 transition hover:bg-red-100"
                             aria-label={`Leave ${roomName}`}
                             title="Leave room"
                           >
@@ -3192,18 +3187,18 @@ function BuddyListContent() {
             </div>
           </div>
 
-          <div className="fixed bottom-0 left-0 z-20 h-16 w-full border-t-2 border-white bg-[#eceeef] shadow-[0_-1px_2px_rgba(0,0,0,0.1)]">
+          <div className="fixed bottom-0 left-0 z-20 h-16 w-full border-t border-white/70 bg-white/65 backdrop-blur-xl shadow-[0_-6px_24px_rgba(15,23,42,0.1)]">
             <div className="grid h-full grid-cols-4 items-center gap-2 px-3 py-2">
-              <button type="button" onClick={handleOpenImFromActionBar} className={xpRaisedButtonClass}>
+              <button type="button" onClick={handleOpenImFromActionBar} className={secondaryButtonClass}>
                 IM
               </button>
-              <button type="button" onClick={openRoomsWindow} className={xpRaisedButtonClass}>
+              <button type="button" onClick={openRoomsWindow} className={secondaryButtonClass}>
                 Chat
               </button>
-              <button type="button" onClick={openAddWindow} className={xpRaisedButtonClass}>
+              <button type="button" onClick={openAddWindow} className={secondaryButtonClass}>
                 Buddy
               </button>
-              <button type="button" onClick={handleSetupAction} className={xpRaisedButtonClass}>
+              <button type="button" onClick={handleSetupAction} className={secondaryButtonClass}>
                 Setup
               </button>
             </div>
@@ -3214,12 +3209,12 @@ function BuddyListContent() {
       {isRecoverySetupOpen && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-[1px]">
           <div className="w-full max-w-md">
-            <div className={xpModalFrameClass}>
-              <div className="mb-2 flex min-h-[24px] items-center bg-gradient-to-b from-[#0058e6] via-[#3a93ff] to-[#0058e6] px-2 text-[11px] font-bold text-white">
+            <div className={modalFrameClass}>
+              <div className={modalHeaderClass}>
                 Set Recovery Code
               </div>
-              <form onSubmit={handleSaveRecoveryCode} className={xpModalBodyClass}>
-                <p className="border border-[#b79f45] bg-[#fff4c5] px-2 py-1.5 text-[11px] text-[#6e4c00]">
+              <form onSubmit={handleSaveRecoveryCode} className={modalBodyClass}>
+                <p className="aim-callout aim-callout-warning">
                   You must set a recovery code before continuing. Store this safely. It is required for forgotten
                   password recovery.
                 </p>
@@ -3232,7 +3227,7 @@ function BuddyListContent() {
                     id="recovery-code-input"
                     value={recoveryCodeDraft}
                     onChange={(event) => setRecoveryCodeDraft(event.target.value)}
-                    className={xpModalInputClass}
+                    className={modalInputClass}
                     placeholder="MY-SECRET-CODE-2026"
                     minLength={8}
                     disabled={isSavingRecoveryCode}
@@ -3250,7 +3245,7 @@ function BuddyListContent() {
                     id="recovery-code-confirm-input"
                     value={recoveryCodeConfirmDraft}
                     onChange={(event) => setRecoveryCodeConfirmDraft(event.target.value)}
-                    className={xpModalInputClass}
+                    className={modalInputClass}
                     placeholder="Repeat your code"
                     minLength={8}
                     disabled={isSavingRecoveryCode}
@@ -3258,7 +3253,7 @@ function BuddyListContent() {
                 </div>
 
                 {recoverySetupError && (
-                  <p className="border border-[#b95f5f] bg-[#ffe5e5] px-2 py-1.5 text-[11px] text-[#8b2020]">
+                  <p className="aim-callout aim-callout-danger">
                     {recoverySetupError}
                   </p>
                 )}
@@ -3267,14 +3262,14 @@ function BuddyListContent() {
                   <button
                     type="button"
                     onClick={() => void handleSignOff()}
-                    className={xpModalButtonClass}
+                    className={modalButtonClass}
                   >
                     Sign Off
                   </button>
                   <button
                     type="submit"
                     disabled={isSavingRecoveryCode}
-                    className={xpModalPrimaryButtonClass}
+                    className={modalPrimaryButtonClass}
                   >
                     {isSavingRecoveryCode ? 'Saving...' : 'Save Recovery Code'}
                   </button>
@@ -3288,14 +3283,17 @@ function BuddyListContent() {
       {isAdminResetOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-[1px]">
           <div className="w-full max-w-md">
-            <div className={xpModalFrameClass}>
-              <div className="mb-2 flex min-h-[24px] items-center bg-gradient-to-b from-[#0058e6] via-[#3a93ff] to-[#0058e6] px-2 text-[11px] font-bold text-white">
+            <div className={modalFrameClass}>
+              <div className={modalHeaderClass}>
                 Admin Password Reset
               </div>
-              <form onSubmit={handleIssueAdminResetTicket} className={xpModalBodyClass}>
-                <div className="border border-[#b95f5f] bg-[#fff0f0] px-2 py-1.5 text-[11px] text-[#8b2020]">
+              <form onSubmit={handleIssueAdminResetTicket} className={modalBodyClass}>
+                <div className="aim-callout aim-callout-danger">
                   <p className="font-bold uppercase tracking-wide">Admin Tools</p>
                   <p className="mt-1">Issue a one-time password reset ticket for out-of-band delivery.</p>
+                  <p className="mt-1 font-semibold">
+                    Issuing a new ticket immediately revokes any earlier unused ticket for this screen name.
+                  </p>
                 </div>
                 <div>
                   <label htmlFor="admin-reset-screenname" className="mb-1 block text-[12px] font-semibold text-slate-700">
@@ -3305,69 +3303,72 @@ function BuddyListContent() {
                     id="admin-reset-screenname"
                     value={adminResetScreenname}
                     onChange={(event) => setAdminResetScreenname(event.target.value)}
-                    className={xpModalInputClass}
+                    className={modalInputClass}
                     placeholder="screenname"
                     disabled={isIssuingAdminReset}
                   />
                 </div>
 
-                <label className="flex items-start gap-2 border border-[#d8c48b] bg-[#fff9e6] px-2 py-1.5 text-[11px] text-[#6e4c00]">
+                <label className="aim-callout aim-callout-warning flex items-start gap-2">
                   <input
                     type="checkbox"
                     checked={confirmAdminResetAction}
                     onChange={(event) => setConfirmAdminResetAction(event.target.checked)}
                     disabled={isIssuingAdminReset}
-                    className="mt-[1px] h-3.5 w-3.5 accent-[#8b2020]"
+                    className="mt-[1px] h-3.5 w-3.5 accent-red-700"
                   />
                   <span>I confirm this is an authorized reset request and the ticket will be shared securely.</span>
                 </label>
 
                 {adminResetError && (
-                  <p className="border border-[#b95f5f] bg-[#ffe5e5] px-2 py-1.5 text-[11px] text-[#8b2020]">
+                  <p className="aim-callout aim-callout-danger">
                     {adminResetError}
                   </p>
                 )}
 
                 {issuedAdminTicket && (
-                  <div className="border border-[#b79f45] bg-[#fff4c5] px-2 py-1.5 text-[11px] text-[#6e4c00]">
+                  <div className="aim-callout aim-callout-warning">
                     <p className="font-bold">One-time ticket (share securely):</p>
                     <p className="mt-1 break-all font-mono text-[13px] font-bold">{issuedAdminTicket.ticket}</p>
                     <p className="mt-1 text-[11px]">
                       Expires: {new Date(issuedAdminTicket.expiresAt).toLocaleString()}
+                    </p>
+                    <p className="mt-1 font-semibold">
+                      If you issue another ticket, this one stops working immediately.
                     </p>
                     <button
                       type="button"
                       onClick={() => {
                         void navigator.clipboard.writeText(issuedAdminTicket.ticket);
                       }}
-                      className="mt-2 border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-2 py-1 text-[11px] font-bold text-[#6e4c00]"
+                      className="aim-button-secondary mt-2 text-amber-800"
                     >
                       Copy Ticket
                     </button>
                   </div>
                 )}
 
-                <div className="border border-[#c8d6ea] bg-[#f4f8fe] px-2 py-1.5 text-[11px] text-[#1e395b]">
+                <div className="aim-callout aim-callout-info text-slate-700">
                   <div className="flex items-center justify-between gap-2">
                     <p className="font-bold">Recent Recovery Activity</p>
                     <button
                       type="button"
                       onClick={() => void fetchAdminAuditEntries()}
                       disabled={isLoadingAdminAudit}
-                      className="border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-2 py-1 text-[11px] font-bold text-[#1e395b] disabled:opacity-60"
+                      className="aim-button-secondary"
                     >
                       {isLoadingAdminAudit ? 'Refreshing...' : 'Refresh'}
                     </button>
                   </div>
 
                   {adminAuditError ? (
-                    <p className="mt-2 border border-[#b95f5f] bg-[#ffe5e5] px-2 py-1 text-[11px] text-[#8b2020]">
+                    <p className="aim-callout aim-callout-danger mt-2">
                       {adminAuditError}
                     </p>
                   ) : null}
 
                   {!adminAuditError && !isLoadingAdminAudit && adminAuditEntries.length === 0 ? (
-                    <p className="mt-2 italic text-[#4c6182]">No recent events.</p>
+                    <p className="mt-2 italic text-slate-500">No recent events.</p>
                   ) : null}
 
                   {adminAuditEntries.length > 0 ? (
@@ -3381,9 +3382,9 @@ function BuddyListContent() {
                             : null;
 
                         return (
-                          <div key={entry.id} className="border border-[#d2deee] bg-white px-2 py-1.5">
-                            <p className="font-bold text-[#2a4f82]">{formatAdminAuditEvent(entry.eventType)}</p>
-                            <p className="text-[10px] text-[#4c6182]">{new Date(entry.createdAt).toLocaleString()}</p>
+                          <div key={entry.id} className="aim-surface-panel px-2 py-1.5">
+                            <p className="font-bold text-slate-700">{formatAdminAuditEvent(entry.eventType)}</p>
+                            <p className="text-[10px] text-slate-500">{new Date(entry.createdAt).toLocaleString()}</p>
                             <p className="mt-0.5">
                               <span className="font-semibold">Actor:</span> {actorLabel}
                             </p>
@@ -3406,14 +3407,14 @@ function BuddyListContent() {
                   <button
                     type="button"
                     onClick={() => setIsAdminResetOpen(false)}
-                    className={xpModalButtonClass}
+                    className={modalButtonClass}
                   >
                     Close
                   </button>
                   <button
                     type="submit"
                     disabled={isIssuingAdminReset || !confirmAdminResetAction}
-                    className={xpModalPrimaryButtonClass}
+                    className={modalPrimaryButtonClass}
                   >
                     {isIssuingAdminReset ? 'Issuing...' : 'Issue Ticket'}
                   </button>
@@ -3426,162 +3427,152 @@ function BuddyListContent() {
 
       {showAwayModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4">
-          <div className="w-[22rem] max-w-[95%] border-2 border-t-white border-l-white border-r-gray-500 border-b-gray-500 bg-[#eceeef] p-1 shadow-xl">
-            <div className="mb-2 flex min-h-[28px] items-center bg-gradient-to-b from-blue-400 via-blue-500 to-blue-700 px-3">
-              <p className="text-[13px] font-bold text-white [text-shadow:0_1px_0_rgba(0,0,0,0.35)]">
-                Set Away Message
-              </p>
-            </div>
+          <div className="w-[22rem] max-w-[95%]">
+            <div className={modalFrameClass}>
+              <div className={modalHeaderClass}>Set Away Message</div>
 
-            <form onSubmit={handleSaveAwayMessage} className="space-y-3 px-2 pb-2 text-sm">
-              <div className="grid grid-cols-[90px_1fr] items-center gap-2">
-                <label htmlFor="away-label-input" className="text-[12px] font-semibold text-[#1e395b]">
-                  Enter label:
-                </label>
-                <input
-                  id="away-label-input"
-                  value={awayLabelDraft}
-                  onChange={(event) => setAwayLabelDraft(event.target.value)}
-                  className="h-8 border border-[#7F9DB9] bg-white px-2 text-[12px] shadow-[inset_1px_1px_2px_rgba(0,0,0,0.08)] focus:outline-none focus:ring-1 focus:ring-[#7F9DB9]"
-                  placeholder="Simple Plan"
-                  maxLength={40}
-                />
-              </div>
-
-              <div className="grid grid-cols-[90px_1fr] items-center gap-2">
-                <label htmlFor="away-preset-select" className="text-[12px] font-semibold text-[#1e395b]">
-                  Preset:
-                </label>
-                <select
-                  id="away-preset-select"
-                  value={selectedAwayPresetId}
-                  onChange={(event) => {
-                    const nextPresetId = event.target.value;
-                    setSelectedAwayPresetId(nextPresetId);
-                    const preset = awayPresets.find((item) => item.id === nextPresetId);
-                    if (preset) {
-                      setAwayLabelDraft(preset.label);
-                      setAwayText(preset.message);
-                    }
-                  }}
-                  className="h-8 border border-[#7F9DB9] bg-white px-2 text-[12px] shadow-[inset_1px_1px_2px_rgba(0,0,0,0.08)] focus:outline-none focus:ring-1 focus:ring-[#7F9DB9]"
-                >
-                  {awayPresets.map((preset) => (
-                    <option key={preset.id} value={preset.id}>
-                      {preset.label}
-                    </option>
-                  ))}
-                  <option value="__custom__">Custom...</option>
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="away-message-input" className="mb-1 block text-[12px] font-semibold text-[#1e395b]">
-                  Enter new Away message:
-                </label>
-                <div className="mb-1 flex items-center gap-1 border border-[#b7b7b7] bg-[#ece9d8] px-1 py-1">
-                  <span className="inline-flex h-5 w-5 items-center justify-center border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] text-[11px] font-bold text-[#1e395b]">
-                    A
-                  </span>
-                  <span className="inline-flex h-5 w-5 items-center justify-center border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] text-[11px] font-bold text-[#1e395b]">
-                    B
-                  </span>
-                  <span className="inline-flex h-5 w-5 items-center justify-center border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] text-[11px] font-bold text-[#1e395b]">
-                    I
-                  </span>
-                  <span className="inline-flex h-5 w-5 items-center justify-center border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] text-[11px] font-bold text-[#1e395b] underline">
-                    U
-                  </span>
+              <form onSubmit={handleSaveAwayMessage} className="space-y-3 px-2 pb-2 text-sm">
+                <div className="grid grid-cols-[90px_1fr] items-center gap-2">
+                  <label htmlFor="away-label-input" className="text-[12px] font-semibold text-slate-700">
+                    Enter label:
+                  </label>
+                  <input
+                    id="away-label-input"
+                    value={awayLabelDraft}
+                    onChange={(event) => setAwayLabelDraft(event.target.value)}
+                    className={modalInputClass}
+                    placeholder="Simple Plan"
+                    maxLength={40}
+                  />
                 </div>
-              </div>
 
-              <textarea
-                id="away-message-input"
-                value={awayText}
-                onChange={(event) => setAwayText(event.target.value)}
-                className="min-h-[110px] w-full resize-none border border-[#7F9DB9] bg-white p-2 text-[12px] shadow-inner focus:outline-none focus:ring-1 focus:ring-[#7F9DB9]"
-                placeholder="Use %n for buddy name, %d for date, %t for time..."
-                maxLength={320}
-              />
-
-              <div className="border border-[#5a5a5a] border-t-[#808080] border-l-[#808080] border-r-[#b6b6b6] border-b-[#b6b6b6] bg-black p-2">
-                <p className="break-words text-[13px] text-[#ffc4d8]">{awayPreview}</p>
-              </div>
-
-              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#2f405c]">
-                <label className="inline-flex items-center gap-1">
-                  <input
-                    type="checkbox"
-                    checked={saveAwayPreset}
-                    onChange={(event) => setSaveAwayPreset(event.target.checked)}
-                    className="h-4 w-4 border border-[#7f7f7f]"
-                  />
-                  Save for later use
-                </label>
-                <span className="text-[10px]">%n = Buddy, %d = Date, %t = Time</span>
-              </div>
-
-              <div className="space-y-2 border border-[#c9d4e5] bg-[#f4f7fc] p-2">
-                <label className="inline-flex items-center gap-2 text-[11px] font-semibold text-[#1e395b]">
-                  <input
-                    type="checkbox"
-                    checked={isAutoAwayEnabled}
-                    onChange={(event) => setIsAutoAwayEnabled(event.target.checked)}
-                    className="h-4 w-4 border border-[#7f7f7f]"
-                  />
-                  Auto set Away when idle
-                </label>
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] text-[#1e395b]">Idle timeout:</span>
+                <div className="grid grid-cols-[90px_1fr] items-center gap-2">
+                  <label htmlFor="away-preset-select" className="text-[12px] font-semibold text-slate-700">
+                    Preset:
+                  </label>
                   <select
-                    value={autoAwayMinutes}
-                    onChange={(event) => setAutoAwayMinutes(Number(event.target.value))}
-                    className="h-7 border border-[#7F9DB9] bg-white px-2 text-[11px] shadow-[inset_1px_1px_2px_rgba(0,0,0,0.08)] focus:outline-none"
-                    disabled={!isAutoAwayEnabled}
+                    id="away-preset-select"
+                    value={selectedAwayPresetId}
+                    onChange={(event) => {
+                      const nextPresetId = event.target.value;
+                      setSelectedAwayPresetId(nextPresetId);
+                      const preset = awayPresets.find((item) => item.id === nextPresetId);
+                      if (preset) {
+                        setAwayLabelDraft(preset.label);
+                        setAwayText(preset.message);
+                      }
+                    }}
+                    className={modalInputClass}
                   >
-                    {AUTO_AWAY_MINUTE_OPTIONS.map((minutes) => (
-                      <option key={minutes} value={minutes}>
-                        {minutes} min
+                    {awayPresets.map((preset) => (
+                      <option key={preset.id} value={preset.id}>
+                        {preset.label}
                       </option>
                     ))}
+                    <option value="__custom__">Custom...</option>
                   </select>
                 </div>
-                <label className="inline-flex items-center gap-2 text-[11px] text-[#1e395b]">
-                  <input
-                    type="checkbox"
-                    checked={autoReturnOnActivity}
-                    onChange={(event) => setAutoReturnOnActivity(event.target.checked)}
-                    className="h-4 w-4 border border-[#7f7f7f]"
-                    disabled={!isAutoAwayEnabled}
-                  />
-                  Return to Available when activity resumes
-                </label>
-              </div>
 
-              {awayModalError ? (
-                <p className="text-[12px] font-semibold text-red-700">{awayModalError}</p>
-              ) : null}
+                <div>
+                  <label htmlFor="away-message-input" className="mb-1 block text-[12px] font-semibold text-slate-700">
+                    Enter new Away message:
+                  </label>
+                  <div className="aim-glass-panel mb-1 flex items-center gap-1 px-2 py-1.5">
+                    <span className="aim-toolbar-button">A</span>
+                    <span className="aim-toolbar-button">B</span>
+                    <span className="aim-toolbar-button">I</span>
+                    <span className="aim-toolbar-button underline">U</span>
+                  </div>
+                </div>
 
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAwayModal(false);
-                    setAwayModalError(null);
-                  }}
-                  className="min-h-[34px] border-2 border-t-white border-l-white border-r-gray-500 border-b-gray-500 bg-[#eceeef] px-3 text-xs font-bold text-[#1e395b] shadow-[inset_1px_1px_0_rgba(255,255,255,0.8)]"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSavingAwayMessage}
-                  className="min-h-[34px] border-2 border-t-white border-l-white border-r-gray-500 border-b-gray-500 bg-[#eceeef] px-4 text-xs font-bold text-[#1e395b] shadow-[inset_1px_1px_0_rgba(255,255,255,0.8)] disabled:opacity-60"
-                >
-                  {isSavingAwayMessage ? 'Saving...' : "I'm Away"}
-                </button>
-              </div>
-            </form>
+                <textarea
+                  id="away-message-input"
+                  value={awayText}
+                  onChange={(event) => setAwayText(event.target.value)}
+                  className="aim-control min-h-[110px] resize-none p-3"
+                  placeholder="Use %n for buddy name, %d for date, %t for time..."
+                  maxLength={320}
+                />
+
+                <div className="rounded-xl border border-slate-800/90 bg-slate-950 p-2">
+                  <p className="break-words text-[13px] text-[#ffc4d8]">{awayPreview}</p>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600">
+                  <label className="inline-flex items-center gap-1">
+                    <input
+                      type="checkbox"
+                      checked={saveAwayPreset}
+                      onChange={(event) => setSaveAwayPreset(event.target.checked)}
+                      className="h-4 w-4 rounded border border-slate-300"
+                    />
+                    Save for later use
+                  </label>
+                  <span className="text-[10px]">%n = Buddy, %d = Date, %t = Time</span>
+                </div>
+
+                <div className="aim-glass-panel-soft space-y-2 p-3">
+                  <label className="inline-flex items-center gap-2 text-[11px] font-semibold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={isAutoAwayEnabled}
+                      onChange={(event) => setIsAutoAwayEnabled(event.target.checked)}
+                      className="h-4 w-4 rounded border border-slate-300"
+                    />
+                    Auto set Away when idle
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-slate-700">Idle timeout:</span>
+                    <select
+                      value={autoAwayMinutes}
+                      onChange={(event) => setAutoAwayMinutes(Number(event.target.value))}
+                      className="aim-control aim-control-inline"
+                      disabled={!isAutoAwayEnabled}
+                    >
+                      {AUTO_AWAY_MINUTE_OPTIONS.map((minutes) => (
+                        <option key={minutes} value={minutes}>
+                          {minutes} min
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <label className="inline-flex items-center gap-2 text-[11px] text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={autoReturnOnActivity}
+                      onChange={(event) => setAutoReturnOnActivity(event.target.checked)}
+                      className="h-4 w-4 rounded border border-slate-300"
+                      disabled={!isAutoAwayEnabled}
+                    />
+                    Return to Available when activity resumes
+                  </label>
+                </div>
+
+                {awayModalError ? (
+                  <p className="text-[12px] font-semibold text-red-700">{awayModalError}</p>
+                ) : null}
+
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAwayModal(false);
+                      setAwayModalError(null);
+                    }}
+                    className={modalButtonClass}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSavingAwayMessage}
+                    className={modalPrimaryButtonClass}
+                  >
+                    {isSavingAwayMessage ? 'Saving...' : "I'm Away"}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}
@@ -3589,8 +3580,8 @@ function BuddyListContent() {
       {showRoomsWindow && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-[1px]">
           <div className="w-full max-w-sm">
-            <div className={xpModalFrameClass}>
-              <div className="mb-2 flex min-h-[24px] items-center bg-gradient-to-b from-[#0058e6] via-[#3a93ff] to-[#0058e6] px-2 text-[11px] font-bold text-white">
+            <div className={modalFrameClass}>
+              <div className={modalHeaderClass}>
                 Join a Chat Room
               </div>
               <form onSubmit={handleJoinRoom} className="flex flex-col gap-3 px-2 pb-2 text-[11px]">
@@ -3601,13 +3592,13 @@ function BuddyListContent() {
                   id="room-name-input"
                   value={roomNameDraft}
                   onChange={(event) => setRoomNameDraft(event.target.value)}
-                  className={xpModalInputClass}
+                  className={modalInputClass}
                   placeholder="cool_kids_club"
                   maxLength={80}
                 />
                 <p className="text-[12px] text-slate-500">If the room does not exist, it will be created.</p>
                 {roomJoinError && (
-                  <p className="border border-[#b95f5f] bg-[#ffe5e5] px-2 py-1.5 text-[11px] text-[#8b2020]">
+                  <p className="aim-callout aim-callout-danger">
                     {roomJoinError}
                   </p>
                 )}
@@ -3615,14 +3606,14 @@ function BuddyListContent() {
                   <button
                     type="button"
                     onClick={() => setShowRoomsWindow(false)}
-                    className={xpModalButtonClass}
+                    className={modalButtonClass}
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={isJoiningRoom}
-                    className={xpModalPrimaryButtonClass}
+                    className={modalPrimaryButtonClass}
                   >
                     {isJoiningRoom ? 'Joining...' : 'Join'}
                   </button>
@@ -3636,17 +3627,17 @@ function BuddyListContent() {
       {activePendingRequest && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-[1px]">
           <div className="w-full max-w-sm">
-            <div className={xpModalFrameClass}>
-              <div className="mb-2 flex min-h-[24px] items-center bg-gradient-to-b from-[#0058e6] via-[#3a93ff] to-[#0058e6] px-2 text-[11px] font-bold text-white">
+            <div className={modalFrameClass}>
+              <div className={modalHeaderClass}>
                 Incoming Message
               </div>
-              <div className="flex flex-col gap-3 px-2 pb-2 text-[11px] text-[#1e395b]">
+              <div className="flex flex-col gap-3 px-2 pb-2 text-[11px] text-slate-700">
                 <p>
                   <span className="font-bold text-blue-700">{activePendingRequest.screenname}</span> is trying to
                   send you a message, but they are not on your Buddy List.
                 </p>
                 {pendingRequestError && (
-                  <p className="border border-[#b95f5f] bg-[#ffe5e5] px-2 py-1.5 text-[11px] text-[#8b2020]">
+                  <p className="aim-callout aim-callout-danger">
                     {pendingRequestError}
                   </p>
                 )}
@@ -3654,14 +3645,14 @@ function BuddyListContent() {
                   <button
                     type="button"
                     onClick={() => handleAcceptPendingRequest(activePendingRequest.senderId)}
-                    className={xpModalPrimaryButtonClass}
+                    className={modalPrimaryButtonClass}
                   >
                     Accept
                   </button>
                   <button
                     type="button"
                     onClick={() => handleDeclinePendingRequest(activePendingRequest.senderId)}
-                    className={xpModalButtonClass}
+                    className={modalButtonClass}
                   >
                     Decline
                   </button>
@@ -3669,7 +3660,7 @@ function BuddyListContent() {
                     type="button"
                     disabled={isProcessingRequestId === activePendingRequest.senderId}
                     onClick={() => void handleAddBuddyFromPendingRequest(activePendingRequest.senderId)}
-                    className={xpModalPrimaryButtonClass}
+                    className={modalPrimaryButtonClass}
                   >
                     {isProcessingRequestId === activePendingRequest.senderId ? 'Adding...' : 'Add Buddy'}
                   </button>
@@ -3683,8 +3674,8 @@ function BuddyListContent() {
       {showAddWindow && (
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-[1px]">
           <div className="w-full max-w-md">
-            <div className={xpModalFrameClass}>
-              <div className="mb-2 flex min-h-[24px] items-center bg-gradient-to-b from-[#0058e6] via-[#3a93ff] to-[#0058e6] px-2 text-[11px] font-bold text-white">
+            <div className={modalFrameClass}>
+              <div className={modalHeaderClass}>
                 Add Buddy
               </div>
               <div className="flex flex-col gap-3 px-2 pb-2 text-[11px]">
@@ -3692,12 +3683,12 @@ function BuddyListContent() {
                   <input
                     value={searchTerm}
                     onChange={(event) => setSearchTerm(event.target.value)}
-                    className={xpModalInputClass}
+                    className={`${modalInputClass} flex-1`}
                     placeholder="Search screennames..."
                   />
                   <button
                     type="submit"
-                    className={xpModalPrimaryButtonClass}
+                    className={modalPrimaryButtonClass}
                   >
                     Find
                   </button>
@@ -3705,7 +3696,7 @@ function BuddyListContent() {
 
                 {searchError && <p className="text-sm text-red-700">{searchError}</p>}
 
-                <div className="max-h-56 overflow-y-auto border border-[#7f9db9] border-t-[#808080] border-l-[#808080] border-r-white border-b-white bg-white p-2">
+                <div className="aim-surface-panel max-h-56 overflow-y-auto p-2">
                   {isSearching && (
                     <p className="p-2 text-sm italic text-slate-500">Searching screennames...</p>
                   )}
@@ -3722,10 +3713,7 @@ function BuddyListContent() {
                       const isProfileAway = normalizeStatusLabel(resolvedProfileStatus.status) === AWAY_STATUS;
 
                       return (
-                        <div
-                          key={profile.id}
-                          className="mb-2 flex items-center justify-between gap-2 border border-[#d7e2f2] bg-[#f7fbff] p-2"
-                        >
+                        <div key={profile.id} className="aim-glass-panel mb-2 flex items-center justify-between gap-2 p-2">
                           <div className="min-w-0">
                             <p className="truncate font-bold">{profile.screenname || 'Unknown User'}</p>
                             <p className="truncate text-[11px] italic text-slate-500">
@@ -3738,7 +3726,7 @@ function BuddyListContent() {
                             type="button"
                             onClick={() => handleAddBuddy(profile)}
                             disabled={isAddingBuddyId === profile.id}
-                            className={xpModalPrimaryButtonClass}
+                            className={modalPrimaryButtonClass}
                           >
                             {isAddingBuddyId === profile.id ? 'Adding...' : 'Add'}
                           </button>
@@ -3751,7 +3739,7 @@ function BuddyListContent() {
                   <button
                     type="button"
                     onClick={() => setShowAddWindow(false)}
-                    className={xpModalButtonClass}
+                    className={modalButtonClass}
                   >
                     Close
                   </button>
@@ -3812,7 +3800,7 @@ function BuddyListContent() {
 
 export default function BuddyList() {
   return (
-    <Suspense fallback={<main className="h-[100dvh] overflow-hidden bg-[#f8f9fa]" />}>
+    <Suspense fallback={<main className="h-[100dvh] overflow-hidden bg-slate-50" />}>
       <BuddyListContent />
     </Suspense>
   );

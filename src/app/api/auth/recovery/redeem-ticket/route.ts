@@ -24,7 +24,8 @@ interface RedeemTicketBody {
   newPassword?: string;
 }
 
-const INVALID_TICKET_MESSAGE = 'Invalid screen name or reset ticket.';
+const INVALID_TICKET_MESSAGE =
+  'Invalid screen name or reset ticket. If a newer admin ticket was issued, older tickets are revoked.';
 const TICKET_FLOW_RATE_LIMIT_PREFIX = 'ticket_redeem';
 const TOO_MANY_ATTEMPTS_MESSAGE = 'Too many attempts. Try again shortly.';
 
