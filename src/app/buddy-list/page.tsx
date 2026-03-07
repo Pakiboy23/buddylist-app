@@ -2784,16 +2784,16 @@ function BuddyListContent() {
       }).statusMessage
     : null;
   const xpRaisedButtonClass =
-    'min-h-[32px] border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-2 text-[11px] font-bold text-[#1e395b] disabled:opacity-60 active:border-t-[#808080] active:border-l-[#808080] active:border-r-white active:border-b-white';
+    'min-h-[34px] rounded-xl border border-white/65 bg-white/80 px-3 text-[12px] font-semibold text-slate-700 shadow-[0_8px_18px_rgba(15,23,42,0.08)] transition hover:bg-white disabled:opacity-60';
   const xpGroupHeaderClass =
-    'flex min-h-[38px] w-full items-center gap-2 border-y border-[#c3d4e6] bg-[#e6eff8] px-3 py-2 text-left text-[12px] font-bold text-[#1e395b]';
+    'flex min-h-[38px] w-full items-center gap-2 border-y border-white/55 bg-white/45 px-3 py-2 text-left text-[12px] font-semibold text-slate-700';
   const xpModalFrameClass =
-    'border-2 border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] p-1 shadow-[2px_2px_0_rgba(0,0,0,0.25)]';
-  const xpModalBodyClass = 'space-y-3 px-2 pb-2 text-[11px] text-[#1e395b]';
+    'rounded-[1.4rem] border border-white/60 bg-white/90 p-2 shadow-[0_24px_42px_rgba(15,23,42,0.2)] backdrop-blur-xl';
+  const xpModalBodyClass = 'space-y-3 px-2 pb-2 text-[12px] text-slate-700';
   const xpModalInputClass =
-    'w-full border border-[#7f9db9] border-t-[#808080] border-l-[#808080] border-r-white border-b-white bg-white px-2 py-1.5 text-[11px] focus:outline-none';
+    'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] text-slate-700 shadow-[inset_0_1px_1px_rgba(15,23,42,0.05)] focus:outline-none focus:ring-2 focus:ring-blue-200';
   const xpModalButtonClass =
-    'min-h-[30px] border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-3 text-[11px] font-bold text-[#1e395b]';
+    'min-h-[32px] rounded-xl border border-slate-200 bg-white px-3 text-[12px] font-semibold text-slate-700 hover:bg-slate-50';
   const showSplitPresenceSections = buddySortMode === 'online_then_alpha';
   const onlineBuddiesSorted = alphabeticallySortedAcceptedBuddies.filter((buddy) => buddy.isOnline);
   const offlineBuddiesSorted = alphabeticallySortedAcceptedBuddies.filter((buddy) => !buddy.isOnline);
@@ -2894,7 +2894,7 @@ function BuddyListContent() {
     );
   };
   const xpModalPrimaryButtonClass =
-    'min-h-[30px] border border-[#1f4f9e] border-t-[#a7c7ff] border-l-[#a7c7ff] border-r-[#173f80] border-b-[#173f80] bg-gradient-to-b from-[#86bbff] to-[#3579d6] px-3 text-[11px] font-bold text-white [text-shadow:0_1px_0_rgba(0,0,0,0.35)] disabled:opacity-60';
+    'min-h-[32px] rounded-xl border border-blue-500/70 bg-gradient-to-b from-blue-500 to-blue-600 px-3 text-[12px] font-semibold text-white shadow-[0_10px_20px_rgba(37,99,235,0.32)] disabled:opacity-60';
 
   const handleOpenImFromActionBar = () => {
     const fallbackBuddyId =
@@ -2929,38 +2929,38 @@ function BuddyListContent() {
   );
 
   return (
-    <main className="h-[100dvh] overflow-hidden">
+    <main className="h-[100dvh] overflow-hidden bg-transparent">
       <RetroWindow
         title="Buddy List"
         variant="xp_shell"
         xpTitleText="Buddy List"
         onXpSignOff={() => setIsHeaderMenuOpen((previous) => !previous)}
       >
-        <div className="relative flex h-full min-h-0 flex-col font-[Tahoma,Arial,sans-serif] text-[11px] text-[#1e395b]">
+        <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-[1.6rem] border border-white/45 bg-white/50 text-[12px] text-slate-700 shadow-[0_20px_44px_rgba(15,23,42,0.14)] backdrop-blur-2xl">
           {isHeaderMenuOpen ? (
             <div className="fixed inset-0 z-30" onClick={() => setIsHeaderMenuOpen(false)}>
               <div
-                className="absolute right-2 top-[calc(env(safe-area-inset-top)+3.2rem)] w-44 border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] p-1 shadow-[2px_2px_0_rgba(0,0,0,0.18)]"
+                className="absolute right-2 top-[calc(env(safe-area-inset-top)+3.2rem)] w-52 rounded-2xl border border-white/60 bg-white/85 p-1.5 shadow-[0_18px_40px_rgba(15,23,42,0.18)] backdrop-blur-xl"
                 onClick={(event) => event.stopPropagation()}
               >
                 <button
                   type="button"
                   onClick={() => void handleSignOff()}
-                  className="block w-full border border-transparent px-2 py-1 text-left text-[11px] font-bold text-[#1e395b] hover:border-[#1f4f9e] hover:bg-[#316ac5] hover:text-white"
+                  className="block w-full rounded-xl border border-transparent px-3 py-2 text-left text-[12px] font-semibold text-slate-700 hover:bg-blue-50"
                 >
                   Sign Off
                 </button>
                 <button
                   type="button"
                   onClick={openAwayModal}
-                  className="mt-0.5 block w-full border border-transparent px-2 py-1 text-left text-[11px] font-bold text-[#1e395b] hover:border-[#1f4f9e] hover:bg-[#316ac5] hover:text-white"
+                  className="mt-0.5 block w-full rounded-xl border border-transparent px-3 py-2 text-left text-[12px] font-semibold text-slate-700 hover:bg-blue-50"
                 >
                   Set Away Message
                 </button>
                 <button
                   type="button"
                   onClick={openAddWindow}
-                  className="mt-0.5 block w-full border border-transparent px-2 py-1 text-left text-[11px] font-bold text-[#1e395b] hover:border-[#1f4f9e] hover:bg-[#316ac5] hover:text-white"
+                  className="mt-0.5 block w-full rounded-xl border border-transparent px-3 py-2 text-left text-[12px] font-semibold text-slate-700 hover:bg-blue-50"
                 >
                   Add Buddy
                 </button>
@@ -2968,7 +2968,7 @@ function BuddyListContent() {
                   <button
                     type="button"
                     onClick={handleSetupAction}
-                    className="mt-0.5 block w-full border border-transparent px-2 py-1 text-left text-[11px] font-bold text-[#1e395b] hover:border-[#1f4f9e] hover:bg-[#316ac5] hover:text-white"
+                    className="mt-0.5 block w-full rounded-xl border border-transparent px-3 py-2 text-left text-[12px] font-semibold text-slate-700 hover:bg-blue-50"
                   >
                     Admin Reset
                   </button>
@@ -2978,7 +2978,7 @@ function BuddyListContent() {
           ) : null}
 
           <div className="min-h-0 flex-1 overflow-y-auto pb-20">
-            <div className="border-b border-[#d0d7e5] bg-[#f4f7fc] px-3 py-2">
+            <div className="border-b border-white/55 bg-white/35 px-4 py-3">
               {!isCurrentUserAway ? (
                 <>
                   <p className="truncate text-[11px] font-bold text-[#1e395b]">{screenname}</p>
