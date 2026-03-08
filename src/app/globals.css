@@ -33,15 +33,15 @@ body {
   -webkit-touch-callout: none;
 }
 
-.aim-rich-html {
+.rich-html {
   word-break: break-word;
 }
 
-.aim-rich-html span {
+.rich-html span {
   white-space: pre-wrap;
 }
 
-@keyframes aim-unread-pulse {
+@keyframes unread-pulse {
   0% {
     transform: scale(1);
     box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.45);
@@ -56,11 +56,11 @@ body {
   }
 }
 
-.aim-unread-badge-pulse {
-  animation: aim-unread-pulse 1.45s ease-in-out infinite;
+.unread-badge-pulse {
+  animation: unread-pulse 1.45s ease-in-out infinite;
 }
 
-.aim-list-kind-chip {
+.list-kind-chip {
   display: inline-flex;
   min-width: 1.05rem;
   height: 1.05rem;
@@ -75,7 +75,7 @@ body {
   font-weight: 700;
 }
 
-.aim-new-messages-separator {
+.new-messages-separator {
   margin: 0.45rem 0;
   display: flex;
   align-items: center;
@@ -86,8 +86,8 @@ body {
   letter-spacing: 0.015em;
 }
 
-.aim-new-messages-separator::before,
-.aim-new-messages-separator::after {
+.new-messages-separator::before,
+.new-messages-separator::after {
   content: '';
   flex: 1 1 auto;
   border-top: 1px dashed #f59e0b;

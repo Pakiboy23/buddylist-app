@@ -1,22 +1,22 @@
 import React from 'react';
 
-interface RetroWindowProps {
+interface WindowProps {
   title: string;
   children: React.ReactNode;
   className?: string;
   style?: React.CSSProperties;
-  variant?: 'default' | 'xp_shell';
+  variant?: 'default' | 'minimal_shell';
   titleBarClassName?: string;
   showBackButton?: boolean;
   backButtonLabel?: string;
   onBack?: () => void;
   headerActions?: React.ReactNode;
-  onXpClose?: () => void;
-  onXpSignOff?: () => void;
-  xpTitleText?: string;
+  onMinimalClose?: () => void;
+  onMinimalSignOff?: () => void;
+  minimalTitleText?: string;
 }
 
-export default function RetroWindow({
+export default function Window({
   title,
   children,
   className,
@@ -27,11 +27,11 @@ export default function RetroWindow({
   backButtonLabel = 'Back',
   onBack,
   headerActions,
-  onXpClose,
-  onXpSignOff,
-  xpTitleText,
-}: RetroWindowProps) {
-  if (variant === 'xp_shell') {
+  onMinimalClose,
+  onMinimalSignOff,
+  minimalTitleText,
+}: WindowProps) {
+  if (variant === 'minimal_shell') {
     return (
       <div
         className={`flex h-[100dvh] w-full flex-col overflow-hidden bg-transparent font-["SF_Pro_Text","SF_Pro_Display","Segoe_UI",sans-serif] text-[12px] text-slate-700 ${className ?? ''}`}
@@ -42,10 +42,10 @@ export default function RetroWindow({
           style={{ paddingTop: 'env(safe-area-inset-top)' }}
         >
           <div className="z-10 flex min-w-[44px] items-center">
-            {onXpClose ? (
+            {onMinimalClose ? (
               <button
                 type="button"
-                onClick={onXpClose}
+                onClick={onMinimalClose}
                 className="inline-flex h-8 min-w-8 items-center justify-center rounded-full border border-slate-200 bg-white/80 px-1 text-[13px] font-semibold leading-none text-slate-700 transition hover:bg-white"
                 aria-label="Back"
                 title="Back"
@@ -58,13 +58,13 @@ export default function RetroWindow({
             <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-500/10 text-[11px] leading-none text-blue-600">
               ✦
             </span>
-            <span className="truncate tracking-[0.01em] text-slate-700">{xpTitleText ?? title}</span>
+            <span className="truncate tracking-[0.01em] text-slate-700">{minimalTitleText ?? title}</span>
           </div>
           <div className="z-10 ml-auto flex min-w-[44px] justify-end">
-            {onXpSignOff ? (
+            {onMinimalSignOff ? (
               <button
                 type="button"
-                onClick={onXpSignOff}
+                onClick={onMinimalSignOff}
                 className="inline-flex h-8 min-w-8 items-center justify-center rounded-full border border-slate-200 bg-white/80 px-1 text-[14px] font-semibold text-slate-700 transition hover:bg-white"
                 aria-label="Settings"
                 title="Settings"

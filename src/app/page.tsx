@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import RetroWindow from '@/components/RetroWindow';
+import Window from '@/components/Window';
 import { getSessionOrNull } from '@/lib/authClient';
 import { initSoundSystem, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
@@ -336,7 +336,7 @@ export default function Home() {
       <div className="pointer-events-none absolute -left-14 top-8 h-44 w-44 rounded-full bg-blue-200/45 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-20 right-10 h-60 w-60 rounded-full bg-cyan-200/40 blur-3xl" />
 
-      <RetroWindow title="BuddyList — Secure Access">
+      <Window title="BuddyList — Secure Access">
         <form
           onSubmit={handlePrimarySubmit}
           className="mx-auto flex w-full max-w-3xl flex-col gap-4 pb-6 text-[13px] font-sans text-blue-900"
@@ -634,7 +634,7 @@ export default function Home() {
             </button>
           )}
         </form>
-      </RetroWindow>
+      </Window>
     </main>
   );
 }

@@ -38,7 +38,7 @@ import {
   type DmStateEventType,
   type UserDmStateRowLite,
 } from '@/lib/unread-dm';
-import RetroWindow from '@/components/RetroWindow';
+import Window from '@/components/Window';
 import { useChatContext } from '@/context/ChatContext';
 
 interface UserProfile {
@@ -2846,7 +2846,7 @@ function BuddyListContent() {
       >
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className="aim-list-kind-chip" aria-hidden="true">
+            <span className="list-kind-chip" aria-hidden="true">
               @
             </span>
             <span
@@ -2884,7 +2884,7 @@ function BuddyListContent() {
             data-testid={`dm-unread-${buddy.id}`}
             aria-label={`Unread from ${buddy.screenname}: ${unreadDirectCount}`}
             className={`ml-2 shrink-0 rounded-full border border-white bg-gradient-to-b from-red-400 to-red-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm shadow-black/50 ${
-              isSelected ? '' : 'aim-unread-badge-pulse'
+              isSelected ? '' : 'unread-badge-pulse'
             }`}
           >
             {unreadDirectCount}
@@ -2930,11 +2930,11 @@ function BuddyListContent() {
 
   return (
     <main className="h-[100dvh] overflow-hidden bg-transparent">
-      <RetroWindow
+      <Window
         title="Buddy List"
-        variant="xp_shell"
-        xpTitleText="Buddy List"
-        onXpSignOff={() => setIsHeaderMenuOpen((previous) => !previous)}
+        variant="minimal_shell"
+        minimalTitleText="Buddy List"
+        onMinimalSignOff={() => setIsHeaderMenuOpen((previous) => !previous)}
       >
         <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-[1.6rem] border border-white/45 bg-white/50 text-[12px] text-slate-700 shadow-[0_20px_44px_rgba(15,23,42,0.14)] backdrop-blur-2xl">
           {isHeaderMenuOpen ? (
@@ -3157,7 +3157,7 @@ function BuddyListContent() {
                             className="group flex min-h-[44px] flex-1 items-center justify-between px-3 py-2 text-left text-slate-700 transition hover:bg-[#316ac5] hover:text-white"
                           >
                             <div className="flex min-w-0 items-center gap-1.5">
-                              <span className="aim-list-kind-chip" aria-hidden="true">
+                              <span className="list-kind-chip" aria-hidden="true">
                                 #
                               </span>
                               <span className="truncate font-bold">{roomName}</span>
@@ -3167,7 +3167,7 @@ function BuddyListContent() {
                                 data-testid={`room-unread-${normalizedRoomKey}`}
                                 aria-label={`Unread in ${roomName}: ${unreadCount}`}
                                 className={`ml-2 shrink-0 rounded-full border border-white bg-gradient-to-b from-red-400 to-red-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm shadow-black/50 ${
-                                  isRoomSelected ? '' : 'aim-unread-badge-pulse'
+                                  isRoomSelected ? '' : 'unread-badge-pulse'
                                 }`}
                               >
                                 {unreadCount}
@@ -3209,7 +3209,7 @@ function BuddyListContent() {
             </div>
           </div>
         </div>
-      </RetroWindow>
+      </Window>
 
       {isRecoverySetupOpen && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-[1px]">

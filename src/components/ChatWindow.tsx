@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import RetroWindow from '@/components/RetroWindow';
+import Window from '@/components/Window';
 import RichTextToolbar from '@/components/RichTextToolbar';
 import {
   CHAT_MEDIA_MAX_ATTACHMENTS,
@@ -487,18 +487,18 @@ export default function ChatWindow({
 
   return (
     <div className="fixed inset-0 z-40">
-      <RetroWindow
+      <Window
         title={`IM with ${buddyScreenname}`}
-        variant="xp_shell"
-        xpTitleText={`Instant Message - ${buddyScreenname}`}
-        onXpClose={onClose}
-        onXpSignOff={onSignOff}
+        variant="minimal_shell"
+        minimalTitleText={`Instant Message - ${buddyScreenname}`}
+        onMinimalClose={onClose}
+        onMinimalSignOff={onSignOff}
       >
         <div className="flex h-full min-h-0 flex-col rounded-[1.4rem] border border-white/60 bg-white/65 text-[11px] backdrop-blur-xl">
           <div className="m-2 mb-0 rounded-xl border border-white/70 bg-white/80 px-3 py-2 text-[11px] text-slate-700">
             <span className="font-bold">Conversation with {buddyScreenname}:</span>{' '}
             <span
-              className="aim-rich-html"
+              className="rich-html"
               dangerouslySetInnerHTML={{
                 __html: sanitizeRichTextHtml(buddyStatusMessage || 'No away message.'),
               }}
@@ -573,7 +573,7 @@ export default function ChatWindow({
                       }
                     >
                       {separatorIndex === index ? (
-                        <p className="aim-new-messages-separator">New messages</p>
+                        <p className="new-messages-separator">New messages</p>
                       ) : null}
                       <div className="flex flex-wrap items-baseline gap-x-1 leading-4">
                         <span className="text-[11px] text-gray-500" title={fullTimestamp}>
@@ -610,7 +610,7 @@ export default function ChatWindow({
                           <span className="italic text-gray-500">This message was deleted.</span>
                         ) : (
                           <span
-                            className="aim-rich-html text-gray-900"
+                            className="rich-html text-gray-900"
                             dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(message.content) }}
                           />
                         )}
@@ -795,7 +795,7 @@ export default function ChatWindow({
             Enter to send. Cmd/Ctrl + Enter for a new line.
           </p>
         </div>
-      </RetroWindow>
+      </Window>
     </div>
   );
 }
