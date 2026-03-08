@@ -57,7 +57,7 @@ describe('applyDmStateEvent', () => {
   });
 
   it('removes entries on DELETE and on non-positive unread', () => {
-    let unread = { 'buddy-a': 2, 'buddy-b': 1 };
+    let unread: Record<string, number> = { 'buddy-a': 2, 'buddy-b': 1 };
     unread = applyDmStateEvent(unread, 'DELETE', { buddy_id: 'buddy-b' });
     expect(unread).toEqual({ 'buddy-a': 2 });
 
@@ -66,7 +66,7 @@ describe('applyDmStateEvent', () => {
   });
 
   it('returns the same object when update is idempotent', () => {
-    const unread = { 'buddy-a': 2 };
+    const unread: Record<string, number> = { 'buddy-a': 2 };
     const next = applyDmStateEvent(unread, 'UPDATE', { buddy_id: 'buddy-a', unread_count: 2 });
     expect(next).toBe(unread);
   });
