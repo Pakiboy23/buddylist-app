@@ -983,100 +983,119 @@ export default function GroupChatWindow({
                       {separatorIndex === index ? (
                         <p className="new-messages-separator">New messages</p>
                       ) : null}
-                      <div className="flex flex-wrap items-baseline gap-x-1 leading-4">
-                        <span className="text-[11px] text-gray-500" title={fullTimestamp}>
-                          [{timestamp}]
-                        </span>
-                        <span className={`font-bold ${senderClassName}`}>
-                          {isMine ? 'You' : senderName}:
-                        </span>
-                        {isEditing ? (
-                          <span className="flex min-w-0 flex-1 items-center gap-1">
-                            <input
-                              value={editDraft}
-                              onChange={(event) => setEditDraft(event.target.value)}
-                              className="h-6 min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-1 text-[11px] focus:outline-none"
-                              maxLength={1500}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => void saveEditedMessage(message.id)}
-                              disabled={isSavingEdit || !editDraft.trim()}
-                              className="rounded-lg border border-slate-200 bg-white px-1 py-0.5 text-[10px] font-bold text-slate-700 disabled:opacity-60"
-                            >
-                              Save
-                            </button>
-                            <button
-                              type="button"
-                              onClick={cancelEditingMessage}
-                              className="rounded-lg border border-slate-200 bg-white px-1 py-0.5 text-[10px] font-bold text-slate-700"
-                            >
-                              Cancel
-                            </button>
-                          </span>
-                        ) : isDeleted ? (
-                          <span className="italic text-gray-500">This message was deleted.</span>
-                        ) : (
-                          <span
-                            className="rich-html text-gray-900"
-                            dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(message.content) }}
-                          />
-                        )}
-                        {isEdited ? <span className="text-[10px] italic text-gray-500">(edited)</span> : null}
-                        {isMine && !isDeleted && !isEditing ? (
-                          <span className="ml-1 inline-flex gap-1 text-[10px]">
-                            <button
-                              type="button"
-                              onClick={() => startEditingMessage(message)}
-                              className="text-[#1f4f9e] underline"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void softDeleteMessage(message.id)}
-                              disabled={isDeletingMessageId === message.id}
-                              className="text-red-700 underline disabled:opacity-60"
-                            >
-                              {isDeletingMessageId === message.id ? '...' : 'Delete'}
-                            </button>
+                      <div className={`flex w-full flex-col ${isMine ? 'items-end' : 'items-start'} mb-2`}>
+                        {!isMine ? (
+                          <span className={`mb-1 ml-1 text-[10px] font-medium ${senderClassName}`}>
+                            {senderName}
                           </span>
                         ) : null}
-                      </div>
-                      {!isDeleted && messageAttachments.length > 0 ? (
-                        <div className="mt-1 space-y-0.5 pl-12">
-                          {messageAttachments.map((attachment) => {
-                            const { data } = supabase.storage
-                              .from(attachment.bucket)
-                              .getPublicUrl(attachment.storage_path);
-                            return (
-                              <a
-                                key={attachment.id}
-                                href={data.publicUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="block text-[10px] text-[#1f4f9e] underline"
-                                title={attachment.storage_path}
-                              >
-                                📎 {attachment.file_name}
-                                {attachment.size_bytes ? ` (${formatFileSize(attachment.size_bytes)})` : ''}
-                              </a>
-                            );
-                          })}
-                        </div>
-                      ) : null}
-                      {!isDeleted && reactionEntries.length > 0 ? (
-                        <div className="mt-0.5 flex flex-wrap items-center gap-1 pl-12">
-                          {reactionEntries.map(([emoji, count]) => (
-                            <span
-                              key={`${message.id}-${emoji}`}
-                              className="rounded rounded-lg border border-slate-200 bg-white/70 px-1 py-[1px] text-[10px] text-slate-600"
-                            >
-                              {emoji} {count}
+                        <div
+                          className={`group relative flex max-w-[80%] flex-col px-3 py-2 shadow-sm ${
+                            isMine
+                              ? 'rounded-2xl rounded-br-[4px] bg-blue-500 text-white'
+                              : 'rounded-2xl rounded-bl-[4px] bg-white border border-slate-200 text-slate-900'
+                          }`}
+                        >
+                          {isEditing ? (
+                            <div className="flex flex-col gap-2">
+                              <input
+                                value={editDraft}
+                                onChange={(event) => setEditDraft(event.target.value)}
+                                className="min-w-0 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[13px] text-slate-900 focus:outline-none"
+                                maxLength={1500}
+                              />
+                              <div className="flex gap-2 justify-end">
+                                <button
+                                  type="button"
+                                  onClick={cancelEditingMessage}
+                                  className="rounded-lg bg-white/20 px-2 py-1 text-[11px] font-semibold"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void saveEditedMessage(message.id)}
+                                  disabled={isSavingEdit || !editDraft.trim()}
+                                  className="rounded-lg bg-white px-2 py-1 text-[11px] font-bold text-blue-600 disabled:opacity-60"
+                                >
+                                  Save
+                                </button>
+                              </div>
+                            </div>
+                          ) : isDeleted ? (
+                            <span className={`italic ${isMine ? 'text-blue-100' : 'text-slate-500'} text-[13px]`}>
+                              This message was deleted.
                             </span>
-                          ))}
+                          ) : (
+                            <span
+                              className="rich-html text-[14px] leading-snug"
+                              dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(message.content) }}
+                            />
+                          )}
+
+                          {!isDeleted && messageAttachments.length > 0 ? (
+                            <div className="mt-2 space-y-1">
+                              {messageAttachments.map((attachment) => {
+                                const { data } = supabase.storage
+                                  .from(attachment.bucket)
+                                  .getPublicUrl(attachment.storage_path);
+                                return (
+                                  <a
+                                    key={attachment.id}
+                                    href={data.publicUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className={`block truncate text-[12px] underline ${isMine ? 'text-blue-100' : 'text-blue-600'}`}
+                                    title={attachment.storage_path}
+                                  >
+                                    📎 {attachment.file_name}
+                                    {attachment.size_bytes ? ` (${formatFileSize(attachment.size_bytes)})` : ''}
+                                  </a>
+                                );
+                              })}
+                            </div>
+                          ) : null}
+
+                          {isMine && !isDeleted && !isEditing ? (
+                            <div className="absolute right-full top-1/2 mr-2 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 flex items-center gap-1.5 bg-slate-100 px-2 py-1 rounded-full shadow-sm border border-slate-200">
+                              <button
+                                type="button"
+                                onClick={() => startEditingMessage(message)}
+                                className="text-[11px] font-medium text-slate-600 hover:text-blue-600"
+                              >
+                                Edit
+                              </button>
+                              <div className="w-px h-3 bg-slate-300" />
+                              <button
+                                type="button"
+                                onClick={() => void softDeleteMessage(message.id)}
+                                disabled={isDeletingMessageId === message.id}
+                                className="text-[11px] font-medium text-red-600 hover:text-red-700 disabled:opacity-50"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          ) : null}
                         </div>
-                      ) : null}
+
+                        <div className={`mt-1 flex items-center gap-1 px-1 text-[10px] text-slate-400 ${isMine ? 'justify-end' : 'justify-start'}`}>
+                          <span title={fullTimestamp}>{timestamp}</span>
+                          {isEdited ? <span>· edited</span> : null}
+                        </div>
+
+                        {!isDeleted && reactionEntries.length > 0 ? (
+                          <div className={`mt-0.5 flex flex-wrap items-center gap-1 ${isMine ? 'justify-end' : 'justify-start'}`}>
+                            {reactionEntries.map(([emoji, count]) => (
+                              <span
+                                key={`${message.id}-${emoji}`}
+                                className="rounded-full border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] text-slate-600 shadow-sm"
+                              >
+                                {emoji} {count}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
                   );
                 })}

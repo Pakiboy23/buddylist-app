@@ -2838,31 +2838,26 @@ function BuddyListContent() {
         data-testid={`dm-row-${buddy.id}`}
         data-unread-dm={unreadDirectCount}
         data-screenname={buddy.screenname}
-        className={`group flex min-h-[44px] w-full items-center justify-between border-b border-[#edf2f8] px-3 py-2 text-left transition ${
+        className={`group flex min-h-[56px] w-full items-center justify-between border-b border-slate-200/50 bg-white px-4 py-2 text-left transition active:bg-slate-50 ${
           isSelected
-            ? 'bg-blue-600 text-white'
-            : 'text-slate-700 hover:bg-blue-50 hover:text-slate-900'
+            ? 'bg-blue-50 text-blue-900'
+            : 'text-slate-800'
         }`}
       >
         <div className="min-w-0">
-          <div className="flex items-center gap-1.5">
-            <span className="list-kind-chip" aria-hidden="true">
-              @
-            </span>
+          <div className="flex items-center gap-2">
             <span
-              className={`inline-flex h-2.5 w-2.5 items-center justify-center border ${
-                isSelected
-                  ? 'border-white bg-white'
-                  : isBuddyAway
-                    ? 'border-[#8a8a8a] bg-[#f0d75d]'
-                    : buddy.isOnline
-                      ? 'border-[#2b8f3f] bg-[#35b556]'
-                      : 'border-[#6f6f6f] bg-[#b9b9b9]'
+              className={`inline-flex h-3 w-3 items-center justify-center rounded-full ${
+                isBuddyAway
+                  ? 'bg-yellow-400'
+                  : buddy.isOnline
+                    ? 'bg-green-500'
+                    : 'bg-slate-300'
               }`}
             />
             <span
-              className={`truncate font-bold ${
-                isBuddyAway && !isSelected ? 'italic text-gray-500 group-hover:text-white' : ''
+              className={`truncate font-semibold ${
+                isBuddyAway && !isSelected ? 'text-slate-500' : ''
               }`}
             >
               {buddy.screenname}
@@ -2870,9 +2865,7 @@ function BuddyListContent() {
           </div>
           {isBuddyAway ? (
             <p
-              className={`w-full truncate pl-7 text-[10px] italic ${
-                isSelected ? 'text-blue-100' : 'text-gray-500 group-hover:text-blue-100'
-              }`}
+              className={`w-full truncate pl-5 text-[13px] text-slate-500`}
               title={awayLine}
             >
               {awayLine}
@@ -2883,9 +2876,7 @@ function BuddyListContent() {
           <span
             data-testid={`dm-unread-${buddy.id}`}
             aria-label={`Unread from ${buddy.screenname}: ${unreadDirectCount}`}
-            className={`ml-2 shrink-0 rounded-full border border-white bg-gradient-to-b from-red-400 to-red-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm shadow-black/50 ${
-              isSelected ? '' : 'unread-badge-pulse'
-            }`}
+            className={`ml-2 shrink-0 rounded-full bg-blue-600 px-2 py-0.5 text-[12px] font-bold text-white shadow-sm`}
           >
             {unreadDirectCount}
           </span>
@@ -2936,7 +2927,7 @@ function BuddyListContent() {
         minimalTitleText="Buddy List"
         onMinimalSignOff={() => setIsHeaderMenuOpen((previous) => !previous)}
       >
-        <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-[1.6rem] border border-white/45 bg-white/50 text-[12px] text-slate-700 shadow-[0_20px_44px_rgba(15,23,42,0.14)] backdrop-blur-2xl">
+        <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-slate-50 text-[15px] text-slate-900">
           {isHeaderMenuOpen ? (
             <div className="fixed inset-0 z-30" onClick={() => setIsHeaderMenuOpen(false)}>
               <div
