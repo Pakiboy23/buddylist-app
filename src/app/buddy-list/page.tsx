@@ -3219,7 +3219,7 @@ function BuddyListContent() {
                 Set Recovery Code
               </div>
               <form onSubmit={handleSaveRecoveryCode} className={xpModalBodyClass}>
-                <p className="border border-[#b79f45] bg-[#fff4c5] px-2 py-1.5 text-[11px] text-[#6e4c00]">
+                <p className="rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] text-amber-900">
                   You must set a recovery code before continuing. Store this safely. It is required for forgotten
                   password recovery.
                 </p>
@@ -3258,7 +3258,7 @@ function BuddyListContent() {
                 </div>
 
                 {recoverySetupError && (
-                  <p className="border border-[#b95f5f] bg-[#ffe5e5] px-2 py-1.5 text-[11px] text-[#8b2020]">
+                  <p className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] text-red-700">
                     {recoverySetupError}
                   </p>
                 )}
@@ -3311,25 +3311,25 @@ function BuddyListContent() {
                   />
                 </div>
 
-                <label className="flex items-start gap-2 border border-[#d8c48b] bg-[#fff9e6] px-2 py-1.5 text-[11px] text-[#6e4c00]">
+                <label className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50/80 px-2.5 py-2 text-[11px] text-amber-900">
                   <input
                     type="checkbox"
                     checked={confirmAdminResetAction}
                     onChange={(event) => setConfirmAdminResetAction(event.target.checked)}
                     disabled={isIssuingAdminReset}
-                    className="mt-[1px] h-3.5 w-3.5 accent-[#8b2020]"
+                    className="mt-[1px] h-3.5 w-3.5 accent-amber-700"
                   />
                   <span>I confirm this is an authorized reset request and the ticket will be shared securely.</span>
                 </label>
 
                 {adminResetError && (
-                  <p className="border border-[#b95f5f] bg-[#ffe5e5] px-2 py-1.5 text-[11px] text-[#8b2020]">
+                  <p className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] text-red-700">
                     {adminResetError}
                   </p>
                 )}
 
                 {issuedAdminTicket && (
-                  <div className="border border-[#b79f45] bg-[#fff4c5] px-2 py-1.5 text-[11px] text-[#6e4c00]">
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] text-amber-900">
                     <p className="font-bold">One-time ticket (share securely):</p>
                     <p className="mt-1 break-all font-mono text-[13px] font-bold">{issuedAdminTicket.ticket}</p>
                     <p className="mt-1 text-[11px]">
@@ -3347,6 +3347,7 @@ function BuddyListContent() {
                   </div>
                 )}
 
+                <div className="rounded-xl border border-slate-200 bg-white/75 px-2.5 py-2 text-[11px] text-slate-700">
                 <div className="border border-[#c8d6ea] bg-[#f4f8fe] px-2 py-1.5 text-[11px] text-slate-700">
                   <div className="flex items-center justify-between gap-2">
                     <p className="font-bold">Recent Recovery Activity</p>
@@ -3367,7 +3368,7 @@ function BuddyListContent() {
                   ) : null}
 
                   {!adminAuditError && !isLoadingAdminAudit && adminAuditEntries.length === 0 ? (
-                    <p className="mt-2 italic text-[#4c6182]">No recent events.</p>
+                    <p className="mt-2 italic text-slate-500">No recent events.</p>
                   ) : null}
 
                   {adminAuditEntries.length > 0 ? (
@@ -3381,9 +3382,9 @@ function BuddyListContent() {
                             : null;
 
                         return (
-                          <div key={entry.id} className="border border-[#d2deee] bg-white px-2 py-1.5">
-                            <p className="font-bold text-[#2a4f82]">{formatAdminAuditEvent(entry.eventType)}</p>
-                            <p className="text-[10px] text-[#4c6182]">{new Date(entry.createdAt).toLocaleString()}</p>
+                          <div key={entry.id} className="rounded-lg border border-slate-200 bg-white px-2.5 py-2">
+                            <p className="font-semibold text-slate-700">{formatAdminAuditEvent(entry.eventType)}</p>
+                            <p className="text-[10px] text-slate-500">{new Date(entry.createdAt).toLocaleString()}</p>
                             <p className="mt-0.5">
                               <span className="font-semibold">Actor:</span> {actorLabel}
                             </p>
@@ -3607,7 +3608,7 @@ function BuddyListContent() {
                 />
                 <p className="text-[12px] text-slate-500">If the room does not exist, it will be created.</p>
                 {roomJoinError && (
-                  <p className="border border-[#b95f5f] bg-[#ffe5e5] px-2 py-1.5 text-[11px] text-[#8b2020]">
+                  <p className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] text-red-700">
                     {roomJoinError}
                   </p>
                 )}
@@ -3646,7 +3647,7 @@ function BuddyListContent() {
                   send you a message, but they are not on your Buddy List.
                 </p>
                 {pendingRequestError && (
-                  <p className="border border-[#b95f5f] bg-[#ffe5e5] px-2 py-1.5 text-[11px] text-[#8b2020]">
+                  <p className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] text-red-700">
                     {pendingRequestError}
                   </p>
                 )}

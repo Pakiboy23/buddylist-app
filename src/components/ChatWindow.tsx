@@ -567,7 +567,7 @@ export default function ChatWindow({
                       className={
                         normalizedSearchQuery
                           ? isMatch
-                            ? 'rounded bg-[#fffbe7] px-1'
+                            ? 'rounded bg-amber-50 px-1'
                             : 'px-1 opacity-50'
                           : undefined
                       }
@@ -610,7 +610,7 @@ export default function ChatWindow({
                           <span className="italic text-gray-500">This message was deleted.</span>
                         ) : (
                           <span
-                            className="aim-rich-html text-gray-900"
+                            className="aim-rich-html text-slate-800"
                             dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(message.content) }}
                           />
                         )}
@@ -647,7 +647,7 @@ export default function ChatWindow({
                                 href={data.publicUrl}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="block text-[10px] text-[#1f4f9e] underline"
+                                className="block text-[10px] text-blue-600 underline"
                                 title={attachment.storage_path}
                               >
                                 📎 {attachment.file_name}
