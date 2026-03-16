@@ -3427,6 +3427,7 @@ function BuddyListContent() {
 
       {showAwayModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4">
+          <div className="w-[22rem] max-w-[95%] rounded-xl border border-slate-200 bg-white/90 p-1 shadow-xl">
           <div className="w-[22rem] max-w-[95%] rounded-[1.4rem] border border-white/70 bg-white/85 p-2 shadow-[0_28px_50px_rgba(15,23,42,0.22)] backdrop-blur-xl">
             <div className="mb-2 flex min-h-[28px] items-center bg-gradient-to-b from-blue-400 via-blue-500 to-blue-700 px-3">
               <p className="text-[13px] font-bold text-white [text-shadow:0_1px_0_rgba(0,0,0,0.35)]">
@@ -3522,6 +3523,7 @@ function BuddyListContent() {
                 <span className="text-[10px]">%n = Buddy, %d = Date, %t = Time</span>
               </div>
 
+              <div className="space-y-2 border border-[#c9d4e5] bg-[#f4f7fc] p-2">
               <div className="space-y-2 rounded-xl border border-slate-200 bg-white/70 p-3">
                 <label className="inline-flex items-center gap-2 text-[11px] font-semibold text-slate-700">
                   <input
@@ -3570,6 +3572,7 @@ function BuddyListContent() {
                     setShowAwayModal(false);
                     setAwayModalError(null);
                   }}
+                  className="min-h-[34px] rounded-xl border border-slate-200 bg-white/90 px-3 text-xs font-bold text-slate-700 shadow-[inset_1px_1px_0_rgba(255,255,255,0.8)]"
                   className="min-h-[34px] rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                 >
                   Cancel
@@ -3577,6 +3580,7 @@ function BuddyListContent() {
                 <button
                   type="submit"
                   disabled={isSavingAwayMessage}
+                  className="min-h-[34px] rounded-xl border border-slate-200 bg-white/90 px-4 text-xs font-bold text-slate-700 shadow-[inset_1px_1px_0_rgba(255,255,255,0.8)] disabled:opacity-60"
                   className="min-h-[34px] rounded-xl border border-blue-500/70 bg-gradient-to-b from-blue-500 to-blue-600 px-4 text-xs font-semibold text-white shadow-[0_10px_20px_rgba(37,99,235,0.3)] disabled:opacity-60"
                 >
                   {isSavingAwayMessage ? 'Saving...' : "I'm Away"}

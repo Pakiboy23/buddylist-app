@@ -481,6 +481,7 @@ export default function ChatWindow({
   const xpTinyToolbarButtonClass = (active = false) =>
     `inline-flex h-7 min-w-7 items-center justify-center rounded-lg border px-1.5 text-[11px] font-semibold text-slate-700 transition ${
       active
+        ? 'border-blue-300 bg-blue-50 text-blue-700'
         ? 'border-blue-400/70 bg-blue-50 text-blue-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]'
         : 'border-slate-200 bg-white hover:bg-slate-50'
     }`;
@@ -494,6 +495,8 @@ export default function ChatWindow({
         onXpClose={onClose}
         onXpSignOff={onSignOff}
       >
+        <div className="flex h-full min-h-0 flex-col rounded-[1.25rem] border border-white/60 bg-white/70 text-[12px] backdrop-blur-xl">
+          <div className="m-2 mb-0 rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-[12px] text-slate-600">
         <div className="flex h-full min-h-0 flex-col rounded-[1.4rem] border border-white/60 bg-white/65 text-[11px] backdrop-blur-xl">
           <div className="m-2 mb-0 rounded-xl border border-white/70 bg-white/80 px-3 py-2 text-[11px] text-slate-700">
             <span className="font-bold">Conversation with {buddyScreenname}:</span>{' '}
@@ -662,6 +665,7 @@ export default function ChatWindow({
                           {reactionEntries.map(([emoji, count]) => (
                             <span
                               key={`${message.id}-${emoji}`}
+                              className="rounded rounded-lg border border-slate-200 bg-white/70 px-1 py-[1px] text-[10px] text-[#355178]"
                               className="rounded rounded-lg border border-slate-200 bg-white/70 px-1 py-[1px] text-[10px] text-slate-600"
                             >
                               {emoji} {count}
@@ -785,6 +789,7 @@ export default function ChatWindow({
               <button
                 type="submit"
                 disabled={isSending || (!draft.trim() && pendingAttachments.length === 0)}
+                className="min-w-[84px] rounded-xl border border-blue-500/70 bg-gradient-to-b from-blue-500 to-blue-600 px-3 text-[12px] font-semibold text-white shadow-[0_8px_18px_rgba(37,99,235,0.32)] disabled:opacity-60"
                 className="min-w-[82px] rounded-xl border border-blue-500/70 bg-gradient-to-b from-blue-500 to-blue-600 px-3 text-[11px] font-semibold text-white shadow-[0_8px_18px_rgba(37,99,235,0.3)] disabled:opacity-60"
               >
                 {isSending ? '...' : 'Send'}
