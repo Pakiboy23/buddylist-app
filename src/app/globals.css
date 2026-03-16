@@ -1,24 +1,16 @@
 @import "tailwindcss";
 
 @theme {
-  /* AIM 4.0 / 5.5 inspired palette */
-  --color-os-grey: #d4d0c8;
-  --color-os-blue: #0d4da3;
-  --color-os-dark-grey: #7f7d79;
-  --color-os-light-grey: #edf0f7;
-  --color-aim-yellow: #F9E24C;
-  --color-os-blue-start: #3e8deb;
-  --color-os-blue-end: #0b3e8f;
-  --color-os-blue-glow: #9dc7ff;
-
-  /* Softer XP-era beveled depth */
-  --shadow-window-out: inset 1px 1px #ffffff, inset -1px -1px #6f6f6f, inset 2px 2px #f7f7f7, inset -2px -2px #a3a3a3;
-  --shadow-window-in: inset 1px 1px #6f6f6f, inset -1px -1px #ffffff, inset 2px 2px #949494, inset -2px -2px #f5f5f5;
-}
-
-body {
-  background: #f4f7fc;
-  color: #111827;
+  --color-ink-900: #111827;
+  --color-ink-700: #334155;
+  --color-ink-500: #64748b;
+  --color-glass-bg: rgba(255, 255, 255, 0.58);
+  --color-glass-stroke: rgba(255, 255, 255, 0.52);
+  --color-accent: #2563eb;
+  --color-accent-strong: #1d4ed8;
+  --radius-squircle-lg: 1.55rem;
+  --radius-squircle-md: 1.1rem;
+  --shadow-glass: 0 20px 44px rgba(15, 23, 42, 0.14), 0 8px 20px rgba(15, 23, 42, 0.08);
 }
 
 html,
@@ -30,18 +22,15 @@ body {
 }
 
 body {
+  background:
+    radial-gradient(circle at 4% 6%, #dbeafe 0%, #f8fbff 34%, #f4f8ff 58%, #e8f1ff 100%);
+  color: var(--color-ink-900);
+  font-family: "SF Pro Text", "SF Pro Display", "SF Pro Icons", "Segoe UI", -apple-system, BlinkMacSystemFont,
+    "Helvetica Neue", sans-serif;
   user-select: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   -webkit-touch-callout: none;
-}
-
-.aim-titlebar {
-  background: linear-gradient(
-    180deg,
-    var(--color-os-blue-start) 0%,
-    var(--color-os-blue) 52%,
-    var(--color-os-blue-end) 100%
-  );
-  box-shadow: inset 0 1px var(--color-os-blue-glow), inset 0 -1px #072b64;
 }
 
 .aim-rich-html {
@@ -55,10 +44,10 @@ body {
 @keyframes aim-unread-pulse {
   0% {
     transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.55);
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.45);
   }
   70% {
-    transform: scale(1.06);
+    transform: scale(1.04);
     box-shadow: 0 0 0 6px rgba(220, 38, 38, 0);
   }
   100% {
@@ -77,19 +66,20 @@ body {
   height: 1.05rem;
   align-items: center;
   justify-content: center;
-  border: 1px solid #7f7f7f;
-  background: linear-gradient(180deg, #fefefe 0%, #dbe6f8 100%);
-  color: #1e395b;
+  border: 1px solid #c8d8fb;
+  background: #f8fbff;
+  color: #315894;
+  border-radius: 999px;
   font-size: 10px;
   line-height: 1;
   font-weight: 700;
 }
 
 .aim-new-messages-separator {
-  margin: 0.2rem 0;
+  margin: 0.45rem 0;
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.55rem;
   color: #9a3412;
   font-size: 10px;
   font-weight: 700;
