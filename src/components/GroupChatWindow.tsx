@@ -802,6 +802,7 @@ export default function GroupChatWindow({
     `inline-flex h-7 min-w-7 items-center justify-center rounded-lg border px-1.5 text-[11px] font-semibold text-slate-700 transition ${
       active
         ? 'border-blue-300 bg-blue-50 text-blue-700'
+        ? 'border-blue-400/70 bg-blue-50 text-blue-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]'
         : 'border-slate-200 bg-white hover:bg-slate-50'
     }`;
 
@@ -892,6 +893,7 @@ export default function GroupChatWindow({
         onXpSignOff={onSignOff}
       >
         <div className="flex h-full min-h-0 flex-col rounded-[1.25rem] border border-white/60 bg-white/70 text-[12px] backdrop-blur-xl">
+        <div className="flex h-full min-h-0 flex-col rounded-[1.4rem] border border-white/60 bg-white/65 text-[11px] backdrop-blur-xl">
           <div className="m-2 mb-0 flex min-h-0 flex-1 flex-col overflow-y-auto rounded-xl border border-slate-200 bg-white p-2">
             <p className="mb-0.5 font-bold text-slate-700">Room: #{roomName}</p>
             <p className="mb-2 truncate text-[11px] text-slate-500">
@@ -973,10 +975,10 @@ export default function GroupChatWindow({
                       className={
                         normalizedSearchQuery
                           ? isMatch
-                            ? 'rounded bg-[#fffbe7] px-1'
+                            ? 'rounded bg-amber-50 px-1'
                             : 'px-1 opacity-50'
                           : isMentioningCurrentUser
-                            ? 'rounded bg-[#fffbe7] px-1'
+                            ? 'rounded bg-amber-50 px-1'
                             : undefined
                       }
                     >
@@ -1018,7 +1020,7 @@ export default function GroupChatWindow({
                           <span className="italic text-gray-500">This message was deleted.</span>
                         ) : (
                           <span
-                            className="aim-rich-html text-gray-900"
+                            className="aim-rich-html text-slate-800"
                             dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(message.content) }}
                           />
                         )}
@@ -1055,7 +1057,7 @@ export default function GroupChatWindow({
                                 href={data.publicUrl}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="block text-[10px] text-[#1f4f9e] underline"
+                                className="block text-[10px] text-blue-600 underline"
                                 title={attachment.storage_path}
                               >
                                 📎 {attachment.file_name}
@@ -1071,6 +1073,7 @@ export default function GroupChatWindow({
                             <span
                               key={`${message.id}-${emoji}`}
                               className="rounded rounded-lg border border-slate-200 bg-white/70 px-1 py-[1px] text-[10px] text-[#355178]"
+                              className="rounded rounded-lg border border-slate-200 bg-white/70 px-1 py-[1px] text-[10px] text-slate-600"
                             >
                               {emoji} {count}
                             </span>
@@ -1203,6 +1206,7 @@ export default function GroupChatWindow({
                 type="submit"
                 disabled={isSending || (!draft.trim() && pendingAttachments.length === 0)}
                 className="min-w-[84px] rounded-xl border border-blue-500/70 bg-gradient-to-b from-blue-500 to-blue-600 px-3 text-[12px] font-semibold text-white shadow-[0_8px_18px_rgba(37,99,235,0.32)] disabled:opacity-60"
+                className="min-w-[82px] rounded-xl border border-blue-500/70 bg-gradient-to-b from-blue-500 to-blue-600 px-3 text-[11px] font-semibold text-white shadow-[0_8px_18px_rgba(37,99,235,0.3)] disabled:opacity-60"
               >
                 {isSending ? '...' : 'Send'}
               </button>
