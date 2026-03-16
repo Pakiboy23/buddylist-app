@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import ProfileAvatar from '@/components/ProfileAvatar';
 import RetroWindow from '@/components/RetroWindow';
 import RichTextToolbar from '@/components/RichTextToolbar';
 import {
@@ -16,6 +17,7 @@ import {
   RichTextFormat,
   sanitizeRichTextHtml,
 } from '@/lib/richText';
+import type { ResolvedPresenceState } from '@/lib/presence';
 import { supabase } from '@/lib/supabase';
 
 export interface ChatMessage {
@@ -33,6 +35,11 @@ export interface ChatMessage {
 interface ChatWindowProps {
   buddyScreenname: string;
   buddyStatusMessage: string | null;
+  buddyPresenceState: ResolvedPresenceState;
+  buddyPresenceDetail: string;
+  buddyStatusLine?: string | null;
+  buddyBio?: string | null;
+  buddyIconPath?: string | null;
   currentUserId: string;
   messages: ChatMessage[];
   initialUnreadCount?: number;
@@ -43,6 +50,7 @@ interface ChatWindowProps {
   onDraftChange?: (draft: string) => void;
   onClose: () => void;
   onSignOff?: () => void;
+  onOpenProfile?: () => void;
   isSending?: boolean;
   isLoading?: boolean;
 }
@@ -60,6 +68,11 @@ interface MessageAttachmentRow extends ChatMediaAttachmentRecord {
 export default function ChatWindow({
   buddyScreenname,
   buddyStatusMessage,
+  buddyPresenceState,
+  buddyPresenceDetail,
+  buddyStatusLine = null,
+  buddyBio = null,
+  buddyIconPath = null,
   currentUserId,
   messages,
   initialUnreadCount = 0,
@@ -70,6 +83,7 @@ export default function ChatWindow({
   onDraftChange,
   onClose,
   onSignOff,
+  onOpenProfile,
   isSending = false,
   isLoading = false,
 }: ChatWindowProps) {
@@ -484,6 +498,14 @@ export default function ChatWindow({
         ? 'border-blue-400/70 bg-blue-50 text-blue-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]'
         : 'border-slate-200 bg-white/80 hover:bg-white'
     }`;
+  const presenceToneClass =
+    buddyPresenceState === 'away'
+      ? 'text-amber-500'
+      : buddyPresenceState === 'idle'
+        ? 'text-sky-500'
+        : buddyPresenceState === 'offline'
+          ? 'text-slate-400'
+          : 'text-emerald-500';
 
   return (
     <div className="fixed inset-0 z-40 chat-slide-in">
@@ -496,21 +518,39 @@ export default function ChatWindow({
       >
         <div className="flex h-full min-h-0 flex-col rounded-[1.4rem] border border-white/55 bg-white/72 text-[13px] backdrop-blur-xl shadow-[0_20px_44px_rgba(15,23,42,0.12)]">
 
-          {/* Status / away message bar */}
-          <div className="mx-3 mt-2.5 rounded-2xl border border-white/70 bg-white/88 px-3 py-2 text-[11px] text-slate-600 shadow-sm">
-            <span className="font-semibold text-slate-700">{buddyScreenname}</span>
-            {buddyStatusMessage ? (
-              <>
-                <span className="mx-1.5 text-slate-300">·</span>
-                <span
-                  className="aim-rich-html italic text-slate-500"
-                  dangerouslySetInnerHTML={{
-                    __html: sanitizeRichTextHtml(buddyStatusMessage),
-                  }}
-                />
-              </>
-            ) : null}
-          </div>
+          <button
+            type="button"
+            onClick={onOpenProfile}
+            className="mx-3 mt-2.5 rounded-2xl border border-white/70 bg-white/88 px-3 py-2.5 text-left text-[11px] text-slate-600 shadow-sm transition hover:bg-white disabled:cursor-default disabled:hover:bg-white/88"
+            disabled={!onOpenProfile}
+          >
+            <div className="flex items-center gap-3">
+              <ProfileAvatar
+                screenname={buddyScreenname}
+                buddyIconPath={buddyIconPath}
+                presenceState={buddyPresenceState}
+                size="md"
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate text-[13px] font-semibold text-slate-800">{buddyScreenname}</span>
+                  <span className={`text-[11px] font-semibold ${presenceToneClass}`}>{buddyPresenceDetail}</span>
+                </div>
+                {buddyStatusLine ? (
+                  <p className="mt-0.5 truncate text-[11px] text-slate-500">{buddyStatusLine}</p>
+                ) : null}
+                {buddyStatusMessage ? (
+                  <p
+                    className="aim-rich-html mt-0.5 truncate italic text-[11px] text-slate-400"
+                    dangerouslySetInnerHTML={{
+                      __html: sanitizeRichTextHtml(buddyStatusMessage),
+                    }}
+                  />
+                ) : null}
+                {buddyBio ? <p className="mt-1 truncate text-[11px] text-slate-400">{buddyBio}</p> : null}
+              </div>
+            </div>
+          </button>
 
           {/* Search bar */}
           <div className="mx-3 mt-1.5 rounded-2xl border border-white/65 bg-white/72 px-3 py-1.5 shadow-sm">

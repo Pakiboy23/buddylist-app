@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import ProfileAvatar from '@/components/ProfileAvatar';
 import RetroWindow from '@/components/RetroWindow';
 import RichTextToolbar from '@/components/RichTextToolbar';
 import {
@@ -56,6 +57,7 @@ interface RoomTypingPayload {
 interface RoomProfile {
   id: string;
   screenname: string | null;
+  buddy_icon_path: string | null;
 }
 
 interface RoomMessageReactionRow {
@@ -73,6 +75,7 @@ interface GroupChatWindowProps {
   roomName: string;
   currentUserId: string;
   currentUserScreenname: string;
+  currentUserBuddyIconPath?: string | null;
   initialUnreadCount?: number;
   initialDraft?: string;
   typingUsers?: string[];
@@ -108,6 +111,7 @@ export default function GroupChatWindow({
   roomName,
   currentUserId,
   currentUserScreenname,
+  currentUserBuddyIconPath = null,
   initialUnreadCount = 0,
   initialDraft = '',
   typingUsers = [],
@@ -125,6 +129,10 @@ export default function GroupChatWindow({
     [currentUserId]: currentUserScreenname,
   });
   const screennameMapRef = useRef<Record<string, string>>({});
+  const [buddyIconMap, setBuddyIconMap] = useState<Record<string, string | null>>({
+    [currentUserId]: currentUserBuddyIconPath,
+  });
+  const buddyIconMapRef = useRef<Record<string, string | null>>({});
 
   const [isLoadingMessages, setIsLoadingMessages] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -154,6 +162,21 @@ export default function GroupChatWindow({
   useEffect(() => {
     screennameMapRef.current = screennameMap;
   }, [screennameMap]);
+
+  useEffect(() => {
+    buddyIconMapRef.current = buddyIconMap;
+  }, [buddyIconMap]);
+
+  useEffect(() => {
+    setScreennameMap((previous) => ({
+      ...previous,
+      [currentUserId]: currentUserScreenname,
+    }));
+    setBuddyIconMap((previous) => ({
+      ...previous,
+      [currentUserId]: currentUserBuddyIconPath,
+    }));
+  }, [currentUserBuddyIconPath, currentUserId, currentUserScreenname]);
 
   useEffect(() => {
     setDraft(initialDraft);
@@ -319,7 +342,7 @@ export default function GroupChatWindow({
 
     const { data, error: profileError } = await supabase
       .from('users')
-      .select('id,screenname')
+      .select('id,screenname,buddy_icon_path')
       .in('id', missingIds);
 
     if (profileError) {
@@ -348,7 +371,23 @@ export default function GroupChatWindow({
       );
       return next;
     });
-  }, [currentUserId, currentUserScreenname]);
+    setBuddyIconMap((previous) => {
+      const next = {
+        ...previous,
+        [currentUserId]: currentUserBuddyIconPath,
+      };
+      for (const profile of profiles) {
+        next[profile.id] = profile.buddy_icon_path ?? null;
+      }
+      for (const missingId of missingIds) {
+        if (!(missingId in next)) {
+          next[missingId] = null;
+        }
+      }
+      buddyIconMapRef.current = next;
+      return next;
+    });
+  }, [currentUserBuddyIconPath, currentUserId, currentUserScreenname]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -896,6 +935,24 @@ export default function GroupChatWindow({
           {/* Room header: name + participants */}
           <div className="mx-3 mt-2.5 rounded-2xl border border-white/70 bg-white/88 px-3 py-2 text-[11px] shadow-sm">
             <p className="font-semibold text-slate-700">#{roomName}</p>
+            <div className="mt-2 flex items-center gap-2">
+              <div className="flex -space-x-2">
+                {participants.slice(0, 4).map((participant) => (
+                  <ProfileAvatar
+                    key={participant.userId}
+                    screenname={participant.screenname}
+                    buddyIconPath={buddyIconMap[participant.userId] ?? null}
+                    size="sm"
+                    showStatusDot={false}
+                    tone="violet"
+                    className="ring-2 ring-white"
+                  />
+                ))}
+              </div>
+              {participants.length > 4 ? (
+                <span className="text-[10px] font-semibold text-slate-400">+{participants.length - 4}</span>
+              ) : null}
+            </div>
             <p className="mt-0.5 truncate text-slate-500">
               {participants.length === 0
                 ? 'No one else here yet.'

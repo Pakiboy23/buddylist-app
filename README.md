@@ -105,6 +105,7 @@ supabase/message_idempotency.sql
 supabase/dm_state.sql
 supabase/message_enhancements.sql
 supabase/chat_media.sql
+supabase/presence_profiles.sql
 ```
 
 3. (Optional but recommended) seed at least one admin:

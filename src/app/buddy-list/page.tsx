@@ -4,7 +4,10 @@ import { FormEvent, Suspense, useCallback, useEffect, useMemo, useRef, useState 
 import { useRouter, useSearchParams } from 'next/navigation';
 import ChatWindow, { ChatMessage } from '@/components/ChatWindow';
 import GroupChatWindow from '@/components/GroupChatWindow';
+import BuddyProfileSheet from '@/components/BuddyProfileSheet';
+import ProfileAvatar from '@/components/ProfileAvatar';
 import { getAccessTokenOrNull, getSessionOrNull } from '@/lib/authClient';
+import { deleteBuddyIconFile, uploadBuddyIconFile, validateBuddyIconFile } from '@/lib/buddyIcon';
 import {
   getRaw,
   getVersionedData,
@@ -33,6 +36,12 @@ import { initSoundSystem, playFallbackTone, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
 import { normalizeRoomKey, sameRoom } from '@/lib/roomName';
 import {
+  formatPresenceSince,
+  getPresenceDetail,
+  getPresenceLabel,
+  resolvePresenceState,
+} from '@/lib/presence';
+import {
   applyDmStateEvent,
   mapRowsToUnreadDirectMessages,
   type DmStateEventType,
@@ -48,6 +57,10 @@ interface UserProfile {
   status: string | null;
   away_message: string | null;
   status_msg: string | null;
+  profile_bio: string | null;
+  buddy_icon_path: string | null;
+  idle_since: string | null;
+  last_active_at: string | null;
 }
 
 interface BuddyRelationshipRow {
@@ -61,6 +74,10 @@ interface Buddy {
   status: string | null;
   away_message: string | null;
   status_msg: string | null;
+  profile_bio: string | null;
+  buddy_icon_path: string | null;
+  idle_since: string | null;
+  last_active_at: string | null;
   relationshipStatus: 'pending' | 'accepted';
 }
 
@@ -76,6 +93,10 @@ export interface TemporaryChatProfile {
   status: string | null;
   away_message: string | null;
   status_msg: string | null;
+  profile_bio: string | null;
+  buddy_icon_path: string | null;
+  idle_since: string | null;
+  last_active_at: string | null;
 }
 
 interface ChatRoom {
@@ -115,6 +136,13 @@ interface AwayPreset {
   builtIn?: boolean;
 }
 
+interface BuddyActivityToast {
+  id: string;
+  buddyId: string;
+  message: string;
+  tone: 'online' | 'offline' | 'away' | 'back';
+}
+
 const SELF_SIGN_OFF_SOUND = '/sounds/goodbye.mp3';
 const BUDDY_SIGN_ON_SOUND = '/sounds/door_creak.mp3';
 const BUDDY_SIGN_OFF_SOUND = '/sounds/door_slam.mp3';
@@ -142,6 +170,11 @@ const AWAY_AUTO_REPLY_COOLDOWN_MS = 10 * 60 * 1000;
 const TYPING_THROTTLE_MS = 1200;
 const TYPING_TTL_MS = 3500;
 const AUTO_AWAY_MINUTE_OPTIONS = [5, 10, 15, 30] as const;
+const PROFILE_STATUS_MAX_LENGTH = 80;
+const PROFILE_BIO_MAX_LENGTH = 240;
+const PROFILE_ACTIVITY_TTL_MS = 4200;
+const PROFILE_ACTIVITY_DEDUPE_MS = 4000;
+const LAST_ACTIVE_WRITE_INTERVAL_MS = 60 * 1000;
 const DEFAULT_AWAY_PRESETS: AwayPreset[] = [
   { id: 'simple-plan', label: 'Simple Plan', message: "Hey %n, I'm away right now. Back at %t.", builtIn: true },
   { id: 'brb', label: 'BRB', message: 'Be right back. Current time: %t.', builtIn: true },
@@ -380,12 +413,23 @@ function parseLegacyStatusMessage(rawStatus: string | null | undefined): {
 
 function composeStatusMessage(status: string, awayMessage: string | null | undefined): string {
   const normalizedStatus = normalizeStatusLabel(status);
-  const trimmedAwayMessage = (awayMessage ?? '').trim();
-  if (normalizedStatus === AWAY_STATUS && trimmedAwayMessage) {
-    return `${AWAY_STATUS} - ${trimmedAwayMessage}`;
+  return normalizedStatus;
+}
+
+function looksLikeLegacyStatusMessage(input: string, resolvedStatus: string) {
+  const trimmed = input.trim();
+  if (!trimmed) {
+    return false;
   }
 
-  return normalizedStatus;
+  if (trimmed.toLowerCase() === resolvedStatus.toLowerCase()) {
+    return true;
+  }
+
+  return KNOWN_STATUSES.some((status) => {
+    const pattern = new RegExp(`^${status}\\s*(?:-|:)\\s*`, 'i');
+    return pattern.test(trimmed);
+  });
 }
 
 function resolveAwayTemplate(template: string, selfName: string, buddyName?: string): string {
@@ -412,7 +456,11 @@ function resolveStatusFields({
   const resolvedStatus = normalizeStatusLabel(status || legacy.status);
   const resolvedAwayMessage =
     (awayMessage ?? '').trim() || (resolvedStatus === AWAY_STATUS ? legacy.awayMessage : '');
-  const resolvedStatusMessage = composeStatusMessage(resolvedStatus, resolvedAwayMessage);
+  const trimmedStatusMessage = (statusMessage ?? '').trim();
+  const resolvedStatusMessage =
+    trimmedStatusMessage && !looksLikeLegacyStatusMessage(trimmedStatusMessage, resolvedStatus)
+      ? trimmedStatusMessage
+      : composeStatusMessage(resolvedStatus, resolvedAwayMessage);
 
   return {
     status: resolvedStatus,
@@ -469,11 +517,20 @@ function BuddyListContent() {
   const [statusMsg, setStatusMsg] = useState(AVAILABLE_STATUS);
   const [userStatus, setUserStatus] = useState(AVAILABLE_STATUS);
   const [awayMessage, setAwayMessage] = useState('');
+  const [profileBio, setProfileBio] = useState('');
+  const [buddyIconPath, setBuddyIconPath] = useState<string | null>(null);
+  const [idleSinceAt, setIdleSinceAt] = useState<string | null>(null);
+  const [lastActiveAt, setLastActiveAt] = useState<string | null>(null);
   const [showAwayModal, setShowAwayModal] = useState(false);
   const [awayPresets, setAwayPresets] = useState<AwayPreset[]>(DEFAULT_AWAY_PRESETS);
   const [selectedAwayPresetId, setSelectedAwayPresetId] = useState<string>(DEFAULT_AWAY_PRESETS[0].id);
   const [awayLabelDraft, setAwayLabelDraft] = useState('');
   const [awayText, setAwayText] = useState('');
+  const [profileStatusDraft, setProfileStatusDraft] = useState(AVAILABLE_STATUS);
+  const [profileBioDraft, setProfileBioDraft] = useState('');
+  const [pendingBuddyIconFile, setPendingBuddyIconFile] = useState<File | null>(null);
+  const [buddyIconPreviewUrl, setBuddyIconPreviewUrl] = useState<string | null>(null);
+  const [removeBuddyIconOnSave, setRemoveBuddyIconOnSave] = useState(false);
   const [saveAwayPreset, setSaveAwayPreset] = useState(false);
   const [isAutoAwayEnabled, setIsAutoAwayEnabled] = useState(true);
   const [autoAwayMinutes, setAutoAwayMinutes] = useState<number>(10);
@@ -508,7 +565,12 @@ function BuddyListContent() {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [isAddingBuddyId, setIsAddingBuddyId] = useState<string | null>(null);
+  const [isRemovingBuddyId, setIsRemovingBuddyId] = useState<string | null>(null);
   const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(false);
+  const [profileSheetBuddyId, setProfileSheetBuddyId] = useState<string | null>(null);
+  const [profileSheetError, setProfileSheetError] = useState<string | null>(null);
+  const [showSystemStatusSheet, setShowSystemStatusSheet] = useState(false);
+  const [buddyActivityToasts, setBuddyActivityToasts] = useState<BuddyActivityToast[]>([]);
 
   const [showRoomsWindow, setShowRoomsWindow] = useState(false);
   const [roomNameDraft, setRoomNameDraft] = useState('');
@@ -548,11 +610,21 @@ function BuddyListContent() {
   const isSigningOffRef = useRef(false);
   const activeChatBuddyIdRef = useRef<string | null>(null);
   const acceptedBuddyIdsRef = useRef<Set<string>>(new Set());
+  const buddyRowsRef = useRef<Buddy[]>([]);
   const pendingRequestsRef = useRef<PendingRequest[]>([]);
   const temporaryChatAllowedIdsRef = useRef<Set<string>>(new Set());
+  const temporaryChatProfilesRef = useRef<Record<string, TemporaryChatProfile>>({});
   const userStatusRef = useRef(userStatus);
+  const statusMsgRef = useRef(statusMsg);
   const awayMessageRef = useRef(awayMessage);
   const screennameRef = useRef(screenname);
+  const profileBioRef = useRef(profileBio);
+  const buddyIconPathRef = useRef<string | null>(buddyIconPath);
+  const idleSinceRef = useRef<string | null>(idleSinceAt);
+  const lastActivityAtRef = useRef<number>(Date.now());
+  const lastPresenceWriteAtRef = useRef(0);
+  const activityTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const lastBuddyActivityAtRef = useRef<Record<string, number>>({});
   const autoAwayTriggeredRef = useRef(false);
   const awayReplyCooldownRef = useRef<Record<string, number>>({});
   const activeDmTypingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -582,6 +654,10 @@ function BuddyListContent() {
   }, [activeChatBuddyId]);
 
   useEffect(() => {
+    buddyRowsRef.current = buddyRows;
+  }, [buddyRows]);
+
+  useEffect(() => {
     pendingRequestsRef.current = pendingRequests;
   }, [pendingRequests]);
 
@@ -590,8 +666,16 @@ function BuddyListContent() {
   }, [temporaryChatAllowedIds]);
 
   useEffect(() => {
+    temporaryChatProfilesRef.current = temporaryChatProfiles;
+  }, [temporaryChatProfiles]);
+
+  useEffect(() => {
     userStatusRef.current = userStatus;
   }, [userStatus]);
+
+  useEffect(() => {
+    statusMsgRef.current = statusMsg;
+  }, [statusMsg]);
 
   useEffect(() => {
     awayMessageRef.current = awayMessage;
@@ -602,12 +686,39 @@ function BuddyListContent() {
   }, [screenname]);
 
   useEffect(() => {
+    profileBioRef.current = profileBio;
+  }, [profileBio]);
+
+  useEffect(() => {
+    buddyIconPathRef.current = buddyIconPath;
+  }, [buddyIconPath]);
+
+  useEffect(() => {
+    idleSinceRef.current = idleSinceAt;
+  }, [idleSinceAt]);
+
+  useEffect(() => {
     awayReplyCooldownRef.current = awayReplyCooldowns;
   }, [awayReplyCooldowns]);
 
   useEffect(() => {
     outboxItemsRef.current = outboxItems;
   }, [outboxItems]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(activityTimeoutsRef.current).forEach((timeoutId) => clearTimeout(timeoutId));
+      activityTimeoutsRef.current = {};
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (buddyIconPreviewUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(buddyIconPreviewUrl);
+      }
+    };
+  }, [buddyIconPreviewUrl]);
 
   const applyUiCachePayload = useCallback((payload: UiCachePayloadV1) => {
     const normalized = compactUiCachePayload(payload);
@@ -831,6 +942,36 @@ function BuddyListContent() {
       return 'Request failed.';
     }
   };
+
+  const pushBuddyActivity = useCallback(
+    (buddyId: string, tone: BuddyActivityToast['tone'], message: string) => {
+      if (!buddyId || buddyId === userId) {
+        return;
+      }
+
+      const activityKey = `${buddyId}:${tone}`;
+      const now = Date.now();
+      const previousAt = lastBuddyActivityAtRef.current[activityKey] ?? 0;
+      if (now - previousAt < PROFILE_ACTIVITY_DEDUPE_MS) {
+        return;
+      }
+
+      lastBuddyActivityAtRef.current[activityKey] = now;
+      const id = `${activityKey}:${now}`;
+      setBuddyActivityToasts((previous) => [...previous, { id, buddyId, message, tone }].slice(-4));
+
+      const existingTimeout = activityTimeoutsRef.current[id];
+      if (existingTimeout) {
+        clearTimeout(existingTimeout);
+      }
+
+      activityTimeoutsRef.current[id] = setTimeout(() => {
+        setBuddyActivityToasts((previous) => previous.filter((item) => item.id !== id));
+        delete activityTimeoutsRef.current[id];
+      }, PROFILE_ACTIVITY_TTL_MS);
+    },
+    [userId],
+  );
 
   useEffect(() => {
     if (!userId) {
@@ -1065,7 +1206,7 @@ function BuddyListContent() {
     const buddyIds = [...new Set(relationshipRows.map((item) => item.buddy_id))];
     const { data: profiles, error: profilesError } = await supabase
       .from('users')
-      .select('id,screenname,status,away_message,status_msg')
+      .select('id,screenname,status,away_message,status_msg,profile_bio,buddy_icon_path,idle_since,last_active_at')
       .in('id', buddyIds);
 
     if (profilesError) {
@@ -1087,6 +1228,10 @@ function BuddyListContent() {
         status: profile?.status ?? null,
         away_message: profile?.away_message ?? null,
         status_msg: profile?.status_msg ?? null,
+        profile_bio: profile?.profile_bio ?? null,
+        buddy_icon_path: profile?.buddy_icon_path ?? null,
+        idle_since: profile?.idle_since ?? null,
+        last_active_at: profile?.last_active_at ?? null,
         relationshipStatus: relationship.status,
       } as Buddy;
     });
@@ -1136,7 +1281,7 @@ function BuddyListContent() {
 
       const { data: userProfile, error: profileError } = await supabase
         .from('users')
-        .select('id,email,screenname,status,away_message,status_msg')
+        .select('id,email,screenname,status,away_message,status_msg,profile_bio,buddy_icon_path,idle_since,last_active_at')
         .eq('id', session.user.id)
         .maybeSingle();
 
@@ -1172,6 +1317,10 @@ function BuddyListContent() {
           status: resolvedStatusState.status,
           away_message: resolvedStatusState.awayMessage || null,
           status_msg: resolvedStatusState.statusMessage,
+          profile_bio: existingProfile?.profile_bio?.trim() || null,
+          buddy_icon_path: existingProfile?.buddy_icon_path ?? null,
+          idle_since: null,
+          last_active_at: new Date().toISOString(),
           is_online: true,
         },
         { onConflict: 'id' },
@@ -1186,6 +1335,12 @@ function BuddyListContent() {
       setStatusMsg(resolvedStatusState.statusMessage);
       setUserStatus(resolvedStatusState.status);
       setAwayMessage(resolvedStatusState.awayMessage);
+      setProfileBio(existingProfile?.profile_bio?.trim() || '');
+      setBuddyIconPath(existingProfile?.buddy_icon_path ?? null);
+      setIdleSinceAt(null);
+      setLastActiveAt(existingProfile?.last_active_at ?? new Date().toISOString());
+      lastActivityAtRef.current = Date.now();
+      lastPresenceWriteAtRef.current = Date.now();
       setAwaySinceAt(resolvedStatusState.status === AWAY_STATUS ? new Date().toISOString() : null);
       let hasRecoveryCode = true;
       const { data: recoveryData, error: recoveryError } = await supabase
@@ -1322,6 +1477,7 @@ function BuddyListContent() {
 
         let buddyWentAway = false;
         let buddyCameBack = false;
+        let updatedBuddyScreenname = '';
         setBuddyRows((previous) =>
           previous.map((buddy) => {
             if (buddy.id !== updated.id) {
@@ -1342,12 +1498,14 @@ function BuddyListContent() {
               buddyCameBack = true;
             }
 
+            updatedBuddyScreenname =
+              typeof updated.screenname === 'string' && updated.screenname.trim()
+                ? updated.screenname
+                : buddy.screenname;
+
             return {
               ...buddy,
-              screenname:
-                typeof updated.screenname === 'string' && updated.screenname.trim()
-                  ? updated.screenname
-                  : buddy.screenname,
+              screenname: updatedBuddyScreenname,
               status: nextStatus,
               away_message:
                 typeof updated.away_message === 'string'
@@ -1361,6 +1519,30 @@ function BuddyListContent() {
                   : updated.status_msg === null
                     ? null
                     : buddy.status_msg,
+              profile_bio:
+                typeof updated.profile_bio === 'string'
+                  ? updated.profile_bio
+                  : updated.profile_bio === null
+                    ? null
+                    : buddy.profile_bio,
+              buddy_icon_path:
+                typeof updated.buddy_icon_path === 'string'
+                  ? updated.buddy_icon_path
+                  : updated.buddy_icon_path === null
+                    ? null
+                    : buddy.buddy_icon_path,
+              idle_since:
+                typeof updated.idle_since === 'string'
+                  ? updated.idle_since
+                  : updated.idle_since === null
+                    ? null
+                    : buddy.idle_since,
+              last_active_at:
+                typeof updated.last_active_at === 'string'
+                  ? updated.last_active_at
+                  : updated.last_active_at === null
+                    ? null
+                    : buddy.last_active_at,
             };
           }),
         );
@@ -1368,14 +1550,28 @@ function BuddyListContent() {
         if (updated.id !== userId && acceptedBuddyIdsRef.current.has(updated.id)) {
           if (buddyWentAway) {
             playSound(BUDDY_GOING_AWAY_SOUND);
+            pushBuddyActivity(updated.id, 'away', `${updatedBuddyScreenname || 'Buddy'} went away`);
           } else if (buddyCameBack) {
             playSound(BUDDY_SIGN_ON_SOUND);
+            pushBuddyActivity(updated.id, 'back', `${updatedBuddyScreenname || 'Buddy'} came back`);
           }
         }
 
         if (updated.id === userId) {
           if (typeof updated.screenname === 'string' && updated.screenname.trim()) {
             setScreenname(updated.screenname);
+          }
+          if (typeof updated.profile_bio === 'string' || updated.profile_bio === null) {
+            setProfileBio(updated.profile_bio?.trim() || '');
+          }
+          if (typeof updated.buddy_icon_path === 'string' || updated.buddy_icon_path === null) {
+            setBuddyIconPath(updated.buddy_icon_path ?? null);
+          }
+          if (typeof updated.idle_since === 'string' || updated.idle_since === null) {
+            setIdleSinceAt(updated.idle_since ?? null);
+          }
+          if (typeof updated.last_active_at === 'string' || updated.last_active_at === null) {
+            setLastActiveAt(updated.last_active_at ?? null);
           }
           if (
             typeof updated.status === 'string' ||
@@ -1404,7 +1600,7 @@ function BuddyListContent() {
     return () => {
       void supabase.removeChannel(usersChannel);
     };
-  }, [awayMessage, playSound, statusMsg, userId, userStatus]);
+  }, [awayMessage, playSound, pushBuddyActivity, statusMsg, userId, userStatus]);
 
   useEffect(() => {
     if (!userId) {
@@ -1434,6 +1630,11 @@ function BuddyListContent() {
       }
 
       playSound(BUDDY_SIGN_ON_SOUND);
+      const joinedBuddyName =
+        buddyRowsRef.current.find((buddy) => buddy.id === joinedUserId)?.screenname ||
+        temporaryChatProfilesRef.current[joinedUserId]?.screenname ||
+        'Buddy';
+      pushBuddyActivity(joinedUserId, 'online', `${joinedBuddyName} signed on`);
     });
 
     presenceChannel.on('presence', { event: 'leave' }, (payload) => {
@@ -1447,6 +1648,11 @@ function BuddyListContent() {
       }
 
       playSound(BUDDY_SIGN_OFF_SOUND);
+      const leftBuddyName =
+        buddyRowsRef.current.find((buddy) => buddy.id === leftUserId)?.screenname ||
+        temporaryChatProfilesRef.current[leftUserId]?.screenname ||
+        'Buddy';
+      pushBuddyActivity(leftUserId, 'offline', `${leftBuddyName} signed off`);
     });
 
     presenceChannel.on('presence', { event: 'sync' }, () => {
@@ -1471,7 +1677,7 @@ function BuddyListContent() {
       void presenceChannel.untrack();
       void supabase.removeChannel(presenceChannel);
     };
-  }, [playSound, userId]);
+  }, [playSound, pushBuddyActivity, userId]);
 
   const buddies = useMemo(
     () =>
@@ -1548,6 +1754,10 @@ function BuddyListContent() {
         status: temporaryProfile.status,
         away_message: temporaryProfile.away_message,
         status_msg: temporaryProfile.status_msg,
+        profile_bio: temporaryProfile.profile_bio,
+        buddy_icon_path: temporaryProfile.buddy_icon_path,
+        idle_since: temporaryProfile.idle_since,
+        last_active_at: temporaryProfile.last_active_at,
         isOnline: true,
       };
     }
@@ -1564,9 +1774,108 @@ function BuddyListContent() {
       status: null,
       away_message: null,
       status_msg: null,
+      profile_bio: null,
+      buddy_icon_path: null,
+      idle_since: null,
+      last_active_at: null,
       isOnline: true,
     };
   }, [activeChatBuddyId, buddies, pendingRequests, temporaryChatProfiles]);
+
+  const getBuddyPresenceSummary = useCallback(
+    (buddy: {
+      isOnline: boolean;
+      status: string | null;
+      away_message: string | null;
+      status_msg: string | null;
+      idle_since: string | null;
+      last_active_at: string | null;
+      screenname: string;
+    }) => {
+      const resolvedStatus = resolveStatusFields({
+        status: buddy.status,
+        awayMessage: buddy.away_message,
+        statusMessage: buddy.status_msg,
+      });
+      const awayLine = resolvedStatus.awayMessage
+        ? resolveAwayTemplate(resolvedStatus.awayMessage, buddy.screenname, screenname)
+        : '';
+      const presenceState = resolvePresenceState({
+        isOnline: buddy.isOnline,
+        status: resolvedStatus.status,
+        idleSince: buddy.idle_since,
+      });
+
+      return {
+        resolvedStatus,
+        awayLine,
+        presenceState,
+        presenceLabel: getPresenceLabel(presenceState),
+        presenceDetail: getPresenceDetail({
+          state: presenceState,
+          awayMessage: awayLine,
+          statusMessage: resolvedStatus.statusMessage,
+          idleSince: buddy.idle_since,
+          lastActiveAt: buddy.last_active_at,
+        }),
+      };
+    },
+    [screenname],
+  );
+
+  const currentUserPresenceState = useMemo(
+    () =>
+      resolvePresenceState({
+        isOnline: true,
+        status: userStatus,
+        idleSince: idleSinceAt,
+      }),
+    [idleSinceAt, userStatus],
+  );
+
+  const currentUserPresenceDetail = useMemo(
+    () =>
+      getPresenceDetail({
+        state: currentUserPresenceState,
+        awayMessage: awayMessage
+          ? resolveAwayTemplate(awayMessage, screenname, screenname)
+          : null,
+        statusMessage: statusMsg,
+        idleSince: idleSinceAt,
+        lastActiveAt,
+      }),
+    [awayMessage, currentUserPresenceState, idleSinceAt, lastActiveAt, screenname, statusMsg],
+  );
+
+  const selectedProfileBuddy = useMemo(() => {
+    if (!profileSheetBuddyId) {
+      return null;
+    }
+
+    return (
+      buddies.find((buddy) => buddy.id === profileSheetBuddyId) ??
+      (activeChatBuddy?.id === profileSheetBuddyId ? activeChatBuddy : null)
+    );
+  }, [activeChatBuddy, buddies, profileSheetBuddyId]);
+
+  const selectedProfileSummary = useMemo(() => {
+    if (!selectedProfileBuddy) {
+      return null;
+    }
+
+    const summary = getBuddyPresenceSummary(selectedProfileBuddy);
+    return {
+      id: selectedProfileBuddy.id,
+      screenname: selectedProfileBuddy.screenname,
+      relationshipStatus: selectedProfileBuddy.relationshipStatus,
+      presenceState: summary.presenceState,
+      presenceDetail: summary.presenceDetail,
+      statusLine: summary.resolvedStatus.statusMessage,
+      awayMessage: summary.presenceState === 'away' ? summary.awayLine : null,
+      bio: selectedProfileBuddy.profile_bio,
+      buddyIconPath: selectedProfileBuddy.buddy_icon_path,
+    };
+  }, [getBuddyPresenceSummary, selectedProfileBuddy]);
 
   useEffect(() => {
     acceptedBuddyIdsRef.current = new Set(acceptedBuddies.map((buddy) => buddy.id));
@@ -1837,7 +2146,7 @@ function BuddyListContent() {
           void (async () => {
             const { data: senderProfile } = await supabase
               .from('users')
-              .select('id,screenname,status,away_message,status_msg')
+              .select('id,screenname,status,away_message,status_msg,profile_bio,buddy_icon_path,idle_since,last_active_at')
               .eq('id', senderId)
               .maybeSingle();
 
@@ -1857,6 +2166,10 @@ function BuddyListContent() {
                 status: resolvedSenderStatus.status,
                 away_message: resolvedSenderStatus.awayMessage || null,
                 status_msg: resolvedSenderStatus.statusMessage,
+                profile_bio: profile?.profile_bio ?? null,
+                buddy_icon_path: profile?.buddy_icon_path ?? null,
+                idle_since: profile?.idle_since ?? null,
+                last_active_at: profile?.last_active_at ?? null,
               },
             }));
             setPendingRequestError(null);
@@ -1925,6 +2238,13 @@ function BuddyListContent() {
     setDraftCache({ dm: {}, rooms: {} });
     setAwayReplyCooldowns({});
     setAwaySinceAt(null);
+    setIdleSinceAt(null);
+    setLastActiveAt(null);
+    setShowAwayModal(false);
+    setShowSystemStatusSheet(false);
+    setProfileSheetBuddyId(null);
+    setProfileSheetError(null);
+    setBuddyActivityToasts([]);
     autoAwayTriggeredRef.current = false;
     let didCompleteSignOut = false;
     try {
@@ -1946,7 +2266,15 @@ function BuddyListContent() {
   };
 
   const updateStatus = useCallback(
-    async (newStatus: string, message: string | null) => {
+    async (
+      newStatus: string,
+      message: string | null,
+      options?: {
+        statusLine?: string | null;
+        bio?: string | null;
+        buddyIconPath?: string | null;
+      },
+    ) => {
       if (!userId) {
         return false;
       }
@@ -1955,11 +2283,11 @@ function BuddyListContent() {
       const wasAway = normalizeStatusLabel(userStatusRef.current) === AWAY_STATUS;
       const normalizedAwayMessage = (message ?? '').trim();
       const nextAwayMessage = normalizedStatus === AWAY_STATUS ? normalizedAwayMessage : '';
-      const resolvedStatusAwayMessage =
-        normalizedStatus === AWAY_STATUS
-          ? resolveAwayTemplate(nextAwayMessage, screennameRef.current, screennameRef.current)
-          : '';
-      const nextStatusMessage = composeStatusMessage(normalizedStatus, resolvedStatusAwayMessage);
+      const trimmedStatusLine = (options?.statusLine ?? statusMsgRef.current).trim();
+      const nextStatusMessage = trimmedStatusLine || composeStatusMessage(normalizedStatus, nextAwayMessage);
+      const nextBio = (options?.bio ?? profileBioRef.current).trim();
+      const nextBuddyIconPath = options?.buddyIconPath ?? buddyIconPathRef.current;
+      const nowIso = new Date().toISOString();
 
       const { error } = await supabase
         .from('users')
@@ -1967,6 +2295,10 @@ function BuddyListContent() {
           status: normalizedStatus,
           away_message: nextAwayMessage || null,
           status_msg: nextStatusMessage,
+          profile_bio: nextBio || null,
+          buddy_icon_path: nextBuddyIconPath,
+          idle_since: null,
+          last_active_at: nowIso,
         })
         .eq('id', userId);
 
@@ -1979,6 +2311,11 @@ function BuddyListContent() {
       setUserStatus(normalizedStatus);
       setAwayMessage(nextAwayMessage);
       setStatusMsg(nextStatusMessage);
+      setProfileBio(nextBio);
+      setBuddyIconPath(nextBuddyIconPath ?? null);
+      setIdleSinceAt(null);
+      setLastActiveAt(nowIso);
+      lastPresenceWriteAtRef.current = Date.now();
       setAwaySinceAt((previous) =>
         normalizedStatus === AWAY_STATUS ? previous ?? new Date().toISOString() : null,
       );
@@ -1990,6 +2327,38 @@ function BuddyListContent() {
       return true;
     },
     [playSound, userId],
+  );
+
+  const persistIdleState = useCallback(
+    async ({
+      nextIdleSince,
+      nextLastActiveAt,
+    }: {
+      nextIdleSince: string | null;
+      nextLastActiveAt: string | null;
+    }) => {
+      if (!userId) {
+        return;
+      }
+
+      const { error } = await supabase
+        .from('users')
+        .update({
+          idle_since: nextIdleSince,
+          last_active_at: nextLastActiveAt,
+        })
+        .eq('id', userId);
+
+      if (error) {
+        console.error('Failed to update idle state:', error.message);
+        return;
+      }
+
+      setIdleSinceAt(nextIdleSince);
+      setLastActiveAt(nextLastActiveAt);
+      lastPresenceWriteAtRef.current = Date.now();
+    },
+    [userId],
   );
 
   const openAwayModal = useCallback(() => {
@@ -2005,32 +2374,70 @@ function BuddyListContent() {
       setAwayText(awayMessage || DEFAULT_AWAY_PRESETS[0].message);
     }
     setSaveAwayPreset(false);
+    setProfileStatusDraft(statusMsg);
+    setProfileBioDraft(profileBio);
+    setPendingBuddyIconFile(null);
+    setRemoveBuddyIconOnSave(false);
+    setBuddyIconPreviewUrl(null);
     setAwayModalError(null);
     setShowAwayModal(true);
-  }, [awayMessage, awayPresets]);
+  }, [awayMessage, awayPresets, profileBio, statusMsg]);
 
-  const handleSaveAwayMessage = useCallback(
-    async (event: FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
+  const handleSelectBuddyIcon = useCallback((fileList: FileList | null) => {
+    const nextFile = fileList?.[0] ?? null;
+    if (!nextFile) {
+      return;
+    }
+
+    const validationError = validateBuddyIconFile(nextFile);
+    if (validationError) {
+      setAwayModalError(validationError);
+      return;
+    }
+
+    if (buddyIconPreviewUrl?.startsWith('blob:')) {
+      URL.revokeObjectURL(buddyIconPreviewUrl);
+    }
+
+    setAwayModalError(null);
+    setPendingBuddyIconFile(nextFile);
+    setRemoveBuddyIconOnSave(false);
+    setBuddyIconPreviewUrl(URL.createObjectURL(nextFile));
+  }, [buddyIconPreviewUrl]);
+
+  const saveProfileSettings = useCallback(
+    async ({ goAway }: { goAway: boolean }) => {
+      if (!userId) {
+        return;
+      }
+
       setAwayModalError(null);
       setIsSavingAwayMessage(true);
 
       const trimmedMessage = awayText.trim();
       const trimmedLabel = awayLabelDraft.trim();
+      const trimmedStatusLine = profileStatusDraft.trim().slice(0, PROFILE_STATUS_MAX_LENGTH);
+      const trimmedBio = profileBioDraft.trim().slice(0, PROFILE_BIO_MAX_LENGTH);
 
-      if (!trimmedMessage) {
+      if (!trimmedStatusLine) {
+        setAwayModalError('Enter a status line before saving.');
+        setIsSavingAwayMessage(false);
+        return;
+      }
+
+      if (goAway && !trimmedMessage) {
         setAwayModalError('Enter an away message before saving.');
         setIsSavingAwayMessage(false);
         return;
       }
 
-      if (saveAwayPreset && !trimmedLabel) {
+      if (goAway && saveAwayPreset && !trimmedLabel) {
         setAwayModalError('Enter a label to save this away message.');
         setIsSavingAwayMessage(false);
         return;
       }
 
-      if (saveAwayPreset && trimmedLabel) {
+      if (goAway && saveAwayPreset && trimmedLabel) {
         const presetId = `custom-${trimmedLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'away'}`;
         setAwayPresets((previous) => {
           const withoutExistingLabel = previous.filter(
@@ -2049,17 +2456,81 @@ function BuddyListContent() {
         setSelectedAwayPresetId(presetId);
       }
 
-      const success = await updateStatus(AWAY_STATUS, trimmedMessage);
+      const previousBuddyIconPath = buddyIconPathRef.current;
+      let nextBuddyIconPath = removeBuddyIconOnSave ? null : previousBuddyIconPath;
+      let uploadedBuddyIconPath: string | null = null;
+
+      if (pendingBuddyIconFile) {
+        try {
+          const uploaded = await uploadBuddyIconFile({
+            userId,
+            file: pendingBuddyIconFile,
+          });
+          uploadedBuddyIconPath = uploaded.storagePath;
+          nextBuddyIconPath = uploaded.storagePath;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Buddy icon upload failed.';
+          setAwayModalError(message);
+          setIsSavingAwayMessage(false);
+          return;
+        }
+      }
+
+      const statusToPersist = goAway ? AWAY_STATUS : userStatusRef.current;
+      const messageToPersist =
+        statusToPersist === AWAY_STATUS
+          ? goAway
+            ? trimmedMessage
+            : awayMessageRef.current
+          : null;
+
+      const success = await updateStatus(statusToPersist, messageToPersist, {
+        statusLine: trimmedStatusLine,
+        bio: trimmedBio,
+        buddyIconPath: nextBuddyIconPath,
+      });
       setIsSavingAwayMessage(false);
 
       if (!success) {
+        if (uploadedBuddyIconPath) {
+          try {
+            await deleteBuddyIconFile(uploadedBuddyIconPath);
+          } catch {
+            // Best-effort cleanup.
+          }
+        }
         return;
       }
 
+      if (previousBuddyIconPath && previousBuddyIconPath !== nextBuddyIconPath) {
+        try {
+          await deleteBuddyIconFile(previousBuddyIconPath);
+        } catch (error) {
+          console.error('Failed removing previous buddy icon:', error);
+        }
+      }
+
       autoAwayTriggeredRef.current = false;
+      setPendingBuddyIconFile(null);
+      setRemoveBuddyIconOnSave(false);
+      if (buddyIconPreviewUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(buddyIconPreviewUrl);
+      }
+      setBuddyIconPreviewUrl(null);
       setShowAwayModal(false);
     },
-    [awayLabelDraft, awayText, saveAwayPreset, updateStatus],
+    [
+      awayLabelDraft,
+      awayText,
+      buddyIconPreviewUrl,
+      pendingBuddyIconFile,
+      profileBioDraft,
+      profileStatusDraft,
+      removeBuddyIconOnSave,
+      saveAwayPreset,
+      updateStatus,
+      userId,
+    ],
   );
 
   const handleImBack = useCallback(() => {
@@ -2068,19 +2539,40 @@ function BuddyListContent() {
     void updateStatus(AVAILABLE_STATUS, null);
   }, [updateStatus]);
 
+  const handleClearIdle = useCallback(() => {
+    autoAwayTriggeredRef.current = false;
+    idleSinceRef.current = null;
+    lastActivityAtRef.current = Date.now();
+    void persistIdleState({
+      nextIdleSince: null,
+      nextLastActiveAt: new Date().toISOString(),
+    });
+  }, [persistIdleState]);
+
   useEffect(() => {
-    if (!userId || !isAutoAwayEnabled || typeof window === 'undefined') {
+    if (!userId || typeof window === 'undefined') {
       return;
     }
 
-    let lastActivityAt = Date.now();
-
     const markActivity = () => {
-      lastActivityAt = Date.now();
-      if (autoReturnOnActivity && autoAwayTriggeredRef.current && userStatusRef.current === AWAY_STATUS) {
+      lastActivityAtRef.current = Date.now();
+      const nowIso = new Date().toISOString();
+
+      if (autoReturnOnActivity && idleSinceRef.current && userStatusRef.current !== AWAY_STATUS) {
         autoAwayTriggeredRef.current = false;
-        setAwaySinceAt(null);
-        void updateStatus(AVAILABLE_STATUS, null);
+        idleSinceRef.current = null;
+        void persistIdleState({
+          nextIdleSince: null,
+          nextLastActiveAt: nowIso,
+        });
+        return;
+      }
+
+      if (Date.now() - lastPresenceWriteAtRef.current >= LAST_ACTIVE_WRITE_INTERVAL_MS) {
+        void persistIdleState({
+          nextIdleSince: idleSinceRef.current,
+          nextLastActiveAt: nowIso,
+        });
       }
     };
 
@@ -2090,19 +2582,22 @@ function BuddyListContent() {
     });
 
     const intervalId = window.setInterval(() => {
-      if (userStatusRef.current !== AVAILABLE_STATUS) {
+      if (!isAutoAwayEnabled || userStatusRef.current === AWAY_STATUS || idleSinceRef.current) {
         return;
       }
 
-      const elapsed = Date.now() - lastActivityAt;
+      const elapsed = Date.now() - lastActivityAtRef.current;
       if (elapsed < autoAwayMinutes * 60 * 1000) {
         return;
       }
 
       autoAwayTriggeredRef.current = true;
-      setAwaySinceAt(new Date().toISOString());
-      const template = awayMessageRef.current.trim() || "I've stepped away for a bit. Back soon.";
-      void updateStatus(AWAY_STATUS, template);
+      const nowIso = new Date().toISOString();
+      idleSinceRef.current = nowIso;
+      void persistIdleState({
+        nextIdleSince: nowIso,
+        nextLastActiveAt: nowIso,
+      });
     }, 15000);
 
     return () => {
@@ -2111,7 +2606,7 @@ function BuddyListContent() {
       });
       window.clearInterval(intervalId);
     };
-  }, [autoAwayMinutes, autoReturnOnActivity, isAutoAwayEnabled, updateStatus, userId]);
+  }, [autoAwayMinutes, autoReturnOnActivity, isAutoAwayEnabled, persistIdleState, userId]);
 
   const handleSaveRecoveryCode = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -2266,7 +2761,7 @@ function BuddyListContent() {
 
     const { data, error } = await supabase
       .from('users')
-      .select('id,screenname,status,away_message,status_msg')
+      .select('id,screenname,status,away_message,status_msg,profile_bio,buddy_icon_path,idle_since,last_active_at')
       .ilike('screenname', `%${query}%`)
       .neq('id', userId)
       .order('screenname', { ascending: true })
@@ -2282,18 +2777,19 @@ function BuddyListContent() {
     setSearchResults((data ?? []) as UserProfile[]);
   };
 
-  const handleAddBuddy = async (profile: UserProfile) => {
+  const handleAddBuddyById = useCallback(async (buddyId: string) => {
     if (!userId) {
-      return;
+      return false;
     }
 
-    setIsAddingBuddyId(profile.id);
+    setIsAddingBuddyId(buddyId);
     setSearchError(null);
+    setProfileSheetError(null);
 
     const { error } = await supabase.from('buddies').upsert(
       {
         user_id: userId,
-        buddy_id: profile.id,
+        buddy_id: buddyId,
         status: 'accepted',
       },
       { onConflict: 'user_id,buddy_id' },
@@ -2303,14 +2799,68 @@ function BuddyListContent() {
 
     if (error) {
       setSearchError(error.message);
+      setProfileSheetError(error.message);
+      return false;
+    }
+
+    await loadBuddies(userId);
+    setProfileSheetError(null);
+    return true;
+  }, [loadBuddies, userId]);
+
+  const handleAddBuddy = async (profile: UserProfile) => {
+    const added = await handleAddBuddyById(profile.id);
+    if (!added) {
       return;
     }
 
     setShowAddWindow(false);
     setSearchTerm('');
     setSearchResults([]);
-    await loadBuddies(userId);
   };
+
+  const handleRemoveBuddy = useCallback(async (buddyId: string) => {
+    if (!userId) {
+      return false;
+    }
+
+    setIsRemovingBuddyId(buddyId);
+    setProfileSheetError(null);
+    const { error } = await supabase
+      .from('buddies')
+      .delete()
+      .eq('user_id', userId)
+      .eq('buddy_id', buddyId);
+    setIsRemovingBuddyId(null);
+
+    if (error) {
+      setSearchError(error.message);
+      setProfileSheetError(error.message);
+      return false;
+    }
+
+    if (activeChatBuddyIdRef.current === buddyId) {
+      setActiveChatBuddyId(null);
+      activeChatBuddyIdRef.current = null;
+      setInitialUnreadForActiveChat(0);
+      setActiveDmTypingText(null);
+      setChatMessages([]);
+      setChatError(null);
+      setIsChatLoading(false);
+      if (dmTypingTimeoutRef.current) {
+        clearTimeout(dmTypingTimeoutRef.current);
+        dmTypingTimeoutRef.current = null;
+      }
+      if (activeRoom) {
+        router.replace(`${BUDDY_LIST_PATH}?room=${encodeURIComponent(activeRoom.name)}`, { scroll: false });
+      } else {
+        router.replace(BUDDY_LIST_PATH, { scroll: false });
+      }
+    }
+    setProfileSheetBuddyId((previous) => (previous === buddyId ? null : previous));
+    await loadBuddies(userId);
+    return true;
+  }, [activeRoom, loadBuddies, router, userId]);
 
   const handleAddBuddyFromPendingRequest = useCallback(
     async (senderId: string) => {
@@ -2321,19 +2871,11 @@ function BuddyListContent() {
       setPendingRequestError(null);
       setIsProcessingRequestId(senderId);
 
-      const { error } = await supabase.from('buddies').upsert(
-        {
-          user_id: userId,
-          buddy_id: senderId,
-          status: 'accepted',
-        },
-        { onConflict: 'user_id,buddy_id' },
-      );
-
+      const added = await handleAddBuddyById(senderId);
       setIsProcessingRequestId(null);
 
-      if (error) {
-        setPendingRequestError(error.message);
+      if (!added) {
+        setPendingRequestError('Could not add that buddy right now.');
         return;
       }
 
@@ -2341,15 +2883,24 @@ function BuddyListContent() {
       setTemporaryChatAllowedIds((previous) =>
         previous.includes(senderId) ? previous : [...previous, senderId],
       );
-      await loadBuddies(userId);
       openChatWindowForId(senderId);
     },
-    [loadBuddies, openChatWindowForId, userId],
+    [handleAddBuddyById, openChatWindowForId, userId],
   );
 
   const handleOpenChat = (buddyId: string) => {
     openChatWindowForId(buddyId);
   };
+
+  const openBuddyProfile = useCallback((buddyId: string) => {
+    setProfileSheetError(null);
+    setProfileSheetBuddyId(buddyId);
+  }, []);
+
+  const closeBuddyProfile = useCallback(() => {
+    setProfileSheetError(null);
+    setProfileSheetBuddyId(null);
+  }, []);
 
   const handleSendMessage = useCallback(
     async (content: string, attachments: File[] = []) => {
@@ -2665,7 +3216,7 @@ function BuddyListContent() {
     void (async () => {
       const { data: profileData, error: profileError } = await supabase
         .from('users')
-        .select('id,screenname,status,away_message,status_msg')
+        .select('id,screenname,status,away_message,status_msg,profile_bio,buddy_icon_path,idle_since,last_active_at')
         .eq('id', requestedDirectMessageUserId)
         .maybeSingle();
 
@@ -2689,6 +3240,10 @@ function BuddyListContent() {
             status: resolvedProfileStatus.status,
             away_message: resolvedProfileStatus.awayMessage || null,
             status_msg: resolvedProfileStatus.statusMessage,
+            profile_bio: profile.profile_bio ?? null,
+            buddy_icon_path: profile.buddy_icon_path ?? null,
+            idle_since: profile.idle_since ?? null,
+            last_active_at: profile.last_active_at ?? null,
           },
         }));
       }
@@ -2774,17 +3329,10 @@ function BuddyListContent() {
     }
   };
 
-  const isCurrentUserAway = normalizeStatusLabel(userStatus) === AWAY_STATUS;
+  const isCurrentUserAway = currentUserPresenceState === 'away';
+  const isCurrentUserIdle = currentUserPresenceState === 'idle';
   const activePendingRequest = pendingRequests[0] ?? null;
-  const activeChatBuddyStatusMessage = activeChatBuddy
-    ? resolveStatusFields({
-        status: activeChatBuddy.status,
-        awayMessage: activeChatBuddy.away_message,
-        statusMessage: activeChatBuddy.status_msg,
-      }).statusMessage
-    : null;
-  const xpRaisedButtonClass =
-    'min-h-[34px] rounded-xl border border-white/65 bg-white/80 px-3 text-[12px] font-semibold text-slate-700 shadow-[0_4px_12px_rgba(15,23,42,0.07)] transition hover:bg-white active:scale-[0.97] disabled:opacity-60';
+  const activeChatBuddyPresenceSummary = activeChatBuddy ? getBuddyPresenceSummary(activeChatBuddy) : null;
   const xpGroupHeaderClass =
     'flex min-h-[36px] w-full items-center gap-2 px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-widest text-slate-400';
   const xpModalFrameClass =
@@ -2814,37 +3362,25 @@ function BuddyListContent() {
       ? 'Outbox empty'
       : `${pendingOutboxCount} queued${pendingOutboxCount === 1 ? '' : ' messages'}`;
   const latestOutboxError = outboxItems.find((item) => item.lastError)?.lastError ?? null;
+  const shouldShowSystemStatusChip =
+    syncState === 'hydrating' || syncState === 'syncing' || syncState === 'error' || pendingOutboxCount > 0;
 
   const renderDirectMessageRow = (buddy: (typeof acceptedBuddies)[number]) => {
     const unreadDirectCount = unreadDirectMessages[buddy.id] ?? 0;
     const isSelected = selectedBuddyId === buddy.id;
-    const resolvedBuddyStatus = resolveStatusFields({
-      status: buddy.status,
-      awayMessage: buddy.away_message,
-      statusMessage: buddy.status_msg,
-    });
-    const isBuddyAway = normalizeStatusLabel(resolvedBuddyStatus.status) === AWAY_STATUS;
-    const awayLine = resolveAwayTemplate(
-      resolvedBuddyStatus.awayMessage || 'Away',
-      buddy.screenname,
-      screenname,
-    );
-    // Avatar initials: first char of screenname
-    const avatarLetter = buddy.screenname.charAt(0).toUpperCase();
-    // Status ring color
-    const ringColor = isSelected
-      ? 'ring-white/70'
-      : isBuddyAway
-        ? 'ring-amber-400'
-        : buddy.isOnline
-          ? 'ring-emerald-400'
-          : 'ring-slate-300';
+    const presenceSummary = getBuddyPresenceSummary(buddy);
+    const presenceToneClass =
+      presenceSummary.presenceState === 'away'
+        ? 'text-amber-500'
+        : presenceSummary.presenceState === 'idle'
+          ? 'text-sky-500'
+          : presenceSummary.presenceState === 'offline'
+            ? 'text-slate-400'
+            : 'text-emerald-500';
 
     return (
-      <button
+      <div
         key={buddy.id}
-        type="button"
-        onClick={() => handleOpenChat(buddy.id)}
         data-testid={`dm-row-${buddy.id}`}
         data-unread-dm={unreadDirectCount}
         data-screenname={buddy.screenname}
@@ -2854,44 +3390,32 @@ function BuddyListContent() {
             : 'hover:bg-white/60'
         }`}
       >
-        {/* Avatar with status ring */}
-        <div className={`relative flex-shrink-0`}>
-          <div className={`flex h-9 w-9 items-center justify-center rounded-full text-[13px] font-bold ring-2 ring-offset-1 ring-offset-transparent ${ringColor} ${
-            isSelected ? 'bg-blue-500 text-white' : 'bg-blue-100 text-blue-700'
-          }`}>
-            {avatarLetter}
-          </div>
-          {/* Status dot */}
-          <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 ${
-            isSelected ? 'border-blue-50' : 'border-white/80'
-          } ${
-            isBuddyAway
-              ? 'bg-amber-400'
-              : buddy.isOnline
-                ? 'bg-emerald-400'
-                : 'bg-slate-300'
-          }`} />
-        </div>
-
-        {/* Name + status */}
-        <div className="min-w-0 flex-1">
-          <p className={`truncate text-[13px] font-semibold leading-tight ${
-            isSelected ? 'text-blue-700' : isBuddyAway ? 'text-slate-500' : 'text-slate-800'
-          }`}>
-            {buddy.screenname}
-          </p>
-          {isBuddyAway ? (
-            <p className="truncate text-[11px] italic text-slate-400" title={awayLine}>
-              {awayLine}
+        <button
+          type="button"
+          onClick={() => openBuddyProfile(buddy.id)}
+          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+        >
+          <ProfileAvatar
+            screenname={buddy.screenname}
+            buddyIconPath={buddy.buddy_icon_path}
+            presenceState={presenceSummary.presenceState}
+            size="sm"
+          />
+          <div className="min-w-0 flex-1">
+            <p className={`truncate text-[13px] font-semibold leading-tight ${
+              isSelected ? 'text-blue-700' : 'text-slate-800'
+            }`}>
+              {buddy.screenname}
             </p>
-          ) : buddy.isOnline ? (
-            <p className="text-[11px] text-emerald-500">Online</p>
-          ) : (
-            <p className="text-[11px] text-slate-400">Offline</p>
-          )}
-        </div>
+            <p className={`truncate text-[11px] font-semibold ${presenceToneClass}`}>
+              {presenceSummary.presenceLabel}
+            </p>
+            <p className="truncate text-[11px] text-slate-400" title={presenceSummary.presenceDetail}>
+              {presenceSummary.presenceDetail}
+            </p>
+          </div>
+        </button>
 
-        {/* Unread badge */}
         {unreadDirectCount > 0 ? (
           <span
             data-testid={`dm-unread-${buddy.id}`}
@@ -2903,7 +3427,18 @@ function BuddyListContent() {
             {unreadDirectCount}
           </span>
         ) : null}
-      </button>
+        <button
+          type="button"
+          onClick={() => handleOpenChat(buddy.id)}
+          className={`shrink-0 rounded-xl border px-2.5 py-1.5 text-[11px] font-semibold transition active:scale-95 ${
+            isSelected
+              ? 'border-blue-200 bg-blue-500 text-white'
+              : 'border-white/70 bg-white/85 text-slate-600 hover:bg-white'
+          }`}
+        >
+          IM
+        </button>
+      </div>
     );
   };
   const xpModalPrimaryButtonClass =
@@ -2926,11 +3461,6 @@ function BuddyListContent() {
 
   const handleSetupAction = () => {
     setIsHeaderMenuOpen(false);
-    if (isAdminUser) {
-      openAdminResetWindow();
-      return;
-    }
-
     openAwayModal();
   };
 
@@ -2968,7 +3498,7 @@ function BuddyListContent() {
                   onClick={openAwayModal}
                   className="mt-0.5 block w-full rounded-xl border border-transparent px-3 py-2 text-left text-[12px] font-semibold text-slate-700 hover:bg-blue-50"
                 >
-                  Set Away Message
+                  Profile & Away
                 </button>
                 <button
                   type="button"
@@ -2980,7 +3510,7 @@ function BuddyListContent() {
                 {isAdminUser ? (
                   <button
                     type="button"
-                    onClick={handleSetupAction}
+                    onClick={openAdminResetWindow}
                     className="mt-0.5 block w-full rounded-xl border border-transparent px-3 py-2 text-left text-[12px] font-semibold text-slate-700 hover:bg-blue-50"
                   >
                     Admin Reset
@@ -2992,50 +3522,67 @@ function BuddyListContent() {
 
           <div className="min-h-0 flex-1 overflow-y-auto pb-20">
             <div className="px-3 pt-3 pb-2">
-              {!isCurrentUserAway ? (
-                <div className="rounded-2xl border border-white/65 bg-white/72 px-3.5 py-3 shadow-sm">
-                  <div className="flex items-center gap-2.5">
-                    {/* Self avatar */}
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-500 text-[14px] font-bold text-white ring-2 ring-emerald-400 ring-offset-1">
-                      {screenname.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[14px] font-semibold text-slate-800">{screenname}</p>
-                      <p className="truncate text-[11px] text-emerald-500">Available</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={openAwayModal}
-                      className="shrink-0 rounded-xl border border-white/65 bg-white/80 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 shadow-sm hover:bg-white active:scale-95"
-                    >
-                      Set Away
-                    </button>
+              <div className="rounded-2xl border border-white/65 bg-white/72 px-3.5 py-3 shadow-sm">
+                <div className="flex items-center gap-2.5">
+                  <ProfileAvatar
+                    screenname={screenname}
+                    buddyIconPath={buddyIconPath}
+                    presenceState={currentUserPresenceState}
+                    size="md"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[14px] font-semibold text-slate-800">{screenname}</p>
+                    <p className={`truncate text-[11px] font-semibold ${
+                      currentUserPresenceState === 'away'
+                        ? 'text-amber-500'
+                        : currentUserPresenceState === 'idle'
+                          ? 'text-sky-500'
+                          : 'text-emerald-500'
+                    }`}>
+                      {getPresenceLabel(currentUserPresenceState)}
+                    </p>
+                    <p className="truncate text-[11px] text-slate-400">{currentUserPresenceDetail}</p>
+                    {profileBio ? <p className="mt-1 truncate text-[11px] text-slate-400">{profileBio}</p> : null}
                   </div>
+                  <button
+                    type="button"
+                    onClick={openAwayModal}
+                    className="shrink-0 rounded-xl border border-white/65 bg-white/80 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 shadow-sm hover:bg-white active:scale-95"
+                  >
+                    Edit
+                  </button>
                 </div>
-              ) : null}
+              </div>
               {awayModalError ? <p className="mt-2 text-[11px] font-semibold text-red-600">{awayModalError}</p> : null}
 
-              {/* Room sync state — compact */}
-              <div className="mt-2 flex items-center justify-between gap-2 rounded-2xl border border-white/55 bg-white/55 px-3 py-1.5 text-[10px] text-slate-500">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <span className={`h-1.5 w-1.5 rounded-full ${
-                    syncState === 'live' ? 'bg-emerald-400' :
-                    syncState === 'error' ? 'bg-red-400' :
-                    isChatSyncBusy ? 'bg-amber-400 animate-pulse' : 'bg-slate-300'
-                  }`} />
-                  <span className="truncate">{chatSyncSummary}</span>
-                  {pendingOutboxCount > 0 ? <span className="shrink-0 text-amber-500">· {outboxSummary}</span> : null}
-                  {lastSyncError ? <span className="truncate text-red-500" title={lastSyncError}> · {lastSyncError}</span> : null}
-                </div>
+              {shouldShowSystemStatusChip ? (
                 <button
                   type="button"
-                  onClick={() => void syncFromServer()}
-                  disabled={isChatSyncBusy}
-                  className="shrink-0 rounded-xl border border-white/65 bg-white/80 px-2 py-0.5 text-[10px] font-semibold text-slate-500 hover:bg-white disabled:opacity-60"
+                  onClick={() => setShowSystemStatusSheet(true)}
+                  className="mt-2 flex w-full items-center justify-between gap-2 rounded-2xl border border-white/55 bg-white/55 px-3 py-1.5 text-[10px] text-slate-500 transition hover:bg-white/70"
                 >
-                  {isChatSyncBusy ? '…' : 'Sync'}
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <span className={`h-1.5 w-1.5 rounded-full ${
+                      syncState === 'error' ? 'bg-red-400' :
+                      isChatSyncBusy ? 'bg-amber-400 animate-pulse' :
+                      pendingOutboxCount > 0 ? 'bg-sky-400' :
+                      'bg-emerald-400'
+                    }`} />
+                    <span className="truncate">
+                      {syncState === 'error'
+                        ? 'Sync issue'
+                        : isChatSyncBusy
+                          ? chatSyncSummary
+                          : pendingOutboxCount > 0
+                            ? outboxSummary
+                            : 'System status'}
+                    </span>
+                  </div>
+                  <span className="shrink-0 rounded-full border border-white/70 bg-white/80 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                    Details
+                  </span>
                 </button>
-              </div>
+              ) : null}
             </div>
 
             {isCurrentUserAway ? (
@@ -3059,6 +3606,25 @@ function BuddyListContent() {
                     className="shrink-0 rounded-xl border border-amber-300 bg-white/80 px-2.5 py-1 text-[11px] font-semibold text-amber-700 shadow-sm hover:bg-white active:scale-95"
                   >
                     Back
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {isCurrentUserIdle ? (
+              <div className="mx-3 mt-2 rounded-2xl border border-sky-200/70 bg-sky-50/90 px-3 py-3 backdrop-blur-sm">
+                <div className="flex items-start gap-2">
+                  <span className="mt-0.5 text-base">💤</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[12px] font-semibold text-sky-800">Idle</p>
+                    <p className="mt-0.5 text-[11px] text-sky-700">{formatPresenceSince(idleSinceAt, 'Idle since')}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleClearIdle}
+                    className="shrink-0 rounded-xl border border-sky-300 bg-white/80 px-2.5 py-1 text-[11px] font-semibold text-sky-700 shadow-sm hover:bg-white active:scale-95"
+                  >
+                    I&apos;m Here
                   </button>
                 </div>
               </div>
@@ -3244,7 +3810,7 @@ function BuddyListContent() {
                 className="flex flex-col items-center justify-center gap-0.5 py-2 transition active:scale-90"
               >
                 <span className="text-[20px] leading-none">⚙</span>
-                <span className="text-[10px] font-semibold text-slate-500">Setup</span>
+                <span className="text-[10px] font-semibold text-slate-500">Profile</span>
               </button>
             </div>
           </div>
@@ -3482,7 +4048,7 @@ function BuddyListContent() {
 
             {/* Header */}
             <div className="flex items-center justify-between px-5 pb-3 pt-1">
-              <h2 className="text-[17px] font-semibold text-slate-800">Away Message</h2>
+              <h2 className="text-[17px] font-semibold text-slate-800">Profile &amp; Away</h2>
               <button
                 type="button"
                 onClick={() => { setShowAwayModal(false); setAwayModalError(null); }}
@@ -3492,7 +4058,99 @@ function BuddyListContent() {
               </button>
             </div>
 
-            <form onSubmit={handleSaveAwayMessage} className="space-y-4 px-5 pb-2">
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                void saveProfileSettings({ goAway: true });
+              }}
+              className="space-y-4 px-5 pb-2"
+            >
+              <div className="rounded-2xl border border-white/65 bg-white/78 px-4 py-3">
+                <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Profile</p>
+                <div className="flex items-center gap-3">
+                  <ProfileAvatar
+                    screenname={screenname}
+                    buddyIconPath={buddyIconPreviewUrl || removeBuddyIconOnSave ? null : buddyIconPath}
+                    presenceState={currentUserPresenceState}
+                    size="lg"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[14px] font-semibold text-slate-800">{screenname}</p>
+                    <p className="truncate text-[11px] text-slate-500">{profileStatusDraft || AVAILABLE_STATUS}</p>
+                    {buddyIconPreviewUrl ? (
+                      <p className="mt-1 text-[10px] text-blue-600">New icon ready to save</p>
+                    ) : removeBuddyIconOnSave ? (
+                      <p className="mt-1 text-[10px] text-red-500">Icon will be removed on save</p>
+                    ) : buddyIconPath ? (
+                      <p className="mt-1 text-[10px] text-slate-400">Current icon on profile</p>
+                    ) : (
+                      <p className="mt-1 text-[10px] text-slate-400">Using initials for now</p>
+                    )}
+                  </div>
+                </div>
+
+                {buddyIconPreviewUrl ? (
+                  <div className="mt-3">
+                    <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Preview</p>
+                    <img
+                      src={buddyIconPreviewUrl}
+                      alt=""
+                      className="h-20 w-20 rounded-2xl border border-white/70 object-cover shadow-sm"
+                    />
+                  </div>
+                ) : null}
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <label className="inline-flex cursor-pointer items-center rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
+                    Change Icon
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(event) => handleSelectBuddyIcon(event.target.files)}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (buddyIconPreviewUrl?.startsWith('blob:')) {
+                        URL.revokeObjectURL(buddyIconPreviewUrl);
+                      }
+                      setBuddyIconPreviewUrl(null);
+                      setPendingBuddyIconFile(null);
+                      setRemoveBuddyIconOnSave(true);
+                    }}
+                    className="rounded-xl border border-red-200/80 bg-white px-3 py-1.5 text-[11px] font-semibold text-red-500 shadow-sm hover:bg-red-50"
+                  >
+                    Remove Icon
+                  </button>
+                </div>
+
+                <div className="mt-3">
+                  <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Status Line</p>
+                  <input
+                    value={profileStatusDraft}
+                    onChange={(event) => setProfileStatusDraft(event.target.value.slice(0, PROFILE_STATUS_MAX_LENGTH))}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 text-[13px] text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    placeholder="What should buddies see?"
+                    maxLength={PROFILE_STATUS_MAX_LENGTH}
+                  />
+                  <p className="mt-1 text-right text-[10px] text-slate-400">{profileStatusDraft.length}/{PROFILE_STATUS_MAX_LENGTH}</p>
+                </div>
+
+                <div className="mt-3">
+                  <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Bio</p>
+                  <textarea
+                    value={profileBioDraft}
+                    onChange={(event) => setProfileBioDraft(event.target.value.slice(0, PROFILE_BIO_MAX_LENGTH))}
+                    className="min-h-[84px] w-full resize-none rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 text-[13px] text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    placeholder="Add a short AIM-style profile blurb…"
+                    maxLength={PROFILE_BIO_MAX_LENGTH}
+                  />
+                  <p className="mt-1 text-right text-[10px] text-slate-400">{profileBioDraft.length}/{PROFILE_BIO_MAX_LENGTH}</p>
+                </div>
+              </div>
+
               {/* Preset chips */}
               <div>
                 <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Preset</p>
@@ -3553,8 +4211,8 @@ function BuddyListContent() {
               <div className="space-y-3 rounded-2xl border border-white/65 bg-white/72 px-4 py-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-[13px] font-semibold text-slate-700">Auto-Away when idle</p>
-                    <p className="text-[11px] text-slate-400">Set away after inactivity</p>
+                    <p className="text-[13px] font-semibold text-slate-700">Show Idle when inactive</p>
+                    <p className="text-[11px] text-slate-400">Mark yourself idle after inactivity</p>
                   </div>
                   <button
                     type="button"
@@ -3580,8 +4238,8 @@ function BuddyListContent() {
                 ) : null}
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-[13px] font-semibold text-slate-700">Return on activity</p>
-                    <p className="text-[11px] text-slate-400">Auto-return when you interact</p>
+                    <p className="text-[13px] font-semibold text-slate-700">Clear idle on activity</p>
+                    <p className="text-[11px] text-slate-400">Move back to active when you interact</p>
                   </div>
                   <button
                     type="button"
@@ -3610,15 +4268,96 @@ function BuddyListContent() {
                 </p>
               ) : null}
 
-              {/* CTA button */}
-              <button
-                type="submit"
-                disabled={isSavingAwayMessage}
-                className="w-full rounded-2xl border border-blue-500/50 bg-blue-500 py-3.5 text-[15px] font-semibold text-white shadow-[0_8px_20px_rgba(37,99,235,0.35)] transition hover:bg-blue-600 active:scale-[0.98] disabled:opacity-60"
-              >
-                {isSavingAwayMessage ? 'Setting Away…' : "I'm Away 🌙"}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => void saveProfileSettings({ goAway: false })}
+                  disabled={isSavingAwayMessage}
+                  className="flex-1 rounded-2xl border border-white/65 bg-white py-3.5 text-[15px] font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 active:scale-[0.98] disabled:opacity-60"
+                >
+                  {isSavingAwayMessage ? 'Saving…' : 'Save Profile'}
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingAwayMessage}
+                  className="flex-1 rounded-2xl border border-blue-500/50 bg-blue-500 py-3.5 text-[15px] font-semibold text-white shadow-[0_8px_20px_rgba(37,99,235,0.35)] transition hover:bg-blue-600 active:scale-[0.98] disabled:opacity-60"
+                >
+                  {isSavingAwayMessage ? 'Saving…' : "Go Away 🌙"}
+                </button>
+              </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showSystemStatusSheet && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/25 backdrop-blur-[2px]"
+          onClick={() => setShowSystemStatusSheet(false)}
+        >
+          <div
+            className="w-full max-w-lg bottom-sheet rounded-t-[2rem] border border-white/60 bg-white/92 shadow-[var(--shadow-elevated)] backdrop-blur-2xl"
+            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex justify-center pb-1 pt-3">
+              <div className="h-1 w-10 rounded-full bg-slate-300" />
+            </div>
+            <div className="flex items-center justify-between px-5 pb-3 pt-1">
+              <h2 className="text-[17px] font-semibold text-slate-800">System Status</h2>
+              <button
+                type="button"
+                onClick={() => setShowSystemStatusSheet(false)}
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-[13px] font-semibold text-slate-500 hover:bg-slate-200"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 px-5 pb-2">
+              <div className="rounded-2xl border border-white/65 bg-white/82 px-3.5 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Sync</p>
+                <p className="mt-1 text-[14px] font-semibold text-slate-800">{chatSyncSummary}</p>
+                <p className="mt-1 text-[12px] text-slate-500">
+                  {lastSyncedAt
+                    ? `Last synced ${new Date(lastSyncedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                    : 'No successful sync yet in this session.'}
+                </p>
+                {lastSyncError ? (
+                  <p className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-700">
+                    {lastSyncError}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="rounded-2xl border border-white/65 bg-white/82 px-3.5 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Outbox</p>
+                <p className="mt-1 text-[14px] font-semibold text-slate-800">{outboxSummary}</p>
+                {latestOutboxError ? (
+                  <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
+                    {latestOutboxError}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowSystemStatusSheet(false)}
+                  className={xpModalButtonClass}
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void syncFromServer()}
+                  disabled={isChatSyncBusy}
+                  className={xpModalPrimaryButtonClass}
+                >
+                  {isChatSyncBusy ? 'Syncing…' : 'Sync Now'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -3799,12 +4538,74 @@ function BuddyListContent() {
         </div>
       )}
 
+      <BuddyProfileSheet
+        buddy={selectedProfileSummary}
+        isOpen={Boolean(selectedProfileSummary)}
+        isUpdating={isAddingBuddyId === selectedProfileSummary?.id || isRemovingBuddyId === selectedProfileSummary?.id}
+        errorMessage={profileSheetError}
+        onClose={closeBuddyProfile}
+        onStartChat={() => {
+          if (!selectedProfileSummary) {
+            return;
+          }
+          closeBuddyProfile();
+          handleOpenChat(selectedProfileSummary.id);
+        }}
+        onAddBuddy={
+          selectedProfileSummary
+            ? async () => {
+                const added = await handleAddBuddyById(selectedProfileSummary.id);
+                if (added) {
+                  closeBuddyProfile();
+                }
+              }
+            : undefined
+        }
+        onRemoveBuddy={
+          selectedProfileSummary
+            ? async () => {
+                await handleRemoveBuddy(selectedProfileSummary.id);
+              }
+            : undefined
+        }
+      />
+
+      {buddyActivityToasts.length > 0 ? (
+        <div className="pointer-events-none fixed right-3 top-[calc(env(safe-area-inset-top)+4.25rem)] z-40 flex w-[min(22rem,calc(100vw-1.5rem))] flex-col gap-2">
+          {buddyActivityToasts.map((item) => (
+            <div
+              key={item.id}
+              className={`rounded-2xl border px-3 py-2 text-[12px] shadow-[0_12px_28px_rgba(15,23,42,0.16)] backdrop-blur-xl ${
+                item.tone === 'offline'
+                  ? 'border-slate-200/80 bg-white/88 text-slate-600'
+                  : item.tone === 'away'
+                    ? 'border-amber-200/80 bg-amber-50/92 text-amber-800'
+                    : item.tone === 'back'
+                      ? 'border-sky-200/80 bg-sky-50/92 text-sky-800'
+                      : 'border-emerald-200/80 bg-emerald-50/92 text-emerald-800'
+              }`}
+            >
+              {item.message}
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       {activeChatBuddy && userId && (
         <>
           <ChatWindow
             key={activeChatBuddy.id}
             buddyScreenname={activeChatBuddy.screenname}
-            buddyStatusMessage={activeChatBuddyStatusMessage || AVAILABLE_STATUS}
+            buddyStatusMessage={
+              activeChatBuddyPresenceSummary?.presenceState === 'away'
+                ? activeChatBuddyPresenceSummary.awayLine
+                : null
+            }
+            buddyPresenceState={activeChatBuddyPresenceSummary?.presenceState ?? 'available'}
+            buddyPresenceDetail={activeChatBuddyPresenceSummary?.presenceLabel ?? 'Available'}
+            buddyStatusLine={activeChatBuddyPresenceSummary?.resolvedStatus.statusMessage ?? null}
+            buddyBio={activeChatBuddy.profile_bio}
+            buddyIconPath={activeChatBuddy.buddy_icon_path}
             currentUserId={userId}
             messages={chatMessages}
             initialUnreadCount={initialUnreadForActiveChat}
@@ -3815,6 +4616,7 @@ function BuddyListContent() {
             onDraftChange={(draft) => updateDmDraft(activeChatBuddy.id, draft)}
             onClose={closeChatWindow}
             onSignOff={handleSignOff}
+            onOpenProfile={() => openBuddyProfile(activeChatBuddy.id)}
             isLoading={isChatLoading}
             isSending={isSendingMessage}
           />
@@ -3833,6 +4635,7 @@ function BuddyListContent() {
           roomName={activeRoom.name}
           currentUserId={userId}
           currentUserScreenname={screenname}
+          currentUserBuddyIconPath={buddyIconPath}
           initialUnreadCount={initialUnreadForActiveRoom}
           initialDraft={draftCache.rooms[normalizeRoomKey(activeRoom.name)] ?? ''}
           reloadToken={activeRoomReloadToken}
