@@ -2784,16 +2784,16 @@ function BuddyListContent() {
       }).statusMessage
     : null;
   const xpRaisedButtonClass =
-    'min-h-[32px] border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-2 text-[11px] font-bold text-[#1e395b] disabled:opacity-60 active:border-t-[#808080] active:border-l-[#808080] active:border-r-white active:border-b-white';
+    'min-h-[34px] rounded-xl border border-white/65 bg-white/80 px-3 text-[12px] font-semibold text-slate-700 shadow-[0_8px_18px_rgba(15,23,42,0.08)] transition hover:bg-white disabled:opacity-60';
   const xpGroupHeaderClass =
-    'flex min-h-[38px] w-full items-center gap-2 border-y border-[#c3d4e6] bg-[#e6eff8] px-3 py-2 text-left text-[12px] font-bold text-[#1e395b]';
+    'flex min-h-[38px] w-full items-center gap-2 border-y border-white/55 bg-white/45 px-3 py-2 text-left text-[12px] font-semibold text-slate-700';
   const xpModalFrameClass =
-    'border-2 border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] p-1 shadow-[2px_2px_0_rgba(0,0,0,0.25)]';
-  const xpModalBodyClass = 'space-y-3 px-2 pb-2 text-[11px] text-[#1e395b]';
+    'rounded-[1.4rem] border border-white/60 bg-white/90 p-2 shadow-[0_24px_42px_rgba(15,23,42,0.2)] backdrop-blur-xl';
+  const xpModalBodyClass = 'space-y-3 px-2 pb-2 text-[12px] text-slate-700';
   const xpModalInputClass =
-    'w-full border border-[#7f9db9] border-t-[#808080] border-l-[#808080] border-r-white border-b-white bg-white px-2 py-1.5 text-[11px] focus:outline-none';
+    'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] text-slate-700 shadow-[inset_0_1px_1px_rgba(15,23,42,0.05)] focus:outline-none focus:ring-2 focus:ring-blue-200';
   const xpModalButtonClass =
-    'min-h-[30px] border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-3 text-[11px] font-bold text-[#1e395b]';
+    'min-h-[32px] rounded-xl border border-slate-200 bg-white px-3 text-[12px] font-semibold text-slate-700 hover:bg-slate-50';
   const showSplitPresenceSections = buddySortMode === 'online_then_alpha';
   const onlineBuddiesSorted = alphabeticallySortedAcceptedBuddies.filter((buddy) => buddy.isOnline);
   const offlineBuddiesSorted = alphabeticallySortedAcceptedBuddies.filter((buddy) => !buddy.isOnline);
@@ -2840,8 +2840,8 @@ function BuddyListContent() {
         data-screenname={buddy.screenname}
         className={`group flex min-h-[44px] w-full items-center justify-between border-b border-[#edf2f8] px-3 py-2 text-left transition ${
           isSelected
-            ? 'bg-[#316ac5] text-white'
-            : 'text-[#1e395b] hover:bg-[#316ac5] hover:text-white'
+            ? 'bg-blue-600 text-white'
+            : 'text-slate-700 hover:bg-blue-50 hover:text-slate-900'
         }`}
       >
         <div className="min-w-0">
@@ -2894,7 +2894,7 @@ function BuddyListContent() {
     );
   };
   const xpModalPrimaryButtonClass =
-    'min-h-[30px] border border-[#1f4f9e] border-t-[#a7c7ff] border-l-[#a7c7ff] border-r-[#173f80] border-b-[#173f80] bg-gradient-to-b from-[#86bbff] to-[#3579d6] px-3 text-[11px] font-bold text-white [text-shadow:0_1px_0_rgba(0,0,0,0.35)] disabled:opacity-60';
+    'min-h-[32px] rounded-xl border border-blue-500/70 bg-gradient-to-b from-blue-500 to-blue-600 px-3 text-[12px] font-semibold text-white shadow-[0_10px_20px_rgba(37,99,235,0.32)] disabled:opacity-60';
 
   const handleOpenImFromActionBar = () => {
     const fallbackBuddyId =
@@ -2929,38 +2929,38 @@ function BuddyListContent() {
   );
 
   return (
-    <main className="h-[100dvh] overflow-hidden">
+    <main className="h-[100dvh] overflow-hidden bg-transparent">
       <RetroWindow
         title="Buddy List"
         variant="xp_shell"
         xpTitleText="Buddy List"
         onXpSignOff={() => setIsHeaderMenuOpen((previous) => !previous)}
       >
-        <div className="relative flex h-full min-h-0 flex-col font-[Tahoma,Arial,sans-serif] text-[11px] text-[#1e395b]">
+        <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-[1.6rem] border border-white/45 bg-white/50 text-[12px] text-slate-700 shadow-[0_20px_44px_rgba(15,23,42,0.14)] backdrop-blur-2xl">
           {isHeaderMenuOpen ? (
             <div className="fixed inset-0 z-30" onClick={() => setIsHeaderMenuOpen(false)}>
               <div
-                className="absolute right-2 top-[calc(env(safe-area-inset-top)+3.2rem)] w-44 border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] p-1 shadow-[2px_2px_0_rgba(0,0,0,0.18)]"
+                className="absolute right-2 top-[calc(env(safe-area-inset-top)+3.2rem)] w-52 rounded-2xl border border-white/60 bg-white/85 p-1.5 shadow-[0_18px_40px_rgba(15,23,42,0.18)] backdrop-blur-xl"
                 onClick={(event) => event.stopPropagation()}
               >
                 <button
                   type="button"
                   onClick={() => void handleSignOff()}
-                  className="block w-full border border-transparent px-2 py-1 text-left text-[11px] font-bold text-[#1e395b] hover:border-[#1f4f9e] hover:bg-[#316ac5] hover:text-white"
+                  className="block w-full rounded-xl border border-transparent px-3 py-2 text-left text-[12px] font-semibold text-slate-700 hover:bg-blue-50"
                 >
                   Sign Off
                 </button>
                 <button
                   type="button"
                   onClick={openAwayModal}
-                  className="mt-0.5 block w-full border border-transparent px-2 py-1 text-left text-[11px] font-bold text-[#1e395b] hover:border-[#1f4f9e] hover:bg-[#316ac5] hover:text-white"
+                  className="mt-0.5 block w-full rounded-xl border border-transparent px-3 py-2 text-left text-[12px] font-semibold text-slate-700 hover:bg-blue-50"
                 >
                   Set Away Message
                 </button>
                 <button
                   type="button"
                   onClick={openAddWindow}
-                  className="mt-0.5 block w-full border border-transparent px-2 py-1 text-left text-[11px] font-bold text-[#1e395b] hover:border-[#1f4f9e] hover:bg-[#316ac5] hover:text-white"
+                  className="mt-0.5 block w-full rounded-xl border border-transparent px-3 py-2 text-left text-[12px] font-semibold text-slate-700 hover:bg-blue-50"
                 >
                   Add Buddy
                 </button>
@@ -2968,7 +2968,7 @@ function BuddyListContent() {
                   <button
                     type="button"
                     onClick={handleSetupAction}
-                    className="mt-0.5 block w-full border border-transparent px-2 py-1 text-left text-[11px] font-bold text-[#1e395b] hover:border-[#1f4f9e] hover:bg-[#316ac5] hover:text-white"
+                    className="mt-0.5 block w-full rounded-xl border border-transparent px-3 py-2 text-left text-[12px] font-semibold text-slate-700 hover:bg-blue-50"
                   >
                     Admin Reset
                   </button>
@@ -2978,16 +2978,16 @@ function BuddyListContent() {
           ) : null}
 
           <div className="min-h-0 flex-1 overflow-y-auto pb-20">
-            <div className="border-b border-[#d0d7e5] bg-[#f4f7fc] px-3 py-2">
+            <div className="border-b border-white/55 bg-white/35 px-4 py-3">
               {!isCurrentUserAway ? (
                 <>
-                  <p className="truncate text-[11px] font-bold text-[#1e395b]">{screenname}</p>
+                  <p className="truncate text-[11px] font-bold text-slate-700">{screenname}</p>
                   <p className="truncate text-[11px] italic text-[#5b708f]">{statusMsg || AVAILABLE_STATUS}</p>
                   <div className="mt-2 flex items-center gap-2">
                     <button
                       type="button"
                       disabled
-                      className="min-h-[32px] border border-[#7f7f7f] border-t-[#a7a7a7] border-l-[#a7a7a7] border-r-white border-b-white bg-[#dfe6f1] px-2 font-bold text-[#1e395b]"
+                      className="min-h-[34px] rounded-xl border border-slate-200 bg-white/80 px-3 font-semibold text-slate-700"
                     >
                       Available
                     </button>
@@ -2998,9 +2998,9 @@ function BuddyListContent() {
                 </>
               ) : null}
               {awayModalError ? <p className="mt-2 font-semibold text-red-700">{awayModalError}</p> : null}
-              <div className="mt-2 flex items-center justify-between gap-2 border border-[#d0d9e8] bg-[#f8fbff] px-2 py-1.5 text-[10px] text-[#355178]">
+              <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-[11px] text-slate-600">
                 <div className="min-w-0">
-                  <p className="font-bold uppercase tracking-wide text-[#4b668b]">Room State</p>
+                  <p className="font-semibold uppercase tracking-wide text-slate-500">Room State</p>
                   <p className="truncate">{chatSyncSummary}</p>
                   <p className="truncate">{outboxSummary}</p>
                   {lastSyncError ? (
@@ -3018,7 +3018,7 @@ function BuddyListContent() {
                   type="button"
                   onClick={() => void syncFromServer()}
                   disabled={isChatSyncBusy}
-                  className="min-h-[28px] shrink-0 border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-2 text-[10px] font-bold text-[#1e395b] disabled:opacity-60"
+                  className="min-h-[30px] shrink-0 rounded-xl border border-slate-200 bg-white px-3 text-[11px] font-semibold text-slate-700 disabled:opacity-60"
                 >
                   {isChatSyncBusy ? 'Syncing...' : 'Sync Now'}
                 </button>
@@ -3026,7 +3026,7 @@ function BuddyListContent() {
             </div>
 
             {isCurrentUserAway ? (
-              <div className="flex flex-col items-center space-y-1.5 border-y border-[#9e9e9e] bg-[#ffffe1] px-3 py-3 text-center">
+              <div className="mx-3 mt-2 flex flex-col items-center space-y-1.5 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-3 text-center">
                 <p className="text-[12px] font-semibold text-[#4d5874]">You are currently Away.</p>
                 <p className="w-full break-words text-[11px] italic text-gray-600">
                   {resolveAwayTemplate(awayMessage || 'Away from keyboard.', screenname, screenname)}
@@ -3046,14 +3046,14 @@ function BuddyListContent() {
               </div>
             ) : null}
 
-            <div className="bg-white">
+            <div className="bg-transparent">
               <div className="select-none">
                 <button
                   type="button"
                   onClick={() => setIsBuddiesOpen((previous) => !previous)}
                   className={xpGroupHeaderClass}
                 >
-                  <span className="inline-flex h-4 w-4 items-center justify-center border border-[#7f7f7f] bg-[#ece9d8] text-[11px] leading-none">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-slate-300 bg-white text-[11px] leading-none">
                     {isBuddiesOpen ? '-' : '+'}
                   </span>
                   <span>
@@ -3065,8 +3065,8 @@ function BuddyListContent() {
 
                 {isBuddiesOpen ? (
                   <div>
-                    <div className="flex items-center justify-between border-b border-[#dce5f2] bg-[#f7faff] px-3 py-1.5">
-                      <label htmlFor="buddy-sort-mode" className="text-[10px] font-bold uppercase tracking-wide text-[#4c6182]">
+                    <div className="flex items-center justify-between border-b border-slate-200 bg-white/60 px-3 py-2">
+                      <label htmlFor="buddy-sort-mode" className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                         Sort
                       </label>
                       <select
@@ -3074,7 +3074,7 @@ function BuddyListContent() {
                         title="Buddy Sort Mode"
                         value={buddySortMode}
                         onChange={(event) => setBuddySortMode(event.target.value as BuddySortMode)}
-                        className="min-h-[24px] border border-[#7f9db9] border-t-[#808080] border-l-[#808080] border-r-white border-b-white bg-white px-1 py-0.5 text-[11px] text-[#1e395b]"
+                        className="min-h-[30px] rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-700"
                       >
                         <option value="online_then_alpha">Online then A-Z</option>
                         <option value="alpha">A-Z</option>
@@ -3115,7 +3115,7 @@ function BuddyListContent() {
                     onClick={() => setIsOfflineOpen((previous) => !previous)}
                     className={xpGroupHeaderClass}
                   >
-                    <span className="inline-flex h-4 w-4 items-center justify-center border border-[#7f7f7f] bg-[#ece9d8] text-[11px] leading-none">
+                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-slate-300 bg-white text-[11px] leading-none">
                       {isOfflineOpen ? '-' : '+'}
                     </span>
                     <span>Direct Messages - Offline ({offlineBuddies.length}/{acceptedBuddies.length})</span>
@@ -3131,7 +3131,7 @@ function BuddyListContent() {
                   onClick={() => setIsActiveChatsOpen((previous) => !previous)}
                   className={xpGroupHeaderClass}
                 >
-                  <span className="inline-flex h-4 w-4 items-center justify-center border border-[#7f7f7f] bg-[#ece9d8] text-[11px] leading-none">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-slate-300 bg-white text-[11px] leading-none">
                     {isActiveChatsOpen ? '-' : '+'}
                   </span>
                   <span>Group Rooms ({activeRooms.length})</span>
@@ -3154,7 +3154,7 @@ function BuddyListContent() {
                             data-testid={`room-row-${normalizedRoomKey}`}
                             data-room-name={roomName}
                             data-room-unread={unreadCount}
-                            className="group flex min-h-[44px] flex-1 items-center justify-between px-3 py-2 text-left text-[#1e395b] transition hover:bg-[#316ac5] hover:text-white"
+                            className="group flex min-h-[44px] flex-1 items-center justify-between px-3 py-2 text-left text-slate-700 transition hover:bg-[#316ac5] hover:text-white"
                           >
                             <div className="flex min-w-0 items-center gap-1.5">
                               <span className="aim-list-kind-chip" aria-hidden="true">
@@ -3177,7 +3177,7 @@ function BuddyListContent() {
                           <button
                             type="button"
                             onClick={() => void handleLeaveRoom(roomName)}
-                            className="my-1 mr-2 inline-flex min-h-[32px] min-w-[32px] items-center justify-center border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-2 text-[11px] font-bold text-[#7b1f1f] transition hover:bg-[#f6eaea]"
+                            className="my-1 mr-2 inline-flex min-h-[34px] min-w-[34px] items-center justify-center rounded-xl border border-red-200 bg-red-50 px-2 text-[11px] font-semibold text-red-700 transition hover:bg-red-100"
                             aria-label={`Leave ${roomName}`}
                             title="Leave room"
                           >
@@ -3192,7 +3192,7 @@ function BuddyListContent() {
             </div>
           </div>
 
-          <div className="fixed bottom-0 left-0 z-20 h-16 w-full border-t-2 border-white bg-[#eceeef] shadow-[0_-1px_2px_rgba(0,0,0,0.1)]">
+          <div className="fixed bottom-0 left-0 z-20 h-16 w-full border-t border-white/70 bg-white/65 backdrop-blur-xl shadow-[0_-6px_24px_rgba(15,23,42,0.1)]">
             <div className="grid h-full grid-cols-4 items-center gap-2 px-3 py-2">
               <button type="button" onClick={handleOpenImFromActionBar} className={xpRaisedButtonClass}>
                 IM
@@ -3215,11 +3215,11 @@ function BuddyListContent() {
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-[1px]">
           <div className="w-full max-w-md">
             <div className={xpModalFrameClass}>
-              <div className="mb-2 flex min-h-[24px] items-center bg-gradient-to-b from-[#0058e6] via-[#3a93ff] to-[#0058e6] px-2 text-[11px] font-bold text-white">
+              <div className="mb-2 flex min-h-[34px] items-center rounded-xl border border-white/70 bg-white/70 px-3 text-[12px] font-semibold text-slate-800">
                 Set Recovery Code
               </div>
               <form onSubmit={handleSaveRecoveryCode} className={xpModalBodyClass}>
-                <p className="border border-[#b79f45] bg-[#fff4c5] px-2 py-1.5 text-[11px] text-[#6e4c00]">
+                <p className="rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] text-amber-900">
                   You must set a recovery code before continuing. Store this safely. It is required for forgotten
                   password recovery.
                 </p>
@@ -3258,7 +3258,7 @@ function BuddyListContent() {
                 </div>
 
                 {recoverySetupError && (
-                  <p className="border border-[#b95f5f] bg-[#ffe5e5] px-2 py-1.5 text-[11px] text-[#8b2020]">
+                  <p className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] text-red-700">
                     {recoverySetupError}
                   </p>
                 )}
@@ -3289,7 +3289,7 @@ function BuddyListContent() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-[1px]">
           <div className="w-full max-w-md">
             <div className={xpModalFrameClass}>
-              <div className="mb-2 flex min-h-[24px] items-center bg-gradient-to-b from-[#0058e6] via-[#3a93ff] to-[#0058e6] px-2 text-[11px] font-bold text-white">
+              <div className="mb-2 flex min-h-[34px] items-center rounded-xl border border-white/70 bg-white/70 px-3 text-[12px] font-semibold text-slate-800">
                 Admin Password Reset
               </div>
               <form onSubmit={handleIssueAdminResetTicket} className={xpModalBodyClass}>
@@ -3311,25 +3311,25 @@ function BuddyListContent() {
                   />
                 </div>
 
-                <label className="flex items-start gap-2 border border-[#d8c48b] bg-[#fff9e6] px-2 py-1.5 text-[11px] text-[#6e4c00]">
+                <label className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50/80 px-2.5 py-2 text-[11px] text-amber-900">
                   <input
                     type="checkbox"
                     checked={confirmAdminResetAction}
                     onChange={(event) => setConfirmAdminResetAction(event.target.checked)}
                     disabled={isIssuingAdminReset}
-                    className="mt-[1px] h-3.5 w-3.5 accent-[#8b2020]"
+                    className="mt-[1px] h-3.5 w-3.5 accent-amber-700"
                   />
                   <span>I confirm this is an authorized reset request and the ticket will be shared securely.</span>
                 </label>
 
                 {adminResetError && (
-                  <p className="border border-[#b95f5f] bg-[#ffe5e5] px-2 py-1.5 text-[11px] text-[#8b2020]">
+                  <p className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] text-red-700">
                     {adminResetError}
                   </p>
                 )}
 
                 {issuedAdminTicket && (
-                  <div className="border border-[#b79f45] bg-[#fff4c5] px-2 py-1.5 text-[11px] text-[#6e4c00]">
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] text-amber-900">
                     <p className="font-bold">One-time ticket (share securely):</p>
                     <p className="mt-1 break-all font-mono text-[13px] font-bold">{issuedAdminTicket.ticket}</p>
                     <p className="mt-1 text-[11px]">
@@ -3340,21 +3340,21 @@ function BuddyListContent() {
                       onClick={() => {
                         void navigator.clipboard.writeText(issuedAdminTicket.ticket);
                       }}
-                      className="mt-2 border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-2 py-1 text-[11px] font-bold text-[#6e4c00]"
+                      className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] font-semibold text-amber-800"
                     >
                       Copy Ticket
                     </button>
                   </div>
                 )}
 
-                <div className="border border-[#c8d6ea] bg-[#f4f8fe] px-2 py-1.5 text-[11px] text-[#1e395b]">
+                <div className="rounded-xl border border-slate-200 bg-white/75 px-2.5 py-2 text-[11px] text-slate-700">
                   <div className="flex items-center justify-between gap-2">
                     <p className="font-bold">Recent Recovery Activity</p>
                     <button
                       type="button"
                       onClick={() => void fetchAdminAuditEntries()}
                       disabled={isLoadingAdminAudit}
-                      className="border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-2 py-1 text-[11px] font-bold text-[#1e395b] disabled:opacity-60"
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 disabled:opacity-60"
                     >
                       {isLoadingAdminAudit ? 'Refreshing...' : 'Refresh'}
                     </button>
@@ -3367,7 +3367,7 @@ function BuddyListContent() {
                   ) : null}
 
                   {!adminAuditError && !isLoadingAdminAudit && adminAuditEntries.length === 0 ? (
-                    <p className="mt-2 italic text-[#4c6182]">No recent events.</p>
+                    <p className="mt-2 italic text-slate-500">No recent events.</p>
                   ) : null}
 
                   {adminAuditEntries.length > 0 ? (
@@ -3381,9 +3381,9 @@ function BuddyListContent() {
                             : null;
 
                         return (
-                          <div key={entry.id} className="border border-[#d2deee] bg-white px-2 py-1.5">
-                            <p className="font-bold text-[#2a4f82]">{formatAdminAuditEvent(entry.eventType)}</p>
-                            <p className="text-[10px] text-[#4c6182]">{new Date(entry.createdAt).toLocaleString()}</p>
+                          <div key={entry.id} className="rounded-lg border border-slate-200 bg-white px-2.5 py-2">
+                            <p className="font-semibold text-slate-700">{formatAdminAuditEvent(entry.eventType)}</p>
+                            <p className="text-[10px] text-slate-500">{new Date(entry.createdAt).toLocaleString()}</p>
                             <p className="mt-0.5">
                               <span className="font-semibold">Actor:</span> {actorLabel}
                             </p>
@@ -3426,7 +3426,7 @@ function BuddyListContent() {
 
       {showAwayModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4">
-          <div className="w-[22rem] max-w-[95%] border-2 border-t-white border-l-white border-r-gray-500 border-b-gray-500 bg-[#eceeef] p-1 shadow-xl">
+          <div className="w-[22rem] max-w-[95%] rounded-[1.4rem] border border-white/70 bg-white/85 p-2 shadow-[0_28px_50px_rgba(15,23,42,0.22)] backdrop-blur-xl">
             <div className="mb-2 flex min-h-[28px] items-center bg-gradient-to-b from-blue-400 via-blue-500 to-blue-700 px-3">
               <p className="text-[13px] font-bold text-white [text-shadow:0_1px_0_rgba(0,0,0,0.35)]">
                 Set Away Message
@@ -3435,7 +3435,7 @@ function BuddyListContent() {
 
             <form onSubmit={handleSaveAwayMessage} className="space-y-3 px-2 pb-2 text-sm">
               <div className="grid grid-cols-[90px_1fr] items-center gap-2">
-                <label htmlFor="away-label-input" className="text-[12px] font-semibold text-[#1e395b]">
+                <label htmlFor="away-label-input" className="text-[12px] font-semibold text-slate-700">
                   Enter label:
                 </label>
                 <input
@@ -3449,7 +3449,7 @@ function BuddyListContent() {
               </div>
 
               <div className="grid grid-cols-[90px_1fr] items-center gap-2">
-                <label htmlFor="away-preset-select" className="text-[12px] font-semibold text-[#1e395b]">
+                <label htmlFor="away-preset-select" className="text-[12px] font-semibold text-slate-700">
                   Preset:
                 </label>
                 <select
@@ -3476,20 +3476,20 @@ function BuddyListContent() {
               </div>
 
               <div>
-                <label htmlFor="away-message-input" className="mb-1 block text-[12px] font-semibold text-[#1e395b]">
+                <label htmlFor="away-message-input" className="mb-1 block text-[12px] font-semibold text-slate-700">
                   Enter new Away message:
                 </label>
-                <div className="mb-1 flex items-center gap-1 border border-[#b7b7b7] bg-[#ece9d8] px-1 py-1">
-                  <span className="inline-flex h-5 w-5 items-center justify-center border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] text-[11px] font-bold text-[#1e395b]">
+                <div className="mb-1 flex items-center gap-1 rounded-xl border border-slate-200 bg-white/80 px-2 py-1.5">
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg border border-slate-200 bg-white text-[11px] font-semibold text-slate-700">
                     A
                   </span>
-                  <span className="inline-flex h-5 w-5 items-center justify-center border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] text-[11px] font-bold text-[#1e395b]">
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg border border-slate-200 bg-white text-[11px] font-semibold text-slate-700">
                     B
                   </span>
-                  <span className="inline-flex h-5 w-5 items-center justify-center border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] text-[11px] font-bold text-[#1e395b]">
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg border border-slate-200 bg-white text-[11px] font-semibold text-slate-700">
                     I
                   </span>
-                  <span className="inline-flex h-5 w-5 items-center justify-center border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] text-[11px] font-bold text-[#1e395b] underline">
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg border border-slate-200 bg-white text-[11px] font-semibold text-slate-700 underline">
                     U
                   </span>
                 </div>
@@ -3499,44 +3499,44 @@ function BuddyListContent() {
                 id="away-message-input"
                 value={awayText}
                 onChange={(event) => setAwayText(event.target.value)}
-                className="min-h-[110px] w-full resize-none border border-[#7F9DB9] bg-white p-2 text-[12px] shadow-inner focus:outline-none focus:ring-1 focus:ring-[#7F9DB9]"
+                className="min-h-[110px] w-full resize-none rounded-xl border border-slate-200 bg-white p-3 text-[12px] shadow-[inset_0_1px_2px_rgba(15,23,42,0.06)] focus:outline-none focus:ring-2 focus:ring-blue-200"
                 placeholder="Use %n for buddy name, %d for date, %t for time..."
                 maxLength={320}
               />
 
-              <div className="border border-[#5a5a5a] border-t-[#808080] border-l-[#808080] border-r-[#b6b6b6] border-b-[#b6b6b6] bg-black p-2">
+              <div className="rounded-xl border border-slate-800/90 bg-slate-950 p-2">
                 <p className="break-words text-[13px] text-[#ffc4d8]">{awayPreview}</p>
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#2f405c]">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600">
                 <label className="inline-flex items-center gap-1">
                   <input
                     type="checkbox"
                     checked={saveAwayPreset}
                     onChange={(event) => setSaveAwayPreset(event.target.checked)}
-                    className="h-4 w-4 border border-[#7f7f7f]"
+                    className="h-4 w-4 rounded border border-slate-300"
                   />
                   Save for later use
                 </label>
                 <span className="text-[10px]">%n = Buddy, %d = Date, %t = Time</span>
               </div>
 
-              <div className="space-y-2 border border-[#c9d4e5] bg-[#f4f7fc] p-2">
-                <label className="inline-flex items-center gap-2 text-[11px] font-semibold text-[#1e395b]">
+              <div className="space-y-2 rounded-xl border border-slate-200 bg-white/70 p-3">
+                <label className="inline-flex items-center gap-2 text-[11px] font-semibold text-slate-700">
                   <input
                     type="checkbox"
                     checked={isAutoAwayEnabled}
                     onChange={(event) => setIsAutoAwayEnabled(event.target.checked)}
-                    className="h-4 w-4 border border-[#7f7f7f]"
+                    className="h-4 w-4 rounded border border-slate-300"
                   />
                   Auto set Away when idle
                 </label>
                 <div className="flex items-center gap-2">
-                  <span className="text-[11px] text-[#1e395b]">Idle timeout:</span>
+                  <span className="text-[11px] text-slate-700">Idle timeout:</span>
                   <select
                     value={autoAwayMinutes}
                     onChange={(event) => setAutoAwayMinutes(Number(event.target.value))}
-                    className="h-7 border border-[#7F9DB9] bg-white px-2 text-[11px] shadow-[inset_1px_1px_2px_rgba(0,0,0,0.08)] focus:outline-none"
+                    className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-[11px] focus:outline-none focus:ring-2 focus:ring-blue-200"
                     disabled={!isAutoAwayEnabled}
                   >
                     {AUTO_AWAY_MINUTE_OPTIONS.map((minutes) => (
@@ -3546,12 +3546,12 @@ function BuddyListContent() {
                     ))}
                   </select>
                 </div>
-                <label className="inline-flex items-center gap-2 text-[11px] text-[#1e395b]">
+                <label className="inline-flex items-center gap-2 text-[11px] text-slate-700">
                   <input
                     type="checkbox"
                     checked={autoReturnOnActivity}
                     onChange={(event) => setAutoReturnOnActivity(event.target.checked)}
-                    className="h-4 w-4 border border-[#7f7f7f]"
+                    className="h-4 w-4 rounded border border-slate-300"
                     disabled={!isAutoAwayEnabled}
                   />
                   Return to Available when activity resumes
@@ -3569,14 +3569,14 @@ function BuddyListContent() {
                     setShowAwayModal(false);
                     setAwayModalError(null);
                   }}
-                  className="min-h-[34px] border-2 border-t-white border-l-white border-r-gray-500 border-b-gray-500 bg-[#eceeef] px-3 text-xs font-bold text-[#1e395b] shadow-[inset_1px_1px_0_rgba(255,255,255,0.8)]"
+                  className="min-h-[34px] rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSavingAwayMessage}
-                  className="min-h-[34px] border-2 border-t-white border-l-white border-r-gray-500 border-b-gray-500 bg-[#eceeef] px-4 text-xs font-bold text-[#1e395b] shadow-[inset_1px_1px_0_rgba(255,255,255,0.8)] disabled:opacity-60"
+                  className="min-h-[34px] rounded-xl border border-blue-500/70 bg-gradient-to-b from-blue-500 to-blue-600 px-4 text-xs font-semibold text-white shadow-[0_10px_20px_rgba(37,99,235,0.3)] disabled:opacity-60"
                 >
                   {isSavingAwayMessage ? 'Saving...' : "I'm Away"}
                 </button>
@@ -3590,7 +3590,7 @@ function BuddyListContent() {
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-[1px]">
           <div className="w-full max-w-sm">
             <div className={xpModalFrameClass}>
-              <div className="mb-2 flex min-h-[24px] items-center bg-gradient-to-b from-[#0058e6] via-[#3a93ff] to-[#0058e6] px-2 text-[11px] font-bold text-white">
+              <div className="mb-2 flex min-h-[34px] items-center rounded-xl border border-white/70 bg-white/70 px-3 text-[12px] font-semibold text-slate-800">
                 Join a Chat Room
               </div>
               <form onSubmit={handleJoinRoom} className="flex flex-col gap-3 px-2 pb-2 text-[11px]">
@@ -3607,7 +3607,7 @@ function BuddyListContent() {
                 />
                 <p className="text-[12px] text-slate-500">If the room does not exist, it will be created.</p>
                 {roomJoinError && (
-                  <p className="border border-[#b95f5f] bg-[#ffe5e5] px-2 py-1.5 text-[11px] text-[#8b2020]">
+                  <p className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] text-red-700">
                     {roomJoinError}
                   </p>
                 )}
@@ -3637,16 +3637,16 @@ function BuddyListContent() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-[1px]">
           <div className="w-full max-w-sm">
             <div className={xpModalFrameClass}>
-              <div className="mb-2 flex min-h-[24px] items-center bg-gradient-to-b from-[#0058e6] via-[#3a93ff] to-[#0058e6] px-2 text-[11px] font-bold text-white">
+              <div className="mb-2 flex min-h-[34px] items-center rounded-xl border border-white/70 bg-white/70 px-3 text-[12px] font-semibold text-slate-800">
                 Incoming Message
               </div>
-              <div className="flex flex-col gap-3 px-2 pb-2 text-[11px] text-[#1e395b]">
+              <div className="flex flex-col gap-3 px-2 pb-2 text-[11px] text-slate-700">
                 <p>
                   <span className="font-bold text-blue-700">{activePendingRequest.screenname}</span> is trying to
                   send you a message, but they are not on your Buddy List.
                 </p>
                 {pendingRequestError && (
-                  <p className="border border-[#b95f5f] bg-[#ffe5e5] px-2 py-1.5 text-[11px] text-[#8b2020]">
+                  <p className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] text-red-700">
                     {pendingRequestError}
                   </p>
                 )}
@@ -3684,7 +3684,7 @@ function BuddyListContent() {
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-[1px]">
           <div className="w-full max-w-md">
             <div className={xpModalFrameClass}>
-              <div className="mb-2 flex min-h-[24px] items-center bg-gradient-to-b from-[#0058e6] via-[#3a93ff] to-[#0058e6] px-2 text-[11px] font-bold text-white">
+              <div className="mb-2 flex min-h-[34px] items-center rounded-xl border border-white/70 bg-white/70 px-3 text-[12px] font-semibold text-slate-800">
                 Add Buddy
               </div>
               <div className="flex flex-col gap-3 px-2 pb-2 text-[11px]">

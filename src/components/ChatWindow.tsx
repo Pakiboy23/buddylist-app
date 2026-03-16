@@ -479,10 +479,10 @@ export default function ChatWindow({
   };
 
   const xpTinyToolbarButtonClass = (active = false) =>
-    `inline-flex h-5 min-w-5 items-center justify-center border px-1 text-[11px] font-bold text-[#1e395b] ${
+    `inline-flex h-7 min-w-7 items-center justify-center rounded-lg border px-1.5 text-[11px] font-semibold text-slate-700 transition ${
       active
-        ? 'border-[#7f7f7f] border-t-[#9d9d9d] border-l-[#9d9d9d] border-r-white border-b-white bg-[#dde4ef]'
-        : 'border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8]'
+        ? 'border-blue-400/70 bg-blue-50 text-blue-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]'
+        : 'border-slate-200 bg-white hover:bg-slate-50'
     }`;
 
   return (
@@ -494,8 +494,8 @@ export default function ChatWindow({
         onXpClose={onClose}
         onXpSignOff={onSignOff}
       >
-        <div className="flex h-full min-h-0 flex-col bg-[#ece9d8] font-[Tahoma,Arial,sans-serif] text-[11px]">
-          <div className="m-2 mb-0 border border-[#a8a8a8] border-t-white border-l-white border-r-[#a8a8a8] border-b-[#a8a8a8] bg-[#ece9d8] px-2 py-1 text-[11px] text-[#1e395b]">
+        <div className="flex h-full min-h-0 flex-col rounded-[1.4rem] border border-white/60 bg-white/65 text-[11px] backdrop-blur-xl">
+          <div className="m-2 mb-0 rounded-xl border border-white/70 bg-white/80 px-3 py-2 text-[11px] text-slate-700">
             <span className="font-bold">Conversation with {buddyScreenname}:</span>{' '}
             <span
               className="aim-rich-html"
@@ -505,7 +505,7 @@ export default function ChatWindow({
             />
           </div>
 
-          <div className="mx-2 mt-2 border border-[#a8a8a8] border-t-white border-l-white border-r-[#a8a8a8] border-b-[#a8a8a8] bg-[#f4f7fc] px-2 py-1 text-[11px] text-[#1e395b]">
+          <div className="mx-2 mt-2 rounded-xl border border-white/60 bg-white/70 backdrop-blur-sm px-2 py-1 text-[11px] text-slate-700">
             <div className="flex items-center gap-2">
               <label htmlFor="dm-search-input" className="shrink-0 font-bold">
                 Search:
@@ -515,25 +515,25 @@ export default function ChatWindow({
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
                 placeholder="Find in this conversation"
-                className="h-6 min-w-0 flex-1 border border-[#7f9db9] border-t-[#808080] border-l-[#808080] border-r-white border-b-white bg-white px-1.5 text-[11px] focus:outline-none"
+                className="h-6 min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-1.5 text-[11px] focus:outline-none"
               />
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
                 disabled={!searchQuery}
-                className="h-6 shrink-0 border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-2 text-[10px] font-bold text-[#1e395b] disabled:opacity-50"
+                className="h-6 shrink-0 rounded-lg border border-slate-200 bg-white px-2 text-[10px] font-bold text-slate-700 disabled:opacity-50"
               >
                 Clear
               </button>
             </div>
             {normalizedSearchQuery ? (
-              <p className="mt-1 text-[10px] text-[#4f607c]">
+              <p className="mt-1 text-[10px] text-slate-500">
                 {searchMatchCount} {searchMatchCount === 1 ? 'match' : 'matches'}
               </p>
             ) : null}
           </div>
 
-          <div className="m-2 mb-0 min-h-0 flex-1 overflow-y-auto border-2 border-t-[#808080] border-l-[#808080] border-b-white border-r-white bg-white p-2">
+          <div className="m-2 mb-0 min-h-0 flex-1 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2">
             {isLoading && <p className="italic text-slate-500">Loading conversation...</p>}
             {!isLoading && messages.length === 0 && (
               <p className="italic text-slate-500">No messages yet. Say hey.</p>
@@ -567,7 +567,7 @@ export default function ChatWindow({
                       className={
                         normalizedSearchQuery
                           ? isMatch
-                            ? 'rounded bg-[#fffbe7] px-1'
+                            ? 'rounded bg-amber-50 px-1'
                             : 'px-1 opacity-50'
                           : undefined
                       }
@@ -587,21 +587,21 @@ export default function ChatWindow({
                             <input
                               value={editDraft}
                               onChange={(event) => setEditDraft(event.target.value)}
-                              className="h-6 min-w-0 flex-1 border border-[#7f9db9] border-t-[#808080] border-l-[#808080] border-r-white border-b-white bg-white px-1 text-[11px] focus:outline-none"
+                              className="h-6 min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-1 text-[11px] focus:outline-none"
                               maxLength={1000}
                             />
                             <button
                               type="button"
                               onClick={() => void saveEditedMessage(message.id)}
                               disabled={isSavingEdit || !editDraft.trim()}
-                              className="border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-1 py-0.5 text-[10px] font-bold text-[#1e395b] disabled:opacity-60"
+                              className="rounded-lg border border-slate-200 bg-white px-1 py-0.5 text-[10px] font-bold text-slate-700 disabled:opacity-60"
                             >
                               Save
                             </button>
                             <button
                               type="button"
                               onClick={cancelEditingMessage}
-                              className="border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-1 py-0.5 text-[10px] font-bold text-[#1e395b]"
+                              className="rounded-lg border border-slate-200 bg-white px-1 py-0.5 text-[10px] font-bold text-slate-700"
                             >
                               Cancel
                             </button>
@@ -610,7 +610,7 @@ export default function ChatWindow({
                           <span className="italic text-gray-500">This message was deleted.</span>
                         ) : (
                           <span
-                            className="aim-rich-html text-gray-900"
+                            className="aim-rich-html text-slate-800"
                             dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(message.content) }}
                           />
                         )}
@@ -628,7 +628,7 @@ export default function ChatWindow({
                               type="button"
                               onClick={() => void softDeleteMessage(message.id)}
                               disabled={isDeletingMessageId === message.id}
-                              className="text-[#8b2020] underline disabled:opacity-60"
+                              className="text-red-700 underline disabled:opacity-60"
                             >
                               {isDeletingMessageId === message.id ? '...' : 'Delete'}
                             </button>
@@ -647,7 +647,7 @@ export default function ChatWindow({
                                 href={data.publicUrl}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="block text-[10px] text-[#1f4f9e] underline"
+                                className="block text-[10px] text-blue-600 underline"
                                 title={attachment.storage_path}
                               >
                                 📎 {attachment.file_name}
@@ -662,7 +662,7 @@ export default function ChatWindow({
                           {reactionEntries.map(([emoji, count]) => (
                             <span
                               key={`${message.id}-${emoji}`}
-                              className="rounded border border-[#b7c4d8] bg-[#f6f9ff] px-1 py-[1px] text-[10px] text-[#355178]"
+                              className="rounded rounded-lg border border-slate-200 bg-white/70 px-1 py-[1px] text-[10px] text-slate-600"
                             >
                               {emoji} {count}
                             </span>
@@ -679,7 +679,7 @@ export default function ChatWindow({
           {reactionError ? <p className="mx-2 mt-1 text-[10px] text-red-700">{reactionError}</p> : null}
           {attachmentLoadError ? <p className="mx-2 mt-1 text-[10px] text-red-700">{attachmentLoadError}</p> : null}
 
-          <div className="mx-2 mb-2 flex items-center gap-1 border border-[#b7b7b7] bg-[#ece9d8] px-1 py-1">
+          <div className="mx-2 mb-2 flex items-center gap-1 rounded-xl border border-slate-200 bg-white/80 px-1 py-1">
             <button
               type="button"
               onClick={() => setShowFormatting((previous) => !previous)}
@@ -739,26 +739,26 @@ export default function ChatWindow({
           </div>
 
           {showFormatting ? (
-            <div className="mx-2 mb-2 border border-[#b7b7b7] bg-[#ece9d8] p-1">
+            <div className="mx-2 mb-2 rounded-xl border border-slate-200 bg-white/80 p-1">
               <RichTextToolbar value={format} onChange={setFormat} />
             </div>
           ) : null}
 
           {typingText ? (
-            <p className="mx-2 mb-1 text-[11px] italic text-[#2d5c9a]">{typingText}</p>
+            <p className="mx-2 mb-1 text-[11px] italic text-blue-600">{typingText}</p>
           ) : null}
 
           {pendingAttachments.length > 0 ? (
-            <div className="mx-2 mb-2 space-y-1 border border-[#b7b7b7] bg-[#f6f9ff] p-1">
+            <div className="mx-2 mb-2 space-y-1 rounded-xl border border-slate-200 bg-white/70 p-1">
               {pendingAttachments.map((file, index) => (
                 <div key={`${file.name}-${file.size}-${file.lastModified}`} className="flex items-center gap-2">
-                  <span className="min-w-0 flex-1 truncate text-[10px] text-[#1e395b]">
+                  <span className="min-w-0 flex-1 truncate text-[10px] text-slate-700">
                     📎 {file.name} ({formatFileSize(file.size)})
                   </span>
                   <button
                     type="button"
                     onClick={() => removePendingAttachment(index)}
-                    className="border border-[#7f7f7f] border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-1 text-[10px] font-bold text-[#8b2020]"
+                    className="rounded-lg border border-slate-200 bg-white px-1 text-[10px] font-bold text-red-700"
                   >
                     Remove
                   </button>
@@ -771,7 +771,7 @@ export default function ChatWindow({
           <div className="m-2 mt-0 flex items-stretch gap-2">
             <form
               onSubmit={handleSubmit}
-              className="flex h-16 flex-1 items-stretch gap-2 border-2 border-t-[#808080] border-l-[#808080] border-b-white border-r-white bg-white p-1"
+              className="flex h-16 flex-1 items-stretch gap-2 rounded-xl border border-slate-200 bg-white p-1"
             >
               <textarea
                 value={draft}
@@ -785,13 +785,13 @@ export default function ChatWindow({
               <button
                 type="submit"
                 disabled={isSending || (!draft.trim() && pendingAttachments.length === 0)}
-                className="min-w-[74px] border-2 border-t-white border-l-white border-r-[#808080] border-b-[#808080] bg-[#ece9d8] px-2 text-[11px] font-bold text-[#1e395b] disabled:opacity-60"
+                className="min-w-[82px] rounded-xl border border-blue-500/70 bg-gradient-to-b from-blue-500 to-blue-600 px-3 text-[11px] font-semibold text-white shadow-[0_8px_18px_rgba(37,99,235,0.3)] disabled:opacity-60"
               >
                 {isSending ? '...' : 'Send'}
               </button>
             </form>
           </div>
-          <p className="mx-2 mb-2 text-[11px] text-[#5a5a5a]">
+          <p className="mx-2 mb-2 text-[11px] text-slate-500">
             Enter to send. Cmd/Ctrl + Enter for a new line.
           </p>
         </div>
