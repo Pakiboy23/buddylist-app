@@ -3348,6 +3348,7 @@ function BuddyListContent() {
                 )}
 
                 <div className="rounded-xl border border-slate-200 bg-white/75 px-2.5 py-2 text-[11px] text-slate-700">
+                <div className="border border-[#c8d6ea] bg-[#f4f8fe] px-2 py-1.5 text-[11px] text-slate-700">
                   <div className="flex items-center justify-between gap-2">
                     <p className="font-bold">Recent Recovery Activity</p>
                     <button
