@@ -32,6 +32,16 @@ import {
   sendDirectMessageWithClientMessageId,
   sendRoomMessageWithClientMessageId,
 } from '@/lib/messageIdempotency';
+import {
+  EXTENDED_USER_PROFILE_SELECT_FIELDS,
+  EXTENDED_USER_PROFILE_WITH_EMAIL_SELECT_FIELDS,
+  getProfileSchemaMigrationMessage,
+  isProfileSchemaMissingError,
+  LEGACY_USER_PROFILE_SELECT_FIELDS,
+  LEGACY_USER_PROFILE_WITH_EMAIL_SELECT_FIELDS,
+  withProfileSchemaDefaults,
+  withProfileSchemaDefaultsList,
+} from '@/lib/profileSchema';
 import { initSoundSystem, playFallbackTone, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
 import { normalizeRoomKey, sameRoom } from '@/lib/roomName';
@@ -141,6 +151,34 @@ interface BuddyActivityToast {
   buddyId: string;
   message: string;
   tone: 'online' | 'offline' | 'away' | 'back';
+}
+
+const PROFILE_SCHEMA_NOTICE = getProfileSchemaMigrationMessage('Buddy icons, bios, and idle sync');
+
+function normalizeUserProfile(profile: Partial<UserProfile> | null | undefined): UserProfile | null {
+  const normalized = withProfileSchemaDefaults(profile);
+  if (!normalized?.id) {
+    return null;
+  }
+
+  return {
+    id: normalized.id,
+    email: normalized.email ?? null,
+    screenname: normalized.screenname ?? null,
+    status: normalized.status ?? null,
+    away_message: normalized.away_message ?? null,
+    status_msg: normalized.status_msg ?? null,
+    profile_bio: normalized.profile_bio,
+    buddy_icon_path: normalized.buddy_icon_path,
+    idle_since: normalized.idle_since,
+    last_active_at: normalized.last_active_at,
+  };
+}
+
+function normalizeUserProfileList(profiles: Partial<UserProfile>[] | null | undefined) {
+  return withProfileSchemaDefaultsList(profiles)
+    .map((profile) => normalizeUserProfile(profile))
+    .filter((profile): profile is UserProfile => profile !== null);
 }
 
 const SELF_SIGN_OFF_SOUND = '/sounds/goodbye.mp3';
@@ -537,6 +575,7 @@ function BuddyListContent() {
   const [autoReturnOnActivity, setAutoReturnOnActivity] = useState(true);
   const [awaySinceAt, setAwaySinceAt] = useState<string | null>(null);
   const [awayModalError, setAwayModalError] = useState<string | null>(null);
+  const [isProfileSchemaUnavailable, setIsProfileSchemaUnavailable] = useState(false);
   const [isSavingAwayMessage, setIsSavingAwayMessage] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
 
@@ -1179,6 +1218,77 @@ function BuddyListContent() {
     });
   }, []);
 
+  const markProfileSchemaUnavailable = useCallback((error?: { message?: string | null } | null) => {
+    if (error?.message) {
+      console.warn('Presence/profile migration missing:', error.message);
+    }
+    setIsProfileSchemaUnavailable(true);
+  }, []);
+
+  const loadManyUserProfiles = useCallback(
+    async ({
+      includeEmail = false,
+      applyFilters,
+    }: {
+      includeEmail?: boolean;
+      applyFilters: (query: any) => any;
+    }) => {
+      const runQuery = async (fields: string) => {
+        const { data, error } = await applyFilters(supabase.from('users').select(fields));
+        return {
+          data: normalizeUserProfileList((data ?? []) as Partial<UserProfile>[]),
+          error,
+        };
+      };
+
+      let result = await runQuery(
+        includeEmail ? EXTENDED_USER_PROFILE_WITH_EMAIL_SELECT_FIELDS : EXTENDED_USER_PROFILE_SELECT_FIELDS,
+      );
+
+      if (isProfileSchemaMissingError(result.error)) {
+        markProfileSchemaUnavailable(result.error);
+        result = await runQuery(
+          includeEmail ? LEGACY_USER_PROFILE_WITH_EMAIL_SELECT_FIELDS : LEGACY_USER_PROFILE_SELECT_FIELDS,
+        );
+      }
+
+      return result;
+    },
+    [markProfileSchemaUnavailable],
+  );
+
+  const loadSingleUserProfile = useCallback(
+    async ({
+      includeEmail = false,
+      applyFilters,
+    }: {
+      includeEmail?: boolean;
+      applyFilters: (query: any) => any;
+    }) => {
+      const runQuery = async (fields: string) => {
+        const { data, error } = await applyFilters(supabase.from('users').select(fields)).maybeSingle();
+        return {
+          data: normalizeUserProfile((data as Partial<UserProfile> | null) ?? null),
+          error,
+        };
+      };
+
+      let result = await runQuery(
+        includeEmail ? EXTENDED_USER_PROFILE_WITH_EMAIL_SELECT_FIELDS : EXTENDED_USER_PROFILE_SELECT_FIELDS,
+      );
+
+      if (isProfileSchemaMissingError(result.error)) {
+        markProfileSchemaUnavailable(result.error);
+        result = await runQuery(
+          includeEmail ? LEGACY_USER_PROFILE_WITH_EMAIL_SELECT_FIELDS : LEGACY_USER_PROFILE_SELECT_FIELDS,
+        );
+      }
+
+      return result;
+    },
+    [markProfileSchemaUnavailable],
+  );
+
   const loadBuddies = useCallback(async (targetUserId: string) => {
     setIsLoadingBuddies(true);
 
@@ -1204,17 +1314,16 @@ function BuddyListContent() {
     }
 
     const buddyIds = [...new Set(relationshipRows.map((item) => item.buddy_id))];
-    const { data: profiles, error: profilesError } = await supabase
-      .from('users')
-      .select('id,screenname,status,away_message,status_msg,profile_bio,buddy_icon_path,idle_since,last_active_at')
-      .in('id', buddyIds);
+    const { data: profiles, error: profilesError } = await loadManyUserProfiles({
+      applyFilters: (query) => query.in('id', buddyIds),
+    });
 
     if (profilesError) {
       console.error('Failed to load buddy profiles:', profilesError.message);
     }
 
     const profileMap = new Map(
-      (((profiles as UserProfile[] | null) ?? []) as UserProfile[]).map((profile) => [
+      profiles.map((profile) => [
         profile.id,
         profile,
       ]),
@@ -1247,7 +1356,7 @@ function BuddyListContent() {
         : (dedupedRows[0]?.id ?? null),
     );
     setIsLoadingBuddies(false);
-  }, []);
+  }, [loadManyUserProfiles]);
 
   const syncUnreadDirectFromServer = useCallback(async (targetUserId: string) => {
     const { data, error } = await supabase
@@ -1279,17 +1388,16 @@ function BuddyListContent() {
       const emailFallback = session.user.email?.split('@')[0] ?? 'Unknown User';
       const fallbackName = metaScreenname || emailFallback;
 
-      const { data: userProfile, error: profileError } = await supabase
-        .from('users')
-        .select('id,email,screenname,status,away_message,status_msg,profile_bio,buddy_icon_path,idle_since,last_active_at')
-        .eq('id', session.user.id)
-        .maybeSingle();
+      const { data: userProfile, error: profileError } = await loadSingleUserProfile({
+        includeEmail: true,
+        applyFilters: (query) => query.eq('id', session.user.id),
+      });
 
       if (profileError) {
         console.error('Failed to fetch profile:', profileError.message);
       }
 
-      const existingProfile = userProfile as UserProfile | null;
+      const existingProfile = userProfile;
       const resolvedScreenname = existingProfile?.screenname?.trim() || fallbackName;
       const resolvedStatusState = resolveStatusFields({
         status: existingProfile?.status,
@@ -1309,22 +1417,39 @@ function BuddyListContent() {
         return;
       }
 
-      const { error: upsertError } = await supabase.from('users').upsert(
-        {
-          id: session.user.id,
-          email: userEmail,
-          screenname: metadataScreenname || resolvedScreenname,
-          status: resolvedStatusState.status,
-          away_message: resolvedStatusState.awayMessage || null,
-          status_msg: resolvedStatusState.statusMessage,
-          profile_bio: existingProfile?.profile_bio?.trim() || null,
-          buddy_icon_path: existingProfile?.buddy_icon_path ?? null,
-          idle_since: null,
-          last_active_at: new Date().toISOString(),
-          is_online: true,
-        },
-        { onConflict: 'id' },
-      );
+      const bootstrapProfilePayload = {
+        id: session.user.id,
+        email: userEmail,
+        screenname: metadataScreenname || resolvedScreenname,
+        status: resolvedStatusState.status,
+        away_message: resolvedStatusState.awayMessage || null,
+        status_msg: resolvedStatusState.statusMessage,
+        profile_bio: existingProfile?.profile_bio?.trim() || null,
+        buddy_icon_path: existingProfile?.buddy_icon_path ?? null,
+        idle_since: null,
+        last_active_at: new Date().toISOString(),
+        is_online: true,
+      };
+
+      let { error: upsertError } = await supabase.from('users').upsert(bootstrapProfilePayload, {
+        onConflict: 'id',
+      });
+
+      if (isProfileSchemaMissingError(upsertError)) {
+        markProfileSchemaUnavailable(upsertError);
+        ({ error: upsertError } = await supabase.from('users').upsert(
+          {
+            id: session.user.id,
+            email: userEmail,
+            screenname: metadataScreenname || resolvedScreenname,
+            status: resolvedStatusState.status,
+            away_message: resolvedStatusState.awayMessage || null,
+            status_msg: resolvedStatusState.statusMessage,
+            is_online: true,
+          },
+          { onConflict: 'id' },
+        ));
+      }
 
       if (upsertError) {
         console.error('Failed to sync profile:', upsertError.message);
@@ -2144,13 +2269,11 @@ function BuddyListContent() {
           }
 
           void (async () => {
-            const { data: senderProfile } = await supabase
-              .from('users')
-              .select('id,screenname,status,away_message,status_msg,profile_bio,buddy_icon_path,idle_since,last_active_at')
-              .eq('id', senderId)
-              .maybeSingle();
+            const { data: senderProfile } = await loadSingleUserProfile({
+              applyFilters: (query) => query.eq('id', senderId),
+            });
 
-            const profile = senderProfile as UserProfile | null;
+            const profile = senderProfile;
             const senderScreenname =
               profile?.screenname?.trim() || profile?.email?.split('@')[0] || 'Unknown User';
             const resolvedSenderStatus = resolveStatusFields({
@@ -2224,7 +2347,7 @@ function BuddyListContent() {
     return () => {
       void supabase.removeChannel(globalMessagesChannel);
     };
-  }, [clearUnreadDirectMessages, playIncomingAlert, sendAutoAwayReply, userId]);
+  }, [clearUnreadDirectMessages, loadSingleUserProfile, playIncomingAlert, sendAutoAwayReply, userId]);
 
   const handleSignOff = async () => {
     isSigningOffRef.current = true;
@@ -2288,8 +2411,11 @@ function BuddyListContent() {
       const nextBio = (options?.bio ?? profileBioRef.current).trim();
       const nextBuddyIconPath = options?.buddyIconPath ?? buddyIconPathRef.current;
       const nowIso = new Date().toISOString();
+      const hasProfileFieldChanges =
+        nextBio !== profileBioRef.current.trim() ||
+        (nextBuddyIconPath ?? null) !== (buddyIconPathRef.current ?? null);
 
-      const { error } = await supabase
+      let { error } = await supabase
         .from('users')
         .update({
           status: normalizedStatus,
@@ -2301,6 +2427,46 @@ function BuddyListContent() {
           last_active_at: nowIso,
         })
         .eq('id', userId);
+
+      if (isProfileSchemaMissingError(error)) {
+        markProfileSchemaUnavailable(error);
+        ({ error } = await supabase
+          .from('users')
+          .update({
+            status: normalizedStatus,
+            away_message: nextAwayMessage || null,
+            status_msg: nextStatusMessage,
+          })
+          .eq('id', userId));
+
+        if (error) {
+          console.error('Failed to update status:', error.message);
+          setAwayModalError(error.message);
+          return false;
+        }
+
+        setUserStatus(normalizedStatus);
+        setAwayMessage(nextAwayMessage);
+        setStatusMsg(nextStatusMessage);
+        setIdleSinceAt(null);
+        setLastActiveAt(nowIso);
+        lastPresenceWriteAtRef.current = Date.now();
+        setAwaySinceAt((previous) =>
+          normalizedStatus === AWAY_STATUS ? previous ?? new Date().toISOString() : null,
+        );
+        if (!wasAway && normalizedStatus === AWAY_STATUS) {
+          playSound(BUDDY_GOING_AWAY_SOUND);
+        } else if (wasAway && normalizedStatus !== AWAY_STATUS) {
+          playSound(BUDDY_SIGN_ON_SOUND);
+        }
+
+        if (hasProfileFieldChanges) {
+          setAwayModalError(`Status updated. ${PROFILE_SCHEMA_NOTICE}`);
+          return false;
+        }
+
+        return true;
+      }
 
       if (error) {
         console.error('Failed to update status:', error.message);
@@ -2326,7 +2492,7 @@ function BuddyListContent() {
       }
       return true;
     },
-    [playSound, userId],
+    [markProfileSchemaUnavailable, playSound, userId],
   );
 
   const persistIdleState = useCallback(
@@ -2341,13 +2507,18 @@ function BuddyListContent() {
         return;
       }
 
-      const { error } = await supabase
+      let { error } = await supabase
         .from('users')
         .update({
           idle_since: nextIdleSince,
           last_active_at: nextLastActiveAt,
         })
         .eq('id', userId);
+
+      if (isProfileSchemaMissingError(error)) {
+        markProfileSchemaUnavailable(error);
+        return;
+      }
 
       if (error) {
         console.error('Failed to update idle state:', error.message);
@@ -2358,7 +2529,7 @@ function BuddyListContent() {
       setLastActiveAt(nextLastActiveAt);
       lastPresenceWriteAtRef.current = Date.now();
     },
-    [userId],
+    [markProfileSchemaUnavailable, userId],
   );
 
   const openAwayModal = useCallback(() => {
@@ -2389,6 +2560,11 @@ function BuddyListContent() {
       return;
     }
 
+    if (isProfileSchemaUnavailable) {
+      setAwayModalError(PROFILE_SCHEMA_NOTICE);
+      return;
+    }
+
     const validationError = validateBuddyIconFile(nextFile);
     if (validationError) {
       setAwayModalError(validationError);
@@ -2403,7 +2579,7 @@ function BuddyListContent() {
     setPendingBuddyIconFile(nextFile);
     setRemoveBuddyIconOnSave(false);
     setBuddyIconPreviewUrl(URL.createObjectURL(nextFile));
-  }, [buddyIconPreviewUrl]);
+  }, [buddyIconPreviewUrl, isProfileSchemaUnavailable]);
 
   const saveProfileSettings = useCallback(
     async ({ goAway }: { goAway: boolean }) => {
@@ -2759,13 +2935,14 @@ function BuddyListContent() {
     setIsSearching(true);
     setSearchError(null);
 
-    const { data, error } = await supabase
-      .from('users')
-      .select('id,screenname,status,away_message,status_msg,profile_bio,buddy_icon_path,idle_since,last_active_at')
-      .ilike('screenname', `%${query}%`)
-      .neq('id', userId)
-      .order('screenname', { ascending: true })
-      .limit(15);
+    const { data, error } = await loadManyUserProfiles({
+      applyFilters: (queryBuilder) =>
+        queryBuilder
+          .ilike('screenname', `%${query}%`)
+          .neq('id', userId)
+          .order('screenname', { ascending: true })
+          .limit(15),
+    });
 
     setIsSearching(false);
 
@@ -2774,7 +2951,7 @@ function BuddyListContent() {
       return;
     }
 
-    setSearchResults((data ?? []) as UserProfile[]);
+    setSearchResults(data);
   };
 
   const handleAddBuddyById = useCallback(async (buddyId: string) => {
@@ -3214,11 +3391,9 @@ function BuddyListContent() {
     let isCancelled = false;
 
     void (async () => {
-      const { data: profileData, error: profileError } = await supabase
-        .from('users')
-        .select('id,screenname,status,away_message,status_msg,profile_bio,buddy_icon_path,idle_since,last_active_at')
-        .eq('id', requestedDirectMessageUserId)
-        .maybeSingle();
+      const { data: profileData, error: profileError } = await loadSingleUserProfile({
+        applyFilters: (query) => query.eq('id', requestedDirectMessageUserId),
+      });
 
       if (isCancelled) {
         return;
@@ -3227,7 +3402,7 @@ function BuddyListContent() {
       if (profileError) {
         console.error('Failed to load direct message profile:', profileError.message);
       } else if (profileData) {
-        const profile = profileData as UserProfile;
+        const profile = profileData;
         const resolvedProfileStatus = resolveStatusFields({
           status: profile.status,
           awayMessage: profile.away_message,
@@ -3261,7 +3436,7 @@ function BuddyListContent() {
     return () => {
       isCancelled = true;
     };
-  }, [requestedDirectMessageUserId, requestedRoomName, router, userId]);
+  }, [loadSingleUserProfile, requestedDirectMessageUserId, requestedRoomName, router, userId]);
 
   const openAddWindow = () => {
     setSearchTerm('');
@@ -4260,6 +4435,12 @@ function BuddyListContent() {
                   />
                 </div>
               </div>
+
+              {isProfileSchemaUnavailable ? (
+                <p className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] font-semibold text-amber-800">
+                  {PROFILE_SCHEMA_NOTICE}
+                </p>
+              ) : null}
 
               {awayModalError ? (
                 <p className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-[12px] font-semibold text-red-700">

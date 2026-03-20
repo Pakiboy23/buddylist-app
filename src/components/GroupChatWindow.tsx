@@ -19,6 +19,12 @@ import {
   RichTextFormat,
   sanitizeRichTextHtml,
 } from '@/lib/richText';
+import {
+  EXTENDED_ROOM_PROFILE_SELECT_FIELDS,
+  isProfileSchemaMissingError,
+  LEGACY_ROOM_PROFILE_SELECT_FIELDS,
+  withProfileSchemaDefaultsList,
+} from '@/lib/profileSchema';
 import { useChatContext } from '@/context/ChatContext';
 import { createClientMessageId } from '@/lib/outbox';
 import {
@@ -340,17 +346,27 @@ export default function GroupChatWindow({
       return;
     }
 
-    const { data, error: profileError } = await supabase
-      .from('users')
-      .select('id,screenname,buddy_icon_path')
-      .in('id', missingIds);
+    const runProfileQuery = async (fields: string) => {
+      const { data, error } = await supabase.from('users').select(fields).in('id', missingIds);
+      return {
+        data: withProfileSchemaDefaultsList((data ?? []) as Partial<RoomProfile>[]),
+        error,
+      };
+    };
+
+    let { data, error: profileError } = await runProfileQuery(EXTENDED_ROOM_PROFILE_SELECT_FIELDS);
+
+    if (isProfileSchemaMissingError(profileError)) {
+      console.warn('Presence/profile migration missing in room header:', profileError?.message);
+      ({ data, error: profileError } = await runProfileQuery(LEGACY_ROOM_PROFILE_SELECT_FIELDS));
+    }
 
     if (profileError) {
       console.error('Failed to load room user profiles:', profileError.message);
       return;
     }
 
-    const profiles = (data ?? []) as RoomProfile[];
+    const profiles = data as RoomProfile[];
     setScreennameMap((previous) => {
       const next = { ...previous };
       next[currentUserId] = currentUserScreenname;
