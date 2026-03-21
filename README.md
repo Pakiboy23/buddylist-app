@@ -84,6 +84,11 @@ Notes:
 - `SUPABASE_SERVICE_ROLE_KEY` is required for server-side recovery/admin routes.
 - Never commit real keys.
 
+## Mobile Platforms
+
+- Android release notes: [ANDROID_PLAY_RELEASE.md](./ANDROID_PLAY_RELEASE.md)
+- iOS release notes: [IOS_APP_STORE_RELEASE.md](./IOS_APP_STORE_RELEASE.md)
+
 ## Local Setup
 
 1. Install dependencies:
@@ -148,7 +153,7 @@ npx cap open android
 
 Android Play release docs:
 
-- See [ANDROID_PLAY_RELEASE.md](/Users/syedshariff/buddylist/ANDROID_PLAY_RELEASE.md)
+- See [ANDROID_PLAY_RELEASE.md](./ANDROID_PLAY_RELEASE.md)
 
 Current native-shell behavior:
 - no pull-to-refresh bounce (`overscroll-behavior-y: none`)
