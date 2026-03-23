@@ -7,6 +7,7 @@ import GroupChatWindow from '@/components/GroupChatWindow';
 import BuddyProfileSheet from '@/components/BuddyProfileSheet';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import { getAccessTokenOrNull, getSessionOrNull } from '@/lib/authClient';
+import { getAppApiUrl } from '@/lib/appApi';
 import { deleteBuddyIconFile, uploadBuddyIconFile, validateBuddyIconFile } from '@/lib/buddyIcon';
 import {
   getRaw,
@@ -1484,7 +1485,7 @@ function BuddyListContent() {
 
       let adminFlag = false;
       if (session.access_token) {
-        const adminResponse = await fetch('/api/admin/me', {
+        const adminResponse = await fetch(getAppApiUrl('/api/admin/me'), {
           method: 'GET',
           cache: 'no-store',
           headers: {
@@ -2809,7 +2810,7 @@ function BuddyListContent() {
       return;
     }
 
-    const response = await fetch('/api/auth/recovery/setup', {
+    const response = await fetch(getAppApiUrl('/api/auth/recovery/setup'), {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -2842,7 +2843,7 @@ function BuddyListContent() {
       return;
     }
 
-    const response = await fetch('/api/admin/password-reset-audit?limit=12', {
+    const response = await fetch(getAppApiUrl('/api/admin/password-reset-audit?limit=12'), {
       headers: {
         authorization: `Bearer ${accessToken}`,
       },
@@ -2895,7 +2896,7 @@ function BuddyListContent() {
       return;
     }
 
-    const response = await fetch('/api/admin/password-reset-ticket', {
+    const response = await fetch(getAppApiUrl('/api/admin/password-reset-ticket'), {
       method: 'POST',
       headers: {
         'content-type': 'application/json',

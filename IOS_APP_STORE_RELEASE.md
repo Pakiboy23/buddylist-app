@@ -67,3 +67,8 @@ the fix is architectural: ship bundled web assets instead of a remote `server.ur
 
 - `NSPhotoLibraryUsageDescription` for profile photo upload
 - `NSCameraUsageDescription` for taking a profile photo from the iOS picker
+
+## Bundled-build prep already in place
+
+- Client recovery/admin calls can target a hosted backend origin from native builds.
+- Override the default backend origin with `NEXT_PUBLIC_APP_API_ORIGIN` if you move API traffic off `https://buddylist-app.vercel.app`.

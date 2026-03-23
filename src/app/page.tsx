@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSessionOrNull } from '@/lib/authClient';
+import { getAppApiUrl } from '@/lib/appApi';
 import { initSoundSystem, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
 
@@ -227,7 +228,7 @@ export default function Home() {
     setIsLoading(true);
     setStatusMsg('Verifying recovery code...');
 
-    const response = await fetch('/api/auth/recovery/reset', {
+    const response = await fetch(getAppApiUrl('/api/auth/recovery/reset'), {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -271,7 +272,7 @@ export default function Home() {
     setIsLoading(true);
     setStatusMsg('Redeeming reset ticket...');
 
-    const response = await fetch('/api/auth/recovery/redeem-ticket', {
+    const response = await fetch(getAppApiUrl('/api/auth/recovery/redeem-ticket'), {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
