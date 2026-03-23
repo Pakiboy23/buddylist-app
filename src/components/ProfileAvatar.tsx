@@ -1,11 +1,13 @@
 'use client';
 
-import { getBuddyIconUrl } from '@/lib/buddyIcon';
+import { useEffect, useState } from 'react';
+import { resolveBuddyIconUrl } from '@/lib/buddyIcon';
 import type { ResolvedPresenceState } from '@/lib/presence';
 
 interface ProfileAvatarProps {
   screenname: string;
   buddyIconPath?: string | null;
+  imageSrc?: string | null;
   presenceState?: ResolvedPresenceState | null;
   size?: 'sm' | 'md' | 'lg';
   tone?: 'blue' | 'violet' | 'slate';
@@ -73,26 +75,33 @@ function getInitial(screenname: string) {
 export default function ProfileAvatar({
   screenname,
   buddyIconPath = null,
+  imageSrc = null,
   presenceState = null,
   size = 'md',
   tone = 'blue',
   className = '',
   showStatusDot = true,
 }: ProfileAvatarProps) {
-  const iconUrl = getBuddyIconUrl(buddyIconPath);
+  const iconUrl = resolveBuddyIconUrl(imageSrc ?? buddyIconPath);
   const sizeClasses = SIZE_CLASSES[size];
+  const [hasImageError, setHasImageError] = useState(false);
+
+  useEffect(() => {
+    setHasImageError(false);
+  }, [iconUrl]);
 
   return (
     <div className={`relative shrink-0 ${className}`}>
       <div
         className={`flex ${sizeClasses.avatar} items-center justify-center overflow-hidden rounded-full font-bold ring-2 ring-offset-1 ring-offset-transparent ${getPresenceRingClass(presenceState)} ${getFallbackToneClasses(tone)}`}
       >
-        {iconUrl ? (
+        {iconUrl && !hasImageError ? (
           <img
             src={iconUrl}
-            alt=""
+            alt={`${screenname} profile photo`}
             className="h-full w-full object-cover"
             loading="lazy"
+            onError={() => setHasImageError(true)}
           />
         ) : (
           <span>{getInitial(screenname)}</span>

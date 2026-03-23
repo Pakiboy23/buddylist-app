@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase';
 
 export const BUDDY_ICON_BUCKET = 'buddy-icons';
 export const BUDDY_ICON_MAX_BYTES = 2 * 1024 * 1024;
+const DIRECT_IMAGE_SOURCE_PATTERN = /^(blob:|data:|https?:\/\/|file:|capacitor:|\/)/i;
 
 function sanitizeFileName(fileName: string) {
   const trimmed = fileName.trim();
@@ -35,6 +36,19 @@ export function getBuddyIconUrl(storagePath: string | null | undefined) {
 
   const { data } = supabase.storage.from(BUDDY_ICON_BUCKET).getPublicUrl(normalizedPath);
   return data.publicUrl;
+}
+
+export function resolveBuddyIconUrl(source: string | null | undefined) {
+  const normalizedSource = (source ?? '').trim();
+  if (!normalizedSource) {
+    return null;
+  }
+
+  if (DIRECT_IMAGE_SOURCE_PATTERN.test(normalizedSource)) {
+    return normalizedSource;
+  }
+
+  return getBuddyIconUrl(normalizedSource);
 }
 
 export function validateBuddyIconFile(file: File) {

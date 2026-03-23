@@ -4273,11 +4273,15 @@ function BuddyListContent() {
                       accept="image/*"
                       className="hidden"
                       disabled={isProfileSchemaUnavailable}
-                      onChange={(event) => handleSelectBuddyIcon(event.target.files)}
+                      onChange={(event) => {
+                        handleSelectBuddyIcon(event.target.files);
+                        event.currentTarget.value = '';
+                      }}
                     />
                     <ProfileAvatar
                       screenname={screenname}
-                      buddyIconPath={buddyIconPreviewUrl || removeBuddyIconOnSave ? null : buddyIconPath}
+                      buddyIconPath={removeBuddyIconOnSave ? null : buddyIconPath}
+                      imageSrc={removeBuddyIconOnSave ? null : buddyIconPreviewUrl}
                       presenceState={currentUserPresenceState}
                       size="lg"
                     />
@@ -4322,7 +4326,10 @@ function BuddyListContent() {
                       accept="image/*"
                       className="hidden"
                       disabled={isProfileSchemaUnavailable}
-                      onChange={(event) => handleSelectBuddyIcon(event.target.files)}
+                      onChange={(event) => {
+                        handleSelectBuddyIcon(event.target.files);
+                        event.currentTarget.value = '';
+                      }}
                     />
                   </label>
                   <button

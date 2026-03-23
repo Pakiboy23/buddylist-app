@@ -62,3 +62,8 @@ npm run ios:open
 Because this shell points at the hosted production site, App Review will effectively review a web-powered app.
 That can still work, but it is a weaker submission shape than a bundled Capacitor build. If Apple pushes back,
 the fix is architectural: ship bundled web assets instead of a remote `server.url` wrapper.
+
+## Native permissions already wired
+
+- `NSPhotoLibraryUsageDescription` for profile photo upload
+- `NSCameraUsageDescription` for taking a profile photo from the iOS picker
