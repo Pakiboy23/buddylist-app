@@ -8,9 +8,10 @@ This repo now has a Capacitor iOS project at `ios/App/App.xcodeproj`.
 - App name: `BuddyList`
 - The iOS shell currently loads the production site from `https://buddylist-app.vercel.app`
   via `server.url` in [capacitor.config.ts](./capacitor.config.ts).
+- There is now a bundled build path too: `npm run ios:sync:bundled` packages local app assets into `native-web/`.
 
-That means App Store builds depend on the live hosted web app. If you want a fully bundled/offline
-app later, remove `server.url` and ship compiled web assets in `webDir`.
+Hosted mode still depends on the live web app. Bundled mode ships the UI locally, but it is not offline-first:
+Supabase auth/data and the recovery/admin backend still require network access.
 
 ## Prerequisites
 
@@ -23,10 +24,12 @@ app later, remove `server.url` and ship compiled web assets in `webDir`.
 ```bash
 npm run ios:assets
 npm run ios:sync
+npm run ios:sync:bundled
 npm run ios:open
 ```
 
 `npm run ios:assets` regenerates the branded native app icon and splash art from the repo palette.
+`npm run ios:sync:bundled` builds a local `native-web/` bundle and syncs iOS without using `server.url`.
 
 ## First Xcode pass
 
@@ -34,7 +37,7 @@ npm run ios:open
 
 ```bash
 npm run ios:assets
-npm run ios:sync
+npm run ios:sync:bundled
 npm run ios:open
 ```
 
@@ -59,9 +62,8 @@ npm run ios:open
 
 ## Important review note
 
-Because this shell points at the hosted production site, App Review will effectively review a web-powered app.
-That can still work, but it is a weaker submission shape than a bundled Capacitor build. If Apple pushes back,
-the fix is architectural: ship bundled web assets instead of a remote `server.url` wrapper.
+Hosted mode still exists, but the better App Review path is now the bundled mode from `npm run ios:sync:bundled`.
+That keeps the UI local in the app shell while recovery/admin requests still hit the hosted backend.
 
 ## Native permissions already wired
 
