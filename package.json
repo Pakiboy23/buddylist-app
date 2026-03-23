@@ -12,6 +12,7 @@
     "test:unit:watch": "vitest",
     "test:e2e": "playwright test",
     "android:sync": "npx cap sync android",
+    "ios:assets": "node scripts/generate-ios-assets.mjs",
     "ios:sync": "npx cap sync ios",
     "ios:open": "npx cap open ios",
     "android:bundle:release": "cd android && ./gradlew bundleRelease",

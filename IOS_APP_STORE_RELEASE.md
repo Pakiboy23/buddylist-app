@@ -21,15 +21,20 @@ app later, remove `server.url` and ship compiled web assets in `webDir`.
 ## Repo commands
 
 ```bash
+npm run ios:assets
 npm run ios:sync
 npm run ios:open
 ```
+
+`npm run ios:assets` regenerates the branded native app icon and splash art from the repo palette.
 
 ## First Xcode pass
 
 1. Open the project:
 
 ```bash
+npm run ios:assets
+npm run ios:sync
 npm run ios:open
 ```
 
