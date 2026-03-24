@@ -115,10 +115,7 @@ export default function GlobalNotificationListener() {
 
         localNotificationsRef.current = LocalNotifications;
 
-        let permissions = await LocalNotifications.checkPermissions();
-        if (permissions.display !== 'granted') {
-          permissions = await LocalNotifications.requestPermissions();
-        }
+        const permissions = await LocalNotifications.checkPermissions();
         localNotificationsEnabledRef.current = permissions.display === 'granted';
 
         const listener = await LocalNotifications.addListener(

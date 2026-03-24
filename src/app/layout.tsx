@@ -1,9 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { Suspense } from "react";
-import GlobalNotificationListener from "@/components/GlobalNotificationListener";
 import PwaBootstrap from "@/components/PwaBootstrap";
-import { ChatProvider } from "@/context/ChatContext";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -50,13 +47,8 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <ChatProvider>
-          {children}
-          <PwaBootstrap />
-          <Suspense fallback={null}>
-            <GlobalNotificationListener />
-          </Suspense>
-        </ChatProvider>
+        {children}
+        <PwaBootstrap />
       </body>
     </html>
   );
