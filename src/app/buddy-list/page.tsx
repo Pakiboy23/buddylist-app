@@ -11,6 +11,7 @@ import {
   waitForSessionOrNull,
 } from '@/lib/authClient';
 import { getAppApiUrl } from '@/lib/appApi';
+import { navigateAppPath } from '@/lib/appNavigation';
 import { deleteBuddyIconFile, uploadBuddyIconFile, validateBuddyIconFile } from '@/lib/buddyIcon';
 import {
   getRaw,
@@ -1381,7 +1382,10 @@ function BuddyListContent() {
     const bootstrapUser = async () => {
       const session = await waitForSessionOrNull();
       if (!session) {
-        router.push('/');
+        navigateAppPath(router, '/', {
+          replace: true,
+          nativeDocumentNavigation: true,
+        });
         return;
       }
 
@@ -1417,7 +1421,10 @@ function BuddyListContent() {
       if (!userEmail) {
         console.error('Failed to sync profile: authenticated user has no email.');
         await supabase.auth.signOut();
-        router.push('/');
+        navigateAppPath(router, '/', {
+          replace: true,
+          nativeDocumentNavigation: true,
+        });
         return;
       }
 
@@ -1531,7 +1538,10 @@ function BuddyListContent() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (!nextSession) {
-        router.push('/');
+        navigateAppPath(router, '/', {
+          replace: true,
+          nativeDocumentNavigation: true,
+        });
       }
     });
 
@@ -2089,7 +2099,11 @@ function BuddyListContent() {
       setActiveChatBuddyId(buddyId);
       activeChatBuddyIdRef.current = buddyId;
       clearUnreadDirectMessages(buddyId);
-      router.replace(`${BUDDY_LIST_PATH}?dm=${encodeURIComponent(buddyId)}`, { scroll: false });
+      navigateAppPath(
+        router,
+        `${BUDDY_LIST_PATH}?dm=${encodeURIComponent(buddyId)}`,
+        { replace: true, scroll: false },
+      );
       void loadConversation(buddyId);
     },
     [clearUnreadDirectMessages, loadConversation, router, unreadDirectMessages],
@@ -2384,7 +2398,10 @@ function BuddyListContent() {
       await resetChatState();
       await supabase.auth.signOut();
       didCompleteSignOut = true;
-      router.push('/');
+      navigateAppPath(router, '/', {
+        replace: true,
+        nativeDocumentNavigation: true,
+      });
     } finally {
       if (!didCompleteSignOut) {
         isSigningOffRef.current = false;
@@ -3033,9 +3050,13 @@ function BuddyListContent() {
         dmTypingTimeoutRef.current = null;
       }
       if (activeRoom) {
-        router.replace(`${BUDDY_LIST_PATH}?room=${encodeURIComponent(activeRoom.name)}`, { scroll: false });
+        navigateAppPath(
+          router,
+          `${BUDDY_LIST_PATH}?room=${encodeURIComponent(activeRoom.name)}`,
+          { replace: true, scroll: false },
+        );
       } else {
-        router.replace(BUDDY_LIST_PATH, { scroll: false });
+        navigateAppPath(router, BUDDY_LIST_PATH, { replace: true, scroll: false });
       }
     }
     setProfileSheetBuddyId((previous) => (previous === buddyId ? null : previous));
@@ -3281,7 +3302,11 @@ function BuddyListContent() {
       await joinRoom(room.name);
       await clearUnreads(room.name);
       setActiveRoom(room);
-      router.replace(`${BUDDY_LIST_PATH}?room=${encodeURIComponent(room.name)}`, { scroll: false });
+      navigateAppPath(
+        router,
+        `${BUDDY_LIST_PATH}?room=${encodeURIComponent(room.name)}`,
+        { replace: true, scroll: false },
+      );
     },
     [clearUnreads, getUnreadCountForRoom, joinRoom, router],
   );
@@ -3317,7 +3342,7 @@ function BuddyListContent() {
   const handleBackFromRoom = useCallback(() => {
     setInitialUnreadForActiveRoom(0);
     setActiveRoom(null);
-    router.push(BUDDY_LIST_PATH);
+    navigateAppPath(router, BUDDY_LIST_PATH);
   }, [router]);
 
   const handleLeaveRoom = useCallback(
@@ -3332,7 +3357,7 @@ function BuddyListContent() {
       if (activeRoom && sameRoom(activeRoom.name, normalizedRoomName)) {
         setInitialUnreadForActiveRoom(0);
         setActiveRoom(null);
-        router.push(BUDDY_LIST_PATH);
+        navigateAppPath(router, BUDDY_LIST_PATH);
       }
     },
     [activeRoom, leaveRoom, router],
@@ -3388,7 +3413,7 @@ function BuddyListContent() {
     }
 
     if (requestedDirectMessageUserId === userId) {
-      router.replace(BUDDY_LIST_PATH, { scroll: false });
+      navigateAppPath(router, BUDDY_LIST_PATH, { replace: true, scroll: false });
       return;
     }
 
@@ -3434,7 +3459,7 @@ function BuddyListContent() {
       );
 
       setSelectedBuddyId(requestedDirectMessageUserId);
-      router.replace(BUDDY_LIST_PATH, { scroll: false });
+      navigateAppPath(router, BUDDY_LIST_PATH, { replace: true, scroll: false });
     })();
 
     return () => {
@@ -3502,9 +3527,13 @@ function BuddyListContent() {
     setChatError(null);
     setIsChatLoading(false);
     if (activeRoom) {
-      router.replace(`${BUDDY_LIST_PATH}?room=${encodeURIComponent(activeRoom.name)}`, { scroll: false });
+      navigateAppPath(
+        router,
+        `${BUDDY_LIST_PATH}?room=${encodeURIComponent(activeRoom.name)}`,
+        { replace: true, scroll: false },
+      );
     } else {
-      router.replace(BUDDY_LIST_PATH, { scroll: false });
+      navigateAppPath(router, BUDDY_LIST_PATH, { replace: true, scroll: false });
     }
   };
 

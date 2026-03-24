@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { waitForSessionOrNull } from '@/lib/authClient';
 import { getAppApiUrl } from '@/lib/appApi';
+import { navigateAppPath } from '@/lib/appNavigation';
 import { initSoundSystem, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
 
@@ -62,7 +63,10 @@ export default function Home() {
       if (withSound) {
         await playSignOnSound();
       }
-      router.push('/buddy-list');
+      navigateAppPath(router, '/buddy-list', {
+        replace: true,
+        nativeDocumentNavigation: true,
+      });
     },
     [playSignOnSound, router],
   );

@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { LocalNotificationsPlugin } from '@capacitor/local-notifications';
 import IncomingMessageBanner from '@/components/IncomingMessageBanner';
 import { useChatContext } from '@/context/ChatContext';
+import { navigateAppPath, normalizeAppPath } from '@/lib/appNavigation';
 import { getSessionOrNull } from '@/lib/authClient';
 import { normalizeRoomName, sameRoom } from '@/lib/roomName';
 import { htmlToPlainText } from '@/lib/richText';
@@ -127,7 +128,9 @@ export default function GlobalNotificationListener() {
             const targetPath =
               typeof rawExtra?.targetPath === 'string' ? rawExtra.targetPath : '';
             if (targetPath.startsWith(BUDDY_LIST_PATH)) {
-              router.push(targetPath);
+              navigateAppPath(router, targetPath, {
+                nativeDocumentNavigation: true,
+              });
             }
           },
         );
@@ -384,7 +387,9 @@ export default function GlobalNotificationListener() {
             enqueueBanner({
               senderName,
               messagePreview: normalizeTextContent(incoming.content, 'New direct message.'),
-              targetPath: `${BUDDY_LIST_PATH}?dm=${encodeURIComponent(senderId)}`,
+              targetPath: normalizeAppPath(
+                `${BUDDY_LIST_PATH}?dm=${encodeURIComponent(senderId)}`,
+              ),
               variant: 'dm',
             });
           })();
@@ -449,7 +454,9 @@ export default function GlobalNotificationListener() {
             enqueueBanner({
               senderName: isMention ? `${senderName} (mention)` : senderName,
               messagePreview: isMention ? `Mention: ${previewText}` : previewText,
-              targetPath: `${BUDDY_LIST_PATH}?room=${encodeURIComponent(activeRoomName)}`,
+              targetPath: normalizeAppPath(
+                `${BUDDY_LIST_PATH}?room=${encodeURIComponent(activeRoomName)}`,
+              ),
               variant: 'room',
             });
           })();
@@ -477,7 +484,9 @@ export default function GlobalNotificationListener() {
       onClick={() => {
         const targetPath = activeBanner.targetPath;
         setBannerQueue((previous) => previous.slice(1));
-        router.push(targetPath);
+        navigateAppPath(router, targetPath, {
+          nativeDocumentNavigation: true,
+        });
       }}
     />
   );
