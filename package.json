@@ -15,7 +15,7 @@
     "native:web:build": "node scripts/build-native-web.mjs",
     "ios:assets": "node scripts/generate-ios-assets.mjs",
     "ios:sync": "npx cap sync ios",
-    "ios:sync:bundled": "npm run build && npm run native:web:build && CAPACITOR_BUNDLED=1 npx cap sync ios",
+    "ios:sync:bundled": "npm run native:web:build && CAPACITOR_BUNDLED=1 npx cap sync ios",
     "ios:open": "npx cap open ios",
     "android:bundle:release": "cd android && ./gradlew bundleRelease",
     "android:bundle:release:clean": "cd android && ./gradlew clean bundleRelease",

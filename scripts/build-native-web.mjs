@@ -1,32 +1,69 @@
-import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, rm, symlink } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
-const nextServerAppDir = path.join(repoRoot, '.next', 'server', 'app');
-const nextStaticDir = path.join(repoRoot, '.next', 'static');
-const publicDir = path.join(repoRoot, 'public');
 const outputDir = path.join(repoRoot, 'native-web');
+const tempPrefix = path.join(os.tmpdir(), 'buddylist-native-export-');
+const tempExportDirName = '.next-native';
+const excludedTopLevelEntries = new Set([
+  '.git',
+  '.next',
+  '.next-native',
+  'android',
+  'ios',
+  'native-web',
+  'node_modules',
+]);
 
-async function copyFile(sourcePath, targetPath) {
-  await mkdir(path.dirname(targetPath), { recursive: true });
-  await cp(sourcePath, targetPath);
+function runCommand(command, args, options) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      stdio: 'inherit',
+      ...options,
+    });
+
+    child.on('error', reject);
+    child.on('exit', (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      reject(new Error(`${command} ${args.join(' ')} failed with exit code ${code ?? 'unknown'}`));
+    });
+  });
 }
 
-async function writeTextFile(sourcePath, targetPath) {
-  const body = await readFile(sourcePath, 'utf8');
-  await mkdir(path.dirname(targetPath), { recursive: true });
-  await writeFile(targetPath, body, 'utf8');
+async function createTempWorkspace() {
+  const tempDir = await mkdtemp(tempPrefix);
+  await cp(repoRoot, tempDir, {
+    recursive: true,
+    filter(sourcePath) {
+      const relativePath = path.relative(repoRoot, sourcePath);
+      if (!relativePath) {
+        return true;
+      }
+
+      const topLevelEntry = relativePath.split(path.sep)[0];
+      return !excludedTopLevelEntries.has(topLevelEntry);
+    },
+  });
+
+  await rm(path.join(tempDir, 'src', 'app', 'api'), { recursive: true, force: true });
+  await symlink(path.join(repoRoot, 'node_modules'), path.join(tempDir, 'node_modules'));
+  return tempDir;
 }
 
-async function assertBuildArtifacts() {
+async function assertBuildArtifacts(staticExportDir) {
   const requiredFiles = [
-    path.join(nextServerAppDir, 'index.html'),
-    path.join(nextServerAppDir, 'buddy-list.html'),
-    path.join(nextServerAppDir, 'favicon.ico.body'),
-    path.join(nextServerAppDir, 'manifest.webmanifest.body'),
+    path.join(staticExportDir, 'index.html'),
+    path.join(staticExportDir, 'buddy-list', 'index.html'),
+    path.join(staticExportDir, 'favicon.ico'),
+    path.join(staticExportDir, 'manifest.webmanifest'),
   ];
 
   for (const requiredFile of requiredFiles) {
@@ -34,27 +71,31 @@ async function assertBuildArtifacts() {
       await readFile(requiredFile);
     } catch {
       throw new Error(
-        `Missing Next build artifact: ${path.relative(repoRoot, requiredFile)}. Run \`npm run build\` before bundling native web assets.`,
+        `Missing native export artifact: ${path.relative(repoRoot, requiredFile)}. Run \`NATIVE_STATIC_EXPORT=1 next build\` before bundling native web assets.`,
       );
     }
   }
 }
 
 async function main() {
-  await assertBuildArtifacts();
-  await rm(outputDir, { recursive: true, force: true });
-  await mkdir(outputDir, { recursive: true });
+  const tempDir = await createTempWorkspace();
 
-  await cp(publicDir, outputDir, { recursive: true });
-  await cp(nextStaticDir, path.join(outputDir, '_next', 'static'), { recursive: true });
+  try {
+    await runCommand('npx', ['next', 'build', '--webpack'], {
+      cwd: tempDir,
+      env: {
+        ...process.env,
+        NATIVE_STATIC_EXPORT: '1',
+      },
+    });
 
-  await copyFile(path.join(nextServerAppDir, 'index.html'), path.join(outputDir, 'index.html'));
-  await copyFile(path.join(nextServerAppDir, 'buddy-list.html'), path.join(outputDir, 'buddy-list', 'index.html'));
-  await copyFile(path.join(nextServerAppDir, 'buddy-list.html'), path.join(outputDir, 'buddy-list.html'));
-  await copyFile(path.join(nextServerAppDir, '_not-found.html'), path.join(outputDir, '404.html'));
-
-  await writeTextFile(path.join(nextServerAppDir, 'manifest.webmanifest.body'), path.join(outputDir, 'manifest.webmanifest'));
-  await copyFile(path.join(nextServerAppDir, 'favicon.ico.body'), path.join(outputDir, 'favicon.ico'));
+    const staticExportDir = path.join(tempDir, tempExportDirName);
+    await assertBuildArtifacts(staticExportDir);
+    await rm(outputDir, { recursive: true, force: true });
+    await cp(staticExportDir, outputDir, { recursive: true });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
 
   console.log('Native web bundle written to native-web/');
 }

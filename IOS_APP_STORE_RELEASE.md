@@ -8,7 +8,8 @@ This repo now has a Capacitor iOS project at `ios/App/App.xcodeproj`.
 - App name: `BuddyList`
 - The iOS shell currently loads the production site from `https://buddylist-app.vercel.app`
   via `server.url` in [capacitor.config.ts](./capacitor.config.ts).
-- There is now a bundled build path too: `npm run ios:sync:bundled` packages local app assets into `native-web/`.
+- There is now a proper bundled build path too: `npm run ios:sync:bundled` creates a static native frontend export in `native-web/`.
+- The native export intentionally excludes `src/app/api` and continues to use the hosted backend for recovery/admin requests via `NEXT_PUBLIC_APP_API_ORIGIN`.
 
 Hosted mode still depends on the live web app. Bundled mode ships the UI locally, but it is not offline-first:
 Supabase auth/data and the recovery/admin backend still require network access.
@@ -29,7 +30,7 @@ npm run ios:open
 ```
 
 `npm run ios:assets` regenerates the branded native app icon and splash art from the repo palette.
-`npm run ios:sync:bundled` builds a local `native-web/` bundle and syncs iOS without using `server.url`.
+`npm run ios:sync:bundled` builds a local `native-web/` export and syncs iOS without using `server.url`.
 
 ## First Xcode pass
 
@@ -74,3 +75,4 @@ That keeps the UI local in the app shell while recovery/admin requests still hit
 
 - Client recovery/admin calls can target a hosted backend origin from native builds.
 - Override the default backend origin with `NEXT_PUBLIC_APP_API_ORIGIN` if you move API traffic off `https://buddylist-app.vercel.app`.
+- The native bundle is generated in an isolated export workspace so App Router pages can statically export without shipping the web-only `src/app/api` routes into Capacitor.
