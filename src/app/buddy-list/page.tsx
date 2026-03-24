@@ -3540,16 +3540,34 @@ function BuddyListContent() {
   const isCurrentUserAway = currentUserPresenceState === 'away';
   const isCurrentUserIdle = currentUserPresenceState === 'idle';
   const activePendingRequest = pendingRequests[0] ?? null;
+<<<<<<< codex/update-ui-for-minimalist-apple-style-design-z8w1md
+  const activeChatBuddyStatusMessage = activeChatBuddy
+    ? resolveStatusFields({
+        status: activeChatBuddy.status,
+        awayMessage: activeChatBuddy.away_message,
+        statusMessage: activeChatBuddy.status_msg,
+      }).statusMessage
+    : null;
+  const xpRaisedButtonClass =
+    'min-h-[34px] rounded-xl border border-white/65 bg-white/80 px-3 text-[12px] font-semibold text-slate-700 shadow-[0_8px_18px_rgba(15,23,42,0.08)] transition hover:bg-white disabled:opacity-60 ui-focus-ring';
+  const xpGroupHeaderClass =
+    'flex min-h-[38px] w-full items-center gap-2 border-y border-white/55 bg-white/45 px-3 py-2 text-left text-[12px] font-semibold text-slate-700';
+=======
   const activeChatBuddyPresenceSummary = activeChatBuddy ? getBuddyPresenceSummary(activeChatBuddy) : null;
   const xpGroupHeaderClass =
     'flex min-h-[36px] w-full items-center gap-2 px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-widest text-slate-400';
+>>>>>>> main
   const xpModalFrameClass =
     'rounded-[1.4rem] border border-white/60 bg-white/90 p-2 shadow-[0_24px_42px_rgba(15,23,42,0.2)] backdrop-blur-xl';
   const xpModalBodyClass = 'space-y-3 px-2 pb-2 text-[12px] text-slate-700';
   const xpModalInputClass =
     'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] text-slate-700 shadow-[inset_0_1px_1px_rgba(15,23,42,0.05)] focus:outline-none focus:ring-2 focus:ring-blue-200';
   const xpModalButtonClass =
+<<<<<<< codex/update-ui-for-minimalist-apple-style-design-z8w1md
+    'min-h-[32px] rounded-xl border border-slate-200 bg-white px-3 text-[12px] font-semibold text-slate-700 hover:bg-slate-50 ui-focus-ring';
+=======
     'min-h-[32px] rounded-xl border border-slate-200 bg-white px-3 text-[12px] font-semibold text-slate-700 hover:bg-slate-50';
+>>>>>>> main
   const showSplitPresenceSections = buddySortMode === 'online_then_alpha';
   const onlineBuddiesSorted = alphabeticallySortedAcceptedBuddies.filter((buddy) => buddy.isOnline);
   const offlineBuddiesSorted = alphabeticallySortedAcceptedBuddies.filter((buddy) => !buddy.isOnline);
@@ -3594,6 +3612,33 @@ function BuddyListContent() {
         data-screenname={buddy.screenname}
         className={`group flex min-h-[52px] w-full items-center gap-3 px-3 py-2.5 text-left transition active:scale-[0.98] ${
           isSelected
+<<<<<<< codex/update-ui-for-minimalist-apple-style-design-z8w1md
+            ? 'bg-blue-600 text-white'
+            : 'text-slate-700 hover:bg-blue-50 hover:text-slate-900'
+        }`}
+      >
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className="ui-list-kind-chip" aria-hidden="true">
+              @
+            </span>
+            <span
+              className={`inline-flex h-2.5 w-2.5 items-center justify-center border ${
+                isSelected
+                  ? 'border-white bg-white'
+                  : isBuddyAway
+                    ? 'border-[#8a8a8a] bg-[#f0d75d]'
+                    : buddy.isOnline
+                      ? 'border-[#2b8f3f] bg-[#35b556]'
+                      : 'border-[#6f6f6f] bg-[#b9b9b9]'
+              }`}
+            />
+            <span
+              className={`truncate font-bold ${
+                isBuddyAway && !isSelected ? 'italic text-gray-500 group-hover:text-white' : ''
+              }`}
+            >
+=======
             ? 'bg-blue-500/15'
             : 'hover:bg-white/60'
         }`}
@@ -3613,6 +3658,7 @@ function BuddyListContent() {
             <p className={`truncate text-[13px] font-semibold leading-tight ${
               isSelected ? 'text-blue-700' : 'text-slate-800'
             }`}>
+>>>>>>> main
               {buddy.screenname}
             </p>
             <p className={`truncate text-[11px] font-semibold ${presenceToneClass}`}>
@@ -3628,8 +3674,13 @@ function BuddyListContent() {
           <span
             data-testid={`dm-unread-${buddy.id}`}
             aria-label={`Unread from ${buddy.screenname}: ${unreadDirectCount}`}
+<<<<<<< codex/update-ui-for-minimalist-apple-style-design-z8w1md
+            className={`ml-2 shrink-0 rounded-full border border-white bg-gradient-to-b from-red-400 to-red-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm shadow-black/50 ${
+              isSelected ? '' : 'ui-unread-badge-pulse'
+=======
             className={`ml-1 flex min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white ${
               isSelected ? '' : 'aim-unread-badge-pulse'
+>>>>>>> main
             }`}
           >
             {unreadDirectCount}
@@ -3650,7 +3701,11 @@ function BuddyListContent() {
     );
   };
   const xpModalPrimaryButtonClass =
+<<<<<<< codex/update-ui-for-minimalist-apple-style-design-z8w1md
+    'min-h-[32px] rounded-xl border border-blue-500/70 bg-gradient-to-b from-blue-500 to-blue-600 px-3 text-[12px] font-semibold text-white shadow-[0_10px_20px_rgba(37,99,235,0.32)] disabled:opacity-60 ui-focus-ring';
+=======
     'min-h-[32px] rounded-xl border border-blue-500/70 bg-gradient-to-b from-blue-500 to-blue-600 px-3 text-[12px] font-semibold text-white shadow-[0_10px_20px_rgba(37,99,235,0.32)] disabled:opacity-60';
+>>>>>>> main
 
   const handleOpenImFromActionBar = () => {
     const fallbackBuddyId =
@@ -3683,7 +3738,7 @@ function BuddyListContent() {
     <main className="h-[100dvh] overflow-hidden bg-transparent">
       <RetroWindow
         title="Buddy List"
-        variant="xp_shell"
+        variant="glass_shell"
         xpTitleText="Buddy List"
         onXpSignOff={() => setIsHeaderMenuOpen((previous) => !previous)}
       >
@@ -3718,7 +3773,11 @@ function BuddyListContent() {
                 {isAdminUser ? (
                   <button
                     type="button"
+<<<<<<< codex/update-ui-for-minimalist-apple-style-design-z8w1md
+                    onClick={handleSetupAction}
+=======
                     onClick={openAdminResetWindow}
+>>>>>>> main
                     className="mt-0.5 block w-full rounded-xl border border-transparent px-3 py-2 text-left text-[12px] font-semibold text-slate-700 hover:bg-blue-50"
                   >
                     Admin Reset
@@ -3729,6 +3788,18 @@ function BuddyListContent() {
           ) : null}
 
           <div className="min-h-0 flex-1 overflow-y-auto pb-20">
+<<<<<<< codex/update-ui-for-minimalist-apple-style-design-z8w1md
+            <div className="border-b border-white/55 bg-white/35 px-4 py-3">
+              {!isCurrentUserAway ? (
+                <>
+                  <p className="truncate text-[11px] font-bold text-slate-700">{screenname}</p>
+                  <p className="truncate text-[11px] italic text-slate-500">{statusMsg || AVAILABLE_STATUS}</p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled
+                      className="min-h-[34px] rounded-xl border border-slate-200 bg-white/80 px-3 font-semibold text-slate-700"
+=======
             <div className="px-3 pt-3 pb-2">
               <div className="rounded-2xl border border-white/65 bg-white/72 px-3.5 py-3 shadow-sm">
                 <div className="flex items-center gap-2.5">
@@ -3770,6 +3841,7 @@ function BuddyListContent() {
                       type="button"
                       onClick={openAwayModal}
                       className="block w-full rounded-xl border border-white/65 bg-white/80 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 shadow-sm hover:bg-white active:scale-95"
+>>>>>>> main
                     >
                       Edit Profile
                     </button>
@@ -3781,6 +3853,27 @@ function BuddyListContent() {
                       Edit Photo
                     </button>
                   </div>
+<<<<<<< codex/update-ui-for-minimalist-apple-style-design-z8w1md
+                </>
+              ) : null}
+              {awayModalError ? <p className="mt-2 font-semibold text-red-700">{awayModalError}</p> : null}
+              <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-[11px] text-slate-600">
+                <div className="min-w-0">
+                  <p className="font-semibold uppercase tracking-wide text-slate-500">Room State</p>
+                  <p className="truncate">{chatSyncSummary}</p>
+                  <p className="truncate">{outboxSummary}</p>
+                  {lastSyncError ? (
+                    <p className="truncate font-semibold text-red-700" title={lastSyncError}>
+                      {lastSyncError}
+                    </p>
+                  ) : null}
+                  {latestOutboxError ? (
+                    <p className="truncate font-semibold text-red-700" title={latestOutboxError}>
+                      {latestOutboxError}
+                    </p>
+                  ) : null}
+=======
+>>>>>>> main
                 </div>
               </div>
               {awayModalError ? <p className="mt-2 text-[11px] font-semibold text-red-600">{awayModalError}</p> : null}
@@ -3788,8 +3881,14 @@ function BuddyListContent() {
               {shouldShowSystemStatusChip ? (
                 <button
                   type="button"
+<<<<<<< codex/update-ui-for-minimalist-apple-style-design-z8w1md
+                  onClick={() => void syncFromServer()}
+                  disabled={isChatSyncBusy}
+                  className="min-h-[30px] shrink-0 rounded-xl border border-slate-200 bg-white px-3 text-[11px] font-semibold text-slate-700 disabled:opacity-60"
+=======
                   onClick={() => setShowSystemStatusSheet(true)}
                   className="mt-2 flex w-full items-center justify-between gap-2 rounded-2xl border border-white/55 bg-white/55 px-3 py-1.5 text-[10px] text-slate-500 transition hover:bg-white/70"
+>>>>>>> main
                 >
                   <div className="flex min-w-0 items-center gap-1.5">
                     <span className={`h-1.5 w-1.5 rounded-full ${
@@ -3816,6 +3915,25 @@ function BuddyListContent() {
             </div>
 
             {isCurrentUserAway ? (
+<<<<<<< codex/update-ui-for-minimalist-apple-style-design-z8w1md
+              <div className="mx-3 mt-2 flex flex-col items-center space-y-1.5 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-3 text-center">
+                <p className="text-[12px] font-semibold text-slate-600">You are currently Away.</p>
+                <p className="w-full break-words text-[11px] italic text-gray-600">
+                  {resolveAwayTemplate(awayMessage || 'Away from keyboard.', screenname, screenname)}
+                </p>
+                {awaySinceAt ? (
+                  <p className="text-[10px] text-slate-600">
+                    Away since {new Date(awaySinceAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={handleImBack}
+                  className={xpRaisedButtonClass}
+                >
+                  I&apos;m Back
+                </button>
+=======
               <div className="mx-3 mt-2 rounded-2xl border border-amber-200/70 bg-amber-50/90 px-3 py-3 backdrop-blur-sm">
                 <div className="flex items-start gap-2">
                   <span className="mt-0.5 text-base">🌙</span>
@@ -3857,6 +3975,7 @@ function BuddyListContent() {
                     I&apos;m Here
                   </button>
                 </div>
+>>>>>>> main
               </div>
             ) : null}
 
@@ -3867,7 +3986,13 @@ function BuddyListContent() {
                   onClick={() => setIsBuddiesOpen((previous) => !previous)}
                   className={xpGroupHeaderClass}
                 >
+<<<<<<< codex/update-ui-for-minimalist-apple-style-design-z8w1md
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-slate-300 bg-white text-[11px] leading-none">
+                    {isBuddiesOpen ? '-' : '+'}
+                  </span>
+=======
                   <span className={`text-[8px] transition-transform ${isBuddiesOpen ? 'rotate-90' : ''}`}>▶</span>
+>>>>>>> main
                   <span>
                     {showSplitPresenceSections
                       ? `Online — ${onlineBuddies.length} of ${acceptedBuddies.length}`
@@ -3877,8 +4002,13 @@ function BuddyListContent() {
 
                 {isBuddiesOpen ? (
                   <div>
+<<<<<<< codex/update-ui-for-minimalist-apple-style-design-z8w1md
+                    <div className="flex items-center justify-between border-b border-slate-200 bg-white/60 px-3 py-2">
+                      <label htmlFor="buddy-sort-mode" className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+=======
                     <div className="flex items-center justify-between px-3 py-1.5">
                       <label htmlFor="buddy-sort-mode" className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+>>>>>>> main
                         Sort
                       </label>
                       <select
@@ -3886,7 +4016,11 @@ function BuddyListContent() {
                         title="Buddy Sort Mode"
                         value={buddySortMode}
                         onChange={(event) => setBuddySortMode(event.target.value as BuddySortMode)}
+<<<<<<< codex/update-ui-for-minimalist-apple-style-design-z8w1md
+                        className="min-h-[30px] rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-700"
+=======
                         className="min-h-[28px] rounded-xl border border-white/65 bg-white/80 px-2 py-0.5 text-[11px] text-slate-700 shadow-sm"
+>>>>>>> main
                       >
                         <option value="online_then_alpha">Online first</option>
                         <option value="alpha">A – Z</option>
@@ -3927,8 +4061,15 @@ function BuddyListContent() {
                     onClick={() => setIsOfflineOpen((previous) => !previous)}
                     className={xpGroupHeaderClass}
                   >
+<<<<<<< codex/update-ui-for-minimalist-apple-style-design-z8w1md
+                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-slate-300 bg-white text-[11px] leading-none">
+                      {isOfflineOpen ? '-' : '+'}
+                    </span>
+                    <span>Direct Messages - Offline ({offlineBuddies.length}/{acceptedBuddies.length})</span>
+=======
                     <span className={`text-[8px] transition-transform ${isOfflineOpen ? 'rotate-90' : ''}`}>▶</span>
                     <span>Offline — {offlineBuddies.length}</span>
+>>>>>>> main
                   </button>
 
                   {isOfflineOpen ? offlineBuddiesSorted.map((buddy) => renderDirectMessageRow(buddy)) : null}
@@ -3941,8 +4082,15 @@ function BuddyListContent() {
                   onClick={() => setIsActiveChatsOpen((previous) => !previous)}
                   className={xpGroupHeaderClass}
                 >
+<<<<<<< codex/update-ui-for-minimalist-apple-style-design-z8w1md
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-slate-300 bg-white text-[11px] leading-none">
+                    {isActiveChatsOpen ? '-' : '+'}
+                  </span>
+                  <span>Group Rooms ({activeRooms.length})</span>
+=======
                   <span className={`text-[8px] transition-transform ${isActiveChatsOpen ? 'rotate-90' : ''}`}>▶</span>
                   <span>Group Rooms — {activeRooms.length}</span>
+>>>>>>> main
                 </button>
 
                 {isActiveChatsOpen ? (
@@ -3962,6 +4110,15 @@ function BuddyListContent() {
                             data-testid={`room-row-${normalizedRoomKey}`}
                             data-room-name={roomName}
                             data-room-unread={unreadCount}
+<<<<<<< codex/update-ui-for-minimalist-apple-style-design-z8w1md
+                            className="group flex min-h-[44px] flex-1 items-center justify-between px-3 py-2 text-left text-slate-700 transition hover:bg-blue-50 hover:text-slate-900"
+                          >
+                            <div className="flex min-w-0 items-center gap-1.5">
+                              <span className="ui-list-kind-chip" aria-hidden="true">
+                                #
+                              </span>
+                              <span className="truncate font-bold">{roomName}</span>
+=======
                             className={`flex min-h-[44px] flex-1 items-center gap-3 rounded-2xl px-2.5 py-2 text-left transition active:scale-[0.98] ${
                               isRoomSelected ? 'bg-blue-500/12' : 'hover:bg-white/60'
                             }`}
@@ -3973,13 +4130,19 @@ function BuddyListContent() {
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-[13px] font-semibold text-slate-800">{roomName}</p>
                               <p className="text-[11px] text-slate-400">Group chat</p>
+>>>>>>> main
                             </div>
                             {unreadCount > 0 ? (
                               <span
                                 data-testid={`room-unread-${normalizedRoomKey}`}
                                 aria-label={`Unread in ${roomName}: ${unreadCount}`}
+<<<<<<< codex/update-ui-for-minimalist-apple-style-design-z8w1md
+                                className={`ml-2 shrink-0 rounded-full border border-white bg-gradient-to-b from-red-400 to-red-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm shadow-black/50 ${
+                                  isRoomSelected ? '' : 'ui-unread-badge-pulse'
+=======
                                 className={`flex min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white ${
                                   isRoomSelected ? '' : 'aim-unread-badge-pulse'
+>>>>>>> main
                                 }`}
                               >
                                 {unreadCount}
@@ -3989,7 +4152,11 @@ function BuddyListContent() {
                           <button
                             type="button"
                             onClick={() => void handleLeaveRoom(roomName)}
+<<<<<<< codex/update-ui-for-minimalist-apple-style-design-z8w1md
+                            className="my-1 mr-2 inline-flex min-h-[34px] min-w-[34px] items-center justify-center rounded-xl border border-red-200 bg-red-50 px-2 text-[11px] font-semibold text-red-700 transition hover:bg-red-100"
+=======
                             className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-red-200/80 bg-white/80 text-[11px] font-semibold text-red-400 transition hover:bg-red-50"
+>>>>>>> main
                             aria-label={`Leave ${roomName}`}
                             title="Leave room"
                           >
@@ -4004,6 +4171,12 @@ function BuddyListContent() {
             </div>
           </div>
 
+<<<<<<< codex/update-ui-for-minimalist-apple-style-design-z8w1md
+          <div className="fixed bottom-0 left-0 z-20 h-16 w-full border-t border-white/70 bg-white/65 backdrop-blur-xl shadow-[0_-6px_24px_rgba(15,23,42,0.1)]">
+            <div className="grid h-full grid-cols-4 items-center gap-2 px-3 py-2">
+              <button type="button" onClick={handleOpenImFromActionBar} className={xpRaisedButtonClass}>
+                IM
+=======
           {/* iOS-style tab bar */}
           <div
             className="fixed bottom-0 left-0 z-20 w-full border-t border-white/50 bg-white/68 backdrop-blur-xl shadow-[0_-6px_24px_rgba(15,23,42,0.08)]"
@@ -4017,6 +4190,7 @@ function BuddyListContent() {
               >
                 <span className="text-[20px] leading-none">✉</span>
                 <span className="text-[10px] font-semibold text-blue-500">IM</span>
+>>>>>>> main
               </button>
               <button
                 type="button"
@@ -4129,7 +4303,7 @@ function BuddyListContent() {
                 Admin Password Reset
               </div>
               <form onSubmit={handleIssueAdminResetTicket} className={xpModalBodyClass}>
-                <div className="border border-[#b95f5f] bg-[#fff0f0] px-2 py-1.5 text-[11px] text-[#8b2020]">
+                <div className="border border-[#b95f5f] bg-[#fff0f0] px-2 py-1.5 text-[11px] text-red-700">
                   <p className="font-bold uppercase tracking-wide">Admin Tools</p>
                   <p className="mt-1">Issue a one-time password reset ticket for out-of-band delivery.</p>
                 </div>
@@ -4183,7 +4357,11 @@ function BuddyListContent() {
                   </div>
                 )}
 
+<<<<<<< codex/update-ui-for-minimalist-apple-style-design-z8w1md
+                <div className="rounded-xl border border-slate-200 bg-white/75 px-2.5 py-2 text-[11px] text-slate-700">
+=======
                 <div className="border border-[#c8d6ea] bg-[#f4f8fe] px-2 py-1.5 text-[11px] text-slate-700">
+>>>>>>> main
                   <div className="flex items-center justify-between gap-2">
                     <p className="font-bold">Recent Recovery Activity</p>
                     <button
@@ -4197,7 +4375,7 @@ function BuddyListContent() {
                   </div>
 
                   {adminAuditError ? (
-                    <p className="mt-2 border border-[#b95f5f] bg-[#ffe5e5] px-2 py-1 text-[11px] text-[#8b2020]">
+                    <p className="mt-2 border border-[#b95f5f] bg-[#ffe5e5] px-2 py-1 text-[11px] text-red-700">
                       {adminAuditError}
                     </p>
                   ) : null}
@@ -4261,6 +4439,49 @@ function BuddyListContent() {
       )}
 
       {showAwayModal && (
+<<<<<<< codex/update-ui-for-minimalist-apple-style-design-z8w1md
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4">
+          <div className="w-[22rem] max-w-[95%] rounded-[1.4rem] border border-white/70 bg-white/85 p-2 shadow-[0_28px_50px_rgba(15,23,42,0.22)] backdrop-blur-xl">
+            <div className="mb-2 flex min-h-[28px] items-center bg-gradient-to-b from-blue-400 via-blue-500 to-blue-700 px-3">
+              <p className="text-[13px] font-bold text-white [text-shadow:0_1px_0_rgba(0,0,0,0.35)]">
+                Set Away Message
+              </p>
+            </div>
+
+            <form onSubmit={handleSaveAwayMessage} className="space-y-3 px-2 pb-2 text-sm">
+              <div className="grid grid-cols-[90px_1fr] items-center gap-2">
+                <label htmlFor="away-label-input" className="text-[12px] font-semibold text-slate-700">
+                  Enter label:
+                </label>
+                <input
+                  id="away-label-input"
+                  value={awayLabelDraft}
+                  onChange={(event) => setAwayLabelDraft(event.target.value)}
+                  className="h-8 border border-[#7F9DB9] bg-white px-2 text-[12px] shadow-[inset_1px_1px_2px_rgba(0,0,0,0.08)] focus:outline-none focus:ring-1 focus:ring-[#7F9DB9]"
+                  placeholder="Simple Plan"
+                  maxLength={40}
+                />
+              </div>
+
+              <div className="grid grid-cols-[90px_1fr] items-center gap-2">
+                <label htmlFor="away-preset-select" className="text-[12px] font-semibold text-slate-700">
+                  Preset:
+                </label>
+                <select
+                  id="away-preset-select"
+                  value={selectedAwayPresetId}
+                  onChange={(event) => {
+                    const nextPresetId = event.target.value;
+                    setSelectedAwayPresetId(nextPresetId);
+                    const preset = awayPresets.find((item) => item.id === nextPresetId);
+                    if (preset) {
+                      setAwayLabelDraft(preset.label);
+                      setAwayText(preset.message);
+                    }
+                  }}
+                  className="h-8 border border-[#7F9DB9] bg-white px-2 text-[12px] shadow-[inset_1px_1px_2px_rgba(0,0,0,0.08)] focus:outline-none focus:ring-1 focus:ring-[#7F9DB9]"
+                >
+=======
         <div
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/25 backdrop-blur-[2px]"
           onClick={() => { setShowAwayModal(false); setAwayModalError(null); }}
@@ -4411,6 +4632,7 @@ function BuddyListContent() {
               <div>
                 <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Preset</p>
                 <div className="flex flex-wrap gap-1.5">
+>>>>>>> main
                   {awayPresets.map((preset) => (
                     <button
                       key={preset.id}
@@ -4429,6 +4651,89 @@ function BuddyListContent() {
                       {preset.label}
                     </button>
                   ))}
+<<<<<<< codex/update-ui-for-minimalist-apple-style-design-z8w1md
+                  <option value="__custom__">Custom...</option>
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="away-message-input" className="mb-1 block text-[12px] font-semibold text-slate-700">
+                  Enter new Away message:
+                </label>
+                <div className="mb-1 flex items-center gap-1 rounded-xl border border-slate-200 bg-white/80 px-2 py-1.5">
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg border border-slate-200 bg-white text-[11px] font-semibold text-slate-700">
+                    A
+                  </span>
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg border border-slate-200 bg-white text-[11px] font-semibold text-slate-700">
+                    B
+                  </span>
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg border border-slate-200 bg-white text-[11px] font-semibold text-slate-700">
+                    I
+                  </span>
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg border border-slate-200 bg-white text-[11px] font-semibold text-slate-700 underline">
+                    U
+                  </span>
+                </div>
+              </div>
+
+              <textarea
+                id="away-message-input"
+                value={awayText}
+                onChange={(event) => setAwayText(event.target.value)}
+                className="min-h-[110px] w-full resize-none rounded-xl border border-slate-200 bg-white p-3 text-[12px] shadow-[inset_0_1px_2px_rgba(15,23,42,0.06)] focus:outline-none focus:ring-2 focus:ring-blue-200"
+                placeholder="Use %n for buddy name, %d for date, %t for time..."
+                maxLength={320}
+              />
+
+              <div className="rounded-xl border border-slate-800/90 bg-slate-950 p-2">
+                <p className="break-words text-[13px] text-[#ffc4d8]">{awayPreview}</p>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600">
+                <label className="inline-flex items-center gap-1">
+                  <input
+                    type="checkbox"
+                    checked={saveAwayPreset}
+                    onChange={(event) => setSaveAwayPreset(event.target.checked)}
+                    className="h-4 w-4 rounded border border-slate-300"
+                  />
+                  Save for later use
+                </label>
+                <span className="text-[10px]">%n = Buddy, %d = Date, %t = Time</span>
+              </div>
+
+              <div className="space-y-2 rounded-xl border border-slate-200 bg-white/70 p-3">
+                <label className="inline-flex items-center gap-2 text-[11px] font-semibold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={isAutoAwayEnabled}
+                    onChange={(event) => setIsAutoAwayEnabled(event.target.checked)}
+                    className="h-4 w-4 rounded border border-slate-300"
+                  />
+                  Auto set Away when idle
+                </label>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-slate-700">Idle timeout:</span>
+                  <select
+                    value={autoAwayMinutes}
+                    onChange={(event) => setAutoAwayMinutes(Number(event.target.value))}
+                    className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-[11px] focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    disabled={!isAutoAwayEnabled}
+                  >
+                    {AUTO_AWAY_MINUTE_OPTIONS.map((minutes) => (
+                      <option key={minutes} value={minutes}>
+                        {minutes} min
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <label className="inline-flex items-center gap-2 text-[11px] text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={autoReturnOnActivity}
+                    onChange={(event) => setAutoReturnOnActivity(event.target.checked)}
+                    className="h-4 w-4 rounded border border-slate-300"
+=======
                   <button
                     type="button"
                     onClick={() => { setSelectedAwayPresetId('__custom__'); setAwayText(''); setAwayLabelDraft(''); }}
@@ -4500,6 +4805,7 @@ function BuddyListContent() {
                   <button
                     type="button"
                     onClick={() => setAutoReturnOnActivity((p) => !p)}
+>>>>>>> main
                     disabled={!isAutoAwayEnabled}
                     className={`ios-toggle ${autoReturnOnActivity && isAutoAwayEnabled ? 'on' : ''} disabled:opacity-50`}
                     role="switch"
@@ -4533,16 +4839,28 @@ function BuddyListContent() {
               <div className="flex gap-2">
                 <button
                   type="button"
+<<<<<<< codex/update-ui-for-minimalist-apple-style-design-z8w1md
+                  onClick={() => {
+                    setShowAwayModal(false);
+                    setAwayModalError(null);
+                  }}
+                  className="min-h-[34px] rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+=======
                   onClick={() => void saveProfileSettings({ goAway: false })}
                   disabled={isSavingAwayMessage}
                   className="flex-1 rounded-2xl border border-white/65 bg-white py-3.5 text-[15px] font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 active:scale-[0.98] disabled:opacity-60"
+>>>>>>> main
                 >
                   {isSavingAwayMessage ? 'Saving…' : 'Save Profile'}
                 </button>
                 <button
                   type="submit"
                   disabled={isSavingAwayMessage}
+<<<<<<< codex/update-ui-for-minimalist-apple-style-design-z8w1md
+                  className="min-h-[34px] rounded-xl border border-blue-500/70 bg-gradient-to-b from-blue-500 to-blue-600 px-4 text-xs font-semibold text-white shadow-[0_10px_20px_rgba(37,99,235,0.3)] disabled:opacity-60"
+=======
                   className="flex-1 rounded-2xl border border-blue-500/50 bg-blue-500 py-3.5 text-[15px] font-semibold text-white shadow-[0_8px_20px_rgba(37,99,235,0.35)] transition hover:bg-blue-600 active:scale-[0.98] disabled:opacity-60"
+>>>>>>> main
                 >
                   {isSavingAwayMessage ? 'Saving…' : "Go Away 🌙"}
                 </button>

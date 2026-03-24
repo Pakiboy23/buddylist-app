@@ -854,6 +854,10 @@ export default function GroupChatWindow({
   };
 
   const xpTinyToolbarButtonClass = (active = false) =>
+    `inline-flex h-7 min-w-7 items-center justify-center rounded-lg border px-1.5 text-[11px] font-semibold text-slate-700 transition ui-focus-ring ${
+      active
+        ? 'border-blue-400/70 bg-blue-50 text-blue-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]'
+        : 'border-slate-200 bg-white hover:bg-slate-50'
     `inline-flex h-7 min-w-7 items-center justify-center rounded-lg border px-1.5 text-[11px] font-semibold text-slate-700 transition ${
       active
         ? 'border-blue-400/70 bg-blue-50 text-blue-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]'
@@ -941,6 +945,16 @@ export default function GroupChatWindow({
     <div className="fixed inset-0 z-50 chat-slide-in">
       <RetroWindow
         title={`#${roomName}`}
+        variant="glass_shell"
+        xpTitleText={`Chat Room: ${roomName}`}
+        onXpClose={onBack}
+        onXpSignOff={onSignOff}
+      >
+        <div className="flex h-full min-h-0 flex-col rounded-[1.4rem] border border-white/60 bg-white/65 text-[11px] backdrop-blur-xl">
+          <div className="m-2 mb-0 flex min-h-0 flex-1 flex-col overflow-y-auto rounded-xl border border-slate-200 bg-white p-2">
+            <p className="mb-0.5 font-bold text-slate-700">Room: #{roomName}</p>
+            <p className="mb-2 truncate text-[11px] text-slate-500">
+              Participants:{' '}
         variant="xp_shell"
         xpTitleText={`#${roomName}`}
         onXpClose={onBack}
@@ -978,6 +992,23 @@ export default function GroupChatWindow({
             </p>
           </div>
 
+            <div className="mb-2 rounded-xl border border-white/60 bg-white/70 backdrop-blur-sm px-2 py-1 text-[11px] text-slate-700">
+              <div className="flex items-center gap-2">
+                <label htmlFor="room-search-input" className="shrink-0 font-bold">
+                  Search:
+                </label>
+                <input
+                  id="room-search-input"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder={`Find in #${roomName}`}
+                  className="h-6 min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-1.5 text-[11px] ui-focus-ring"
+                />
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  disabled={!searchQuery}
+                  className="h-6 shrink-0 rounded-lg border border-slate-200 bg-white px-2 text-[10px] font-bold text-slate-700 disabled:opacity-50"
           {/* Search bar */}
           <div className="mx-3 mt-1.5 rounded-2xl border border-white/65 bg-white/72 px-3 py-1.5 shadow-sm">
             <div className="flex items-center gap-2">
@@ -999,6 +1030,11 @@ export default function GroupChatWindow({
                 >
                   ✕
                 </button>
+              </div>
+              {normalizedSearchQuery ? (
+                <p className="mt-1 text-[10px] text-slate-500">
+                  {searchMatchCount} {searchMatchCount === 1 ? 'match' : 'matches'}
+                </p>
               ) : null}
             </div>
             {normalizedSearchQuery ? (
@@ -1059,6 +1095,113 @@ export default function GroupChatWindow({
                   const isLastInRun = !nextMessage || nextMessage.sender_id !== message.sender_id;
 
                   return (
+                    <div
+                      key={message.id}
+                      className={
+                        normalizedSearchQuery
+                          ? isMatch
+                            ? 'rounded bg-amber-50 px-1'
+                            : 'px-1 opacity-50'
+                          : isMentioningCurrentUser
+                            ? 'rounded bg-amber-50 px-1'
+                            : undefined
+                      }
+                    >
+                      {separatorIndex === index ? (
+                        <p className="ui-new-messages-separator">New messages</p>
+                      ) : null}
+                      <div className="flex flex-wrap items-baseline gap-x-1 leading-4">
+                        <span className="text-[11px] text-gray-500" title={fullTimestamp}>
+                          [{timestamp}]
+                        </span>
+                        <span className={`font-bold ${senderClassName}`}>
+                          {isMine ? 'You' : senderName}:
+                        </span>
+                        {isEditing ? (
+                          <span className="flex min-w-0 flex-1 items-center gap-1">
+                            <input
+                              value={editDraft}
+                              onChange={(event) => setEditDraft(event.target.value)}
+                              className="h-6 min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-1 text-[11px] ui-focus-ring"
+                              maxLength={1500}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => void saveEditedMessage(message.id)}
+                              disabled={isSavingEdit || !editDraft.trim()}
+                              className="rounded-lg border border-slate-200 bg-white px-1 py-0.5 text-[10px] font-bold text-slate-700 disabled:opacity-60"
+                            >
+                              Save
+                            </button>
+                            <button
+                              type="button"
+                              onClick={cancelEditingMessage}
+                              className="rounded-lg border border-slate-200 bg-white px-1 py-0.5 text-[10px] font-bold text-slate-700"
+                            >
+                              Cancel
+                            </button>
+                          </span>
+                        ) : isDeleted ? (
+                          <span className="italic text-gray-500">This message was deleted.</span>
+                        ) : (
+                          <span
+                            className="ui-rich-html text-slate-800"
+                            dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(message.content) }}
+                          />
+                        )}
+                        {isEdited ? <span className="text-[10px] italic text-gray-500">(edited)</span> : null}
+                        {isMine && !isDeleted && !isEditing ? (
+                          <span className="ml-1 inline-flex gap-1 text-[10px]">
+                            <button
+                              type="button"
+                              onClick={() => startEditingMessage(message)}
+                              className="text-[#1f4f9e] underline"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void softDeleteMessage(message.id)}
+                              disabled={isDeletingMessageId === message.id}
+                              className="text-red-700 underline disabled:opacity-60"
+                            >
+                              {isDeletingMessageId === message.id ? '...' : 'Delete'}
+                            </button>
+                          </span>
+                        ) : null}
+                      </div>
+                      {!isDeleted && messageAttachments.length > 0 ? (
+                        <div className="mt-1 space-y-0.5 pl-12">
+                          {messageAttachments.map((attachment) => {
+                            const { data } = supabase.storage
+                              .from(attachment.bucket)
+                              .getPublicUrl(attachment.storage_path);
+                            return (
+                              <a
+                                key={attachment.id}
+                                href={data.publicUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="block text-[10px] text-blue-600 underline"
+                                title={attachment.storage_path}
+                              >
+                                📎 {attachment.file_name}
+                                {attachment.size_bytes ? ` (${formatFileSize(attachment.size_bytes)})` : ''}
+                              </a>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+                      {!isDeleted && reactionEntries.length > 0 ? (
+                        <div className="mt-0.5 flex flex-wrap items-center gap-1 pl-12">
+                          {reactionEntries.map(([emoji, count]) => (
+                            <span
+                              key={`${message.id}-${emoji}`}
+                              className="rounded rounded-lg border border-slate-200 bg-white/70 px-1 py-[1px] text-[10px] text-slate-600"
+                            >
+                              {emoji} {count}
+                            </span>
+                          ))}
                     <div key={message.id} className="flex flex-col">
                       {separatorIndex === index ? (
                         <p className="aim-new-messages-separator my-2">New messages</p>
@@ -1210,6 +1353,82 @@ export default function GroupChatWindow({
               </div>
             )}
           </div>
+          {reactionError ? <p className="mx-2 mt-1 text-[10px] text-red-700">{reactionError}</p> : null}
+          {attachmentLoadError ? <p className="mx-2 mt-1 text-[10px] text-red-700">{attachmentLoadError}</p> : null}
+
+          <div className="mx-2 mb-2 flex items-center gap-1 rounded-xl border border-slate-200 bg-white/80 px-1 py-1">
+            <button
+              type="button"
+              onClick={() => setShowFormatting((previous) => !previous)}
+              className={xpTinyToolbarButtonClass(showFormatting)}
+              aria-label="Toggle formatting"
+              title="Toggle formatting"
+            >
+              A
+            </button>
+            <button type="button" onClick={toggleBold} className={xpTinyToolbarButtonClass(format.bold)} aria-label="Bold">
+              B
+            </button>
+            <button type="button" onClick={toggleItalic} className={xpTinyToolbarButtonClass(format.italic)} aria-label="Italic">
+              I
+            </button>
+            <button
+              type="button"
+              onClick={toggleUnderline}
+              className={xpTinyToolbarButtonClass(format.underline)}
+              aria-label="Underline"
+            >
+              <span className="underline">U</span>
+            </button>
+            <button
+              type="button"
+              disabled
+              className={`${xpTinyToolbarButtonClass()} opacity-70`}
+              aria-label="Link"
+              title="Link"
+            >
+              🔗
+            </button>
+            <button
+              type="button"
+              className={xpTinyToolbarButtonClass()}
+              aria-label="Emoji picker coming soon"
+              title="Emoji picker coming soon"
+            >
+              ☺
+            </button>
+            <button
+              type="button"
+              onClick={() => attachmentInputRef.current?.click()}
+              className={xpTinyToolbarButtonClass(pendingAttachments.length > 0)}
+              aria-label="Attach files"
+              title="Attach files"
+            >
+              📎
+            </button>
+            <input
+              ref={attachmentInputRef}
+              type="file"
+              multiple
+              onChange={(event) => handleSelectAttachments(event.target.files)}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={onLeave}
+              className={`${xpTinyToolbarButtonClass()} ml-auto text-[#7b1f1f]`}
+              aria-label="Leave room"
+              title="Leave room"
+            >
+              X
+            </button>
+          </div>
+
+          {showFormatting ? (
+            <div className="mx-2 mb-2 rounded-xl border border-slate-200 bg-white/80 p-1">
+              <RichTextToolbar value={format} onChange={setFormat} />
+            </div>
+          ) : null}
 
           {reactionError ? <p className="mx-3 mt-1 text-[10px] text-red-600">{reactionError}</p> : null}
           {attachmentLoadError ? <p className="mx-3 mt-1 text-[10px] text-red-600">{attachmentLoadError}</p> : null}
@@ -1217,6 +1436,25 @@ export default function GroupChatWindow({
 
           {/* Typing indicator */}
           {typingText ? (
+            <p className="mx-2 mb-1 text-[11px] italic text-blue-600">{typingText}</p>
+          ) : null}
+
+          {pendingAttachments.length > 0 ? (
+            <div className="mx-2 mb-2 space-y-1 rounded-xl border border-slate-200 bg-white/70 p-1">
+              {pendingAttachments.map((file, index) => (
+                <div key={`${file.name}-${file.size}-${file.lastModified}`} className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1 truncate text-[10px] text-slate-700">
+                    📎 {file.name} ({formatFileSize(file.size)})
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removePendingAttachment(index)}
+                    className="rounded-lg border border-slate-200 bg-white px-1 text-[10px] font-bold text-red-700"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
             <div className="mx-3 mt-1.5 flex items-center gap-2">
               <div className="flex items-center gap-1 rounded-full border border-white/65 bg-white/80 px-3 py-1.5 shadow-sm backdrop-blur-sm">
                 <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-400" />
@@ -1322,18 +1560,35 @@ export default function GroupChatWindow({
             {/* Pill compose input */}
             <form
               onSubmit={handleSendMessage}
+              className="flex h-16 flex-1 items-stretch gap-2 rounded-xl border border-slate-200 bg-white p-1"
               className="flex items-end gap-2 rounded-2xl border border-white/65 bg-white/88 px-3.5 py-2.5 shadow-[0_4px_16px_rgba(15,23,42,0.08)] backdrop-blur-sm"
             >
               <textarea
                 value={draft}
                 onChange={(event) => handleDraftChange(event.target.value)}
                 onKeyDown={handleDraftKeyDown}
+                placeholder={`Message #${roomName}`}
+                className="h-full min-h-0 flex-1 resize-none bg-white px-2 py-1 text-[11px] ui-focus-ring"
                 placeholder={`Message #${roomName}…`}
                 rows={1}
                 maxLength={1500}
                 className="min-h-[24px] flex-1 resize-none bg-transparent text-[13px] text-slate-800 placeholder-slate-400 focus:outline-none"
                 style={{ maxHeight: '88px', overflowY: 'auto' }}
               />
+              <button
+                type="submit"
+                disabled={isSending || (!draft.trim() && pendingAttachments.length === 0)}
+                className="min-w-[82px] rounded-xl border border-blue-500/70 bg-gradient-to-b from-blue-500 to-blue-600 px-3 text-[11px] font-semibold text-white shadow-[0_8px_18px_rgba(37,99,235,0.3)] disabled:opacity-60"
+              >
+                {isSending ? '...' : 'Send'}
+              </button>
+            </form>
+          </div>
+
+          <p className="mx-2 mb-2 text-[11px] text-slate-500">
+            Enter to send. Cmd/Ctrl + Enter for a new line.
+          </p>
+          {error && <p className="mx-2 mb-2 text-[11px] text-red-700">{error}</p>}
               {(draft.trim() || pendingAttachments.length > 0) ? (
                 <button
                   type="submit"

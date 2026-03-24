@@ -4,6 +4,7 @@
   --color-ink-900: #111827;
   --color-ink-700: #334155;
   --color-ink-500: #64748b;
+  --color-glass-bg: rgba(255, 255, 255, 0.58);
   /* Glass tiers — use these consistently everywhere */
   --color-glass-heavy: rgba(255, 255, 255, 0.55);
   --color-glass-medium: rgba(255, 255, 255, 0.72);
@@ -28,6 +29,7 @@ body {
 }
 
 body {
+  background: radial-gradient(circle at 4% 6%, #dbeafe 0%, #f8fbff 34%, #f4f8ff 58%, #e8f1ff 100%);
   background:
     radial-gradient(circle at 4% 6%, #dbeafe 0%, #f8fbff 34%, #f4f8ff 58%, #e8f1ff 100%);
   color: var(--color-ink-900);
@@ -39,15 +41,17 @@ body {
   -webkit-touch-callout: none;
 }
 
+.ui-rich-html,
 .aim-rich-html {
   word-break: break-word;
 }
 
+.ui-rich-html span,
 .aim-rich-html span {
   white-space: pre-wrap;
 }
 
-@keyframes aim-unread-pulse {
+@keyframes ui-unread-pulse {
   0% {
     transform: scale(1);
     box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.45);
@@ -62,10 +66,12 @@ body {
   }
 }
 
+.ui-unread-badge-pulse,
 .aim-unread-badge-pulse {
-  animation: aim-unread-pulse 1.45s ease-in-out infinite;
+  animation: ui-unread-pulse 1.45s ease-in-out infinite;
 }
 
+.ui-list-kind-chip,
 .aim-list-kind-chip {
   display: inline-flex;
   min-width: 1.05rem;
@@ -81,6 +87,7 @@ body {
   font-weight: 700;
 }
 
+.ui-new-messages-separator,
 .aim-new-messages-separator {
   margin: 0.45rem 0;
   display: flex;
@@ -92,6 +99,8 @@ body {
   letter-spacing: 0.015em;
 }
 
+.ui-new-messages-separator::before,
+.ui-new-messages-separator::after,
 .aim-new-messages-separator::before,
 .aim-new-messages-separator::after {
   content: '';
@@ -99,6 +108,15 @@ body {
   border-top: 1px dashed #f59e0b;
 }
 
+.ui-focus-ring {
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:ring-offset-1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-unread-badge-pulse,
+  .aim-unread-badge-pulse {
+    animation: none;
+  }
 /* ─── Message bubble entrance ─── */
 @keyframes msg-enter {
   from {

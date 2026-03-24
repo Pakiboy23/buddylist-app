@@ -5,7 +5,7 @@ interface RetroWindowProps {
   children: React.ReactNode;
   className?: string;
   style?: React.CSSProperties;
-  variant?: 'default' | 'xp_shell';
+  variant?: 'default' | 'glass_shell' | 'xp_shell';
   titleBarClassName?: string;
   showBackButton?: boolean;
   backButtonLabel?: string;
@@ -31,7 +31,7 @@ export default function RetroWindow({
   onXpSignOff,
   xpTitleText,
 }: RetroWindowProps) {
-  if (variant === 'xp_shell') {
+  if (variant === 'xp_shell' || variant === 'glass_shell') {
     return (
       <div
         className={`flex h-[100dvh] w-full flex-col overflow-hidden bg-transparent font-["SF_Pro_Text","SF_Pro_Display","Segoe_UI",sans-serif] text-[12px] text-slate-700 ${className ?? ''}`}

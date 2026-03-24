@@ -340,6 +340,50 @@ export default function Home() {
   const labelClass = 'mb-1.5 block text-[11px] font-semibold uppercase tracking-widest text-slate-500';
 
   return (
+    <main className="relative h-[100dvh] overflow-hidden bg-[radial-gradient(circle_at_10%_15%,#c5ddff_0%,#eaf2ff_34%,#f6f9ff_62%,#dce9ff_100%)]">
+      <div className="pointer-events-none absolute -left-14 top-8 h-44 w-44 rounded-full bg-blue-200/45 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-20 right-10 h-60 w-60 rounded-full bg-cyan-200/40 blur-3xl" />
+
+      <RetroWindow title="BuddyList — Secure Access">
+        <form
+          onSubmit={handlePrimarySubmit}
+          className="mx-auto flex w-full max-w-3xl flex-col gap-4 pb-6 text-[13px] font-sans text-blue-900"
+        >
+          <div className="rounded-[1.4rem] border border-white/65 bg-white/75 px-4 py-3 shadow-[0_16px_34px_rgba(15,23,42,0.13)] backdrop-blur-lg">
+            <p className="text-[15px] font-semibold tracking-[0.02em] text-slate-800">BuddyList Access</p>
+            <p className="mt-1 text-[12px] font-semibold text-blue-700/90">
+              Secure sign-on, recovery code reset, and admin ticket redemption in one place.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 rounded-2xl border border-white/60 bg-white/65 p-2 backdrop-blur-md">
+            <button
+              type="button"
+              onClick={() => switchAuthView('sign-on')}
+              disabled={isLoading}
+              className={`min-h-[42px] cursor-pointer rounded-lg border px-2 py-2 text-[11px] font-black tracking-wide transition disabled:opacity-50 ${
+                authView === 'sign-on'
+                  ? 'border-blue-700 bg-gradient-to-b from-blue-300 to-blue-700 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]'
+                  : 'border-blue-200 bg-white text-blue-700 hover:bg-blue-50'
+              }`}
+            >
+              Sign On
+            </button>
+            <button
+              type="button"
+              onClick={() => switchAuthView('forgot-password')}
+              disabled={isLoading}
+              className={`min-h-[42px] cursor-pointer rounded-lg border px-2 py-2 text-[11px] font-black tracking-wide transition disabled:opacity-50 ${
+                authView === 'forgot-password'
+                  ? 'border-blue-700 bg-gradient-to-b from-blue-300 to-blue-700 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]'
+                  : 'border-blue-200 bg-white text-blue-700 hover:bg-blue-50'
+              }`}
+            >
+              Recovery Code
+            </button>
+            <button
+              type="button"
+              onClick={() => switchAuthView('redeem-ticket')}
     <main className="relative flex h-[100dvh] items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_10%_15%,#c5ddff_0%,#eaf2ff_34%,#f6f9ff_62%,#dce9ff_100%)]">
       <div className="pointer-events-none absolute -left-20 top-10 h-56 w-56 rounded-full bg-blue-200/50 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-24 right-8 h-72 w-72 rounded-full bg-cyan-200/45 blur-3xl" />
@@ -389,6 +433,11 @@ export default function Home() {
             />
           </div>
 
+          <div className="grid gap-3 rounded-[1.5rem] border border-white/65 bg-white/72 p-4 shadow-[0_18px_34px_rgba(15,23,42,0.14)] backdrop-blur-xl lg:grid-cols-[170px_1fr]">
+            <aside className="flex flex-col justify-between rounded-lg border border-blue-200 bg-white/75 backdrop-blur-sm px-3 py-3">
+              <div>
+                <span className="text-[35px] leading-none">✦</span>
+                <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Premium UI</p>
           {authView === 'sign-on' && (
             <div>
               <label className={labelClass}>Password</label>
