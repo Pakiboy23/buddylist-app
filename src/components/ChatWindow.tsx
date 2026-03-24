@@ -489,7 +489,7 @@ export default function ChatWindow({
     <div className="fixed inset-0 z-40">
       <RetroWindow
         title={`IM with ${buddyScreenname}`}
-        variant="glass_shell"
+        variant="xp_shell"
         xpTitleText={`Instant Message - ${buddyScreenname}`}
         onXpClose={onClose}
         onXpSignOff={onSignOff}
@@ -498,7 +498,7 @@ export default function ChatWindow({
           <div className="m-2 mb-0 rounded-xl border border-white/70 bg-white/80 px-3 py-2 text-[11px] text-slate-700">
             <span className="font-bold">Conversation with {buddyScreenname}:</span>{' '}
             <span
-              className="ui-rich-html"
+              className="aim-rich-html"
               dangerouslySetInnerHTML={{
                 __html: sanitizeRichTextHtml(buddyStatusMessage || 'No away message.'),
               }}
@@ -573,7 +573,7 @@ export default function ChatWindow({
                       }
                     >
                       {separatorIndex === index ? (
-                        <p className="ui-new-messages-separator">New messages</p>
+                        <p className="aim-new-messages-separator">New messages</p>
                       ) : null}
                       <div className="flex flex-wrap items-baseline gap-x-1 leading-4">
                         <span className="text-[11px] text-gray-500" title={fullTimestamp}>
@@ -610,7 +610,7 @@ export default function ChatWindow({
                           <span className="italic text-gray-500">This message was deleted.</span>
                         ) : (
                           <span
-                            className="ui-rich-html text-slate-800"
+                            className="aim-rich-html text-slate-800"
                             dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(message.content) }}
                           />
                         )}

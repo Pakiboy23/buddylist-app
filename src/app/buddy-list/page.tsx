@@ -2846,7 +2846,7 @@ function BuddyListContent() {
       >
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className="ui-list-kind-chip" aria-hidden="true">
+            <span className="aim-list-kind-chip" aria-hidden="true">
               @
             </span>
             <span
@@ -2884,7 +2884,7 @@ function BuddyListContent() {
             data-testid={`dm-unread-${buddy.id}`}
             aria-label={`Unread from ${buddy.screenname}: ${unreadDirectCount}`}
             className={`ml-2 shrink-0 rounded-full border border-white bg-gradient-to-b from-red-400 to-red-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm shadow-black/50 ${
-              isSelected ? '' : 'ui-unread-badge-pulse'
+              isSelected ? '' : 'aim-unread-badge-pulse'
             }`}
           >
             {unreadDirectCount}
@@ -2932,7 +2932,7 @@ function BuddyListContent() {
     <main className="h-[100dvh] overflow-hidden bg-transparent">
       <RetroWindow
         title="Buddy List"
-        variant="glass_shell"
+        variant="xp_shell"
         xpTitleText="Buddy List"
         onXpSignOff={() => setIsHeaderMenuOpen((previous) => !previous)}
       >
@@ -3157,7 +3157,7 @@ function BuddyListContent() {
                             className="group flex min-h-[44px] flex-1 items-center justify-between px-3 py-2 text-left text-slate-700 transition hover:bg-blue-50 hover:text-slate-900"
                           >
                             <div className="flex min-w-0 items-center gap-1.5">
-                              <span className="ui-list-kind-chip" aria-hidden="true">
+                              <span className="aim-list-kind-chip" aria-hidden="true">
                                 #
                               </span>
                               <span className="truncate font-bold">{roomName}</span>
@@ -3167,7 +3167,7 @@ function BuddyListContent() {
                                 data-testid={`room-unread-${normalizedRoomKey}`}
                                 aria-label={`Unread in ${roomName}: ${unreadCount}`}
                                 className={`ml-2 shrink-0 rounded-full border border-white bg-gradient-to-b from-red-400 to-red-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm shadow-black/50 ${
-                                  isRoomSelected ? '' : 'ui-unread-badge-pulse'
+                                  isRoomSelected ? '' : 'aim-unread-badge-pulse'
                                 }`}
                               >
                                 {unreadCount}

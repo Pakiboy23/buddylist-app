@@ -886,7 +886,7 @@ export default function GroupChatWindow({
     <div className="fixed inset-0 z-50">
       <RetroWindow
         title={`#${roomName}`}
-        variant="glass_shell"
+        variant="xp_shell"
         xpTitleText={`Chat Room: ${roomName}`}
         onXpClose={onBack}
         onXpSignOff={onSignOff}
@@ -981,7 +981,7 @@ export default function GroupChatWindow({
                       }
                     >
                       {separatorIndex === index ? (
-                        <p className="ui-new-messages-separator">New messages</p>
+                        <p className="aim-new-messages-separator">New messages</p>
                       ) : null}
                       <div className="flex flex-wrap items-baseline gap-x-1 leading-4">
                         <span className="text-[11px] text-gray-500" title={fullTimestamp}>
@@ -1018,7 +1018,7 @@ export default function GroupChatWindow({
                           <span className="italic text-gray-500">This message was deleted.</span>
                         ) : (
                           <span
-                            className="ui-rich-html text-slate-800"
+                            className="aim-rich-html text-slate-800"
                             dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(message.content) }}
                           />
                         )}
