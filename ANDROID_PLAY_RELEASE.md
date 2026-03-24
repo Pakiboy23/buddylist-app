@@ -45,7 +45,7 @@ Alternative: set env vars instead of file:
 
 ## 4) Bump app version for each release
 
-Edit [build.gradle](/Users/syedshariff/buddylist/android/app/build.gradle):
+Edit [android/app/build.gradle](./android/app/build.gradle):
 
 - `versionCode` -> increment integer every release
 - `versionName` -> user-facing version string

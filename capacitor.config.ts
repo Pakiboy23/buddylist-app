@@ -1,14 +1,19 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
+const isBundledBuild = process.env.CAPACITOR_BUNDLED === '1';
+
 const config: CapacitorConfig = {
-  appId: 'com.buddylist.app', // Or whatever you typed during init
+  appId: 'com.buddylist.app',
   appName: 'BuddyList',
-  webDir: 'public', // We aren't really using this, but Capacitor requires the field
-  server: {
-    // Replace this with your actual Vercel production URL or your new custom domain
-    url: 'https://buddylist-app.vercel.app',
-    cleartext: true,
-  },
+  webDir: isBundledBuild ? 'native-web' : 'public',
+  ...(isBundledBuild
+    ? {}
+    : {
+        server: {
+          url: 'https://buddylist-app.vercel.app',
+          cleartext: true,
+        },
+      }),
   plugins: {
     StatusBar: {
       overlaysWebView: false,
