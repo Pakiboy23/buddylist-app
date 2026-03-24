@@ -6,7 +6,10 @@ import ChatWindow, { ChatMessage } from '@/components/ChatWindow';
 import GroupChatWindow from '@/components/GroupChatWindow';
 import BuddyProfileSheet from '@/components/BuddyProfileSheet';
 import ProfileAvatar from '@/components/ProfileAvatar';
-import { getAccessTokenOrNull, getSessionOrNull } from '@/lib/authClient';
+import {
+  getAccessTokenOrNull,
+  waitForSessionOrNull,
+} from '@/lib/authClient';
 import { getAppApiUrl } from '@/lib/appApi';
 import { deleteBuddyIconFile, uploadBuddyIconFile, validateBuddyIconFile } from '@/lib/buddyIcon';
 import {
@@ -1376,7 +1379,7 @@ function BuddyListContent() {
 
   useEffect(() => {
     const bootstrapUser = async () => {
-      const session = await getSessionOrNull();
+      const session = await waitForSessionOrNull();
       if (!session) {
         router.push('/');
         return;

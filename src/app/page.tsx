@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getSessionOrNull } from '@/lib/authClient';
+import { waitForSessionOrNull } from '@/lib/authClient';
 import { getAppApiUrl } from '@/lib/appApi';
 import { initSoundSystem, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
@@ -75,7 +75,7 @@ export default function Home() {
     let isMounted = true;
 
     const checkSession = async () => {
-      const session = await getSessionOrNull();
+      const session = await waitForSessionOrNull();
 
       if (!isMounted || !session) {
         return;
