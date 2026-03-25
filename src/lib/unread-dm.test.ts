@@ -66,7 +66,7 @@ describe('applyDmStateEvent', () => {
   });
 
   it('returns the same object when update is idempotent', () => {
-    const unread = { 'buddy-a': 2 };
+    const unread: Record<string, number> = { 'buddy-a': 2 };
     const next = applyDmStateEvent(unread, 'UPDATE', { buddy_id: 'buddy-a', unread_count: 2 });
     expect(next).toBe(unread);
   });
