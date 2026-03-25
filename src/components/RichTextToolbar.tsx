@@ -25,10 +25,21 @@ export default function RichTextToolbar({ value, onChange }: RichTextToolbarProp
   const toggleUnderline = () => updateValue({ underline: !value.underline });
 
   const toggleClassName = (active: boolean) =>
+<<<<<<< HEAD
     `aim-toolbar-button focus:outline-none${active ? ' aim-toolbar-button-active' : ''}`;
 
   return (
     <div className="aim-glass-panel px-2 py-2">
+=======
+    `inline-flex h-7 min-w-7 items-center justify-center rounded-lg border px-2 text-[11px] font-semibold transition focus:outline-none ${
+      active
+        ? 'border-blue-400/70 bg-blue-50 text-blue-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]'
+        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+    }`;
+
+  return (
+    <div className="rounded-2xl border border-white/70 bg-white/85 px-2 py-2 shadow-[0_8px_24px_rgba(15,23,42,0.1)] backdrop-blur-sm">
+>>>>>>> main
       <div className="flex flex-wrap items-center gap-1.5">
         <label className="sr-only" htmlFor="rich-font-select">
           Font
@@ -37,7 +48,11 @@ export default function RichTextToolbar({ value, onChange }: RichTextToolbarProp
           id="rich-font-select"
           value={value.fontFamily}
           onChange={(event) => updateValue({ fontFamily: event.target.value })}
+<<<<<<< HEAD
           className="aim-control aim-control-inline min-w-[150px]"
+=======
+          className="h-8 min-w-[150px] rounded-lg border border-slate-200 bg-white px-2 text-[12px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
+>>>>>>> main
         >
           {AIM_FONT_OPTIONS.map((fontName) => (
             <option key={fontName} value={fontName}>

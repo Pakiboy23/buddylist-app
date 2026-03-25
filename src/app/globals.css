@@ -5,12 +5,25 @@
   --color-ink-700: #334155;
   --color-ink-500: #64748b;
   --color-glass-bg: rgba(255, 255, 255, 0.58);
+<<<<<<< HEAD
+=======
+  /* Glass tiers — use these consistently everywhere */
+  --color-glass-heavy: rgba(255, 255, 255, 0.55);
+  --color-glass-medium: rgba(255, 255, 255, 0.72);
+  --color-glass-light: rgba(255, 255, 255, 0.88);
+  /* Legacy aliases kept for compatibility */
+  --color-glass-bg: rgba(255, 255, 255, 0.55);
+>>>>>>> main
   --color-glass-stroke: rgba(255, 255, 255, 0.52);
   --color-accent: #2563eb;
   --color-accent-strong: #1d4ed8;
   --radius-squircle-lg: 1.55rem;
   --radius-squircle-md: 1.1rem;
   --shadow-glass: 0 20px 44px rgba(15, 23, 42, 0.14), 0 8px 20px rgba(15, 23, 42, 0.08);
+<<<<<<< HEAD
+=======
+  --shadow-elevated: 0 32px 60px rgba(15, 23, 42, 0.22), 0 8px 24px rgba(15, 23, 42, 0.12);
+>>>>>>> main
 }
 
 html,
@@ -22,6 +35,10 @@ body {
 }
 
 body {
+<<<<<<< HEAD
+=======
+  background: radial-gradient(circle at 4% 6%, #dbeafe 0%, #f8fbff 34%, #f4f8ff 58%, #e8f1ff 100%);
+>>>>>>> main
   background:
     radial-gradient(circle at 4% 6%, #dbeafe 0%, #f8fbff 34%, #f4f8ff 58%, #e8f1ff 100%);
   color: var(--color-ink-900);
@@ -33,6 +50,7 @@ body {
   -webkit-touch-callout: none;
 }
 
+<<<<<<< HEAD
 .aim-window-header {
   position: relative;
   margin: 0.75rem 0.75rem 0;
@@ -428,15 +446,19 @@ body {
   padding: 0 0.25rem;
 }
 
+=======
+.ui-rich-html,
+>>>>>>> main
 .aim-rich-html {
   word-break: break-word;
 }
 
+.ui-rich-html span,
 .aim-rich-html span {
   white-space: pre-wrap;
 }
 
-@keyframes aim-unread-pulse {
+@keyframes ui-unread-pulse {
   0% {
     transform: scale(1);
     box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.45);
@@ -451,10 +473,12 @@ body {
   }
 }
 
+.ui-unread-badge-pulse,
 .aim-unread-badge-pulse {
-  animation: aim-unread-pulse 1.45s ease-in-out infinite;
+  animation: ui-unread-pulse 1.45s ease-in-out infinite;
 }
 
+.ui-list-kind-chip,
 .aim-list-kind-chip {
   display: inline-flex;
   min-width: 1.05rem;
@@ -470,6 +494,7 @@ body {
   font-weight: 700;
 }
 
+.ui-new-messages-separator,
 .aim-new-messages-separator {
   margin: 0.45rem 0;
   display: flex;
@@ -481,9 +506,124 @@ body {
   letter-spacing: 0.015em;
 }
 
+.ui-new-messages-separator::before,
+.ui-new-messages-separator::after,
 .aim-new-messages-separator::before,
 .aim-new-messages-separator::after {
   content: '';
   flex: 1 1 auto;
   border-top: 1px dashed #f59e0b;
+}
+
+.ui-focus-ring {
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:ring-offset-1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-unread-badge-pulse,
+  .aim-unread-badge-pulse {
+    animation: none;
+  }
+/* ─── Message bubble entrance ─── */
+@keyframes msg-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.msg-enter {
+  animation: msg-enter 0.18s ease-out;
+}
+
+/* ─── Chat slide-in from right (opening a chat) ─── */
+@keyframes slide-in-from-right {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+.chat-slide-in {
+  animation: slide-in-from-right 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ─── Typing indicator dots ─── */
+@keyframes typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-4px); }
+}
+
+.typing-dot {
+  animation: typing-bounce 1.3s ease-in-out infinite;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.18s; }
+.typing-dot:nth-child(3) { animation-delay: 0.36s; }
+
+/* ─── Buddy row fade-in (online event) ─── */
+@keyframes buddy-fade-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.buddy-online-enter {
+  animation: buddy-fade-in 0.35s ease-out;
+}
+
+/* ─── iOS-style toggle switch ─── */
+.ios-toggle {
+  position: relative;
+  display: inline-flex;
+  height: 1.375rem;
+  width: 2.375rem;
+  cursor: pointer;
+  align-items: center;
+  border-radius: 9999px;
+  background-color: #e2e8f0;
+  transition: background-color 0.2s ease;
+  flex-shrink: 0;
+}
+
+.ios-toggle.on {
+  background-color: #22c55e;
+}
+
+.ios-toggle::after {
+  content: '';
+  position: absolute;
+  left: 2px;
+  height: 1.125rem;
+  width: 1.125rem;
+  border-radius: 9999px;
+  background-color: white;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ios-toggle.on::after {
+  transform: translateX(1rem);
+}
+
+/* ─── Bottom sheet slide-up ─── */
+@keyframes sheet-slide-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+.bottom-sheet {
+  animation: sheet-slide-up 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ─── Active press scale for all interactive elements ─── */
+button:active:not(:disabled),
+a:active {
+  transform: scale(0.97);
+  transition: transform 0.08s ease-out;
+}
+
+button,
+a {
+  transition: transform 0.15s ease-out, background-color 0.15s ease, opacity 0.15s ease;
 }

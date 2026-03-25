@@ -1,5 +1,6 @@
 'use client';
 
+import { Capacitor } from '@capacitor/core';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 
@@ -28,8 +29,34 @@ export async function getSessionOrNull(): Promise<Session | null> {
   return data.session ?? null;
 }
 
+function isNativePlatform() {
+  return typeof window !== 'undefined' && Capacitor.isNativePlatform();
+}
+
+function wait(delayMs: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, delayMs);
+  });
+}
+
+export async function waitForSessionOrNull() {
+  const initialSession = await getSessionOrNull();
+  if (initialSession || !isNativePlatform()) {
+    return initialSession;
+  }
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await wait(160);
+    const nextSession = await getSessionOrNull();
+    if (nextSession) {
+      return nextSession;
+    }
+  }
+
+  return null;
+}
+
 export async function getAccessTokenOrNull() {
   const session = await getSessionOrNull();
   return session?.access_token ?? null;
 }
-

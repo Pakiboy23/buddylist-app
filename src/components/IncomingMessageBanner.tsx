@@ -66,10 +66,10 @@ export default function IncomingMessageBanner({
 
   return createPortal(
     <div
-      className={`fixed left-0 top-0 z-[9999] w-full transform transition-transform duration-300 ease-out ${
-        isVisible ? 'translate-y-0' : '-translate-y-full'
+      className={`fixed left-0 top-0 z-[9999] w-full transform transition-all duration-300 ease-out ${
+        isVisible ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0'
       }`}
-      style={{ paddingTop: 'max(env(safe-area-inset-top), 1rem)' }}
+      style={{ paddingTop: 'max(env(safe-area-inset-top), 0.75rem)' }}
       onTouchStart={(event) => {
         const touch = event.touches[0];
         touchStartYRef.current = touch ? touch.clientY : null;
@@ -87,45 +87,41 @@ export default function IncomingMessageBanner({
         }
       }}
     >
-      <div className="mx-3 overflow-hidden rounded-b-2xl border border-blue-300/50 bg-gradient-to-b from-blue-400 via-blue-500 to-blue-700 shadow-2xl shadow-blue-900/40">
-        <div className="flex items-start gap-2 px-3 pb-3 pt-2">
+      <div className="mx-3 overflow-hidden rounded-2xl border border-white/60 bg-white/82 shadow-[0_16px_40px_rgba(15,23,42,0.20)] backdrop-blur-2xl">
+        <div className="flex items-center gap-3 px-4 py-3">
+          {/* Icon avatar — clickable */}
           <button
             type="button"
             onClick={onClick}
-            className="flex min-h-[44px] flex-1 items-start gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-white/10"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-xl transition hover:opacity-80 active:scale-95"
+            style={{ background: variant === 'dm' ? '#dbeafe' : '#ede9fe' }}
+            aria-label={`Open message from ${senderName}`}
           >
-            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/20 text-lg">
-              {variant === 'dm' ? '✉' : '🏃'}
-            </span>
-            <span className="min-w-0 text-white [text-shadow:0_1px_1px_rgba(0,0,0,0.45)]">
-              <span className="block truncate text-sm font-bold">
-                {senderName}
-                {count > 1 ? (
-                  <span className="ml-1 text-[11px] font-semibold text-blue-100">({`x${count}`})</span>
-                ) : null}
-              </span>
-              <span className="block truncate text-xs opacity-95">{messagePreview}</span>
-            </span>
+            {variant === 'dm' ? '✉' : '💬'}
           </button>
-
-          <div className="flex shrink-0 flex-col gap-1">
-            <button
-              type="button"
-              onClick={onClick}
-              aria-label="Open message"
-              className="inline-flex h-8 min-w-[52px] items-center justify-center rounded-md border border-white/30 bg-white/20 px-2 text-[11px] font-bold text-white transition-colors hover:bg-white/30"
-            >
-              Open
-            </button>
-            <button
-              type="button"
-              onClick={dismissBanner}
-              aria-label="Dismiss notification"
-              className="inline-flex h-8 min-w-[52px] items-center justify-center rounded-md border border-white/30 bg-white/20 px-2 text-[11px] font-bold text-white transition-colors hover:bg-white/30"
-            >
-              Dismiss
-            </button>
-          </div>
+          {/* Text — clickable */}
+          <button
+            type="button"
+            onClick={onClick}
+            className="min-w-0 flex-1 text-left transition active:opacity-80"
+          >
+            <div className="flex items-baseline gap-1.5">
+              <span className="truncate text-[13px] font-semibold text-slate-800">{senderName}</span>
+              {count > 1 ? (
+                <span className="shrink-0 text-[11px] text-slate-400">{count} new</span>
+              ) : null}
+            </div>
+            <p className="truncate text-[12px] text-slate-500">{messagePreview}</p>
+          </button>
+          {/* Dismiss button */}
+          <button
+            type="button"
+            onClick={dismissBanner}
+            aria-label="Dismiss notification"
+            className="ml-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-200/80 bg-slate-100/80 text-[11px] font-semibold text-slate-500 hover:bg-slate-200 active:scale-95"
+          >
+            ✕
+          </button>
         </div>
       </div>
     </div>,

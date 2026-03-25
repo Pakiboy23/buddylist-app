@@ -2,8 +2,9 @@
 
 import { FormEvent, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
-import RetroWindow from '@/components/RetroWindow';
-import { getSessionOrNull } from '@/lib/authClient';
+import { waitForSessionOrNull } from '@/lib/authClient';
+import { getAppApiUrl } from '@/lib/appApi';
+import { navigateAppPath } from '@/lib/appNavigation';
 import { initSoundSystem, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
 
@@ -68,7 +69,10 @@ export default function Home() {
       if (withSound) {
         await playSignOnSound();
       }
-      router.push('/buddy-list');
+      navigateAppPath(router, '/buddy-list', {
+        replace: true,
+        nativeDocumentNavigation: true,
+      });
     },
     [playSignOnSound, router],
   );
@@ -81,7 +85,7 @@ export default function Home() {
     let isMounted = true;
 
     const checkSession = async () => {
-      const session = await getSessionOrNull();
+      const session = await waitForSessionOrNull();
 
       if (!isMounted || !session) {
         return;
@@ -234,7 +238,7 @@ export default function Home() {
     setIsLoading(true);
     setStatusMsg('Verifying recovery code...');
 
-    const response = await fetch('/api/auth/recovery/reset', {
+    const response = await fetch(getAppApiUrl('/api/auth/recovery/reset'), {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -278,7 +282,7 @@ export default function Home() {
     setIsLoading(true);
     setStatusMsg('Redeeming reset ticket...');
 
-    const response = await fetch('/api/auth/recovery/redeem-ticket', {
+    const response = await fetch(getAppApiUrl('/api/auth/recovery/redeem-ticket'), {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -337,9 +341,15 @@ export default function Home() {
     }
   };
 
+<<<<<<< HEAD
   const authTabClass = (active: boolean) =>
     `${active ? 'aim-button-primary' : 'aim-button-secondary'} w-full px-2 py-2 font-black tracking-wide`;
   const authInputClass = 'aim-control aim-control-lg';
+=======
+  const inputClass =
+    'w-full rounded-2xl border border-slate-200 bg-white/88 px-4 py-3.5 text-[15px] text-slate-800 placeholder-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:opacity-60';
+  const labelClass = 'mb-1.5 block text-[11px] font-semibold uppercase tracking-widest text-slate-500';
+>>>>>>> main
 
   return (
     <main className="relative h-[100dvh] overflow-hidden bg-[radial-gradient(circle_at_10%_15%,#c5ddff_0%,#eaf2ff_34%,#f6f9ff_62%,#dce9ff_100%)]">
@@ -351,14 +361,22 @@ export default function Home() {
           onSubmit={handlePrimarySubmit}
           className="mx-auto flex w-full max-w-3xl flex-col gap-4 pb-6 text-[13px] font-sans text-blue-900"
         >
+<<<<<<< HEAD
           <div className="aim-glass-panel px-4 py-3">
+=======
+          <div className="rounded-[1.4rem] border border-white/65 bg-white/75 px-4 py-3 shadow-[0_16px_34px_rgba(15,23,42,0.13)] backdrop-blur-lg">
+>>>>>>> main
             <p className="text-[15px] font-semibold tracking-[0.02em] text-slate-800">BuddyList Access</p>
             <p className="mt-1 text-[12px] font-semibold text-blue-700/90">
               Secure sign-on, recovery code reset, and admin ticket redemption in one place.
             </p>
           </div>
 
+<<<<<<< HEAD
           <div className="aim-glass-panel-soft grid grid-cols-3 gap-2 p-2">
+=======
+          <div className="grid grid-cols-3 gap-2 rounded-2xl border border-white/60 bg-white/65 p-2 backdrop-blur-md">
+>>>>>>> main
             <button
               type="button"
               onClick={() => switchAuthView('sign-on')}
@@ -378,6 +396,7 @@ export default function Home() {
             <button
               type="button"
               onClick={() => switchAuthView('redeem-ticket')}
+<<<<<<< HEAD
               disabled={controlsDisabled}
               className={authTabClass(authView === 'redeem-ticket')}
             >
@@ -557,8 +576,31 @@ export default function Home() {
 
           <p className="aim-callout aim-callout-info min-h-[48px] text-[12px] font-bold leading-snug text-blue-700">
             {statusMsg}
-          </p>
+=======
+    <main className="relative flex h-[100dvh] items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_10%_15%,#c5ddff_0%,#eaf2ff_34%,#f6f9ff_62%,#dce9ff_100%)]">
+      <div className="pointer-events-none absolute -left-20 top-10 h-56 w-56 rounded-full bg-blue-200/50 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-24 right-8 h-72 w-72 rounded-full bg-cyan-200/45 blur-3xl" />
 
+      <form
+        onSubmit={handlePrimarySubmit}
+        className="relative z-10 mx-4 flex w-full max-w-sm flex-col gap-5"
+      >
+        {/* Logo + title */}
+        <div className="text-center">
+          <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-[1.4rem] border border-white/70 bg-white/80 shadow-[0_12px_30px_rgba(15,23,42,0.14)] backdrop-blur-lg">
+            <span className="text-[32px] leading-none">✦</span>
+          </div>
+          <h1 className="text-[28px] font-semibold tracking-tight text-slate-800">BuddyList</h1>
+          <p className="mt-1 text-[13px] text-slate-500">
+            {authView === 'sign-on'
+              ? isSignUp ? 'Create your screen name' : 'Sign on to your account'
+              : authView === 'forgot-password' ? 'Reset with recovery code'
+              : 'Redeem an admin ticket'}
+>>>>>>> main
+          </p>
+        </div>
+
+<<<<<<< HEAD
           {rotatedRecoveryCode && (
             <div className="aim-callout aim-callout-warning text-[12px] text-amber-900">
               <p className="font-bold">Your recovery code has been rotated. Save this now:</p>
@@ -633,12 +675,156 @@ export default function Home() {
               onClick={() => switchAuthView('sign-on')}
               disabled={controlsDisabled}
               className="aim-button-secondary w-fit text-left text-blue-700 underline underline-offset-2"
-            >
-              Back to Sign On
-            </button>
+=======
+        {/* View switcher — only show when not on sign-on */}
+        {authView !== 'sign-on' ? (
+          <button
+            type="button"
+            onClick={() => switchAuthView('sign-on')}
+            disabled={isLoading}
+            className="flex items-center gap-1.5 text-[13px] font-semibold text-blue-600 disabled:opacity-50"
+          >
+            ← Back to Sign On
+          </button>
+        ) : null}
+
+        {/* Fields card */}
+        <div className="space-y-3 rounded-[1.4rem] border border-white/65 bg-white/75 px-4 py-5 shadow-[0_20px_40px_rgba(15,23,42,0.14)] backdrop-blur-xl">
+          <div>
+            <label className={labelClass}>Screen Name</label>
+            <input
+              type="text"
+              value={screenname}
+              onChange={(e) => setScreenname(e.target.value)}
+              className={inputClass}
+              placeholder="sk8erboi99"
+              disabled={isLoading}
+              autoComplete="username"
+            />
+          </div>
+
+          <div className="grid gap-3 rounded-[1.5rem] border border-white/65 bg-white/72 p-4 shadow-[0_18px_34px_rgba(15,23,42,0.14)] backdrop-blur-xl lg:grid-cols-[170px_1fr]">
+            <aside className="flex flex-col justify-between rounded-lg border border-blue-200 bg-white/75 backdrop-blur-sm px-3 py-3">
+              <div>
+                <span className="text-[35px] leading-none">✦</span>
+                <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Premium UI</p>
+          {authView === 'sign-on' && (
+            <div>
+              <label className={labelClass}>Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={inputClass}
+                placeholder="Enter password"
+                disabled={isLoading}
+                autoComplete={isSignUp ? 'new-password' : 'current-password'}
+              />
+            </div>
           )}
-        </form>
-      </RetroWindow>
+
+          {authView === 'forgot-password' && (
+            <>
+              <div>
+                <label className={labelClass}>Recovery Code</label>
+                <input type="text" value={recoveryCode} onChange={(e) => setRecoveryCode(e.target.value)} className={inputClass} placeholder="XXXXXX-XXXXXX-XXXXXX" disabled={isLoading} />
+              </div>
+              <div>
+                <label className={labelClass}>New Password</label>
+                <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className={inputClass} placeholder="Create new password" disabled={isLoading} autoComplete="new-password" />
+              </div>
+              <div>
+                <label className={labelClass}>Confirm Password</label>
+                <input type="password" value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} className={inputClass} placeholder="Confirm new password" disabled={isLoading} autoComplete="new-password" />
+              </div>
+            </>
+          )}
+
+          {authView === 'redeem-ticket' && (
+            <>
+              <div>
+                <label className={labelClass}>Admin Ticket</label>
+                <input type="text" value={resetTicket} onChange={(e) => setResetTicket(e.target.value)} className={inputClass} placeholder="TKT-XXXX-XXXX-XXXX" disabled={isLoading} />
+              </div>
+              <div>
+                <label className={labelClass}>New Password</label>
+                <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className={inputClass} placeholder="Create new password" disabled={isLoading} autoComplete="new-password" />
+              </div>
+              <div>
+                <label className={labelClass}>Confirm Password</label>
+                <input type="password" value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} className={inputClass} placeholder="Confirm new password" disabled={isLoading} autoComplete="new-password" />
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Status message */}
+        <p className="rounded-2xl border border-blue-100 bg-white/80 px-4 py-2.5 text-[12px] font-medium leading-snug text-blue-700">
+          {statusMsg}
+        </p>
+
+        {/* Rotated recovery code */}
+        {rotatedRecoveryCode && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] text-amber-900">
+            <p className="font-semibold">Save your new recovery code:</p>
+            <p className="mt-1.5 break-all font-mono text-[13px] font-bold">{rotatedRecoveryCode}</p>
+            <button
+              type="button"
+              onClick={() => void copyRecoveryCode()}
+              className="mt-2.5 rounded-xl border border-amber-300 bg-white/80 px-3 py-1.5 text-[11px] font-semibold text-amber-800 hover:bg-white active:scale-95"
+>>>>>>> main
+            >
+              Copy code
+            </button>
+          </div>
+        )}
+
+        {/* Primary CTA */}
+        <button
+          type="submit"
+          disabled={isLoading}
+          className="w-full rounded-2xl bg-blue-500 py-4 text-[16px] font-semibold text-white shadow-[0_8px_20px_rgba(37,99,235,0.38)] transition hover:bg-blue-600 active:scale-[0.98] disabled:opacity-60"
+        >
+          {isLoading
+            ? authView === 'forgot-password' ? 'Resetting…'
+              : authView === 'redeem-ticket' ? 'Redeeming…'
+              : isSignUp ? 'Creating…' : 'Signing On…'
+            : authView === 'forgot-password' ? 'Reset Password'
+            : authView === 'redeem-ticket' ? 'Redeem Ticket'
+            : isSignUp ? 'Get a Screen Name'
+            : 'Sign On'}
+        </button>
+
+        {/* Secondary links */}
+        {authView === 'sign-on' ? (
+          <div className="space-y-1 text-center">
+            <button
+              type="button"
+              onClick={toggleMode}
+              disabled={isLoading}
+              className="block w-full py-1 text-[13px] font-semibold text-blue-600 hover:text-blue-700 disabled:opacity-50"
+            >
+              {isSignUp ? 'Already have a screen name? Sign On' : "Don't have a screen name? Get one here"}
+            </button>
+            <button
+              type="button"
+              onClick={() => switchAuthView('forgot-password')}
+              disabled={isLoading}
+              className="block w-full py-1 text-[13px] text-slate-500 hover:text-slate-700 disabled:opacity-50"
+            >
+              Forgot password?
+            </button>
+            <button
+              type="button"
+              onClick={() => switchAuthView('redeem-ticket')}
+              disabled={isLoading}
+              className="block w-full py-1 text-[12px] text-slate-400 hover:text-slate-600 disabled:opacity-50"
+            >
+              Have an admin reset ticket?
+            </button>
+          </div>
+        ) : null}
+      </form>
     </main>
   );
 }
