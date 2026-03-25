@@ -1,17 +1,9 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Suspense } from "react";
+import GlobalNotificationListener from "@/components/GlobalNotificationListener";
 import PwaBootstrap from "@/components/PwaBootstrap";
+import { ChatProvider } from "@/context/ChatContext";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   title: "BuddyList",
@@ -44,11 +36,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
-        <PwaBootstrap />
+      <body className="antialiased">
+        <ChatProvider>
+          {children}
+          <PwaBootstrap />
+          <Suspense fallback={null}>
+            <GlobalNotificationListener />
+          </Suspense>
+        </ChatProvider>
       </body>
     </html>
   );
