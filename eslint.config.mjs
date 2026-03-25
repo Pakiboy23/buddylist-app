@@ -16,6 +16,8 @@ const eslintConfig = defineConfig([
     "playwright-report/**",
     // Generated Capacitor/Cordova web assets bundled into Android output.
     "android/app/src/main/assets/public/**",
+    "ios/App/App/public/_next/**",
+    "native-web/_next/**",
   ]),
 ]);
 
