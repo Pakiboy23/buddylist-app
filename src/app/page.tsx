@@ -2,9 +2,8 @@
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { waitForSessionOrNull } from '@/lib/authClient';
-import { getAppApiUrl } from '@/lib/appApi';
-import { navigateAppPath } from '@/lib/appNavigation';
+import RetroWindow from '@/components/RetroWindow';
+import { getSessionOrNull } from '@/lib/authClient';
 import { initSoundSystem, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
 
@@ -63,10 +62,7 @@ export default function Home() {
       if (withSound) {
         await playSignOnSound();
       }
-      navigateAppPath(router, '/buddy-list', {
-        replace: true,
-        nativeDocumentNavigation: true,
-      });
+      router.push('/buddy-list');
     },
     [playSignOnSound, router],
   );
@@ -79,7 +75,7 @@ export default function Home() {
     let isMounted = true;
 
     const checkSession = async () => {
-      const session = await waitForSessionOrNull();
+      const session = await getSessionOrNull();
 
       if (!isMounted || !session) {
         return;
@@ -232,7 +228,7 @@ export default function Home() {
     setIsLoading(true);
     setStatusMsg('Verifying recovery code...');
 
-    const response = await fetch(getAppApiUrl('/api/auth/recovery/reset'), {
+    const response = await fetch('/api/auth/recovery/reset', {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -276,7 +272,7 @@ export default function Home() {
     setIsLoading(true);
     setStatusMsg('Redeeming reset ticket...');
 
-    const response = await fetch(getAppApiUrl('/api/auth/recovery/redeem-ticket'), {
+    const response = await fetch('/api/auth/recovery/redeem-ticket', {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -335,10 +331,6 @@ export default function Home() {
     }
   };
 
-  const inputClass =
-    'w-full rounded-2xl border border-slate-200 bg-white/88 px-4 py-3.5 text-[15px] text-slate-800 placeholder-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:opacity-60';
-  const labelClass = 'mb-1.5 block text-[11px] font-semibold uppercase tracking-widest text-slate-500';
-
   return (
     <main className="relative h-[100dvh] overflow-hidden bg-[radial-gradient(circle_at_10%_15%,#c5ddff_0%,#eaf2ff_34%,#f6f9ff_62%,#dce9ff_100%)]">
       <div className="pointer-events-none absolute -left-14 top-8 h-44 w-44 rounded-full bg-blue-200/45 blur-3xl" />
@@ -384,53 +376,15 @@ export default function Home() {
             <button
               type="button"
               onClick={() => switchAuthView('redeem-ticket')}
-    <main className="relative flex h-[100dvh] items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_10%_15%,#c5ddff_0%,#eaf2ff_34%,#f6f9ff_62%,#dce9ff_100%)]">
-      <div className="pointer-events-none absolute -left-20 top-10 h-56 w-56 rounded-full bg-blue-200/50 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-24 right-8 h-72 w-72 rounded-full bg-cyan-200/45 blur-3xl" />
-
-      <form
-        onSubmit={handlePrimarySubmit}
-        className="relative z-10 mx-4 flex w-full max-w-sm flex-col gap-5"
-      >
-        {/* Logo + title */}
-        <div className="text-center">
-          <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-[1.4rem] border border-white/70 bg-white/80 shadow-[0_12px_30px_rgba(15,23,42,0.14)] backdrop-blur-lg">
-            <span className="text-[32px] leading-none">✦</span>
-          </div>
-          <h1 className="text-[28px] font-semibold tracking-tight text-slate-800">BuddyList</h1>
-          <p className="mt-1 text-[13px] text-slate-500">
-            {authView === 'sign-on'
-              ? isSignUp ? 'Create your screen name' : 'Sign on to your account'
-              : authView === 'forgot-password' ? 'Reset with recovery code'
-              : 'Redeem an admin ticket'}
-          </p>
-        </div>
-
-        {/* View switcher — only show when not on sign-on */}
-        {authView !== 'sign-on' ? (
-          <button
-            type="button"
-            onClick={() => switchAuthView('sign-on')}
-            disabled={isLoading}
-            className="flex items-center gap-1.5 text-[13px] font-semibold text-blue-600 disabled:opacity-50"
-          >
-            ← Back to Sign On
-          </button>
-        ) : null}
-
-        {/* Fields card */}
-        <div className="space-y-3 rounded-[1.4rem] border border-white/65 bg-white/75 px-4 py-5 shadow-[0_20px_40px_rgba(15,23,42,0.14)] backdrop-blur-xl">
-          <div>
-            <label className={labelClass}>Screen Name</label>
-            <input
-              type="text"
-              value={screenname}
-              onChange={(e) => setScreenname(e.target.value)}
-              className={inputClass}
-              placeholder="sk8erboi99"
               disabled={isLoading}
-              autoComplete="username"
-            />
+              className={`min-h-[42px] cursor-pointer rounded-lg border px-2 py-2 text-[11px] font-black tracking-wide transition disabled:opacity-50 ${
+                authView === 'redeem-ticket'
+                  ? 'border-blue-700 bg-gradient-to-b from-blue-300 to-blue-700 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]'
+                  : 'border-blue-200 bg-white text-blue-700 hover:bg-blue-50'
+              }`}
+            >
+              Redeem Ticket
+            </button>
           </div>
 
           <div className="grid gap-3 rounded-[1.5rem] border border-white/65 bg-white/72 p-4 shadow-[0_18px_34px_rgba(15,23,42,0.14)] backdrop-blur-xl lg:grid-cols-[170px_1fr]">
@@ -438,122 +392,249 @@ export default function Home() {
               <div>
                 <span className="text-[35px] leading-none">✦</span>
                 <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Premium UI</p>
-          {authView === 'sign-on' && (
-            <div>
-              <label className={labelClass}>Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className={inputClass}
-                placeholder="Enter password"
-                disabled={isLoading}
-                autoComplete={isSignUp ? 'new-password' : 'current-password'}
-              />
+              </div>
+              <div className="mt-5 rounded-md border border-blue-200 bg-white/70 px-2 py-2 text-[11px] font-semibold text-blue-800">
+                <p>{authView === 'sign-on' ? (isSignUp ? 'Create mode' : 'Sign-on mode') : 'Recovery mode'}</p>
+                <p className="mt-1 text-blue-700/90">{isLoading ? 'Contacting server...' : 'Ready'}</p>
+              </div>
+            </aside>
+
+            <div className="space-y-2.5">
+              <div>
+                <label className="mb-1 block text-[11px] font-black uppercase tracking-[0.1em] text-blue-800">
+                  Screen Name
+                </label>
+                <input
+                  type="text"
+                  value={screenname}
+                  onChange={(e) => setScreenname(e.target.value)}
+                  className="min-h-[46px] w-full rounded-lg border border-blue-300 bg-white px-3 py-2 text-[14px] font-semibold shadow-[inset_0_1px_3px_rgba(37,99,235,0.16)] focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  placeholder="e.g. sk8erboi99"
+                  disabled={isLoading}
+                  autoComplete="username"
+                />
+              </div>
+
+              {authView === 'sign-on' && (
+                <>
+                  <div>
+                    <label className="mb-1 block text-[11px] font-black uppercase tracking-[0.1em] text-blue-800">
+                      Password
+                    </label>
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="min-h-[46px] w-full rounded-lg border border-blue-300 bg-white px-3 py-2 text-[14px] font-semibold shadow-[inset_0_1px_3px_rgba(37,99,235,0.16)] focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      placeholder="Enter password"
+                      disabled={isLoading}
+                      autoComplete={isSignUp ? 'new-password' : 'current-password'}
+                    />
+                  </div>
+
+                  <div className="grid gap-1.5 rounded-lg border border-blue-100 bg-blue-50/80 px-3 py-2">
+                    <label className="flex items-center gap-2 text-[12px] font-bold text-blue-800">
+                      <input
+                        type="checkbox"
+                        checked={savePassword}
+                        onChange={(e) => setSavePassword(e.target.checked)}
+                        disabled={isLoading}
+                        className="h-4 w-4 rounded border border-blue-300 bg-white checked:bg-blue-600 disabled:opacity-60"
+                      />
+                      Save password
+                    </label>
+                    <label className="flex items-center gap-2 text-[12px] font-bold text-blue-800">
+                      <input
+                        type="checkbox"
+                        checked={autoLogin}
+                        onChange={(e) => setAutoLogin(e.target.checked)}
+                        disabled={isLoading}
+                        className="h-4 w-4 rounded border border-blue-300 bg-white checked:bg-blue-600 disabled:opacity-60"
+                      />
+                      Auto-login
+                    </label>
+                  </div>
+                </>
+              )}
+
+              {authView === 'forgot-password' && (
+                <>
+                  <div>
+                    <label className="mb-1 block text-[11px] font-black uppercase tracking-[0.1em] text-blue-800">
+                      Recovery Code
+                    </label>
+                    <input
+                      type="text"
+                      value={recoveryCode}
+                      onChange={(e) => setRecoveryCode(e.target.value)}
+                      className="min-h-[46px] w-full rounded-lg border border-blue-300 bg-white px-3 py-2 text-[14px] font-semibold shadow-[inset_0_1px_3px_rgba(37,99,235,0.16)] focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      placeholder="XXXXXX-XXXXXX-XXXXXX"
+                      disabled={isLoading}
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[11px] font-black uppercase tracking-[0.1em] text-blue-800">
+                      New Password
+                    </label>
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="min-h-[46px] w-full rounded-lg border border-blue-300 bg-white px-3 py-2 text-[14px] font-semibold shadow-[inset_0_1px_3px_rgba(37,99,235,0.16)] focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      placeholder="Create new password"
+                      disabled={isLoading}
+                      autoComplete="new-password"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[11px] font-black uppercase tracking-[0.1em] text-blue-800">
+                      Confirm Password
+                    </label>
+                    <input
+                      type="password"
+                      value={confirmNewPassword}
+                      onChange={(e) => setConfirmNewPassword(e.target.value)}
+                      className="min-h-[46px] w-full rounded-lg border border-blue-300 bg-white px-3 py-2 text-[14px] font-semibold shadow-[inset_0_1px_3px_rgba(37,99,235,0.16)] focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      placeholder="Confirm new password"
+                      disabled={isLoading}
+                      autoComplete="new-password"
+                    />
+                  </div>
+                </>
+              )}
+
+              {authView === 'redeem-ticket' && (
+                <>
+                  <div>
+                    <label className="mb-1 block text-[11px] font-black uppercase tracking-[0.1em] text-blue-800">
+                      Admin Ticket
+                    </label>
+                    <input
+                      type="text"
+                      value={resetTicket}
+                      onChange={(e) => setResetTicket(e.target.value)}
+                      className="min-h-[46px] w-full rounded-lg border border-blue-300 bg-white px-3 py-2 text-[14px] font-semibold shadow-[inset_0_1px_3px_rgba(37,99,235,0.16)] focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      placeholder="TKT-XXXX-XXXX-XXXX"
+                      disabled={isLoading}
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[11px] font-black uppercase tracking-[0.1em] text-blue-800">
+                      New Password
+                    </label>
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="min-h-[46px] w-full rounded-lg border border-blue-300 bg-white px-3 py-2 text-[14px] font-semibold shadow-[inset_0_1px_3px_rgba(37,99,235,0.16)] focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      placeholder="Create new password"
+                      disabled={isLoading}
+                      autoComplete="new-password"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[11px] font-black uppercase tracking-[0.1em] text-blue-800">
+                      Confirm Password
+                    </label>
+                    <input
+                      type="password"
+                      value={confirmNewPassword}
+                      onChange={(e) => setConfirmNewPassword(e.target.value)}
+                      className="min-h-[46px] w-full rounded-lg border border-blue-300 bg-white px-3 py-2 text-[14px] font-semibold shadow-[inset_0_1px_3px_rgba(37,99,235,0.16)] focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      placeholder="Confirm new password"
+                      disabled={isLoading}
+                      autoComplete="new-password"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          <p className="min-h-[48px] rounded-lg border border-blue-200 bg-white/95 px-3 py-2 text-[12px] font-bold leading-snug text-blue-700">
+            {statusMsg}
+          </p>
+
+          {rotatedRecoveryCode && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] text-amber-900">
+              <p className="font-bold">Your recovery code has been rotated. Save this now:</p>
+              <p className="mt-1 break-all font-mono text-[13px] font-bold">{rotatedRecoveryCode}</p>
+              <button
+                type="button"
+                onClick={() => void copyRecoveryCode()}
+                className="mt-2 min-h-[38px] rounded-lg border border-amber-500 bg-gradient-to-b from-amber-100 to-amber-300 px-3 py-1 text-xs font-semibold text-amber-900"
+              >
+                Copy recovery code
+              </button>
             </div>
           )}
 
-          {authView === 'forgot-password' && (
-            <>
-              <div>
-                <label className={labelClass}>Recovery Code</label>
-                <input type="text" value={recoveryCode} onChange={(e) => setRecoveryCode(e.target.value)} className={inputClass} placeholder="XXXXXX-XXXXXX-XXXXXX" disabled={isLoading} />
-              </div>
-              <div>
-                <label className={labelClass}>New Password</label>
-                <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className={inputClass} placeholder="Create new password" disabled={isLoading} autoComplete="new-password" />
-              </div>
-              <div>
-                <label className={labelClass}>Confirm Password</label>
-                <input type="password" value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} className={inputClass} placeholder="Confirm new password" disabled={isLoading} autoComplete="new-password" />
-              </div>
-            </>
-          )}
-
-          {authView === 'redeem-ticket' && (
-            <>
-              <div>
-                <label className={labelClass}>Admin Ticket</label>
-                <input type="text" value={resetTicket} onChange={(e) => setResetTicket(e.target.value)} className={inputClass} placeholder="TKT-XXXX-XXXX-XXXX" disabled={isLoading} />
-              </div>
-              <div>
-                <label className={labelClass}>New Password</label>
-                <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className={inputClass} placeholder="Create new password" disabled={isLoading} autoComplete="new-password" />
-              </div>
-              <div>
-                <label className={labelClass}>Confirm Password</label>
-                <input type="password" value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} className={inputClass} placeholder="Confirm new password" disabled={isLoading} autoComplete="new-password" />
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Status message */}
-        <p className="rounded-2xl border border-blue-100 bg-white/80 px-4 py-2.5 text-[12px] font-medium leading-snug text-blue-700">
-          {statusMsg}
-        </p>
-
-        {/* Rotated recovery code */}
-        {rotatedRecoveryCode && (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] text-amber-900">
-            <p className="font-semibold">Save your new recovery code:</p>
-            <p className="mt-1.5 break-all font-mono text-[13px] font-bold">{rotatedRecoveryCode}</p>
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-blue-700/80">
+              {authView === 'sign-on' ? (isSignUp ? 'Create account flow' : 'Existing account flow') : 'Password recovery flow'}
+            </div>
             <button
-              type="button"
-              onClick={() => void copyRecoveryCode()}
-              className="mt-2.5 rounded-xl border border-amber-300 bg-white/80 px-3 py-1.5 text-[11px] font-semibold text-amber-800 hover:bg-white active:scale-95"
+              type="submit"
+              disabled={isLoading}
+              className="min-h-[46px] min-w-[170px] cursor-pointer rounded-lg border border-blue-600 bg-gradient-to-b from-blue-200 via-blue-300 to-blue-600 px-4 py-2 text-sm font-black text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.45)] transition hover:from-blue-300 hover:to-blue-700 disabled:opacity-50"
             >
-              Copy code
+              {isLoading
+                ? authView === 'forgot-password'
+                  ? 'Resetting...'
+                  : authView === 'redeem-ticket'
+                    ? 'Redeeming...'
+                    : isSignUp
+                      ? 'Creating...'
+                      : 'Signing On...'
+                : authView === 'forgot-password'
+                  ? 'Reset Password'
+                  : authView === 'redeem-ticket'
+                    ? 'Redeem Ticket'
+                    : isSignUp
+                      ? 'Get a Screen Name'
+                      : 'Sign On'}
             </button>
           </div>
-        )}
 
-        {/* Primary CTA */}
-        <button
-          type="submit"
-          disabled={isLoading}
-          className="w-full rounded-2xl bg-blue-500 py-4 text-[16px] font-semibold text-white shadow-[0_8px_20px_rgba(37,99,235,0.38)] transition hover:bg-blue-600 active:scale-[0.98] disabled:opacity-60"
-        >
-          {isLoading
-            ? authView === 'forgot-password' ? 'Resetting…'
-              : authView === 'redeem-ticket' ? 'Redeeming…'
-              : isSignUp ? 'Creating…' : 'Signing On…'
-            : authView === 'forgot-password' ? 'Reset Password'
-            : authView === 'redeem-ticket' ? 'Redeem Ticket'
-            : isSignUp ? 'Get a Screen Name'
-            : 'Sign On'}
-        </button>
-
-        {/* Secondary links */}
-        {authView === 'sign-on' ? (
-          <div className="space-y-1 text-center">
+          {authView === 'sign-on' ? (
+            <div className="grid gap-1.5 rounded-lg border border-blue-100 bg-white/65 p-2">
+              <button
+                type="button"
+                onClick={toggleMode}
+                disabled={isLoading}
+                className="min-h-[40px] cursor-pointer rounded px-2 text-left text-[12px] font-bold text-blue-700 underline underline-offset-2 hover:bg-blue-50 disabled:opacity-50"
+              >
+                {isSignUp ? 'Already have a screen name? Sign On.' : "Don't have a screen name? Get one here."}
+              </button>
+              <button
+                type="button"
+                onClick={() => switchAuthView('forgot-password')}
+                disabled={isLoading}
+                className="min-h-[40px] cursor-pointer rounded px-2 text-left text-[12px] font-bold text-blue-700 underline underline-offset-2 hover:bg-blue-50 disabled:opacity-50"
+              >
+                Forgot password? Use Recovery Code.
+              </button>
+              <button
+                type="button"
+                onClick={() => switchAuthView('redeem-ticket')}
+                disabled={isLoading}
+                className="min-h-[40px] cursor-pointer rounded px-2 text-left text-[12px] font-bold text-blue-700 underline underline-offset-2 hover:bg-blue-50 disabled:opacity-50"
+              >
+                Have an admin reset ticket?
+              </button>
+            </div>
+          ) : (
             <button
               type="button"
-              onClick={toggleMode}
+              onClick={() => switchAuthView('sign-on')}
               disabled={isLoading}
-              className="block w-full py-1 text-[13px] font-semibold text-blue-600 hover:text-blue-700 disabled:opacity-50"
+              className="min-h-[42px] w-fit cursor-pointer rounded-lg border border-blue-200 bg-white px-3 text-left text-[12px] font-bold text-blue-700 underline underline-offset-2 hover:bg-blue-50 disabled:opacity-50"
             >
-              {isSignUp ? 'Already have a screen name? Sign On' : "Don't have a screen name? Get one here"}
+              Back to Sign On
             </button>
-            <button
-              type="button"
-              onClick={() => switchAuthView('forgot-password')}
-              disabled={isLoading}
-              className="block w-full py-1 text-[13px] text-slate-500 hover:text-slate-700 disabled:opacity-50"
-            >
-              Forgot password?
-            </button>
-            <button
-              type="button"
-              onClick={() => switchAuthView('redeem-ticket')}
-              disabled={isLoading}
-              className="block w-full py-1 text-[12px] text-slate-400 hover:text-slate-600 disabled:opacity-50"
-            >
-              Have an admin reset ticket?
-            </button>
-          </div>
-        ) : null}
-      </form>
+          )}
+        </form>
+      </RetroWindow>
     </main>
   );
 }
