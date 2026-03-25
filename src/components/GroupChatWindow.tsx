@@ -1028,7 +1028,7 @@ export default function GroupChatWindow({
                             <button
                               type="button"
                               onClick={() => startEditingMessage(message)}
-                              className="text-[#1f4f9e] underline"
+                              className="text-blue-700 underline"
                             >
                               Edit
                             </button>
@@ -1091,22 +1091,22 @@ export default function GroupChatWindow({
             <button
               type="button"
               onClick={() => setShowFormatting((previous) => !previous)}
-              className={xpTinyToolbarButtonClass(showFormatting)}
+              className={toolbarButtonClass(showFormatting)}
               aria-label="Toggle formatting"
               title="Toggle formatting"
             >
               A
             </button>
-            <button type="button" onClick={toggleBold} className={xpTinyToolbarButtonClass(format.bold)} aria-label="Bold">
+            <button type="button" onClick={toggleBold} className={toolbarButtonClass(format.bold)} aria-label="Bold">
               B
             </button>
-            <button type="button" onClick={toggleItalic} className={xpTinyToolbarButtonClass(format.italic)} aria-label="Italic">
+            <button type="button" onClick={toggleItalic} className={toolbarButtonClass(format.italic)} aria-label="Italic">
               I
             </button>
             <button
               type="button"
               onClick={toggleUnderline}
-              className={xpTinyToolbarButtonClass(format.underline)}
+              className={toolbarButtonClass(format.underline)}
               aria-label="Underline"
             >
               <span className="underline">U</span>
@@ -1114,7 +1114,7 @@ export default function GroupChatWindow({
             <button
               type="button"
               disabled
-              className={`${xpTinyToolbarButtonClass()} opacity-70`}
+              className={toolbarButtonClass()}
               aria-label="Link"
               title="Link"
             >
@@ -1122,7 +1122,7 @@ export default function GroupChatWindow({
             </button>
             <button
               type="button"
-              className={xpTinyToolbarButtonClass()}
+              className={toolbarButtonClass()}
               aria-label="Emoji picker coming soon"
               title="Emoji picker coming soon"
             >
@@ -1131,7 +1131,7 @@ export default function GroupChatWindow({
             <button
               type="button"
               onClick={() => attachmentInputRef.current?.click()}
-              className={xpTinyToolbarButtonClass(pendingAttachments.length > 0)}
+              className={toolbarButtonClass(pendingAttachments.length > 0)}
               aria-label="Attach files"
               title="Attach files"
             >
@@ -1147,7 +1147,7 @@ export default function GroupChatWindow({
             <button
               type="button"
               onClick={onLeave}
-              className={`${xpTinyToolbarButtonClass()} ml-auto text-[#7b1f1f]`}
+              className={`${toolbarButtonClass()} aim-toolbar-button-danger ml-auto`}
               aria-label="Leave room"
               title="Leave room"
             >

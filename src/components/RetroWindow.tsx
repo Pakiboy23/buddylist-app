@@ -11,9 +11,6 @@ interface RetroWindowProps {
   backButtonLabel?: string;
   onBack?: () => void;
   headerActions?: React.ReactNode;
-  onXpClose?: () => void;
-  onXpSignOff?: () => void;
-  xpTitleText?: string;
 }
 
 export default function RetroWindow({
@@ -21,15 +18,11 @@ export default function RetroWindow({
   children,
   className,
   style,
-  variant = 'default',
   titleBarClassName,
   showBackButton = false,
   backButtonLabel = 'Back',
   onBack,
   headerActions,
-  onXpClose,
-  onXpSignOff,
-  xpTitleText,
 }: RetroWindowProps) {
   if (variant === 'xp_shell' || variant === 'glass_shell') {
     return (

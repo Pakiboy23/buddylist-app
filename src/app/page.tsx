@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
 import RetroWindow from '@/components/RetroWindow';
 import { getSessionOrNull } from '@/lib/authClient';
@@ -20,10 +20,15 @@ interface ApiErrorResponse {
   error?: string;
 }
 
+function subscribeToHydration() {
+  return () => {};
+}
+
 export default function Home() {
   const [screenname, setScreenname] = useState('');
   const [password, setPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
+  const isHydrated = useSyncExternalStore(subscribeToHydration, () => true, () => false);
   const [authView, setAuthView] = useState<AuthView>('sign-on');
   const [savePassword, setSavePassword] = useState(true);
   const [autoLogin, setAutoLogin] = useState(false);
@@ -36,6 +41,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const hasNavigatedRef = useRef(false);
   const router = useRouter();
+  const controlsDisabled = isLoading || !isHydrated;
 
   const playSignOnSound = useCallback(async () => {
     try {
@@ -352,24 +358,16 @@ export default function Home() {
             <button
               type="button"
               onClick={() => switchAuthView('sign-on')}
-              disabled={isLoading}
-              className={`min-h-[42px] cursor-pointer rounded-lg border px-2 py-2 text-[11px] font-black tracking-wide transition disabled:opacity-50 ${
-                authView === 'sign-on'
-                  ? 'border-blue-700 bg-gradient-to-b from-blue-300 to-blue-700 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]'
-                  : 'border-blue-200 bg-white text-blue-700 hover:bg-blue-50'
-              }`}
+              disabled={controlsDisabled}
+              className={authTabClass(authView === 'sign-on')}
             >
               Sign On
             </button>
             <button
               type="button"
               onClick={() => switchAuthView('forgot-password')}
-              disabled={isLoading}
-              className={`min-h-[42px] cursor-pointer rounded-lg border px-2 py-2 text-[11px] font-black tracking-wide transition disabled:opacity-50 ${
-                authView === 'forgot-password'
-                  ? 'border-blue-700 bg-gradient-to-b from-blue-300 to-blue-700 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]'
-                  : 'border-blue-200 bg-white text-blue-700 hover:bg-blue-50'
-              }`}
+              disabled={controlsDisabled}
+              className={authTabClass(authView === 'forgot-password')}
             >
               Recovery Code
             </button>

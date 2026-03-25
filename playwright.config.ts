@@ -1,6 +1,10 @@
+import { loadEnvConfig } from '@next/env';
 import { defineConfig, devices } from '@playwright/test';
 
-const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3000';
+loadEnvConfig(process.cwd());
+
+const defaultPort = process.env.PLAYWRIGHT_PORT || '3100';
+const baseURL = process.env.PLAYWRIGHT_BASE_URL || `http://127.0.0.1:${defaultPort}`;
 const useExternalBaseUrl = Boolean(process.env.PLAYWRIGHT_BASE_URL);
 
 export default defineConfig({
@@ -22,10 +26,10 @@ export default defineConfig({
   webServer: useExternalBaseUrl
     ? undefined
     : {
-        command: 'npm run dev',
+        command: `npm run build && npm run start -- --port ${defaultPort}`,
         url: baseURL,
-        reuseExistingServer: !process.env.CI,
-        timeout: 180_000,
+        reuseExistingServer: false,
+        timeout: 240_000,
       },
   projects: [
     {

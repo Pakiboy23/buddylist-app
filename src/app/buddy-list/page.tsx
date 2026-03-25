@@ -2854,10 +2854,10 @@ function BuddyListContent() {
                 isSelected
                   ? 'border-white bg-white'
                   : isBuddyAway
-                    ? 'border-[#8a8a8a] bg-[#f0d75d]'
+                    ? 'border-slate-400 bg-amber-300'
                     : buddy.isOnline
-                      ? 'border-[#2b8f3f] bg-[#35b556]'
-                      : 'border-[#6f6f6f] bg-[#b9b9b9]'
+                      ? 'border-emerald-700 bg-emerald-500'
+                      : 'border-slate-500 bg-slate-300'
               }`}
             />
             <span
@@ -3039,7 +3039,7 @@ function BuddyListContent() {
                 <button
                   type="button"
                   onClick={handleImBack}
-                  className={xpRaisedButtonClass}
+                  className={secondaryButtonClass}
                 >
                   I&apos;m Back
                 </button>
@@ -3051,7 +3051,7 @@ function BuddyListContent() {
                 <button
                   type="button"
                   onClick={() => setIsBuddiesOpen((previous) => !previous)}
-                  className={xpGroupHeaderClass}
+                  className={sectionHeaderClass}
                 >
                   <span className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-slate-300 bg-white text-[11px] leading-none">
                     {isBuddiesOpen ? '-' : '+'}
@@ -3113,7 +3113,7 @@ function BuddyListContent() {
                   <button
                     type="button"
                     onClick={() => setIsOfflineOpen((previous) => !previous)}
-                    className={xpGroupHeaderClass}
+                    className={sectionHeaderClass}
                   >
                     <span className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-slate-300 bg-white text-[11px] leading-none">
                       {isOfflineOpen ? '-' : '+'}
@@ -3129,7 +3129,7 @@ function BuddyListContent() {
                 <button
                   type="button"
                   onClick={() => setIsActiveChatsOpen((previous) => !previous)}
-                  className={xpGroupHeaderClass}
+                  className={sectionHeaderClass}
                 >
                   <span className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-slate-300 bg-white text-[11px] leading-none">
                     {isActiveChatsOpen ? '-' : '+'}
@@ -3194,7 +3194,7 @@ function BuddyListContent() {
 
           <div className="fixed bottom-0 left-0 z-20 h-16 w-full border-t border-white/70 bg-white/65 backdrop-blur-xl shadow-[0_-6px_24px_rgba(15,23,42,0.1)]">
             <div className="grid h-full grid-cols-4 items-center gap-2 px-3 py-2">
-              <button type="button" onClick={handleOpenImFromActionBar} className={xpRaisedButtonClass}>
+              <button type="button" onClick={handleOpenImFromActionBar} className={secondaryButtonClass}>
                 IM
               </button>
               <button type="button" onClick={openRoomsWindow} className={xpRaisedButtonClass}>
@@ -3232,7 +3232,7 @@ function BuddyListContent() {
                     id="recovery-code-input"
                     value={recoveryCodeDraft}
                     onChange={(event) => setRecoveryCodeDraft(event.target.value)}
-                    className={xpModalInputClass}
+                    className={modalInputClass}
                     placeholder="MY-SECRET-CODE-2026"
                     minLength={8}
                     disabled={isSavingRecoveryCode}
@@ -3250,7 +3250,7 @@ function BuddyListContent() {
                     id="recovery-code-confirm-input"
                     value={recoveryCodeConfirmDraft}
                     onChange={(event) => setRecoveryCodeConfirmDraft(event.target.value)}
-                    className={xpModalInputClass}
+                    className={modalInputClass}
                     placeholder="Repeat your code"
                     minLength={8}
                     disabled={isSavingRecoveryCode}
@@ -3267,14 +3267,14 @@ function BuddyListContent() {
                   <button
                     type="button"
                     onClick={() => void handleSignOff()}
-                    className={xpModalButtonClass}
+                    className={modalButtonClass}
                   >
                     Sign Off
                   </button>
                   <button
                     type="submit"
                     disabled={isSavingRecoveryCode}
-                    className={xpModalPrimaryButtonClass}
+                    className={modalPrimaryButtonClass}
                   >
                     {isSavingRecoveryCode ? 'Saving...' : 'Save Recovery Code'}
                   </button>
@@ -3296,6 +3296,9 @@ function BuddyListContent() {
                 <div className="border border-[#b95f5f] bg-[#fff0f0] px-2 py-1.5 text-[11px] text-red-700">
                   <p className="font-bold uppercase tracking-wide">Admin Tools</p>
                   <p className="mt-1">Issue a one-time password reset ticket for out-of-band delivery.</p>
+                  <p className="mt-1 font-semibold">
+                    Issuing a new ticket immediately revokes any earlier unused ticket for this screen name.
+                  </p>
                 </div>
                 <div>
                   <label htmlFor="admin-reset-screenname" className="mb-1 block text-[12px] font-semibold text-slate-700">
@@ -3305,7 +3308,7 @@ function BuddyListContent() {
                     id="admin-reset-screenname"
                     value={adminResetScreenname}
                     onChange={(event) => setAdminResetScreenname(event.target.value)}
-                    className={xpModalInputClass}
+                    className={modalInputClass}
                     placeholder="screenname"
                     disabled={isIssuingAdminReset}
                   />
@@ -3334,6 +3337,9 @@ function BuddyListContent() {
                     <p className="mt-1 break-all font-mono text-[13px] font-bold">{issuedAdminTicket.ticket}</p>
                     <p className="mt-1 text-[11px]">
                       Expires: {new Date(issuedAdminTicket.expiresAt).toLocaleString()}
+                    </p>
+                    <p className="mt-1 font-semibold">
+                      If you issue another ticket, this one stops working immediately.
                     </p>
                     <button
                       type="button"
@@ -3406,14 +3412,14 @@ function BuddyListContent() {
                   <button
                     type="button"
                     onClick={() => setIsAdminResetOpen(false)}
-                    className={xpModalButtonClass}
+                    className={modalButtonClass}
                   >
                     Close
                   </button>
                   <button
                     type="submit"
                     disabled={isIssuingAdminReset || !confirmAdminResetAction}
-                    className={xpModalPrimaryButtonClass}
+                    className={modalPrimaryButtonClass}
                   >
                     {isIssuingAdminReset ? 'Issuing...' : 'Issue Ticket'}
                   </button>
@@ -3601,7 +3607,7 @@ function BuddyListContent() {
                   id="room-name-input"
                   value={roomNameDraft}
                   onChange={(event) => setRoomNameDraft(event.target.value)}
-                  className={xpModalInputClass}
+                  className={modalInputClass}
                   placeholder="cool_kids_club"
                   maxLength={80}
                 />
@@ -3615,14 +3621,14 @@ function BuddyListContent() {
                   <button
                     type="button"
                     onClick={() => setShowRoomsWindow(false)}
-                    className={xpModalButtonClass}
+                    className={modalButtonClass}
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={isJoiningRoom}
-                    className={xpModalPrimaryButtonClass}
+                    className={modalPrimaryButtonClass}
                   >
                     {isJoiningRoom ? 'Joining...' : 'Join'}
                   </button>
@@ -3654,14 +3660,14 @@ function BuddyListContent() {
                   <button
                     type="button"
                     onClick={() => handleAcceptPendingRequest(activePendingRequest.senderId)}
-                    className={xpModalPrimaryButtonClass}
+                    className={modalPrimaryButtonClass}
                   >
                     Accept
                   </button>
                   <button
                     type="button"
                     onClick={() => handleDeclinePendingRequest(activePendingRequest.senderId)}
-                    className={xpModalButtonClass}
+                    className={modalButtonClass}
                   >
                     Decline
                   </button>
@@ -3669,7 +3675,7 @@ function BuddyListContent() {
                     type="button"
                     disabled={isProcessingRequestId === activePendingRequest.senderId}
                     onClick={() => void handleAddBuddyFromPendingRequest(activePendingRequest.senderId)}
-                    className={xpModalPrimaryButtonClass}
+                    className={modalPrimaryButtonClass}
                   >
                     {isProcessingRequestId === activePendingRequest.senderId ? 'Adding...' : 'Add Buddy'}
                   </button>
@@ -3692,12 +3698,12 @@ function BuddyListContent() {
                   <input
                     value={searchTerm}
                     onChange={(event) => setSearchTerm(event.target.value)}
-                    className={xpModalInputClass}
+                    className={`${modalInputClass} flex-1`}
                     placeholder="Search screennames..."
                   />
                   <button
                     type="submit"
-                    className={xpModalPrimaryButtonClass}
+                    className={modalPrimaryButtonClass}
                   >
                     Find
                   </button>
@@ -3705,7 +3711,7 @@ function BuddyListContent() {
 
                 {searchError && <p className="text-sm text-red-700">{searchError}</p>}
 
-                <div className="max-h-56 overflow-y-auto border border-[#7f9db9] border-t-[#808080] border-l-[#808080] border-r-white border-b-white bg-white p-2">
+                <div className="aim-surface-panel max-h-56 overflow-y-auto p-2">
                   {isSearching && (
                     <p className="p-2 text-sm italic text-slate-500">Searching screennames...</p>
                   )}
@@ -3722,10 +3728,7 @@ function BuddyListContent() {
                       const isProfileAway = normalizeStatusLabel(resolvedProfileStatus.status) === AWAY_STATUS;
 
                       return (
-                        <div
-                          key={profile.id}
-                          className="mb-2 flex items-center justify-between gap-2 border border-[#d7e2f2] bg-[#f7fbff] p-2"
-                        >
+                        <div key={profile.id} className="aim-glass-panel mb-2 flex items-center justify-between gap-2 p-2">
                           <div className="min-w-0">
                             <p className="truncate font-bold">{profile.screenname || 'Unknown User'}</p>
                             <p className="truncate text-[11px] italic text-slate-500">
@@ -3738,7 +3741,7 @@ function BuddyListContent() {
                             type="button"
                             onClick={() => handleAddBuddy(profile)}
                             disabled={isAddingBuddyId === profile.id}
-                            className={xpModalPrimaryButtonClass}
+                            className={modalPrimaryButtonClass}
                           >
                             {isAddingBuddyId === profile.id ? 'Adding...' : 'Add'}
                           </button>
@@ -3751,7 +3754,7 @@ function BuddyListContent() {
                   <button
                     type="button"
                     onClick={() => setShowAddWindow(false)}
-                    className={xpModalButtonClass}
+                    className={modalButtonClass}
                   >
                     Close
                   </button>
@@ -3812,7 +3815,7 @@ function BuddyListContent() {
 
 export default function BuddyList() {
   return (
-    <Suspense fallback={<main className="h-[100dvh] overflow-hidden bg-[#f8f9fa]" />}>
+    <Suspense fallback={<main className="h-[100dvh] overflow-hidden bg-slate-50" />}>
       <BuddyListContent />
     </Suspense>
   );
