@@ -341,15 +341,9 @@ export default function Home() {
     }
   };
 
-<<<<<<< HEAD
-  const authTabClass = (active: boolean) =>
-    `${active ? 'aim-button-primary' : 'aim-button-secondary'} w-full px-2 py-2 font-black tracking-wide`;
-  const authInputClass = 'aim-control aim-control-lg';
-=======
   const inputClass =
     'w-full rounded-2xl border border-slate-200 bg-white/88 px-4 py-3.5 text-[15px] text-slate-800 placeholder-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:opacity-60';
   const labelClass = 'mb-1.5 block text-[11px] font-semibold uppercase tracking-widest text-slate-500';
->>>>>>> main
 
   return (
     <main className="relative h-[100dvh] overflow-hidden bg-[radial-gradient(circle_at_10%_15%,#c5ddff_0%,#eaf2ff_34%,#f6f9ff_62%,#dce9ff_100%)]">
@@ -361,22 +355,14 @@ export default function Home() {
           onSubmit={handlePrimarySubmit}
           className="mx-auto flex w-full max-w-3xl flex-col gap-4 pb-6 text-[13px] font-sans text-blue-900"
         >
-<<<<<<< HEAD
-          <div className="aim-glass-panel px-4 py-3">
-=======
           <div className="rounded-[1.4rem] border border-white/65 bg-white/75 px-4 py-3 shadow-[0_16px_34px_rgba(15,23,42,0.13)] backdrop-blur-lg">
->>>>>>> main
             <p className="text-[15px] font-semibold tracking-[0.02em] text-slate-800">BuddyList Access</p>
             <p className="mt-1 text-[12px] font-semibold text-blue-700/90">
               Secure sign-on, recovery code reset, and admin ticket redemption in one place.
             </p>
           </div>
 
-<<<<<<< HEAD
-          <div className="aim-glass-panel-soft grid grid-cols-3 gap-2 p-2">
-=======
           <div className="grid grid-cols-3 gap-2 rounded-2xl border border-white/60 bg-white/65 p-2 backdrop-blur-md">
->>>>>>> main
             <button
               type="button"
               onClick={() => switchAuthView('sign-on')}
@@ -396,187 +382,6 @@ export default function Home() {
             <button
               type="button"
               onClick={() => switchAuthView('redeem-ticket')}
-<<<<<<< HEAD
-              disabled={controlsDisabled}
-              className={authTabClass(authView === 'redeem-ticket')}
-            >
-              Redeem Ticket
-            </button>
-          </div>
-
-          <div className="aim-glass-panel grid gap-3 p-4 lg:grid-cols-[170px_1fr]">
-            <aside className="aim-glass-panel-soft flex flex-col justify-between px-3 py-3">
-              <div>
-                <span className="text-[35px] leading-none">✦</span>
-                <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Premium UI</p>
-              </div>
-              <div className="aim-glass-panel-soft mt-5 px-2 py-2 text-[11px] font-semibold text-blue-800">
-                <p>{authView === 'sign-on' ? (isSignUp ? 'Create mode' : 'Sign-on mode') : 'Recovery mode'}</p>
-                <p className="mt-1 text-blue-700/90">
-                  {!isHydrated ? 'Loading client...' : isLoading ? 'Contacting server...' : 'Ready'}
-                </p>
-              </div>
-            </aside>
-
-            <div className="space-y-2.5">
-              <div>
-                <label className="mb-1 block text-[11px] font-black uppercase tracking-[0.1em] text-blue-800">
-                  Screen Name
-                </label>
-                <input
-                  type="text"
-                  value={screenname}
-                  onChange={(e) => setScreenname(e.target.value)}
-                  className={authInputClass}
-                  placeholder="e.g. sk8erboi99"
-                  disabled={controlsDisabled}
-                  autoComplete="username"
-                />
-              </div>
-
-              {authView === 'sign-on' && (
-                <>
-                  <div>
-                    <label className="mb-1 block text-[11px] font-black uppercase tracking-[0.1em] text-blue-800">
-                      Password
-                    </label>
-                    <input
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className={authInputClass}
-                      placeholder="Enter password"
-                      disabled={controlsDisabled}
-                      autoComplete={isSignUp ? 'new-password' : 'current-password'}
-                    />
-                  </div>
-
-                  <div className="aim-glass-panel-soft grid gap-1.5 px-3 py-2">
-                    <label className="flex items-center gap-2 text-[12px] font-bold text-blue-800">
-                      <input
-                        type="checkbox"
-                        checked={savePassword}
-                        onChange={(e) => setSavePassword(e.target.checked)}
-                        disabled={controlsDisabled}
-                        className="h-4 w-4 rounded border border-blue-300 bg-white checked:bg-blue-600 disabled:opacity-60"
-                      />
-                      Save password
-                    </label>
-                    <label className="flex items-center gap-2 text-[12px] font-bold text-blue-800">
-                      <input
-                        type="checkbox"
-                        checked={autoLogin}
-                        onChange={(e) => setAutoLogin(e.target.checked)}
-                        disabled={controlsDisabled}
-                        className="h-4 w-4 rounded border border-blue-300 bg-white checked:bg-blue-600 disabled:opacity-60"
-                      />
-                      Auto-login
-                    </label>
-                  </div>
-                </>
-              )}
-
-              {authView === 'forgot-password' && (
-                <>
-                  <div>
-                    <label className="mb-1 block text-[11px] font-black uppercase tracking-[0.1em] text-blue-800">
-                      Recovery Code
-                    </label>
-                    <input
-                      type="text"
-                      value={recoveryCode}
-                      onChange={(e) => setRecoveryCode(e.target.value)}
-                      className={authInputClass}
-                      placeholder="XXXXXX-XXXXXX-XXXXXX"
-                      disabled={controlsDisabled}
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-[11px] font-black uppercase tracking-[0.1em] text-blue-800">
-                      New Password
-                    </label>
-                    <input
-                      type="password"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      className={authInputClass}
-                      placeholder="Create new password"
-                      disabled={controlsDisabled}
-                      autoComplete="new-password"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-[11px] font-black uppercase tracking-[0.1em] text-blue-800">
-                      Confirm Password
-                    </label>
-                    <input
-                      type="password"
-                      value={confirmNewPassword}
-                      onChange={(e) => setConfirmNewPassword(e.target.value)}
-                      className={authInputClass}
-                      placeholder="Confirm new password"
-                      disabled={controlsDisabled}
-                      autoComplete="new-password"
-                    />
-                  </div>
-                </>
-              )}
-
-              {authView === 'redeem-ticket' && (
-                <>
-                  <div>
-                    <label className="mb-1 block text-[11px] font-black uppercase tracking-[0.1em] text-blue-800">
-                      Admin Ticket
-                    </label>
-                    <input
-                      type="text"
-                      value={resetTicket}
-                      onChange={(e) => setResetTicket(e.target.value)}
-                      className={authInputClass}
-                      placeholder="TKT-XXXX-XXXX-XXXX"
-                      disabled={controlsDisabled}
-                    />
-                    <p className="mt-1 text-[11px] font-semibold text-amber-700">
-                      Only the latest unused admin ticket works. Issuing a newer ticket immediately revokes older
-                      tickets.
-                    </p>
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-[11px] font-black uppercase tracking-[0.1em] text-blue-800">
-                      New Password
-                    </label>
-                    <input
-                      type="password"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      className={authInputClass}
-                      placeholder="Create new password"
-                      disabled={controlsDisabled}
-                      autoComplete="new-password"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-[11px] font-black uppercase tracking-[0.1em] text-blue-800">
-                      Confirm Password
-                    </label>
-                    <input
-                      type="password"
-                      value={confirmNewPassword}
-                      onChange={(e) => setConfirmNewPassword(e.target.value)}
-                      className={authInputClass}
-                      placeholder="Confirm new password"
-                      disabled={controlsDisabled}
-                      autoComplete="new-password"
-                    />
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-
-          <p className="aim-callout aim-callout-info min-h-[48px] text-[12px] font-bold leading-snug text-blue-700">
-            {statusMsg}
-=======
     <main className="relative flex h-[100dvh] items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_10%_15%,#c5ddff_0%,#eaf2ff_34%,#f6f9ff_62%,#dce9ff_100%)]">
       <div className="pointer-events-none absolute -left-20 top-10 h-56 w-56 rounded-full bg-blue-200/50 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-24 right-8 h-72 w-72 rounded-full bg-cyan-200/45 blur-3xl" />
@@ -596,86 +401,9 @@ export default function Home() {
               ? isSignUp ? 'Create your screen name' : 'Sign on to your account'
               : authView === 'forgot-password' ? 'Reset with recovery code'
               : 'Redeem an admin ticket'}
->>>>>>> main
           </p>
         </div>
 
-<<<<<<< HEAD
-          {rotatedRecoveryCode && (
-            <div className="aim-callout aim-callout-warning text-[12px] text-amber-900">
-              <p className="font-bold">Your recovery code has been rotated. Save this now:</p>
-              <p className="mt-1 break-all font-mono text-[13px] font-bold">{rotatedRecoveryCode}</p>
-              <button
-                type="button"
-                onClick={() => void copyRecoveryCode()}
-                className="aim-button-secondary mt-2 text-amber-900"
-              >
-                Copy recovery code
-              </button>
-            </div>
-          )}
-
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-blue-700/80">
-              {authView === 'sign-on' ? (isSignUp ? 'Create account flow' : 'Existing account flow') : 'Password recovery flow'}
-            </div>
-            <button
-              type="submit"
-              disabled={controlsDisabled}
-              className="aim-button-primary aim-button-primary-lg min-w-[170px] font-black"
-            >
-              {isLoading
-                ? authView === 'forgot-password'
-                  ? 'Resetting...'
-                  : authView === 'redeem-ticket'
-                    ? 'Redeeming...'
-                    : isSignUp
-                      ? 'Creating...'
-                      : 'Signing On...'
-                : authView === 'forgot-password'
-                  ? 'Reset Password'
-                  : authView === 'redeem-ticket'
-                    ? 'Redeem Ticket'
-                    : isSignUp
-                      ? 'Get a Screen Name'
-                      : 'Sign On'}
-            </button>
-          </div>
-
-          {authView === 'sign-on' ? (
-            <div className="aim-glass-panel-soft grid gap-1.5 p-2">
-              <button
-                type="button"
-                onClick={toggleMode}
-                disabled={controlsDisabled}
-                className="min-h-[40px] cursor-pointer rounded px-2 text-left text-[12px] font-bold text-blue-700 underline underline-offset-2 hover:bg-blue-50 disabled:opacity-50"
-              >
-                {isSignUp ? 'Already have a screen name? Sign On.' : "Don't have a screen name? Get one here."}
-              </button>
-              <button
-                type="button"
-                onClick={() => switchAuthView('forgot-password')}
-                disabled={controlsDisabled}
-                className="min-h-[40px] cursor-pointer rounded px-2 text-left text-[12px] font-bold text-blue-700 underline underline-offset-2 hover:bg-blue-50 disabled:opacity-50"
-              >
-                Forgot password? Use Recovery Code.
-              </button>
-              <button
-                type="button"
-                onClick={() => switchAuthView('redeem-ticket')}
-                disabled={controlsDisabled}
-                className="min-h-[40px] cursor-pointer rounded px-2 text-left text-[12px] font-bold text-blue-700 underline underline-offset-2 hover:bg-blue-50 disabled:opacity-50"
-              >
-                Have an admin reset ticket?
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => switchAuthView('sign-on')}
-              disabled={controlsDisabled}
-              className="aim-button-secondary w-fit text-left text-blue-700 underline underline-offset-2"
-=======
         {/* View switcher — only show when not on sign-on */}
         {authView !== 'sign-on' ? (
           <button
@@ -772,7 +500,6 @@ export default function Home() {
               type="button"
               onClick={() => void copyRecoveryCode()}
               className="mt-2.5 rounded-xl border border-amber-300 bg-white/80 px-3 py-1.5 text-[11px] font-semibold text-amber-800 hover:bg-white active:scale-95"
->>>>>>> main
             >
               Copy code
             </button>

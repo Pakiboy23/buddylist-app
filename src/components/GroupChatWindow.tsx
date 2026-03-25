@@ -853,10 +853,6 @@ export default function GroupChatWindow({
     setFormat((previous) => ({ ...previous, underline: !previous.underline }));
   };
 
-<<<<<<< HEAD
-  const toolbarButtonClass = (active = false) =>
-    `aim-toolbar-button${active ? ' aim-toolbar-button-active' : ''}`;
-=======
   const xpTinyToolbarButtonClass = (active = false) =>
     `inline-flex h-7 min-w-7 items-center justify-center rounded-lg border px-1.5 text-[11px] font-semibold text-slate-700 transition ui-focus-ring ${
       active
@@ -867,7 +863,6 @@ export default function GroupChatWindow({
         ? 'border-blue-400/70 bg-blue-50 text-blue-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]'
         : 'border-slate-200 bg-white/80 hover:bg-white'
     }`;
->>>>>>> main
 
   const resolvedTypingUsers = useMemo(() => {
     const names = [
@@ -949,27 +944,6 @@ export default function GroupChatWindow({
   return (
     <div className="fixed inset-0 z-50 chat-slide-in">
       <RetroWindow
-<<<<<<< HEAD
-        title={`Chat Room: ${roomName}`}
-        showBackButton
-        onBack={onBack}
-        headerActions={
-          onSignOff ? (
-            <button
-              type="button"
-              onClick={onSignOff}
-              className="aim-window-icon-button"
-              aria-label="Sign off"
-              title="Sign off"
-            >
-              ⋯
-            </button>
-          ) : null
-        }
-      >
-        <div className="aim-glass-shell flex h-full min-h-0 flex-col text-[11px]">
-          <div className="aim-surface-panel m-2 mb-0 flex min-h-0 flex-1 flex-col overflow-y-auto p-2">
-=======
         title={`#${roomName}`}
         variant="glass_shell"
         xpTitleText={`Chat Room: ${roomName}`}
@@ -978,7 +952,6 @@ export default function GroupChatWindow({
       >
         <div className="flex h-full min-h-0 flex-col rounded-[1.4rem] border border-white/60 bg-white/65 text-[11px] backdrop-blur-xl">
           <div className="m-2 mb-0 flex min-h-0 flex-1 flex-col overflow-y-auto rounded-xl border border-slate-200 bg-white p-2">
->>>>>>> main
             <p className="mb-0.5 font-bold text-slate-700">Room: #{roomName}</p>
             <p className="mb-2 truncate text-[11px] text-slate-500">
               Participants:{' '}
@@ -1019,11 +992,7 @@ export default function GroupChatWindow({
             </p>
           </div>
 
-<<<<<<< HEAD
-            <div className="aim-glass-panel-soft mb-2 px-2 py-1 text-[11px] text-slate-700">
-=======
             <div className="mb-2 rounded-xl border border-white/60 bg-white/70 backdrop-blur-sm px-2 py-1 text-[11px] text-slate-700">
->>>>>>> main
               <div className="flex items-center gap-2">
                 <label htmlFor="room-search-input" className="shrink-0 font-bold">
                   Search:
@@ -1033,19 +1002,12 @@ export default function GroupChatWindow({
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
                   placeholder={`Find in #${roomName}`}
-<<<<<<< HEAD
-                  className="aim-control aim-control-sm min-w-0 flex-1"
-=======
                   className="h-6 min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-1.5 text-[11px] ui-focus-ring"
->>>>>>> main
                 />
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
                   disabled={!searchQuery}
-<<<<<<< HEAD
-                  className="aim-button-secondary aim-button-secondary-sm shrink-0"
-=======
                   className="h-6 shrink-0 rounded-lg border border-slate-200 bg-white px-2 text-[10px] font-bold text-slate-700 disabled:opacity-50"
           {/* Search bar */}
           <div className="mx-3 mt-1.5 rounded-2xl border border-white/65 bg-white/72 px-3 py-1.5 shadow-sm">
@@ -1065,7 +1027,6 @@ export default function GroupChatWindow({
                   type="button"
                   onClick={() => setSearchQuery('')}
                   className="shrink-0 text-[10px] font-semibold text-slate-400 hover:text-slate-600"
->>>>>>> main
                 >
                   ✕
                 </button>
@@ -1139,17 +1100,10 @@ export default function GroupChatWindow({
                       className={
                         normalizedSearchQuery
                           ? isMatch
-<<<<<<< HEAD
-                            ? 'aim-message-highlight'
-                            : 'px-1 opacity-50'
-                          : isMentioningCurrentUser
-                            ? 'aim-message-highlight'
-=======
                             ? 'rounded bg-amber-50 px-1'
                             : 'px-1 opacity-50'
                           : isMentioningCurrentUser
                             ? 'rounded bg-amber-50 px-1'
->>>>>>> main
                             : undefined
                       }
                     >
@@ -1168,33 +1122,21 @@ export default function GroupChatWindow({
                             <input
                               value={editDraft}
                               onChange={(event) => setEditDraft(event.target.value)}
-<<<<<<< HEAD
-                              className="aim-control aim-control-sm min-w-0 flex-1"
-=======
                               className="h-6 min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-1 text-[11px] ui-focus-ring"
->>>>>>> main
                               maxLength={1500}
                             />
                             <button
                               type="button"
                               onClick={() => void saveEditedMessage(message.id)}
                               disabled={isSavingEdit || !editDraft.trim()}
-<<<<<<< HEAD
-                              className="aim-button-secondary aim-button-secondary-sm"
-=======
                               className="rounded-lg border border-slate-200 bg-white px-1 py-0.5 text-[10px] font-bold text-slate-700 disabled:opacity-60"
->>>>>>> main
                             >
                               Save
                             </button>
                             <button
                               type="button"
                               onClick={cancelEditingMessage}
-<<<<<<< HEAD
-                              className="aim-button-secondary aim-button-secondary-sm"
-=======
                               className="rounded-lg border border-slate-200 bg-white px-1 py-0.5 text-[10px] font-bold text-slate-700"
->>>>>>> main
                             >
                               Cancel
                             </button>
@@ -1240,11 +1182,7 @@ export default function GroupChatWindow({
                                 href={data.publicUrl}
                                 target="_blank"
                                 rel="noreferrer"
-<<<<<<< HEAD
-                                className="block text-[10px] text-blue-700 underline"
-=======
                                 className="block text-[10px] text-blue-600 underline"
->>>>>>> main
                                 title={attachment.storage_path}
                               >
                                 📎 {attachment.file_name}
@@ -1418,11 +1356,7 @@ export default function GroupChatWindow({
           {reactionError ? <p className="mx-2 mt-1 text-[10px] text-red-700">{reactionError}</p> : null}
           {attachmentLoadError ? <p className="mx-2 mt-1 text-[10px] text-red-700">{attachmentLoadError}</p> : null}
 
-<<<<<<< HEAD
-          <div className="aim-glass-panel mx-2 mb-2 flex items-center gap-1 px-1 py-1">
-=======
           <div className="mx-2 mb-2 flex items-center gap-1 rounded-xl border border-slate-200 bg-white/80 px-1 py-1">
->>>>>>> main
             <button
               type="button"
               onClick={() => setShowFormatting((previous) => !previous)}
@@ -1491,11 +1425,7 @@ export default function GroupChatWindow({
           </div>
 
           {showFormatting ? (
-<<<<<<< HEAD
-            <div className="aim-glass-panel mx-2 mb-2 p-1">
-=======
             <div className="mx-2 mb-2 rounded-xl border border-slate-200 bg-white/80 p-1">
->>>>>>> main
               <RichTextToolbar value={format} onChange={setFormat} />
             </div>
           ) : null}
@@ -1510,11 +1440,7 @@ export default function GroupChatWindow({
           ) : null}
 
           {pendingAttachments.length > 0 ? (
-<<<<<<< HEAD
-            <div className="aim-glass-panel-soft mx-2 mb-2 space-y-1 p-1">
-=======
             <div className="mx-2 mb-2 space-y-1 rounded-xl border border-slate-200 bg-white/70 p-1">
->>>>>>> main
               {pendingAttachments.map((file, index) => (
                 <div key={`${file.name}-${file.size}-${file.lastModified}`} className="flex items-center gap-2">
                   <span className="min-w-0 flex-1 truncate text-[10px] text-slate-700">
@@ -1523,11 +1449,7 @@ export default function GroupChatWindow({
                   <button
                     type="button"
                     onClick={() => removePendingAttachment(index)}
-<<<<<<< HEAD
-                    className="aim-button-secondary aim-button-secondary-sm text-red-700"
-=======
                     className="rounded-lg border border-slate-200 bg-white px-1 text-[10px] font-bold text-red-700"
->>>>>>> main
                   >
                     Remove
                   </button>
@@ -1638,25 +1560,17 @@ export default function GroupChatWindow({
             {/* Pill compose input */}
             <form
               onSubmit={handleSendMessage}
-<<<<<<< HEAD
-              className="aim-surface-panel flex h-16 flex-1 items-stretch gap-2 p-1"
-=======
               className="flex h-16 flex-1 items-stretch gap-2 rounded-xl border border-slate-200 bg-white p-1"
               className="flex items-end gap-2 rounded-2xl border border-white/65 bg-white/88 px-3.5 py-2.5 shadow-[0_4px_16px_rgba(15,23,42,0.08)] backdrop-blur-sm"
->>>>>>> main
             >
               <textarea
                 value={draft}
                 onChange={(event) => handleDraftChange(event.target.value)}
                 onKeyDown={handleDraftKeyDown}
                 placeholder={`Message #${roomName}`}
-<<<<<<< HEAD
-                className="h-full min-h-0 flex-1 resize-none bg-transparent px-2 py-1 text-[11px] text-slate-700 focus:outline-none"
-=======
                 className="h-full min-h-0 flex-1 resize-none bg-white px-2 py-1 text-[11px] ui-focus-ring"
                 placeholder={`Message #${roomName}…`}
                 rows={1}
->>>>>>> main
                 maxLength={1500}
                 className="min-h-[24px] flex-1 resize-none bg-transparent text-[13px] text-slate-800 placeholder-slate-400 focus:outline-none"
                 style={{ maxHeight: '88px', overflowY: 'auto' }}
@@ -1664,11 +1578,7 @@ export default function GroupChatWindow({
               <button
                 type="submit"
                 disabled={isSending || (!draft.trim() && pendingAttachments.length === 0)}
-<<<<<<< HEAD
-                className="aim-button-primary min-w-[82px]"
-=======
                 className="min-w-[82px] rounded-xl border border-blue-500/70 bg-gradient-to-b from-blue-500 to-blue-600 px-3 text-[11px] font-semibold text-white shadow-[0_8px_18px_rgba(37,99,235,0.3)] disabled:opacity-60"
->>>>>>> main
               >
                 {isSending ? '...' : 'Send'}
               </button>

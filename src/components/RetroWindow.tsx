@@ -5,10 +5,7 @@ interface RetroWindowProps {
   children: React.ReactNode;
   className?: string;
   style?: React.CSSProperties;
-<<<<<<< HEAD
-=======
   variant?: 'default' | 'glass_shell' | 'xp_shell';
->>>>>>> main
   titleBarClassName?: string;
   showBackButton?: boolean;
   backButtonLabel?: string;
@@ -27,14 +24,6 @@ export default function RetroWindow({
   onBack,
   headerActions,
 }: RetroWindowProps) {
-<<<<<<< HEAD
-  return (
-    <div
-      className={`flex h-[100dvh] w-full flex-col overflow-hidden bg-transparent font-["SF_Pro_Text","SF_Pro_Display","Segoe_UI",sans-serif] text-[12px] text-slate-700 ${className ?? ''}`}
-      style={style}
-    >
-      <div className={`aim-window-header ${titleBarClassName ?? ''}`} style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-=======
   if (variant === 'xp_shell' || variant === 'glass_shell') {
     return (
       <div
@@ -94,30 +83,21 @@ export default function RetroWindow({
       <div
         className={`relative mx-3 mt-3 flex min-h-[56px] items-center rounded-[1.4rem] border border-white/45 bg-white/55 px-3 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] text-sm font-semibold text-slate-700 shadow-[0_12px_30px_rgba(15,23,42,0.15)] backdrop-blur-xl ${titleBarClassName ?? ''}`}
       >
->>>>>>> main
         <div className="z-10 flex min-w-[44px] items-center gap-2">
           {showBackButton ? (
             <button
               type="button"
               onClick={onBack}
-<<<<<<< HEAD
-              className="aim-window-icon-button min-h-[38px] min-w-[38px] px-2 text-xs"
-=======
               className="inline-flex min-h-[38px] min-w-[38px] items-center justify-center rounded-full border border-slate-200 bg-white/85 px-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-white"
->>>>>>> main
             >
               {backButtonLabel}
             </button>
           ) : null}
         </div>
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-24">
-<<<<<<< HEAD
-          <span className="aim-window-title-mark">✦</span>
-=======
           <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-[12px] text-blue-600">
             ✦
           </span>
->>>>>>> main
           <span className="ml-2 truncate tracking-wide text-slate-700">
             {title}
           </span>
