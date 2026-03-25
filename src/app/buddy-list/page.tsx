@@ -2794,6 +2794,10 @@ function BuddyListContent() {
     'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] text-slate-700 shadow-[inset_0_1px_1px_rgba(15,23,42,0.05)] focus:outline-none focus:ring-2 focus:ring-blue-200';
   const xpModalButtonClass =
     'min-h-[32px] rounded-xl border border-slate-200 bg-white px-3 text-[12px] font-semibold text-slate-700 hover:bg-slate-50 ui-focus-ring';
+  const secondaryButtonClass = xpRaisedButtonClass;
+  const sectionHeaderClass = xpGroupHeaderClass;
+  const modalInputClass = xpModalInputClass;
+  const modalButtonClass = xpModalButtonClass;
   const showSplitPresenceSections = buddySortMode === 'online_then_alpha';
   const onlineBuddiesSorted = alphabeticallySortedAcceptedBuddies.filter((buddy) => buddy.isOnline);
   const offlineBuddiesSorted = alphabeticallySortedAcceptedBuddies.filter((buddy) => !buddy.isOnline);
@@ -2895,6 +2899,7 @@ function BuddyListContent() {
   };
   const xpModalPrimaryButtonClass =
     'min-h-[32px] rounded-xl border border-blue-500/70 bg-gradient-to-b from-blue-500 to-blue-600 px-3 text-[12px] font-semibold text-white shadow-[0_10px_20px_rgba(37,99,235,0.32)] disabled:opacity-60 ui-focus-ring';
+  const modalPrimaryButtonClass = xpModalPrimaryButtonClass;
 
   const handleOpenImFromActionBar = () => {
     const fallbackBuddyId =

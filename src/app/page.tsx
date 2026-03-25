@@ -125,6 +125,13 @@ export default function Home() {
     );
   };
 
+  const authTabClass = (active: boolean) =>
+    `min-h-[42px] cursor-pointer rounded-lg border px-2 py-2 text-[11px] font-black tracking-wide transition disabled:opacity-50 ${
+      active
+        ? 'border-blue-700 bg-gradient-to-b from-blue-300 to-blue-700 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]'
+        : 'border-blue-200 bg-white text-blue-700 hover:bg-blue-50'
+    }`;
+
   const switchAuthView = (nextView: AuthView) => {
     setAuthView(nextView);
     if (nextView !== 'sign-on') {

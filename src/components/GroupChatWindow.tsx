@@ -804,6 +804,7 @@ export default function GroupChatWindow({
         ? 'border-blue-400/70 bg-blue-50 text-blue-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]'
         : 'border-slate-200 bg-white hover:bg-slate-50'
     }`;
+  const toolbarButtonClass = xpTinyToolbarButtonClass;
 
   const resolvedTypingUsers = useMemo(() => {
     const names = [

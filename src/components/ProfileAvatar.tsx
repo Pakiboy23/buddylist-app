@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { resolveBuddyIconUrl } from '@/lib/buddyIcon';
 import type { ResolvedPresenceState } from '@/lib/presence';
 
@@ -84,24 +84,24 @@ export default function ProfileAvatar({
 }: ProfileAvatarProps) {
   const iconUrl = resolveBuddyIconUrl(imageSrc ?? buddyIconPath);
   const sizeClasses = SIZE_CLASSES[size];
-  const [hasImageError, setHasImageError] = useState(false);
-
-  useEffect(() => {
-    setHasImageError(false);
-  }, [iconUrl]);
+  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
+  const visibleIconUrl = iconUrl && failedImageUrl !== iconUrl ? iconUrl : null;
 
   return (
     <div className={`relative shrink-0 ${className}`}>
       <div
         className={`flex ${sizeClasses.avatar} items-center justify-center overflow-hidden rounded-full font-bold ring-2 ring-offset-1 ring-offset-transparent ${getPresenceRingClass(presenceState)} ${getFallbackToneClasses(tone)}`}
       >
-        {iconUrl && !hasImageError ? (
+        {visibleIconUrl ? (
+          // Remote buddy icons may come from arbitrary user-provided URLs.
+          // `img` avoids Next/Image host allowlist requirements for these avatars.
+          /* eslint-disable-next-line @next/next/no-img-element */
           <img
-            src={iconUrl}
+            src={visibleIconUrl}
             alt={`${screenname} profile photo`}
             className="h-full w-full object-cover"
             loading="lazy"
-            onError={() => setHasImageError(true)}
+            onError={() => setFailedImageUrl(visibleIconUrl)}
           />
         ) : (
           <span>{getInitial(screenname)}</span>
