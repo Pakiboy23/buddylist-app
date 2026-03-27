@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { resolveBuddyIconUrl } from '@/lib/buddyIcon';
 import type { ResolvedPresenceState } from '@/lib/presence';
 
@@ -86,6 +86,10 @@ export default function ProfileAvatar({
   const sizeClasses = SIZE_CLASSES[size];
   const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
   const visibleIconUrl = iconUrl && failedImageUrl !== iconUrl ? iconUrl : null;
+
+  useEffect(() => {
+    setFailedImageUrl(null);
+  }, [iconUrl]);
 
   return (
     <div className={`relative shrink-0 ${className}`}>

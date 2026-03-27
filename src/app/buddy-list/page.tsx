@@ -6,7 +6,8 @@ import ChatWindow, { ChatMessage } from '@/components/ChatWindow';
 import GroupChatWindow from '@/components/GroupChatWindow';
 import BuddyProfileSheet from '@/components/BuddyProfileSheet';
 import ProfileAvatar from '@/components/ProfileAvatar';
-import { getAccessTokenOrNull, getSessionOrNull } from '@/lib/authClient';
+import { getAccessTokenOrNull, waitForSessionOrNull } from '@/lib/authClient';
+import { navigateAppPath } from '@/lib/appNavigation';
 import { deleteBuddyIconFile, uploadBuddyIconFile, validateBuddyIconFile } from '@/lib/buddyIcon';
 import {
   getRaw,
@@ -1375,9 +1376,9 @@ function BuddyListContent() {
 
   useEffect(() => {
     const bootstrapUser = async () => {
-      const session = await getSessionOrNull();
+      const session = await waitForSessionOrNull();
       if (!session) {
-        router.push('/');
+        navigateAppPath(router, '/', { replace: true });
         return;
       }
 
@@ -1413,7 +1414,7 @@ function BuddyListContent() {
       if (!userEmail) {
         console.error('Failed to sync profile: authenticated user has no email.');
         await supabase.auth.signOut();
-        router.push('/');
+        navigateAppPath(router, '/', { replace: true });
         return;
       }
 
@@ -1527,7 +1528,7 @@ function BuddyListContent() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (!nextSession) {
-        router.push('/');
+        navigateAppPath(router, '/', { replace: true });
       }
     });
 
@@ -2380,7 +2381,7 @@ function BuddyListContent() {
       await resetChatState();
       await supabase.auth.signOut();
       didCompleteSignOut = true;
-      router.push('/');
+      navigateAppPath(router, '/', { replace: true });
     } finally {
       if (!didCompleteSignOut) {
         isSigningOffRef.current = false;
@@ -4274,11 +4275,15 @@ function BuddyListContent() {
                       accept="image/*"
                       className="hidden"
                       disabled={isProfileSchemaUnavailable}
-                      onChange={(event) => handleSelectBuddyIcon(event.target.files)}
+                      onChange={(event) => {
+                        handleSelectBuddyIcon(event.target.files);
+                        event.currentTarget.value = '';
+                      }}
                     />
                     <ProfileAvatar
                       screenname={screenname}
-                      buddyIconPath={buddyIconPreviewUrl || removeBuddyIconOnSave ? null : buddyIconPath}
+                      buddyIconPath={removeBuddyIconOnSave ? null : buddyIconPath}
+                      imageSrc={removeBuddyIconOnSave ? null : buddyIconPreviewUrl}
                       presenceState={currentUserPresenceState}
                       size="lg"
                     />
@@ -4323,7 +4328,10 @@ function BuddyListContent() {
                       accept="image/*"
                       className="hidden"
                       disabled={isProfileSchemaUnavailable}
-                      onChange={(event) => handleSelectBuddyIcon(event.target.files)}
+                      onChange={(event) => {
+                        handleSelectBuddyIcon(event.target.files);
+                        event.currentTarget.value = '';
+                      }}
                     />
                   </label>
                   <button
