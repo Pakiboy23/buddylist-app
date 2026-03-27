@@ -1,5 +1,6 @@
 'use client';
 
+import AppIcon from '@/components/AppIcon';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import { getPresenceLabel, type ResolvedPresenceState } from '@/lib/presence';
 
@@ -64,7 +65,7 @@ export default function BuddyProfileSheet({
             onClick={onClose}
             className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-[13px] font-semibold text-slate-500 hover:bg-slate-200"
           >
-            ✕
+            <AppIcon kind="close" className="h-3.5 w-3.5" />
           </button>
         </div>
 

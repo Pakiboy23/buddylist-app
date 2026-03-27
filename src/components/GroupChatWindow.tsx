@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import AppIcon from '@/components/AppIcon';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import RetroWindow from '@/components/RetroWindow';
 import RichTextToolbar from '@/components/RichTextToolbar';
@@ -144,7 +145,7 @@ export default function GroupChatWindow({
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState(initialDraft);
   const [format, setFormat] = useState<RichTextFormat>(DEFAULT_RICH_TEXT_FORMAT);
-  const [showFormatting, setShowFormatting] = useState(false);
+  const [showFormatting, setShowFormatting] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
@@ -997,7 +998,7 @@ export default function GroupChatWindow({
                   onClick={() => setSearchQuery('')}
                   className="shrink-0 text-[10px] font-semibold text-slate-400 hover:text-slate-600"
                 >
-                  ✕
+                  <AppIcon kind="close" className="h-3.5 w-3.5" />
                 </button>
               ) : null}
             </div>
@@ -1021,7 +1022,7 @@ export default function GroupChatWindow({
             )}
             {!isLoadingMessages && messages.length === 0 && (
               <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
-                <span className="text-3xl">💬</span>
+                <AppIcon kind="chat" className="h-8 w-8 text-slate-300" />
                 <p className="text-[12px] text-slate-400">No messages yet. Start the conversation.</p>
               </div>
             )}
@@ -1191,10 +1192,13 @@ export default function GroupChatWindow({
                                     href={data.publicUrl}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className={`block text-[10px] underline ${isMine ? 'text-blue-200' : 'text-blue-600'}`}
-                                    title={attachment.storage_path}
-                                  >
-                                    📎 {attachment.file_name}
+                                  className={`block text-[10px] underline ${isMine ? 'text-blue-200' : 'text-blue-600'}`}
+                                  title={attachment.storage_path}
+                                >
+                                    <span className="inline-flex items-center gap-1">
+                                      <AppIcon kind="attachment" className="h-3 w-3" />
+                                      <span>{attachment.file_name}</span>
+                                    </span>
                                     {attachment.size_bytes ? ` (${formatFileSize(attachment.size_bytes)})` : ''}
                                   </a>
                                 );
@@ -1234,10 +1238,10 @@ export default function GroupChatWindow({
               <button
                 type="button"
                 onClick={() => setShowFormatting((previous) => !previous)}
-                className={xpTinyToolbarButtonClass(showFormatting)}
+                className={`${xpTinyToolbarButtonClass(showFormatting)} px-2.5`}
                 aria-label="Toggle formatting"
               >
-                A
+                Font
               </button>
               <button type="button" onClick={toggleBold} className={xpTinyToolbarButtonClass(format.bold)} aria-label="Bold">
                 <span className="font-bold">B</span>
@@ -1259,10 +1263,10 @@ export default function GroupChatWindow({
                 className={`${xpTinyToolbarButtonClass()} opacity-50`}
                 aria-label="Link"
               >
-                🔗
+                <AppIcon kind="link" className="h-3.5 w-3.5" />
               </button>
               <button type="button" className={xpTinyToolbarButtonClass()} aria-label="Emoji">
-                ☺
+                <AppIcon kind="smile" className="h-3.5 w-3.5" />
               </button>
               <button
                 type="button"
@@ -1270,7 +1274,7 @@ export default function GroupChatWindow({
                 className={xpTinyToolbarButtonClass(pendingAttachments.length > 0)}
                 aria-label="Attach files"
               >
-                📎
+                <AppIcon kind="attachment" className="h-3.5 w-3.5" />
               </button>
               <input
                 ref={attachmentInputRef}
@@ -1302,15 +1306,16 @@ export default function GroupChatWindow({
               <div className="space-y-1 rounded-2xl border border-white/65 bg-white/72 p-2">
                 {pendingAttachments.map((file, index) => (
                   <div key={`${file.name}-${file.size}-${file.lastModified}`} className="flex items-center gap-2">
-                    <span className="min-w-0 flex-1 truncate text-[10px] text-slate-600">
-                      📎 {file.name} ({formatFileSize(file.size)})
+                    <span className="min-w-0 flex flex-1 items-center gap-1 truncate text-[10px] text-slate-600">
+                      <AppIcon kind="attachment" className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{file.name} ({formatFileSize(file.size)})</span>
                     </span>
                     <button
                       type="button"
                       onClick={() => removePendingAttachment(index)}
                       className="shrink-0 rounded-lg border border-red-200/80 bg-white px-1.5 text-[10px] font-semibold text-red-500 hover:bg-red-50"
                     >
-                      ✕
+                      <AppIcon kind="close" className="h-3 w-3" />
                     </button>
                   </div>
                 ))}

@@ -57,3 +57,17 @@ export function navigateAppPath(
 
   router.push(targetPath, { scroll: options.scroll });
 }
+
+export function replaceAppPathInPlace(path: string) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const targetPath = normalizeAppPath(path);
+  const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  if (currentPath === targetPath) {
+    return;
+  }
+
+  window.history.replaceState(window.history.state, '', targetPath);
+}

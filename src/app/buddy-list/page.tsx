@@ -2,6 +2,7 @@
 
 import { FormEvent, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import AppIcon from '@/components/AppIcon';
 import BuddyListTabIcon from '@/components/BuddyListTabIcon';
 import ChatWindow, { ChatMessage } from '@/components/ChatWindow';
 import GroupChatWindow from '@/components/GroupChatWindow';
@@ -9,7 +10,7 @@ import BuddyProfileSheet from '@/components/BuddyProfileSheet';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import { getAccessTokenOrNull, waitForSessionOrNull } from '@/lib/authClient';
 import { getAppApiUrl } from '@/lib/appApi';
-import { navigateAppPath } from '@/lib/appNavigation';
+import { navigateAppPath, replaceAppPathInPlace } from '@/lib/appNavigation';
 import { deleteBuddyIconFile, uploadBuddyIconFile, validateBuddyIconFile } from '@/lib/buddyIcon';
 import {
   getRaw,
@@ -2094,10 +2095,10 @@ function BuddyListContent() {
       setActiveChatBuddyId(buddyId);
       activeChatBuddyIdRef.current = buddyId;
       clearUnreadDirectMessages(buddyId);
-      router.replace(`${BUDDY_LIST_PATH}?dm=${encodeURIComponent(buddyId)}`, { scroll: false });
+      replaceAppPathInPlace(`${BUDDY_LIST_PATH}?dm=${encodeURIComponent(buddyId)}`);
       void loadConversation(buddyId);
     },
-    [clearUnreadDirectMessages, loadConversation, router, unreadDirectMessages],
+    [clearUnreadDirectMessages, loadConversation, unreadDirectMessages],
   );
 
   useEffect(() => {
@@ -3062,15 +3063,15 @@ function BuddyListContent() {
         dmTypingTimeoutRef.current = null;
       }
       if (activeRoom) {
-        router.replace(`${BUDDY_LIST_PATH}?room=${encodeURIComponent(activeRoom.name)}`, { scroll: false });
+        replaceAppPathInPlace(`${BUDDY_LIST_PATH}?room=${encodeURIComponent(activeRoom.name)}`);
       } else {
-        router.replace(BUDDY_LIST_PATH, { scroll: false });
+        replaceAppPathInPlace(BUDDY_LIST_PATH);
       }
     }
     setProfileSheetBuddyId((previous) => (previous === buddyId ? null : previous));
     await loadBuddies(userId);
     return true;
-  }, [activeRoom, loadBuddies, router, userId]);
+  }, [activeRoom, loadBuddies, userId]);
 
   const handleAddBuddyFromPendingRequest = useCallback(
     async (senderId: string) => {
@@ -3327,9 +3328,9 @@ function BuddyListContent() {
       await joinRoom(room.name);
       await clearUnreads(room.name);
       setActiveRoom(room);
-      router.replace(`${BUDDY_LIST_PATH}?room=${encodeURIComponent(room.name)}`, { scroll: false });
+      replaceAppPathInPlace(`${BUDDY_LIST_PATH}?room=${encodeURIComponent(room.name)}`);
     },
-    [clearUnreads, getUnreadCountForRoom, joinRoom, router],
+    [clearUnreads, getUnreadCountForRoom, joinRoom],
   );
 
   const handleOpenActiveRoom = useCallback(
@@ -3363,8 +3364,8 @@ function BuddyListContent() {
   const handleBackFromRoom = useCallback(() => {
     setInitialUnreadForActiveRoom(0);
     setActiveRoom(null);
-    router.push(BUDDY_LIST_PATH);
-  }, [router]);
+    replaceAppPathInPlace(BUDDY_LIST_PATH);
+  }, []);
 
   const handleLeaveRoom = useCallback(
     async (roomName: string) => {
@@ -3378,10 +3379,10 @@ function BuddyListContent() {
       if (activeRoom && sameRoom(activeRoom.name, normalizedRoomName)) {
         setInitialUnreadForActiveRoom(0);
         setActiveRoom(null);
-        router.push(BUDDY_LIST_PATH);
+        replaceAppPathInPlace(BUDDY_LIST_PATH);
       }
     },
-    [activeRoom, leaveRoom, router],
+    [activeRoom, leaveRoom],
   );
 
   const handleLeaveCurrentRoom = useCallback(() => {
@@ -3434,7 +3435,7 @@ function BuddyListContent() {
     }
 
     if (requestedDirectMessageUserId === userId) {
-      router.replace(BUDDY_LIST_PATH, { scroll: false });
+      replaceAppPathInPlace(BUDDY_LIST_PATH);
       return;
     }
 
@@ -3479,14 +3480,13 @@ function BuddyListContent() {
           : [...previous, requestedDirectMessageUserId],
       );
 
-      setSelectedBuddyId(requestedDirectMessageUserId);
-      router.replace(BUDDY_LIST_PATH, { scroll: false });
+      openChatWindowForId(requestedDirectMessageUserId);
     })();
 
     return () => {
       isCancelled = true;
     };
-  }, [loadSingleUserProfile, requestedDirectMessageUserId, requestedRoomName, router, userId]);
+  }, [loadSingleUserProfile, openChatWindowForId, requestedDirectMessageUserId, requestedRoomName, userId]);
 
   const openAddWindow = () => {
     setSearchTerm('');
@@ -3548,9 +3548,9 @@ function BuddyListContent() {
     setChatError(null);
     setIsChatLoading(false);
     if (activeRoom) {
-      router.replace(`${BUDDY_LIST_PATH}?room=${encodeURIComponent(activeRoom.name)}`, { scroll: false });
+      replaceAppPathInPlace(`${BUDDY_LIST_PATH}?room=${encodeURIComponent(activeRoom.name)}`);
     } else {
-      router.replace(BUDDY_LIST_PATH, { scroll: false });
+      replaceAppPathInPlace(BUDDY_LIST_PATH);
     }
   };
 
@@ -3835,7 +3835,7 @@ function BuddyListContent() {
             {isCurrentUserAway ? (
               <div className="mx-3 mt-2 rounded-2xl border border-amber-200/70 bg-amber-50/90 px-3 py-3 backdrop-blur-sm">
                 <div className="flex items-start gap-2">
-                  <span className="mt-0.5 text-base">🌙</span>
+                  <AppIcon kind="moon" className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
                   <div className="min-w-0 flex-1">
                     <p className="text-[12px] font-semibold text-amber-800">Away</p>
                     <p className="mt-0.5 break-words text-[11px] italic text-amber-700">
@@ -3861,7 +3861,7 @@ function BuddyListContent() {
             {isCurrentUserIdle ? (
               <div className="mx-3 mt-2 rounded-2xl border border-sky-200/70 bg-sky-50/90 px-3 py-3 backdrop-blur-sm">
                 <div className="flex items-start gap-2">
-                  <span className="mt-0.5 text-base">💤</span>
+                  <AppIcon kind="clock" className="mt-0.5 h-4 w-4 shrink-0 text-sky-500" />
                   <div className="min-w-0 flex-1">
                     <p className="text-[12px] font-semibold text-sky-800">Idle</p>
                     <p className="mt-0.5 text-[11px] text-sky-700">{formatPresenceSince(idleSinceAt, 'Idle since')}</p>
@@ -3884,7 +3884,7 @@ function BuddyListContent() {
                   onClick={() => setIsBuddiesOpen((previous) => !previous)}
                   className={xpGroupHeaderClass}
                 >
-                  <span className={`text-[8px] transition-transform ${isBuddiesOpen ? 'rotate-90' : ''}`}>▶</span>
+                  <AppIcon kind="chevron" className={`h-3 w-3 transition-transform ${isBuddiesOpen ? 'rotate-90' : ''}`} />
                   <span>
                     {showSplitPresenceSections
                       ? `Online — ${onlineBuddies.length} of ${acceptedBuddies.length}`
@@ -3944,7 +3944,7 @@ function BuddyListContent() {
                     onClick={() => setIsOfflineOpen((previous) => !previous)}
                     className={xpGroupHeaderClass}
                   >
-                    <span className={`text-[8px] transition-transform ${isOfflineOpen ? 'rotate-90' : ''}`}>▶</span>
+                    <AppIcon kind="chevron" className={`h-3 w-3 transition-transform ${isOfflineOpen ? 'rotate-90' : ''}`} />
                     <span>Offline — {offlineBuddies.length}</span>
                   </button>
 
@@ -3958,7 +3958,7 @@ function BuddyListContent() {
                   onClick={() => setIsActiveChatsOpen((previous) => !previous)}
                   className={xpGroupHeaderClass}
                 >
-                  <span className={`text-[8px] transition-transform ${isActiveChatsOpen ? 'rotate-90' : ''}`}>▶</span>
+                  <AppIcon kind="chevron" className={`h-3 w-3 transition-transform ${isActiveChatsOpen ? 'rotate-90' : ''}`} />
                   <span>Group Rooms — {activeRooms.length}</span>
                 </button>
 
@@ -4010,7 +4010,7 @@ function BuddyListContent() {
                             aria-label={`Leave ${roomName}`}
                             title="Leave room"
                           >
-                            ✕
+                            <AppIcon kind="close" className="h-3.5 w-3.5" />
                           </button>
                         </div>
                       );
@@ -4303,7 +4303,7 @@ function BuddyListContent() {
                 onClick={() => { setShowAwayModal(false); setAwayModalError(null); }}
                 className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-[13px] font-semibold text-slate-500 hover:bg-slate-200"
               >
-                ✕
+                <AppIcon kind="close" className="h-3.5 w-3.5" />
               </button>
             </div>
 
@@ -4564,7 +4564,7 @@ function BuddyListContent() {
                   disabled={isSavingAwayMessage}
                   className="flex-1 rounded-2xl border border-blue-500/50 bg-blue-500 py-3.5 text-[15px] font-semibold text-white shadow-[0_8px_20px_rgba(37,99,235,0.35)] transition hover:bg-blue-600 active:scale-[0.98] disabled:opacity-60"
                 >
-                  {isSavingAwayMessage ? 'Saving…' : "Go Away 🌙"}
+                  {isSavingAwayMessage ? 'Saving…' : 'Go Away'}
                 </button>
               </div>
             </form>
@@ -4592,7 +4592,7 @@ function BuddyListContent() {
                 onClick={() => setShowSystemStatusSheet(false)}
                 className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-[13px] font-semibold text-slate-500 hover:bg-slate-200"
               >
-                ✕
+                <AppIcon kind="close" className="h-3.5 w-3.5" />
               </button>
             </div>
 

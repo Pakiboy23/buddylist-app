@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
+import AppIcon from '@/components/AppIcon';
 import RetroWindow from '@/components/RetroWindow';
 import { waitForSessionOrNull } from '@/lib/authClient';
 import { getAppApiUrl } from '@/lib/appApi';
@@ -413,7 +414,7 @@ export default function Home() {
           <div className="grid gap-3 rounded-[1.5rem] border border-white/65 bg-white/72 p-4 shadow-[0_18px_34px_rgba(15,23,42,0.14)] backdrop-blur-xl lg:grid-cols-[170px_1fr]">
             <aside className="flex flex-col justify-between rounded-lg border border-blue-200 bg-white/75 backdrop-blur-sm px-3 py-3">
               <div>
-                <span className="text-[35px] leading-none">✦</span>
+                <AppIcon kind="sparkle" className="h-8 w-8 text-blue-600" />
                 <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700">Premium UI</p>
               </div>
               <div className="mt-5 rounded-md border border-blue-200 bg-white/70 px-2 py-2 text-[11px] font-semibold text-blue-800">

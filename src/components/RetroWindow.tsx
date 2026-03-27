@@ -1,4 +1,5 @@
 import React from 'react';
+import AppIcon from '@/components/AppIcon';
 
 interface RetroWindowProps {
   title: string;
@@ -55,8 +56,8 @@ export default function RetroWindow({
             ) : null}
           </div>
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center gap-1 px-16">
-            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-500/10 text-[11px] leading-none text-blue-600">
-              ✦
+            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-500/10 text-blue-600">
+              <AppIcon kind="sparkle" className="h-3.5 w-3.5" />
             </span>
             <span className="truncate tracking-[0.01em] text-slate-700">{xpTitleText ?? title}</span>
           </div>
@@ -69,7 +70,7 @@ export default function RetroWindow({
                 aria-label="Settings"
                 title="Settings"
               >
-                ⋯
+                <AppIcon kind="menu" className="h-4 w-4" />
               </button>
             ) : null}
           </div>
@@ -102,8 +103,8 @@ export default function RetroWindow({
           ) : null}
         </div>
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-24">
-          <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-[12px] text-blue-600">
-            ✦
+          <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-blue-600">
+            <AppIcon kind="sparkle" className="h-3.5 w-3.5" />
           </span>
           <span className="ml-2 truncate tracking-wide text-slate-700">
             {title}

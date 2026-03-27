@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import AppIcon from '@/components/AppIcon';
 
 interface IncomingMessageBannerProps {
   senderName: string;
@@ -97,7 +98,10 @@ export default function IncomingMessageBanner({
             style={{ background: variant === 'dm' ? '#dbeafe' : '#ede9fe' }}
             aria-label={`Open message from ${senderName}`}
           >
-            {variant === 'dm' ? '✉' : '💬'}
+            <AppIcon
+              kind={variant === 'dm' ? 'mail' : 'chat'}
+              className={`h-5 w-5 ${variant === 'dm' ? 'text-blue-600' : 'text-violet-600'}`}
+            />
           </button>
           {/* Text — clickable */}
           <button
@@ -120,7 +124,7 @@ export default function IncomingMessageBanner({
             aria-label="Dismiss notification"
             className="ml-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-200/80 bg-slate-100/80 text-[11px] font-semibold text-slate-500 hover:bg-slate-200 active:scale-95"
           >
-            ✕
+            <AppIcon kind="close" className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
