@@ -69,9 +69,7 @@ export default function Home() {
       if (withSound) {
         await playSignOnSound();
       }
-      navigateAppPath(router, '/buddy-list', {
-        nativeDocumentNavigation: true,
-      });
+      navigateAppPath(router, '/buddy-list');
     },
     [playSignOnSound, router],
   );

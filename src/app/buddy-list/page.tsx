@@ -1124,10 +1124,7 @@ function BuddyListContent() {
     const bootstrapUser = async () => {
       const session = await waitForSessionOrNull();
       if (!session) {
-        navigateAppPath(router, '/', {
-          replace: true,
-          nativeDocumentNavigation: true,
-        });
+        navigateAppPath(router, '/', { replace: true });
         return;
       }
 
@@ -1164,10 +1161,7 @@ function BuddyListContent() {
       if (!userEmail) {
         console.error('Failed to sync profile: authenticated user has no email.');
         await supabase.auth.signOut();
-        navigateAppPath(router, '/', {
-          replace: true,
-          nativeDocumentNavigation: true,
-        });
+        navigateAppPath(router, '/', { replace: true });
         return;
       }
 
@@ -1254,10 +1248,7 @@ function BuddyListContent() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (!nextSession) {
-        navigateAppPath(router, '/', {
-          replace: true,
-          nativeDocumentNavigation: true,
-        });
+        navigateAppPath(router, '/', { replace: true });
       }
     });
 

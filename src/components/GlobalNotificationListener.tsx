@@ -128,9 +128,7 @@ export default function GlobalNotificationListener() {
             const targetPath =
               typeof rawExtra?.targetPath === 'string' ? rawExtra.targetPath : '';
             if (targetPath.startsWith(BUDDY_LIST_PATH)) {
-              navigateAppPath(router, targetPath, {
-                nativeDocumentNavigation: true,
-              });
+              navigateAppPath(router, targetPath);
             }
           },
         );
@@ -484,9 +482,7 @@ export default function GlobalNotificationListener() {
       onClick={() => {
         const targetPath = activeBanner.targetPath;
         setBannerQueue((previous) => previous.slice(1));
-        navigateAppPath(router, targetPath, {
-          nativeDocumentNavigation: true,
-        });
+        navigateAppPath(router, targetPath);
       }}
     />
   );

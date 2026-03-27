@@ -4,6 +4,11 @@ import { Capacitor } from '@capacitor/core';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 
+const NATIVE_SESSION_RETRY_COUNT = 12;
+const NATIVE_SESSION_RETRY_DELAY_MS = 250;
+
+let pendingSessionLookup: Promise<Session | null> | null = null;
+
 function isInvalidRefreshTokenError(message: string | undefined) {
   if (!message) {
     return false;
@@ -39,14 +44,14 @@ function wait(delayMs: number) {
   });
 }
 
-export async function waitForSessionOrNull() {
+async function resolveSessionOrNullWithRetries() {
   const initialSession = await getSessionOrNull();
   if (initialSession || !isNativePlatform()) {
     return initialSession;
   }
 
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    await wait(160);
+  for (let attempt = 0; attempt < NATIVE_SESSION_RETRY_COUNT; attempt += 1) {
+    await wait(NATIVE_SESSION_RETRY_DELAY_MS);
     const nextSession = await getSessionOrNull();
     if (nextSession) {
       return nextSession;
@@ -56,7 +61,17 @@ export async function waitForSessionOrNull() {
   return null;
 }
 
+export async function waitForSessionOrNull() {
+  if (!pendingSessionLookup) {
+    pendingSessionLookup = resolveSessionOrNullWithRetries().finally(() => {
+      pendingSessionLookup = null;
+    });
+  }
+
+  return pendingSessionLookup;
+}
+
 export async function getAccessTokenOrNull() {
-  const session = await getSessionOrNull();
+  const session = await waitForSessionOrNull();
   return session?.access_token ?? null;
 }
