@@ -13,6 +13,7 @@ import {
 } from '@/lib/chatMedia';
 import {
   DEFAULT_RICH_TEXT_FORMAT,
+  getRichTextPresentation,
   formatRichText,
   htmlToPlainText,
   RichTextFormat,
@@ -314,6 +315,13 @@ export default function ChatWindow({
     }
     return grouped;
   }, [attachmentRows]);
+  const richTextPresentationByMessageId = useMemo(() => {
+    const presentation = new Map<number, ReturnType<typeof getRichTextPresentation>>();
+    for (const message of messages) {
+      presentation.set(message.id, getRichTextPresentation(message.content));
+    }
+    return presentation;
+  }, [messages]);
 
   const clearPendingAttachments = useCallback(() => {
     setPendingAttachments([]);
@@ -616,6 +624,11 @@ export default function ChatWindow({
                         .sort((left, right) => right[1] - left[1])
                     : [];
                   const messageAttachments = attachmentsByMessageId.get(message.id) ?? [];
+                  const richTextPresentation = richTextPresentationByMessageId.get(message.id) ?? {
+                    html: sanitizeRichTextHtml(message.content),
+                    hasCustomStyling: false,
+                  };
+                  const hasCustomStyling = richTextPresentation.hasCustomStyling;
                   const isEdited = Boolean(message.edited_at && !message.deleted_at);
 
                   // Group logic: show timestamp if first, >5 min gap, or new-message separator
@@ -644,11 +657,15 @@ export default function ChatWindow({
                         <div className="group relative max-w-[78%]">
                           {/* Bubble */}
                           <div
-                            className={`relative msg-enter px-3 py-2 text-[13px] leading-snug ${
+                            className={`relative msg-enter px-3 py-2 ${
+                              hasCustomStyling ? 'text-[15px] leading-[1.48]' : 'text-[14px] leading-[1.42]'
+                            } ${
                               isLastInRun ? 'mb-2' : 'mb-0.5'
                             } ${
                               isMine
-                                ? `rounded-2xl bg-blue-500 text-white shadow-[0_2px_8px_rgba(37,99,235,0.28)] ${isLastInRun ? 'rounded-br-[6px]' : ''}`
+                                ? hasCustomStyling
+                                  ? `rounded-2xl border border-blue-200/80 bg-white/96 text-slate-900 shadow-[0_10px_24px_rgba(37,99,235,0.16)] ${isLastInRun ? 'rounded-br-[8px]' : ''}`
+                                  : `rounded-2xl bg-blue-500 text-white shadow-[0_2px_8px_rgba(37,99,235,0.28)] ${isLastInRun ? 'rounded-br-[6px]' : ''}`
                                 : `rounded-2xl border border-white/70 bg-white/85 text-slate-800 shadow-sm backdrop-blur-sm ${isLastInRun ? 'rounded-bl-[6px]' : ''}`
                             } ${isMatch ? 'ring-2 ring-amber-400' : ''}`}
                           >
@@ -691,12 +708,14 @@ export default function ChatWindow({
                               <span className="italic opacity-50">Message deleted</span>
                             ) : (
                               <span
-                                className="aim-rich-html"
-                                dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(message.content) }}
+                                className={`aim-rich-html ${hasCustomStyling ? 'aim-rich-html--styled' : ''}`}
+                                dangerouslySetInnerHTML={{ __html: richTextPresentation.html }}
                               />
                             )}
                             {isEdited && !isEditing ? (
-                              <span className={`ml-1.5 text-[9px] ${isMine ? 'text-blue-200' : 'text-slate-400'}`}>(edited)</span>
+                              <span className={`ml-1.5 text-[9px] ${
+                                isMine ? (hasCustomStyling ? 'text-slate-400' : 'text-blue-200') : 'text-slate-400'
+                              }`}>(edited)</span>
                             ) : null}
                           </div>
 

@@ -11,6 +11,11 @@ export interface RichColorOption {
   value: string;
 }
 
+export interface RichTextPresentation {
+  html: string;
+  hasCustomStyling: boolean;
+}
+
 export const AIM_FONT_OPTIONS = [
   'Arial',
   'Comic Sans MS',
@@ -66,6 +71,11 @@ function escapeHtml(raw: string) {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
+}
+
+function plainTextToHtml(rawText: string) {
+  const escapedText = escapeHtml(rawText).replace(/\n/g, '<br />');
+  return escapedText || '&nbsp;';
 }
 
 function normalizeFontFamily(fontFamily: string | null | undefined): string {
@@ -227,9 +237,13 @@ export function sanitizeRichTextHtml(rawHtml: string | null | undefined): string
 export function formatRichText(rawText: string, format: RichTextFormat): string {
   const safeFont = normalizeFontFamily(format.fontFamily);
   const safeColor = normalizeColor(format.color);
-  const escapedText = escapeHtml(rawText).replace(/\n/g, '<br />');
-
-  const styleParts = [`font-family: '${safeFont}'`, `color: ${safeColor}`];
+  const styleParts: string[] = [];
+  if (safeFont !== DEFAULT_RICH_TEXT_FORMAT.fontFamily) {
+    styleParts.push(`font-family: '${safeFont}'`);
+  }
+  if (safeColor !== DEFAULT_RICH_TEXT_FORMAT.color) {
+    styleParts.push(`color: ${safeColor}`);
+  }
   if (format.bold) {
     styleParts.push('font-weight: bold');
   }
@@ -240,7 +254,12 @@ export function formatRichText(rawText: string, format: RichTextFormat): string 
     styleParts.push('text-decoration: underline');
   }
 
-  return `<span style="${styleParts.join('; ')}">${escapedText || '&nbsp;'}</span>`;
+  const html = plainTextToHtml(rawText);
+  if (styleParts.length === 0) {
+    return html;
+  }
+
+  return `<span style="${styleParts.join('; ')}">${html}</span>`;
 }
 
 export function htmlToPlainText(rawHtml: string | null | undefined): string {
@@ -332,4 +351,31 @@ export function detectRichTextFormat(rawHtml: string | null | undefined): RichTe
   }
 
   return nextFormat;
+}
+
+export function isDefaultRichTextFormat(format: RichTextFormat): boolean {
+  return (
+    normalizeFontFamily(format.fontFamily) === DEFAULT_RICH_TEXT_FORMAT.fontFamily &&
+    normalizeColor(format.color) === DEFAULT_RICH_TEXT_FORMAT.color &&
+    !format.bold &&
+    !format.italic &&
+    !format.underline
+  );
+}
+
+export function getRichTextPresentation(rawHtml: string | null | undefined): RichTextPresentation {
+  const format = detectRichTextFormat(rawHtml);
+  const hasCustomStyling = !isDefaultRichTextFormat(format);
+
+  if (!hasCustomStyling) {
+    return {
+      html: plainTextToHtml(htmlToPlainText(rawHtml)),
+      hasCustomStyling: false,
+    };
+  }
+
+  return {
+    html: sanitizeRichTextHtml(rawHtml),
+    hasCustomStyling: true,
+  };
 }

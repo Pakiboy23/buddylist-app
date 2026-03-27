@@ -41,12 +41,24 @@ body {
 
 .ui-rich-html,
 .aim-rich-html {
+  display: block;
   word-break: break-word;
+  font-size: inherit;
+  line-height: inherit;
 }
 
 .ui-rich-html span,
 .aim-rich-html span {
   white-space: pre-wrap;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.ui-rich-html--styled,
+.aim-rich-html--styled {
+  font-size: 1.06em;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
 }
 
 @keyframes ui-unread-pulse {
