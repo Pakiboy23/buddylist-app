@@ -3699,12 +3699,22 @@ function BuddyListContent() {
             <div className="px-3 pt-3 pb-2">
               <div className="rounded-2xl border border-white/65 bg-white/72 px-3.5 py-3 shadow-sm">
                 <div className="flex items-center gap-2.5">
-                  <ProfileAvatar
-                    screenname={screenname}
-                    buddyIconPath={buddyIconPath}
-                    presenceState={currentUserPresenceState}
-                    size="md"
-                  />
+                  <button
+                    type="button"
+                    onClick={openAwayModal}
+                    className="group relative shrink-0 rounded-full text-left transition active:scale-95"
+                    aria-label="Edit profile photo"
+                  >
+                    <ProfileAvatar
+                      screenname={screenname}
+                      buddyIconPath={buddyIconPath}
+                      presenceState={currentUserPresenceState}
+                      size="md"
+                    />
+                    <span className="absolute -bottom-1 -right-1 rounded-full border border-white/80 bg-slate-900/90 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white shadow-sm">
+                      Edit
+                    </span>
+                  </button>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[14px] font-semibold text-slate-800">{screenname}</p>
                     <p className={`truncate text-[11px] font-semibold ${
@@ -3718,14 +3728,26 @@ function BuddyListContent() {
                     </p>
                     <p className="truncate text-[11px] text-slate-400">{currentUserPresenceDetail}</p>
                     {profileBio ? <p className="mt-1 truncate text-[11px] text-slate-400">{profileBio}</p> : null}
+                    <p className="mt-1 truncate text-[10px] font-semibold text-slate-400">
+                      {buddyIconPath ? 'Profile photo live on your card' : 'Add a profile photo to personalize your card'}
+                    </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={openAwayModal}
-                    className="shrink-0 rounded-xl border border-white/65 bg-white/80 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 shadow-sm hover:bg-white active:scale-95"
-                  >
-                    Edit
-                  </button>
+                  <div className="shrink-0 space-y-1.5">
+                    <button
+                      type="button"
+                      onClick={openAwayModal}
+                      className="block w-full rounded-xl border border-white/65 bg-white/80 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 shadow-sm hover:bg-white active:scale-95"
+                    >
+                      Edit Profile
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openAwayModal}
+                      className="block w-full rounded-xl border border-blue-200/80 bg-blue-50/85 px-2.5 py-1.5 text-[11px] font-semibold text-blue-700 shadow-sm hover:bg-blue-100/80 active:scale-95"
+                    >
+                      Edit Photo
+                    </button>
+                  </div>
                 </div>
               </div>
               {awayModalError ? <p className="mt-2 text-[11px] font-semibold text-red-600">{awayModalError}</p> : null}
@@ -4243,12 +4265,27 @@ function BuddyListContent() {
               <div className="rounded-2xl border border-white/65 bg-white/78 px-4 py-3">
                 <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Profile</p>
                 <div className="flex items-center gap-3">
-                  <ProfileAvatar
-                    screenname={screenname}
-                    buddyIconPath={buddyIconPreviewUrl || removeBuddyIconOnSave ? null : buddyIconPath}
-                    presenceState={currentUserPresenceState}
-                    size="lg"
-                  />
+                  <label
+                    className={`group relative shrink-0 ${isProfileSchemaUnavailable ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
+                    aria-label="Upload profile photo"
+                  >
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={isProfileSchemaUnavailable}
+                      onChange={(event) => handleSelectBuddyIcon(event.target.files)}
+                    />
+                    <ProfileAvatar
+                      screenname={screenname}
+                      buddyIconPath={buddyIconPreviewUrl || removeBuddyIconOnSave ? null : buddyIconPath}
+                      presenceState={currentUserPresenceState}
+                      size="lg"
+                    />
+                    <span className="absolute inset-x-1 bottom-1 rounded-full bg-slate-900/85 px-2 py-1 text-center text-[10px] font-semibold uppercase tracking-wide text-white shadow-sm transition group-hover:bg-slate-950">
+                      Edit Photo
+                    </span>
+                  </label>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[14px] font-semibold text-slate-800">{screenname}</p>
                     <p className="truncate text-[11px] text-slate-500">{profileStatusDraft || AVAILABLE_STATUS}</p>
@@ -4261,6 +4298,9 @@ function BuddyListContent() {
                     ) : (
                       <p className="mt-1 text-[10px] text-slate-400">Using initials for now</p>
                     )}
+                    <p className="mt-2 text-[10px] text-slate-400">
+                      Tap the avatar to upload a profile photo. JPG or PNG up to 2MB.
+                    </p>
                   </div>
                 </div>
 
@@ -4276,12 +4316,13 @@ function BuddyListContent() {
                 ) : null}
 
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <label className="inline-flex cursor-pointer items-center rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 shadow-sm hover:bg-slate-50">
-                    Change Icon
+                  <label className={`inline-flex items-center rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 shadow-sm ${isProfileSchemaUnavailable ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-slate-50'}`}>
+                    Upload Profile Photo
                     <input
                       type="file"
                       accept="image/*"
                       className="hidden"
+                      disabled={isProfileSchemaUnavailable}
                       onChange={(event) => handleSelectBuddyIcon(event.target.files)}
                     />
                   </label>
@@ -4295,9 +4336,10 @@ function BuddyListContent() {
                       setPendingBuddyIconFile(null);
                       setRemoveBuddyIconOnSave(true);
                     }}
-                    className="rounded-xl border border-red-200/80 bg-white px-3 py-1.5 text-[11px] font-semibold text-red-500 shadow-sm hover:bg-red-50"
+                    disabled={!buddyIconPath && !buddyIconPreviewUrl}
+                    className="rounded-xl border border-red-200/80 bg-white px-3 py-1.5 text-[11px] font-semibold text-red-500 shadow-sm hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-white"
                   >
-                    Remove Icon
+                    Remove Photo
                   </button>
                 </div>
 
