@@ -4,7 +4,8 @@ import { FormEvent, Suspense, useCallback, useEffect, useMemo, useRef, useState 
 import { useRouter, useSearchParams } from 'next/navigation';
 import ChatWindow, { ChatMessage } from '@/components/ChatWindow';
 import GroupChatWindow from '@/components/GroupChatWindow';
-import { getAccessTokenOrNull, getSessionOrNull } from '@/lib/authClient';
+import { getAccessTokenOrNull, waitForSessionOrNull } from '@/lib/authClient';
+import { navigateAppPath } from '@/lib/appNavigation';
 import {
   getRaw,
   getVersionedData,
@@ -1121,9 +1122,12 @@ function BuddyListContent() {
 
   useEffect(() => {
     const bootstrapUser = async () => {
-      const session = await getSessionOrNull();
+      const session = await waitForSessionOrNull();
       if (!session) {
-        router.push('/');
+        navigateAppPath(router, '/', {
+          replace: true,
+          nativeDocumentNavigation: true,
+        });
         return;
       }
 
@@ -1160,7 +1164,10 @@ function BuddyListContent() {
       if (!userEmail) {
         console.error('Failed to sync profile: authenticated user has no email.');
         await supabase.auth.signOut();
-        router.push('/');
+        navigateAppPath(router, '/', {
+          replace: true,
+          nativeDocumentNavigation: true,
+        });
         return;
       }
 
@@ -1247,7 +1254,10 @@ function BuddyListContent() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (!nextSession) {
-        router.push('/');
+        navigateAppPath(router, '/', {
+          replace: true,
+          nativeDocumentNavigation: true,
+        });
       }
     });
 

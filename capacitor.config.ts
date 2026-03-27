@@ -1,19 +1,22 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
-const isBundledBuild = process.env.CAPACITOR_BUNDLED === '1';
+const isHostedBuild = process.env.CAPACITOR_HOSTED === '1';
+const hostedServerUrl = (process.env.CAPACITOR_SERVER_URL ?? 'https://buddylist-app.vercel.app')
+  .trim()
+  .replace(/\/+$/, '');
 
 const config: CapacitorConfig = {
   appId: 'com.buddylist.app',
   appName: 'BuddyList',
-  webDir: isBundledBuild ? 'native-web' : 'public',
-  ...(isBundledBuild
-    ? {}
-    : {
+  // Default to bundled native assets for release-safe syncs.
+  webDir: isHostedBuild ? 'public' : 'native-web',
+  ...(isHostedBuild
+    ? {
         server: {
-          url: 'https://buddylist-app.vercel.app',
-          cleartext: true,
+          url: hostedServerUrl,
         },
-      }),
+      }
+    : {}),
   plugins: {
     StatusBar: {
       overlaysWebView: false,

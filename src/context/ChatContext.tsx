@@ -10,7 +10,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { getSessionOrNull } from '@/lib/authClient';
+import { waitForSessionOrNull } from '@/lib/authClient';
 import { getRaw, removeValue, setVersionedData, subscribeToStorageKey } from '@/lib/clientStorage';
 import { normalizeRoomKey, normalizeRoomName } from '@/lib/roomName';
 import { initSoundSystem, playUiSound } from '@/lib/sound';
@@ -348,7 +348,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     let isCancelled = false;
 
     const loadSession = async () => {
-      const session = await getSessionOrNull();
+      const session = await waitForSessionOrNull();
       if (isCancelled) {
         return;
       }

@@ -7,7 +7,7 @@ import type { LocalNotificationsPlugin } from '@capacitor/local-notifications';
 import IncomingMessageBanner from '@/components/IncomingMessageBanner';
 import { useChatContext } from '@/context/ChatContext';
 import { navigateAppPath, normalizeAppPath } from '@/lib/appNavigation';
-import { getSessionOrNull } from '@/lib/authClient';
+import { waitForSessionOrNull } from '@/lib/authClient';
 import { normalizeRoomName, sameRoom } from '@/lib/roomName';
 import { htmlToPlainText } from '@/lib/richText';
 import { supabase } from '@/lib/supabase';
@@ -157,7 +157,7 @@ export default function GlobalNotificationListener() {
     let isMounted = true;
 
     const loadSession = async () => {
-      const session = await getSessionOrNull();
+      const session = await waitForSessionOrNull();
       if (!isMounted) {
         return;
       }

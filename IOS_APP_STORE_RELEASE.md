@@ -6,10 +6,10 @@ This repo now has a Capacitor iOS project at `ios/App/App.xcodeproj`.
 
 - Bundle/app id: `com.buddylist.app`
 - App name: `BuddyList`
-- The iOS shell currently loads the production site from `https://buddylist-app.vercel.app`
-  via `server.url` in [capacitor.config.ts](./capacitor.config.ts).
-- There is now a proper bundled build path too: `npm run ios:sync:bundled` creates a static native frontend export in `native-web/`.
+- The iOS shell now defaults to bundled native assets from `native-web/`.
+- Hosted mode still exists, but only as an explicit opt-in debug path via `npm run ios:sync:hosted`.
 - The native export intentionally excludes `src/app/api` and continues to use the hosted backend for recovery/admin requests via `NEXT_PUBLIC_APP_API_ORIGIN`.
+- The committed Xcode project is currently narrowed to iPhone portrait to reduce App Review surface area.
 
 Hosted mode still depends on the live web app. Bundled mode ships the UI locally, but it is not offline-first:
 Supabase auth/data and the recovery/admin backend still require network access.
@@ -26,19 +26,22 @@ Supabase auth/data and the recovery/admin backend still require network access.
 npm run ios:assets
 npm run ios:sync
 npm run ios:sync:bundled
+npm run ios:sync:hosted
+npm run ios:preflight
 npm run ios:open
 ```
 
 `npm run ios:assets` regenerates the branded native app icon and splash art from the repo palette.
-`npm run ios:sync:bundled` builds a local `native-web/` export and syncs iOS without using `server.url`.
+`npm run ios:sync` is the release-safe default: it builds a local `native-web/` export and syncs iOS without using `server.url`.
+`npm run ios:sync:hosted` keeps the old hosted shell available when you intentionally need it.
+`npm run ios:preflight` runs lint, unit tests, web build, asset generation, iOS sync, and then verifies the generated iOS project stayed bundled and iPhone-only.
 
 ## First Xcode pass
 
 1. Open the project:
 
 ```bash
-npm run ios:assets
-npm run ios:sync:bundled
+npm run ios:preflight
 npm run ios:open
 ```
 
@@ -63,8 +66,7 @@ npm run ios:open
 
 ## Important review note
 
-Hosted mode still exists, but the better App Review path is now the bundled mode from `npm run ios:sync:bundled`.
-That keeps the UI local in the app shell while recovery/admin requests still hit the hosted backend.
+Hosted mode still exists, but it is now an explicit debug-only escape hatch. The App Review/TestFlight path should stay on the default bundled `npm run ios:sync` flow so the UI is local in the app shell while recovery/admin requests still hit the hosted backend.
 
 ## Native permissions already wired
 

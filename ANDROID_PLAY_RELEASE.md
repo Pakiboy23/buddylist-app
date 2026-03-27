@@ -69,5 +69,7 @@ Output bundle:
 
 ## Notes
 
+- `npm run android:sync` now syncs the bundled `native-web/` frontend by default.
+- `npm run android:sync:hosted` is available only when you intentionally want the old hosted shell.
 - Release build fails fast if signing config is missing.
 - Keep `android/keystore.properties` and `.jks` out of git.

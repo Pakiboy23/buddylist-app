@@ -68,6 +68,7 @@ cp .env.example .env.local
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+NEXT_PUBLIC_APP_API_ORIGIN=...
 SUPABASE_SERVICE_ROLE_KEY=...
 ```
 
@@ -137,14 +138,21 @@ Capacitor has already been initialized and platform projects are committed:
 - `android/`
 - `capacitor.config.ts`
 
-Current config uses hosted web content mode:
-- `server.url = https://buddylist-app.vercel.app`
+Current config defaults to bundled native web assets:
+- `webDir = native-web`
+- hosted mode is opt-in only via `CAPACITOR_HOSTED=1`
+- optional hosted URL override: `CAPACITOR_SERVER_URL=https://your-domain`
 
 Useful commands:
 
 ```bash
-# sync web/native config + plugin updates
-npx cap sync
+# sync bundled native assets + native projects
+npm run ios:sync
+npm run android:sync
+
+# optional hosted-mode sync for debugging only
+npm run ios:sync:hosted
+npm run android:sync:hosted
 
 # open native projects
 npx cap open ios
@@ -231,6 +239,7 @@ npm run lint
 npm run build
 npm run test:unit
 npm run test:e2e
+npm run ios:preflight
 ```
 
 ## Troubleshooting
@@ -257,7 +266,8 @@ npm run dev
 
 ## Deployment Notes (Vercel)
 
-- Set all three env vars in Vercel project settings.
+- Set the three required env vars in Vercel project settings.
+- Set `NEXT_PUBLIC_APP_API_ORIGIN` too if native builds should target a different backend origin than the default production web domain.
 - Ensure Supabase URL/keys match the intended environment (staging vs prod).
 - If auth callback/session behavior seems stale after env changes, redeploy.
-- If using Capacitor hosted mode, keep `capacitor.config.ts -> server.url` aligned with your production domain.
+- If using Capacitor hosted mode for debugging, keep `CAPACITOR_SERVER_URL` aligned with your intended domain.

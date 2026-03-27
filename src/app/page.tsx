@@ -3,7 +3,8 @@
 import { FormEvent, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
 import RetroWindow from '@/components/RetroWindow';
-import { getSessionOrNull } from '@/lib/authClient';
+import { waitForSessionOrNull } from '@/lib/authClient';
+import { navigateAppPath } from '@/lib/appNavigation';
 import { initSoundSystem, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
 
@@ -68,7 +69,9 @@ export default function Home() {
       if (withSound) {
         await playSignOnSound();
       }
-      router.push('/buddy-list');
+      navigateAppPath(router, '/buddy-list', {
+        nativeDocumentNavigation: true,
+      });
     },
     [playSignOnSound, router],
   );
@@ -81,7 +84,7 @@ export default function Home() {
     let isMounted = true;
 
     const checkSession = async () => {
-      const session = await getSessionOrNull();
+      const session = await waitForSessionOrNull();
 
       if (!isMounted || !session) {
         return;
@@ -417,6 +420,9 @@ export default function Home() {
                   placeholder="e.g. sk8erboi99"
                   disabled={isLoading}
                   autoComplete="username"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                 />
               </div>
 
@@ -475,6 +481,9 @@ export default function Home() {
                       className="min-h-[46px] w-full rounded-lg border border-blue-300 bg-white px-3 py-2 text-[14px] font-semibold shadow-[inset_0_1px_3px_rgba(37,99,235,0.16)] focus:outline-none focus:ring-2 focus:ring-blue-300"
                       placeholder="XXXXXX-XXXXXX-XXXXXX"
                       disabled={isLoading}
+                      autoCapitalize="characters"
+                      autoCorrect="off"
+                      spellCheck={false}
                     />
                   </div>
                   <div>
@@ -521,6 +530,9 @@ export default function Home() {
                       className="min-h-[46px] w-full rounded-lg border border-blue-300 bg-white px-3 py-2 text-[14px] font-semibold shadow-[inset_0_1px_3px_rgba(37,99,235,0.16)] focus:outline-none focus:ring-2 focus:ring-blue-300"
                       placeholder="TKT-XXXX-XXXX-XXXX"
                       disabled={isLoading}
+                      autoCapitalize="characters"
+                      autoCorrect="off"
+                      spellCheck={false}
                     />
                   </div>
                   <div>
