@@ -154,6 +154,8 @@ interface BuddyActivityToast {
   tone: 'online' | 'offline' | 'away' | 'back';
 }
 
+type UserSelectQuery = ReturnType<ReturnType<typeof supabase.from>['select']>;
+
 const PROFILE_SCHEMA_NOTICE = getProfileSchemaMigrationMessage('Buddy icons, bios, and idle sync');
 
 function normalizeUserProfile(profile: Partial<UserProfile> | null | undefined): UserProfile | null {
@@ -450,7 +452,7 @@ function parseLegacyStatusMessage(rawStatus: string | null | undefined): {
   return { status: AVAILABLE_STATUS, awayMessage: '' };
 }
 
-function composeStatusMessage(status: string, awayMessage: string | null | undefined): string {
+function composeStatusMessage(status: string): string {
   const normalizedStatus = normalizeStatusLabel(status);
   return normalizedStatus;
 }
@@ -499,7 +501,7 @@ function resolveStatusFields({
   const resolvedStatusMessage =
     trimmedStatusMessage && !looksLikeLegacyStatusMessage(trimmedStatusMessage, resolvedStatus)
       ? trimmedStatusMessage
-      : composeStatusMessage(resolvedStatus, resolvedAwayMessage);
+      : composeStatusMessage(resolvedStatus);
 
   return {
     status: resolvedStatus,
@@ -1232,7 +1234,7 @@ function BuddyListContent() {
       applyFilters,
     }: {
       includeEmail?: boolean;
-      applyFilters: (query: any) => any;
+      applyFilters: (query: UserSelectQuery) => UserSelectQuery;
     }) => {
       const runQuery = async (fields: string) => {
         const { data, error } = await applyFilters(supabase.from('users').select(fields));
@@ -1264,7 +1266,7 @@ function BuddyListContent() {
       applyFilters,
     }: {
       includeEmail?: boolean;
-      applyFilters: (query: any) => any;
+      applyFilters: (query: UserSelectQuery) => UserSelectQuery;
     }) => {
       const runQuery = async (fields: string) => {
         const { data, error } = await applyFilters(supabase.from('users').select(fields)).maybeSingle();
@@ -2408,7 +2410,7 @@ function BuddyListContent() {
       const normalizedAwayMessage = (message ?? '').trim();
       const nextAwayMessage = normalizedStatus === AWAY_STATUS ? normalizedAwayMessage : '';
       const trimmedStatusLine = (options?.statusLine ?? statusMsgRef.current).trim();
-      const nextStatusMessage = trimmedStatusLine || composeStatusMessage(normalizedStatus, nextAwayMessage);
+      const nextStatusMessage = trimmedStatusLine || composeStatusMessage(normalizedStatus);
       const nextBio = (options?.bio ?? profileBioRef.current).trim();
       const nextBuddyIconPath = options?.buddyIconPath ?? buddyIconPathRef.current;
       const nowIso = new Date().toISOString();
@@ -2508,7 +2510,7 @@ function BuddyListContent() {
         return;
       }
 
-      let { error } = await supabase
+      const { error } = await supabase
         .from('users')
         .update({
           idle_since: nextIdleSince,
@@ -4152,7 +4154,6 @@ function BuddyListContent() {
                 )}
 
                 <div className="rounded-xl border border-slate-200 bg-white/75 px-2.5 py-2 text-[11px] text-slate-700">
-                <div className="border border-[#c8d6ea] bg-[#f4f8fe] px-2 py-1.5 text-[11px] text-slate-700">
                   <div className="flex items-center justify-between gap-2">
                     <p className="font-bold">Recent Recovery Activity</p>
                     <button
