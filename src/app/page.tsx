@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useRef, useState, useSyncExternalSto
 import { useRouter } from 'next/navigation';
 import RetroWindow from '@/components/RetroWindow';
 import { waitForSessionOrNull } from '@/lib/authClient';
+import { getAppApiUrl } from '@/lib/appApi';
 import { navigateAppPath } from '@/lib/appNavigation';
 import { initSoundSystem, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
@@ -242,17 +243,25 @@ export default function Home() {
     setIsLoading(true);
     setStatusMsg('Verifying recovery code...');
 
-    const response = await fetch('/api/auth/recovery/reset', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        screenname: trimmedScreenname,
-        recoveryCode,
-        newPassword,
-      }),
-    });
+    let response: Response;
+    try {
+      response = await fetch(getAppApiUrl('/api/auth/recovery/reset'), {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          screenname: trimmedScreenname,
+          recoveryCode,
+          newPassword,
+        }),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Load failed';
+      setStatusMsg(`Reset failed: ${message}`);
+      setIsLoading(false);
+      return;
+    }
 
     if (!response.ok) {
       const errorMessage = await readApiError(response);
@@ -286,17 +295,25 @@ export default function Home() {
     setIsLoading(true);
     setStatusMsg('Redeeming reset ticket...');
 
-    const response = await fetch('/api/auth/recovery/redeem-ticket', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        screenname: trimmedScreenname,
-        ticket: resetTicket,
-        newPassword,
-      }),
-    });
+    let response: Response;
+    try {
+      response = await fetch(getAppApiUrl('/api/auth/recovery/redeem-ticket'), {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          screenname: trimmedScreenname,
+          ticket: resetTicket,
+          newPassword,
+        }),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Load failed';
+      setStatusMsg(`Ticket failed: ${message}`);
+      setIsLoading(false);
+      return;
+    }
 
     if (!response.ok) {
       const errorMessage = await readApiError(response);

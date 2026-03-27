@@ -2,11 +2,13 @@
 
 import { FormEvent, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import BuddyListTabIcon from '@/components/BuddyListTabIcon';
 import ChatWindow, { ChatMessage } from '@/components/ChatWindow';
 import GroupChatWindow from '@/components/GroupChatWindow';
 import BuddyProfileSheet from '@/components/BuddyProfileSheet';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import { getAccessTokenOrNull, waitForSessionOrNull } from '@/lib/authClient';
+import { getAppApiUrl } from '@/lib/appApi';
 import { navigateAppPath } from '@/lib/appNavigation';
 import { deleteBuddyIconFile, uploadBuddyIconFile, validateBuddyIconFile } from '@/lib/buddyIcon';
 import {
@@ -1487,20 +1489,24 @@ function BuddyListContent() {
 
       let adminFlag = false;
       if (session.access_token) {
-        const adminResponse = await fetch('/api/admin/me', {
-          method: 'GET',
-          cache: 'no-store',
-          headers: {
-            authorization: `Bearer ${session.access_token}`,
-          },
-        });
+        try {
+          const adminResponse = await fetch(getAppApiUrl('/api/admin/me'), {
+            method: 'GET',
+            cache: 'no-store',
+            headers: {
+              authorization: `Bearer ${session.access_token}`,
+            },
+          });
 
-        if (adminResponse.ok) {
-          const adminPayload = (await adminResponse.json()) as AdminMeResponse;
-          adminFlag = Boolean(adminPayload.isAdmin);
-        } else {
-          const adminError = await readApiError(adminResponse);
-          console.error(`Admin check via /api/admin/me failed (${adminResponse.status}):`, adminError);
+          if (adminResponse.ok) {
+            const adminPayload = (await adminResponse.json()) as AdminMeResponse;
+            adminFlag = Boolean(adminPayload.isAdmin);
+          } else {
+            const adminError = await readApiError(adminResponse);
+            console.error(`Admin check via /api/admin/me failed (${adminResponse.status}):`, adminError);
+          }
+        } catch (error) {
+          console.error('Admin check via app API failed:', error);
         }
       } else {
         console.warn('Admin check skipped because the access token was missing.');
@@ -2812,14 +2818,22 @@ function BuddyListContent() {
       return;
     }
 
-    const response = await fetch('/api/auth/recovery/setup', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({ recoveryCode: trimmed }),
-    });
+    let response: Response;
+    try {
+      response = await fetch(getAppApiUrl('/api/auth/recovery/setup'), {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ recoveryCode: trimmed }),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Load failed';
+      setRecoverySetupError(message);
+      setIsSavingRecoveryCode(false);
+      return;
+    }
 
     if (!response.ok) {
       const errorMessage = await readApiError(response);
@@ -2845,12 +2859,20 @@ function BuddyListContent() {
       return;
     }
 
-    const response = await fetch('/api/admin/password-reset-audit?limit=12', {
-      headers: {
-        authorization: `Bearer ${accessToken}`,
-      },
-      cache: 'no-store',
-    });
+    let response: Response;
+    try {
+      response = await fetch(getAppApiUrl('/api/admin/password-reset-audit?limit=12'), {
+        headers: {
+          authorization: `Bearer ${accessToken}`,
+        },
+        cache: 'no-store',
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Load failed';
+      setAdminAuditError(message);
+      setIsLoadingAdminAudit(false);
+      return;
+    }
 
     if (!response.ok) {
       const errorMessage = await readApiError(response);
@@ -2898,14 +2920,22 @@ function BuddyListContent() {
       return;
     }
 
-    const response = await fetch('/api/admin/password-reset-ticket', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({ screenname: target }),
-    });
+    let response: Response;
+    try {
+      response = await fetch(getAppApiUrl('/api/admin/password-reset-ticket'), {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ screenname: target }),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Load failed';
+      setAdminResetError(message);
+      setIsIssuingAdminReset(false);
+      return;
+    }
 
     if (!response.ok) {
       const errorMessage = await readApiError(response);
@@ -3241,7 +3271,24 @@ function BuddyListContent() {
 
     if (existingRoom) {
       resolvedRoom = existingRoom as ChatRoom;
-    } else if (allowCreate) {
+    } else {
+      const { data: caseInsensitiveRoom, error: caseInsensitiveRoomError } = await supabase
+        .from('chat_rooms')
+        .select('id,name')
+        .ilike('name', roomName)
+        .limit(1)
+        .maybeSingle();
+
+      if (caseInsensitiveRoomError && caseInsensitiveRoomError.code !== 'PGRST116') {
+        throw new Error(caseInsensitiveRoomError.message);
+      }
+
+      if (caseInsensitiveRoom) {
+        resolvedRoom = caseInsensitiveRoom as ChatRoom;
+      }
+    }
+
+    if (!resolvedRoom && allowCreate) {
       const { data: createdRoom, error: createRoomError } = await supabase
         .from('chat_rooms')
         .insert({ name: roomName })
@@ -3295,7 +3342,7 @@ function BuddyListContent() {
       setIsJoiningRoom(true);
 
       try {
-        const resolvedRoom = await resolveRoomByName(roomName, false);
+        const resolvedRoom = await resolveRoomByName(roomName, true);
         if (!resolvedRoom) {
           await leaveRoom(roomName);
           setRoomJoinError('That room no longer exists.');
@@ -3970,6 +4017,9 @@ function BuddyListContent() {
                     })
                   )
                 ) : null}
+                {roomJoinError ? (
+                  <p className="px-3 pb-2 text-[11px] font-semibold text-red-600">{roomJoinError}</p>
+                ) : null}
               </div>
             </div>
           </div>
@@ -3985,7 +4035,7 @@ function BuddyListContent() {
                 onClick={handleOpenImFromActionBar}
                 className="flex flex-col items-center justify-center gap-0.5 py-2 transition active:scale-90"
               >
-                <span className="text-[20px] leading-none">✉</span>
+                <BuddyListTabIcon kind="im" className="h-5 w-5 text-current" />
                 <span className="text-[10px] font-semibold text-blue-500">IM</span>
               </button>
               <button
@@ -3993,7 +4043,7 @@ function BuddyListContent() {
                 onClick={openRoomsWindow}
                 className="flex flex-col items-center justify-center gap-0.5 py-2 transition active:scale-90"
               >
-                <span className="text-[20px] leading-none">💬</span>
+                <BuddyListTabIcon kind="chat" className="h-5 w-5 text-current" />
                 <span className="text-[10px] font-semibold text-slate-500">Chat</span>
               </button>
               <button
@@ -4001,7 +4051,7 @@ function BuddyListContent() {
                 onClick={openAddWindow}
                 className="flex flex-col items-center justify-center gap-0.5 py-2 transition active:scale-90"
               >
-                <span className="text-[20px] leading-none">👤</span>
+                <BuddyListTabIcon kind="buddy" className="h-5 w-5 text-current" />
                 <span className="text-[10px] font-semibold text-slate-500">Buddy</span>
               </button>
               <button
@@ -4009,7 +4059,7 @@ function BuddyListContent() {
                 onClick={handleSetupAction}
                 className="flex flex-col items-center justify-center gap-0.5 py-2 transition active:scale-90"
               >
-                <span className="text-[20px] leading-none">⚙</span>
+                <BuddyListTabIcon kind="profile" className="h-5 w-5 text-current" />
                 <span className="text-[10px] font-semibold text-slate-500">Profile</span>
               </button>
             </div>

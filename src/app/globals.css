@@ -32,6 +32,13 @@ body {
   -webkit-touch-callout: none;
 }
 
+.bottom-sheet {
+  max-height: calc(100dvh - env(safe-area-inset-top) - 0.75rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
 .ui-rich-html,
 .aim-rich-html {
   word-break: break-word;
