@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import ProfileAvatar from '@/components/ProfileAvatar';
 import RetroWindow from '@/components/RetroWindow';
 import RichTextToolbar from '@/components/RichTextToolbar';
 import {
@@ -16,6 +17,7 @@ import {
   RichTextFormat,
   sanitizeRichTextHtml,
 } from '@/lib/richText';
+import type { ResolvedPresenceState } from '@/lib/presence';
 import { supabase } from '@/lib/supabase';
 
 export interface ChatMessage {
@@ -33,6 +35,11 @@ export interface ChatMessage {
 interface ChatWindowProps {
   buddyScreenname: string;
   buddyStatusMessage: string | null;
+  buddyPresenceState: ResolvedPresenceState;
+  buddyPresenceDetail: string;
+  buddyStatusLine?: string | null;
+  buddyBio?: string | null;
+  buddyIconPath?: string | null;
   currentUserId: string;
   messages: ChatMessage[];
   initialUnreadCount?: number;
@@ -43,6 +50,7 @@ interface ChatWindowProps {
   onDraftChange?: (draft: string) => void;
   onClose: () => void;
   onSignOff?: () => void;
+  onOpenProfile?: () => void;
   isSending?: boolean;
   isLoading?: boolean;
 }
@@ -60,6 +68,11 @@ interface MessageAttachmentRow extends ChatMediaAttachmentRecord {
 export default function ChatWindow({
   buddyScreenname,
   buddyStatusMessage,
+  buddyPresenceState,
+  buddyPresenceDetail,
+  buddyStatusLine = null,
+  buddyBio = null,
+  buddyIconPath = null,
   currentUserId,
   messages,
   initialUnreadCount = 0,
@@ -70,6 +83,7 @@ export default function ChatWindow({
   onDraftChange,
   onClose,
   onSignOff,
+  onOpenProfile,
   isSending = false,
   isLoading = false,
 }: ChatWindowProps) {
@@ -479,79 +493,121 @@ export default function ChatWindow({
   };
 
   const xpTinyToolbarButtonClass = (active = false) =>
-    `inline-flex h-7 min-w-7 items-center justify-center rounded-lg border px-1.5 text-[11px] font-semibold text-slate-700 transition ui-focus-ring ${
+    `inline-flex h-7 min-w-7 items-center justify-center rounded-lg border px-1.5 text-[11px] font-semibold text-slate-700 transition ${
       active
         ? 'border-blue-400/70 bg-blue-50 text-blue-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]'
-        : 'border-slate-200 bg-white hover:bg-slate-50'
+        : 'border-slate-200 bg-white/80 hover:bg-white'
     }`;
+  const presenceToneClass =
+    buddyPresenceState === 'away'
+      ? 'text-amber-500'
+      : buddyPresenceState === 'idle'
+        ? 'text-sky-500'
+        : buddyPresenceState === 'offline'
+          ? 'text-slate-400'
+          : 'text-emerald-500';
 
   return (
-    <div className="fixed inset-0 z-40">
+    <div className="fixed inset-0 z-40 chat-slide-in">
       <RetroWindow
         title={`IM with ${buddyScreenname}`}
         variant="xp_shell"
-        xpTitleText={`Instant Message - ${buddyScreenname}`}
+        xpTitleText={`Instant Message — ${buddyScreenname}`}
         onXpClose={onClose}
         onXpSignOff={onSignOff}
       >
-        <div className="flex h-full min-h-0 flex-col rounded-[1.4rem] border border-white/60 bg-white/65 text-[11px] backdrop-blur-xl">
-          <div className="m-2 mb-0 rounded-xl border border-white/70 bg-white/80 px-3 py-2 text-[11px] text-slate-700">
-            <span className="font-bold">Conversation with {buddyScreenname}:</span>{' '}
-            <span
-              className="aim-rich-html"
-              dangerouslySetInnerHTML={{
-                __html: sanitizeRichTextHtml(buddyStatusMessage || 'No away message.'),
-              }}
-            />
-          </div>
+        <div className="flex h-full min-h-0 flex-col rounded-[1.4rem] border border-white/55 bg-white/72 text-[13px] backdrop-blur-xl shadow-[0_20px_44px_rgba(15,23,42,0.12)]">
 
-          <div className="mx-2 mt-2 rounded-xl border border-white/60 bg-white/70 backdrop-blur-sm px-2 py-1 text-[11px] text-slate-700">
+          <button
+            type="button"
+            onClick={onOpenProfile}
+            className="mx-3 mt-2.5 rounded-2xl border border-white/70 bg-white/88 px-3 py-2.5 text-left text-[11px] text-slate-600 shadow-sm transition hover:bg-white disabled:cursor-default disabled:hover:bg-white/88"
+            disabled={!onOpenProfile}
+          >
+            <div className="flex items-center gap-3">
+              <ProfileAvatar
+                screenname={buddyScreenname}
+                buddyIconPath={buddyIconPath}
+                presenceState={buddyPresenceState}
+                size="md"
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate text-[13px] font-semibold text-slate-800">{buddyScreenname}</span>
+                  <span className={`text-[11px] font-semibold ${presenceToneClass}`}>{buddyPresenceDetail}</span>
+                </div>
+                {buddyStatusLine ? (
+                  <p className="mt-0.5 truncate text-[11px] text-slate-500">{buddyStatusLine}</p>
+                ) : null}
+                {buddyStatusMessage ? (
+                  <p
+                    className="aim-rich-html mt-0.5 truncate italic text-[11px] text-slate-400"
+                    dangerouslySetInnerHTML={{
+                      __html: sanitizeRichTextHtml(buddyStatusMessage),
+                    }}
+                  />
+                ) : null}
+                {buddyBio ? <p className="mt-1 truncate text-[11px] text-slate-400">{buddyBio}</p> : null}
+              </div>
+            </div>
+          </button>
+
+          {/* Search bar */}
+          <div className="mx-3 mt-1.5 rounded-2xl border border-white/65 bg-white/72 px-3 py-1.5 shadow-sm">
             <div className="flex items-center gap-2">
-              <label htmlFor="dm-search-input" className="shrink-0 font-bold">
-                Search:
-              </label>
+              <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
               <input
                 id="dm-search-input"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Find in this conversation"
-                className="h-6 min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-1.5 text-[11px] ui-focus-ring"
+                placeholder="Search conversation"
+                className="h-6 min-w-0 flex-1 bg-transparent text-[11px] text-slate-700 placeholder-slate-400 focus:outline-none"
               />
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                disabled={!searchQuery}
-                className="h-6 shrink-0 rounded-lg border border-slate-200 bg-white px-2 text-[10px] font-bold text-slate-700 disabled:opacity-50"
-              >
-                Clear
-              </button>
+              {searchQuery ? (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="shrink-0 text-[10px] font-semibold text-slate-400 hover:text-slate-600"
+                >
+                  ✕
+                </button>
+              ) : null}
             </div>
             {normalizedSearchQuery ? (
-              <p className="mt-1 text-[10px] text-slate-500">
+              <p className="mt-0.5 text-[10px] text-slate-400">
                 {searchMatchCount} {searchMatchCount === 1 ? 'match' : 'matches'}
               </p>
             ) : null}
           </div>
 
-          <div className="m-2 mb-0 min-h-0 flex-1 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2">
-            {isLoading && <p className="italic text-slate-500">Loading conversation...</p>}
+          {/* Messages area */}
+          <div className="mx-3 mt-1.5 min-h-0 flex-1 overflow-y-auto rounded-2xl border border-white/55 bg-white/55 px-3 py-3 backdrop-blur-sm">
+            {isLoading && (
+              <div className="flex flex-col gap-3 pt-2">
+                {[72, 48, 88, 56].map((w, i) => (
+                  <div key={i} className={`flex ${i % 2 === 0 ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`h-8 animate-pulse rounded-2xl bg-white/60`} style={{ width: `${w}px` }} />
+                  </div>
+                ))}
+              </div>
+            )}
             {!isLoading && messages.length === 0 && (
-              <p className="italic text-slate-500">No messages yet. Say hey.</p>
+              <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+                <span className="text-3xl">👋</span>
+                <p className="text-[12px] text-slate-400">No messages yet. Say hey.</p>
+              </div>
             )}
             {!isLoading && (
-              <div className="space-y-1">
+              <div className="flex flex-col gap-0.5">
                 {messages.map((message, index) => {
                   const isMine = message.sender_id === currentUserId;
                   const isDeleted = Boolean(message.deleted_at);
                   const isEditing = editingMessageId === message.id;
                   const isMatch = normalizedSearchQuery ? Boolean(messageMatches.get(message.id)) : false;
                   const timestampDate = new Date(message.created_at);
-                  const timestamp = timestampDate.toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  });
                   const fullTimestamp = timestampDate.toLocaleString();
-                  const senderClassName = isMine ? 'text-blue-600' : 'text-emerald-600';
                   const reactionSummary = reactionSummaryByMessageId.get(message.id);
                   const reactionEntries = reactionSummary
                     ? Object.entries(reactionSummary)
@@ -561,114 +617,149 @@ export default function ChatWindow({
                   const messageAttachments = attachmentsByMessageId.get(message.id) ?? [];
                   const isEdited = Boolean(message.edited_at && !message.deleted_at);
 
+                  // Group logic: show timestamp if first, >5 min gap, or new-message separator
+                  const prevMessage = index > 0 ? messages[index - 1] : null;
+                  const prevTime = prevMessage ? new Date(prevMessage.created_at).getTime() : 0;
+                  const currTime = timestampDate.getTime();
+                  const showTimeDivider = !prevMessage || currTime - prevTime > 5 * 60 * 1000;
+                  const timestamp = timestampDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                  // Tail rounding: last in a run from same sender gets the pointed corner
+                  const nextMessage = index < messages.length - 1 ? messages[index + 1] : null;
+                  const isLastInRun = !nextMessage || nextMessage.sender_id !== message.sender_id;
+
                   return (
-                    <div
-                      key={message.id}
-                      className={
-                        normalizedSearchQuery
-                          ? isMatch
-                            ? 'rounded bg-amber-50 px-1'
-                            : 'px-1 opacity-50'
-                          : undefined
-                      }
-                    >
+                    <div key={message.id} className="flex flex-col">
                       {separatorIndex === index ? (
-                        <p className="aim-new-messages-separator">New messages</p>
+                        <p className="aim-new-messages-separator my-2">New messages</p>
+                      ) : showTimeDivider ? (
+                        <p className="my-2 text-center text-[10px] text-slate-400" title={fullTimestamp}>
+                          {timestamp}
+                        </p>
                       ) : null}
-                      <div className="flex flex-wrap items-baseline gap-x-1 leading-4">
-                        <span className="text-[11px] text-gray-500" title={fullTimestamp}>
-                          [{timestamp}]
-                        </span>
-                        <span className={`font-bold ${senderClassName}`}>
-                          {isMine ? 'You' : buddyScreenname}:
-                        </span>
-                        {isEditing ? (
-                          <span className="flex min-w-0 flex-1 items-center gap-1">
-                            <input
-                              value={editDraft}
-                              onChange={(event) => setEditDraft(event.target.value)}
-                              className="h-6 min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-1 text-[11px] ui-focus-ring"
-                              maxLength={1000}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => void saveEditedMessage(message.id)}
-                              disabled={isSavingEdit || !editDraft.trim()}
-                              className="rounded-lg border border-slate-200 bg-white px-1 py-0.5 text-[10px] font-bold text-slate-700 disabled:opacity-60"
-                            >
-                              Save
-                            </button>
-                            <button
-                              type="button"
-                              onClick={cancelEditingMessage}
-                              className="rounded-lg border border-slate-200 bg-white px-1 py-0.5 text-[10px] font-bold text-slate-700"
-                            >
-                              Cancel
-                            </button>
-                          </span>
-                        ) : isDeleted ? (
-                          <span className="italic text-gray-500">This message was deleted.</span>
-                        ) : (
-                          <span
-                            className="aim-rich-html text-slate-800"
-                            dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(message.content) }}
-                          />
-                        )}
-                        {isEdited ? <span className="text-[10px] italic text-gray-500">(edited)</span> : null}
-                        {isMine && !isDeleted && !isEditing ? (
-                          <span className="ml-1 inline-flex gap-1 text-[10px]">
-                            <button
-                              type="button"
-                              onClick={() => startEditingMessage(message)}
-                              className="text-[#1f4f9e] underline"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void softDeleteMessage(message.id)}
-                              disabled={isDeletingMessageId === message.id}
-                              className="text-red-700 underline disabled:opacity-60"
-                            >
-                              {isDeletingMessageId === message.id ? '...' : 'Delete'}
-                            </button>
-                          </span>
-                        ) : null}
-                      </div>
-                      {!isDeleted && messageAttachments.length > 0 ? (
-                        <div className="mt-1 space-y-0.5 pl-12">
-                          {messageAttachments.map((attachment) => {
-                            const { data } = supabase.storage
-                              .from(attachment.bucket)
-                              .getPublicUrl(attachment.storage_path);
-                            return (
-                              <a
-                                key={attachment.id}
-                                href={data.publicUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="block text-[10px] text-blue-600 underline"
-                                title={attachment.storage_path}
+
+                      <div className={`flex ${isMine ? 'justify-end' : 'justify-start'} ${
+                        normalizedSearchQuery && !isMatch ? 'opacity-35' : ''
+                      }`}>
+                        <div className="group relative max-w-[78%]">
+                          {/* Bubble */}
+                          <div
+                            className={`relative msg-enter px-3 py-2 text-[13px] leading-snug ${
+                              isLastInRun ? 'mb-2' : 'mb-0.5'
+                            } ${
+                              isMine
+                                ? `rounded-2xl bg-blue-500 text-white shadow-[0_2px_8px_rgba(37,99,235,0.28)] ${isLastInRun ? 'rounded-br-[6px]' : ''}`
+                                : `rounded-2xl border border-white/70 bg-white/85 text-slate-800 shadow-sm backdrop-blur-sm ${isLastInRun ? 'rounded-bl-[6px]' : ''}`
+                            } ${isMatch ? 'ring-2 ring-amber-400' : ''}`}
+                          >
+                            {isEditing ? (
+                              <div className="flex min-w-[200px] flex-col gap-2">
+                                <input
+                                  value={editDraft}
+                                  onChange={(event) => setEditDraft(event.target.value)}
+                                  className={`w-full rounded-xl border bg-white/20 px-2.5 py-1.5 text-[12px] focus:outline-none focus:ring-1 ${
+                                    isMine
+                                      ? 'border-white/30 text-white placeholder-white/50 focus:ring-white/30'
+                                      : 'border-slate-200 text-slate-800 focus:ring-blue-200'
+                                  }`}
+                                  maxLength={1000}
+                                  autoFocus
+                                />
+                                <div className="flex justify-end gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={cancelEditingMessage}
+                                    className={`rounded-xl px-2.5 py-1 text-[11px] font-semibold ${
+                                      isMine ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                    }`}
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => void saveEditedMessage(message.id)}
+                                    disabled={isSavingEdit || !editDraft.trim()}
+                                    className={`rounded-xl px-2.5 py-1 text-[11px] font-semibold disabled:opacity-60 ${
+                                      isMine ? 'bg-white/30 text-white hover:bg-white/40' : 'bg-blue-500 text-white hover:bg-blue-600'
+                                    }`}
+                                  >
+                                    Save
+                                  </button>
+                                </div>
+                              </div>
+                            ) : isDeleted ? (
+                              <span className="italic opacity-50">Message deleted</span>
+                            ) : (
+                              <span
+                                className="aim-rich-html"
+                                dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(message.content) }}
+                              />
+                            )}
+                            {isEdited && !isEditing ? (
+                              <span className={`ml-1.5 text-[9px] ${isMine ? 'text-blue-200' : 'text-slate-400'}`}>(edited)</span>
+                            ) : null}
+                          </div>
+
+                          {/* Hover action bar — only for own non-deleted messages */}
+                          {isMine && !isDeleted && !isEditing ? (
+                            <div className="absolute -top-8 right-0 hidden items-center gap-0.5 rounded-full border border-white/70 bg-white/90 px-2 py-1 shadow-lg backdrop-blur-md group-hover:flex">
+                              <button
+                                type="button"
+                                onClick={() => startEditingMessage(message)}
+                                className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-slate-600 hover:bg-slate-100"
                               >
-                                📎 {attachment.file_name}
-                                {attachment.size_bytes ? ` (${formatFileSize(attachment.size_bytes)})` : ''}
-                              </a>
-                            );
-                          })}
+                                Edit
+                              </button>
+                              <span className="text-slate-300">·</span>
+                              <button
+                                type="button"
+                                onClick={() => void softDeleteMessage(message.id)}
+                                disabled={isDeletingMessageId === message.id}
+                                className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-red-500 hover:bg-red-50 disabled:opacity-60"
+                              >
+                                {isDeletingMessageId === message.id ? '…' : 'Delete'}
+                              </button>
+                            </div>
+                          ) : null}
+
+                          {/* Reactions */}
+                          {!isDeleted && reactionEntries.length > 0 ? (
+                            <div className={`-mt-1 mb-1 flex flex-wrap gap-0.5 ${isMine ? 'justify-end' : 'justify-start'}`}>
+                              {reactionEntries.map(([emoji, count]) => (
+                                <span
+                                  key={`${message.id}-${emoji}`}
+                                  className="rounded-full border border-white/70 bg-white/85 px-1.5 py-[2px] text-[10px] text-slate-600 shadow-sm backdrop-blur-sm"
+                                >
+                                  {emoji} {count}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
+
+                          {/* Attachments */}
+                          {!isDeleted && messageAttachments.length > 0 ? (
+                            <div className={`-mt-1 mb-1 space-y-0.5 ${isMine ? 'text-right' : ''}`}>
+                              {messageAttachments.map((attachment) => {
+                                const { data } = supabase.storage
+                                  .from(attachment.bucket)
+                                  .getPublicUrl(attachment.storage_path);
+                                return (
+                                  <a
+                                    key={attachment.id}
+                                    href={data.publicUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className={`block text-[10px] underline ${isMine ? 'text-blue-200' : 'text-blue-600'}`}
+                                    title={attachment.storage_path}
+                                  >
+                                    📎 {attachment.file_name}
+                                    {attachment.size_bytes ? ` (${formatFileSize(attachment.size_bytes)})` : ''}
+                                  </a>
+                                );
+                              })}
+                            </div>
+                          ) : null}
                         </div>
-                      ) : null}
-                      {!isDeleted && reactionEntries.length > 0 ? (
-                        <div className="mt-0.5 flex flex-wrap items-center gap-1 pl-12">
-                          {reactionEntries.map(([emoji, count]) => (
-                            <span
-                              key={`${message.id}-${emoji}`}
-                              className="rounded rounded-lg border border-slate-200 bg-white/70 px-1 py-[1px] text-[10px] text-slate-600"
-                            >
-                              {emoji} {count}
-                            </span>
-                          ))}
-                        </div>
-                      ) : null}
+                      </div>
                     </div>
                   );
                 })}
@@ -676,124 +767,139 @@ export default function ChatWindow({
               </div>
             )}
           </div>
-          {reactionError ? <p className="mx-2 mt-1 text-[10px] text-red-700">{reactionError}</p> : null}
-          {attachmentLoadError ? <p className="mx-2 mt-1 text-[10px] text-red-700">{attachmentLoadError}</p> : null}
 
-          <div className="mx-2 mb-2 flex items-center gap-1 rounded-xl border border-slate-200 bg-white/80 px-1 py-1">
-            <button
-              type="button"
-              onClick={() => setShowFormatting((previous) => !previous)}
-              className={xpTinyToolbarButtonClass(showFormatting)}
-              aria-label="Toggle formatting"
-              title="Toggle formatting"
-            >
-              A
-            </button>
-            <button type="button" onClick={toggleBold} className={xpTinyToolbarButtonClass(format.bold)} aria-label="Bold">
-              B
-            </button>
-            <button type="button" onClick={toggleItalic} className={xpTinyToolbarButtonClass(format.italic)} aria-label="Italic">
-              I
-            </button>
-            <button
-              type="button"
-              onClick={toggleUnderline}
-              className={xpTinyToolbarButtonClass(format.underline)}
-              aria-label="Underline"
-            >
-              <span className="underline">U</span>
-            </button>
-            <button
-              type="button"
-              disabled
-              className={`${xpTinyToolbarButtonClass()} opacity-70`}
-              aria-label="Link"
-              title="Link"
-            >
-              🔗
-            </button>
-            <button
-              type="button"
-              className={xpTinyToolbarButtonClass()}
-              aria-label="Emoji picker coming soon"
-              title="Emoji picker coming soon"
-            >
-              ☺
-            </button>
-            <button
-              type="button"
-              onClick={() => attachmentInputRef.current?.click()}
-              className={xpTinyToolbarButtonClass(pendingAttachments.length > 0)}
-              aria-label="Attach files"
-              title="Attach files"
-            >
-              📎
-            </button>
-            <input
-              ref={attachmentInputRef}
-              type="file"
-              multiple
-              onChange={(event) => handleSelectAttachments(event.target.files)}
-              className="hidden"
-            />
-          </div>
+          {reactionError ? <p className="mx-3 mt-1 text-[10px] text-red-600">{reactionError}</p> : null}
+          {attachmentLoadError ? <p className="mx-3 mt-1 text-[10px] text-red-600">{attachmentLoadError}</p> : null}
 
-          {showFormatting ? (
-            <div className="mx-2 mb-2 rounded-xl border border-slate-200 bg-white/80 p-1">
-              <RichTextToolbar value={format} onChange={setFormat} />
-            </div>
-          ) : null}
-
+          {/* Typing indicator */}
           {typingText ? (
-            <p className="mx-2 mb-1 text-[11px] italic text-blue-600">{typingText}</p>
-          ) : null}
-
-          {pendingAttachments.length > 0 ? (
-            <div className="mx-2 mb-2 space-y-1 rounded-xl border border-slate-200 bg-white/70 p-1">
-              {pendingAttachments.map((file, index) => (
-                <div key={`${file.name}-${file.size}-${file.lastModified}`} className="flex items-center gap-2">
-                  <span className="min-w-0 flex-1 truncate text-[10px] text-slate-700">
-                    📎 {file.name} ({formatFileSize(file.size)})
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => removePendingAttachment(index)}
-                    className="rounded-lg border border-slate-200 bg-white px-1 text-[10px] font-bold text-red-700"
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
+            <div className="mx-3 mt-1.5 flex items-center gap-2">
+              <div className="flex items-center gap-1 rounded-full border border-white/65 bg-white/80 px-3 py-1.5 shadow-sm backdrop-blur-sm">
+                <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-400" />
+                <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-400" />
+                <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-400" />
+              </div>
+              <span className="text-[10px] text-slate-400">{typingText}</span>
             </div>
           ) : null}
-          {attachmentError ? <p className="mx-2 mb-1 text-[10px] text-red-700">{attachmentError}</p> : null}
 
-          <div className="m-2 mt-0 flex items-stretch gap-2">
+          {/* Input area */}
+          <div className="mx-3 mb-3 mt-2 space-y-1.5">
+            {/* Formatting toolbar */}
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setShowFormatting((previous) => !previous)}
+                className={xpTinyToolbarButtonClass(showFormatting)}
+                aria-label="Toggle formatting"
+                title="Formatting"
+              >
+                A
+              </button>
+              <button type="button" onClick={toggleBold} className={xpTinyToolbarButtonClass(format.bold)} aria-label="Bold">
+                <span className="font-bold">B</span>
+              </button>
+              <button type="button" onClick={toggleItalic} className={xpTinyToolbarButtonClass(format.italic)} aria-label="Italic">
+                <span className="italic">I</span>
+              </button>
+              <button
+                type="button"
+                onClick={toggleUnderline}
+                className={xpTinyToolbarButtonClass(format.underline)}
+                aria-label="Underline"
+              >
+                <span className="underline">U</span>
+              </button>
+              <button
+                type="button"
+                disabled
+                className={`${xpTinyToolbarButtonClass()} opacity-50`}
+                aria-label="Link"
+                title="Link"
+              >
+                🔗
+              </button>
+              <button
+                type="button"
+                className={xpTinyToolbarButtonClass()}
+                aria-label="Emoji"
+                title="Emoji coming soon"
+              >
+                ☺
+              </button>
+              <button
+                type="button"
+                onClick={() => attachmentInputRef.current?.click()}
+                className={xpTinyToolbarButtonClass(pendingAttachments.length > 0)}
+                aria-label="Attach files"
+                title="Attach files"
+              >
+                📎
+              </button>
+              <input
+                ref={attachmentInputRef}
+                type="file"
+                multiple
+                onChange={(event) => handleSelectAttachments(event.target.files)}
+                className="hidden"
+              />
+            </div>
+
+            {showFormatting ? (
+              <div className="rounded-2xl border border-white/65 bg-white/80 p-2 shadow-sm">
+                <RichTextToolbar value={format} onChange={setFormat} />
+              </div>
+            ) : null}
+
+            {/* Pending attachments */}
+            {pendingAttachments.length > 0 ? (
+              <div className="space-y-1 rounded-2xl border border-white/65 bg-white/72 p-2">
+                {pendingAttachments.map((file, index) => (
+                  <div key={`${file.name}-${file.size}-${file.lastModified}`} className="flex items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-[10px] text-slate-600">
+                      📎 {file.name} ({formatFileSize(file.size)})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removePendingAttachment(index)}
+                      className="shrink-0 rounded-lg border border-red-200/80 bg-white px-1.5 text-[10px] font-semibold text-red-500 hover:bg-red-50"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {attachmentError ? <p className="text-[10px] text-red-600">{attachmentError}</p> : null}
+
+            {/* Pill compose input */}
             <form
               onSubmit={handleSubmit}
-              className="flex h-16 flex-1 items-stretch gap-2 rounded-xl border border-slate-200 bg-white p-1"
+              className="flex items-end gap-2 rounded-2xl border border-white/65 bg-white/88 px-3.5 py-2.5 shadow-[0_4px_16px_rgba(15,23,42,0.08)] backdrop-blur-sm"
             >
               <textarea
                 value={draft}
                 onChange={(event) => handleDraftChange(event.target.value)}
                 onKeyDown={handleDraftKeyDown}
-                placeholder="Type your message..."
-                className="h-full min-h-0 flex-1 resize-none bg-white px-2 py-1 text-[11px] ui-focus-ring"
+                placeholder="Message…"
+                rows={1}
                 maxLength={1000}
-                rows={2}
+                className="min-h-[24px] flex-1 resize-none bg-transparent text-[13px] text-slate-800 placeholder-slate-400 focus:outline-none"
+                style={{ maxHeight: '88px', overflowY: 'auto' }}
               />
-              <button
-                type="submit"
-                disabled={isSending || (!draft.trim() && pendingAttachments.length === 0)}
-                className="min-w-[82px] rounded-xl border border-blue-500/70 bg-gradient-to-b from-blue-500 to-blue-600 px-3 text-[11px] font-semibold text-white shadow-[0_8px_18px_rgba(37,99,235,0.3)] disabled:opacity-60"
-              >
-                {isSending ? '...' : 'Send'}
-              </button>
+              {(draft.trim() || pendingAttachments.length > 0) ? (
+                <button
+                  type="submit"
+                  disabled={isSending}
+                  className="mb-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-500 text-[14px] font-bold text-white shadow-[0_4px_10px_rgba(37,99,235,0.4)] transition hover:bg-blue-600 active:scale-95 disabled:opacity-60"
+                  aria-label="Send message"
+                >
+                  {isSending ? '…' : '↑'}
+                </button>
+              ) : null}
             </form>
           </div>
-          <p className="mx-2 mb-2 text-[11px] text-slate-500">
-            Enter to send. Cmd/Ctrl + Enter for a new line.
-          </p>
         </div>
       </RetroWindow>
     </div>
