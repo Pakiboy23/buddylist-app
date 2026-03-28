@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { FormEvent, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppIcon from '@/components/AppIcon';
@@ -1544,7 +1545,7 @@ function BuddyListContent() {
     return () => {
       subscription.unsubscribe();
     };
-  }, [loadBuddies, router, syncUnreadDirectFromServer]);
+  }, [loadBuddies, loadSingleUserProfile, markProfileSchemaUnavailable, router, syncUnreadDirectFromServer]);
 
   useEffect(() => {
     if (!userId) {
@@ -4363,9 +4364,12 @@ function BuddyListContent() {
                 {buddyIconPreviewUrl ? (
                   <div className="mt-3">
                     <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Preview</p>
-                    <img
+                    <Image
                       src={buddyIconPreviewUrl}
                       alt=""
+                      width={80}
+                      height={80}
+                      unoptimized
                       className="h-20 w-20 rounded-2xl border border-white/70 object-cover shadow-sm"
                     />
                   </div>
