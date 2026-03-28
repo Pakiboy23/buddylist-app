@@ -423,7 +423,7 @@ export default function Home() {
               </div>
             </aside>
 
-            <div className="space-y-2.5">
+            <div key={authView} className="space-y-2.5 ui-fade-in">
               <div>
                 <label className="mb-1 block text-[11px] font-black uppercase tracking-[0.1em] text-blue-800">
                   Screen Name
@@ -584,7 +584,7 @@ export default function Home() {
             </div>
           </div>
 
-          <p className="min-h-[48px] rounded-lg border border-blue-200 bg-white/95 px-3 py-2 text-[12px] font-bold leading-snug text-blue-700">
+          <p role="status" aria-live="polite" className="min-h-[48px] rounded-lg border border-blue-200 bg-white/95 px-3 py-2 text-[12px] font-bold leading-snug text-blue-700">
             {statusMsg}
           </p>
 

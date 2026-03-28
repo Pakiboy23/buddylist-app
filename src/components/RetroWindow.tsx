@@ -96,7 +96,7 @@ export default function RetroWindow({
             <button
               type="button"
               onClick={onBack}
-              className="inline-flex min-h-[38px] min-w-[38px] items-center justify-center rounded-full border border-slate-200 bg-white/85 px-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-white"
+              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full border border-slate-200 bg-white/85 px-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-white"
             >
               {backButtonLabel}
             </button>

@@ -63,9 +63,10 @@ export default function BuddyProfileSheet({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-[13px] font-semibold text-slate-500 hover:bg-slate-200"
+            aria-label="Close profile"
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-[13px] font-semibold text-slate-500 hover:bg-slate-200"
           >
-            <AppIcon kind="close" className="h-3.5 w-3.5" />
+            <AppIcon kind="close" className="h-4 w-4" />
           </button>
         </div>
 

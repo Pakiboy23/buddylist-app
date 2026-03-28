@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-ink-900: #111827;
   --color-ink-700: #334155;
@@ -30,6 +32,151 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-touch-callout: none;
+}
+
+/* ── Dark mode ─────────────────────────────────────────────────────── */
+.dark body,
+html.dark body {
+  background: radial-gradient(circle at 4% 6%, #0c1929 0%, #0f172a 34%, #111827 58%, #0e1726 100%);
+  color: #e2e8f0;
+}
+
+/* Glass panels: semi-transparent white → semi-transparent dark */
+.dark .bg-white\/50,
+.dark .bg-white\/55,
+.dark .bg-white\/58,
+.dark .bg-white\/60,
+.dark .bg-white\/65,
+.dark .bg-white\/70,
+.dark .bg-white\/72,
+.dark .bg-white\/75,
+.dark .bg-white\/78,
+.dark .bg-white\/80,
+.dark .bg-white\/82,
+.dark .bg-white\/85,
+.dark .bg-white\/88,
+.dark .bg-white\/90,
+.dark .bg-white\/95 {
+  background-color: rgba(30, 41, 59, 0.72) !important;
+}
+
+.dark .bg-white {
+  background-color: #1e293b !important;
+}
+
+/* Glass borders */
+.dark .border-white\/40,
+.dark .border-white\/45,
+.dark .border-white\/50,
+.dark .border-white\/55,
+.dark .border-white\/60,
+.dark .border-white\/65,
+.dark .border-white\/70 {
+  border-color: rgba(51, 65, 85, 0.5) !important;
+}
+
+/* Text: dark mode inversions */
+.dark .text-slate-700 {
+  color: #cbd5e1 !important;
+}
+.dark .text-slate-800 {
+  color: #e2e8f0 !important;
+}
+.dark .text-slate-900 {
+  color: #f1f5f9 !important;
+}
+.dark .text-slate-600 {
+  color: #94a3b8 !important;
+}
+.dark .text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+/* Subtle borders */
+.dark .border-slate-200 {
+  border-color: #334155 !important;
+}
+.dark .border-slate-300 {
+  border-color: #475569 !important;
+}
+
+/* Backgrounds */
+.dark .bg-slate-50 {
+  background-color: #1e293b !important;
+}
+.dark .bg-slate-100 {
+  background-color: #1e293b !important;
+}
+.dark .bg-slate-100\/80 {
+  background-color: rgba(30, 41, 59, 0.8) !important;
+}
+.dark .bg-slate-200 {
+  background-color: #334155 !important;
+}
+.dark .bg-white\/80 {
+  background-color: rgba(30, 41, 59, 0.8) !important;
+}
+
+/* Form inputs */
+.dark input,
+.dark textarea,
+.dark select {
+  background-color: #1e293b !important;
+  color: #e2e8f0 !important;
+  border-color: #475569 !important;
+}
+
+/* Skeleton shimmer for dark mode */
+.dark .ui-skeleton {
+  background: linear-gradient(90deg, #334155 25%, #475569 50%, #334155 75%);
+  background-size: 200% 100%;
+}
+
+.dark .ui-skeleton-circle {
+  background: linear-gradient(90deg, #334155 25%, #475569 50%, #334155 75%);
+  background-size: 200% 100%;
+}
+
+/* Chips and badges */
+.dark .ui-list-kind-chip,
+.dark .aim-list-kind-chip {
+  border-color: #475569;
+  background: #1e293b;
+  color: #93c5fd;
+}
+
+/* New-messages separator */
+.dark .ui-new-messages-separator,
+.dark .aim-new-messages-separator {
+  color: #fb923c;
+}
+
+.dark .ui-new-messages-separator::before,
+.dark .ui-new-messages-separator::after,
+.dark .aim-new-messages-separator::before,
+.dark .aim-new-messages-separator::after {
+  border-top-color: #92400e;
+}
+
+/* Shadows in dark mode: softer, darker */
+.dark [class*="shadow-[0_"] {
+  --tw-shadow-color: rgba(0, 0, 0, 0.4);
+}
+
+/* Login page dark background */
+.dark main[class*="radial-gradient"] {
+  background: radial-gradient(circle at 10% 15%, #0c1929 0%, #0f172a 34%, #111827 62%, #0e1726 100%) !important;
+}
+
+/* Blue accent backgrounds in dark mode */
+.dark .bg-blue-50 {
+  background-color: rgba(30, 58, 138, 0.25) !important;
+}
+.dark .hover\:bg-blue-50:hover {
+  background-color: rgba(30, 58, 138, 0.35) !important;
+}
+.dark .bg-blue-500\/10 {
+  background-color: rgba(59, 130, 246, 0.2) !important;
 }
 
 .bottom-sheet {
@@ -122,9 +269,104 @@ body {
   @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:ring-offset-1;
 }
 
+/* ── Button press feedback ────────────────────────────────────────── */
+button:not(:disabled),
+[role="button"]:not(:disabled) {
+  transition: transform 120ms ease, opacity 120ms ease;
+}
+
+button:not(:disabled):active,
+[role="button"]:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+/* ── Skeleton loader ─────────────────────────────────────────────── */
+@keyframes ui-skeleton-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.ui-skeleton {
+  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background-size: 200% 100%;
+  animation: ui-skeleton-shimmer 1.6s ease-in-out infinite;
+  border-radius: 0.75rem;
+}
+
+.ui-skeleton-circle {
+  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background-size: 200% 100%;
+  animation: ui-skeleton-shimmer 1.6s ease-in-out infinite;
+  border-radius: 9999px;
+}
+
+/* ── Bottom sheet entrance ───────────────────────────────────────── */
+@keyframes ui-sheet-slide-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.bottom-sheet {
+  animation: ui-sheet-slide-up 340ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* ── Fade-in for view transitions ────────────────────────────────── */
+@keyframes ui-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ui-fade-in {
+  animation: ui-fade-in 220ms ease-out;
+}
+
+/* ── Status dot pulse ────────────────────────────────────────────── */
+@keyframes ui-status-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 currentColor;
+  }
+  50% {
+    box-shadow: 0 0 0 3px transparent;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ui-unread-badge-pulse,
   .aim-unread-badge-pulse {
     animation: none;
+  }
+
+  .ui-skeleton,
+  .ui-skeleton-circle {
+    animation: none;
+  }
+
+  .bottom-sheet {
+    animation: none;
+  }
+
+  .ui-fade-in {
+    animation: none;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    transition: none;
   }
 }

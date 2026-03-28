@@ -12,6 +12,8 @@ import {
   uploadChatMediaFile,
   validateChatMediaFile,
 } from '@/lib/chatMedia';
+import { hapticLight, hapticSuccess } from '@/lib/haptics';
+import { useSwipeBack } from '@/hooks/useSwipeBack';
 import { supabase } from '@/lib/supabase';
 import {
   DEFAULT_RICH_TEXT_FORMAT,
@@ -152,12 +154,16 @@ export default function GroupChatWindow({
   const [editDraft, setEditDraft] = useState('');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [isDeletingMessageId, setIsDeletingMessageId] = useState<string | null>(null);
+  const [longPressMessageId, setLongPressMessageId] = useState<string | null>(null);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [reactionRows, setReactionRows] = useState<RoomMessageReactionRow[]>([]);
   const [attachmentRows, setAttachmentRows] = useState<RoomMessageAttachmentRow[]>([]);
   const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
   const [reactionError, setReactionError] = useState<string | null>(null);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [attachmentLoadError, setAttachmentLoadError] = useState<string | null>(null);
+
+  const swipeBack = useSwipeBack({ onSwipeBack: onBack });
   const [isSending, setIsSending] = useState(false);
   const [hasLiveMessageSinceOpen, setHasLiveMessageSinceOpen] = useState(false);
   const [typingMap, setTypingMap] = useState<Record<string, string>>({});
@@ -709,6 +715,7 @@ export default function GroupChatWindow({
     onDraftChange?.('');
     clearPendingAttachments();
     setAttachmentError(null);
+    void hapticSuccess();
   };
 
   const handleDraftKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -947,7 +954,7 @@ export default function GroupChatWindow({
       : null;
 
   return (
-    <div className="fixed inset-0 z-50 chat-slide-in">
+    <div className="fixed inset-0 z-50 chat-slide-in" {...swipeBack}>
       <RetroWindow
         title={`#${roomName}`}
         variant="xp_shell"
@@ -1020,22 +1027,27 @@ export default function GroupChatWindow({
           {/* Messages area */}
           <div className="mx-3 mt-1.5 min-h-0 flex-1 overflow-y-auto rounded-2xl border border-white/55 bg-white/55 px-3 py-3 backdrop-blur-sm">
             {isLoadingMessages && (
-              <div className="flex flex-col gap-3 pt-2">
-                {[60, 88, 44, 72].map((w, i) => (
+              <div className="flex flex-col gap-3 pt-2 ui-fade-in">
+                {[45, 70, 35, 60, 50, 80].map((widthPercent, i) => (
                   <div key={i} className={`flex ${i % 3 === 0 ? 'justify-end' : 'justify-start'}`}>
-                    <div className="h-8 animate-pulse rounded-2xl bg-white/60" style={{ width: `${w}px` }} />
+                    <div className="ui-skeleton h-9 rounded-2xl" style={{ width: `${widthPercent}%` }} />
                   </div>
                 ))}
               </div>
             )}
             {!isLoadingMessages && messages.length === 0 && (
-              <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
-                <AppIcon kind="chat" className="h-8 w-8 text-slate-300" />
-                <p className="text-[12px] text-slate-400">No messages yet. Start the conversation.</p>
+              <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center ui-fade-in">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-violet-50">
+                  <AppIcon kind="chat" className="h-7 w-7 text-violet-400" />
+                </div>
+                <div>
+                  <p className="text-[13px] font-semibold text-slate-500">No messages yet</p>
+                  <p className="mt-0.5 text-[11px] text-slate-400">Be the first to say something in this room</p>
+                </div>
               </div>
             )}
             {!isLoadingMessages && (
-              <div className="flex flex-col gap-0.5">
+              <div className="flex flex-col gap-0.5" onClick={() => setLongPressMessageId(null)}>
                 {messages.map((message, index) => {
                   const senderName = screennameMap[message.sender_id] || 'Unknown User';
                   const isMine = message.sender_id === currentUserId;
@@ -1085,7 +1097,28 @@ export default function GroupChatWindow({
                       <div className={`flex ${isMine ? 'justify-end' : 'justify-start'} ${
                         normalizedSearchQuery && !isMatch ? 'opacity-35' : ''
                       } ${isMentioningCurrentUser && !normalizedSearchQuery ? 'opacity-100' : ''}`}>
-                        <div className="group relative max-w-[78%]">
+                        <div
+                          className="group relative max-w-[78%]"
+                          onTouchStart={() => {
+                            if (!isMine || isDeleted) return;
+                            longPressTimerRef.current = setTimeout(() => {
+                              void hapticLight();
+                              setLongPressMessageId(message.id);
+                            }, 500);
+                          }}
+                          onTouchEnd={() => {
+                            if (longPressTimerRef.current) {
+                              clearTimeout(longPressTimerRef.current);
+                              longPressTimerRef.current = null;
+                            }
+                          }}
+                          onTouchMove={() => {
+                            if (longPressTimerRef.current) {
+                              clearTimeout(longPressTimerRef.current);
+                              longPressTimerRef.current = null;
+                            }
+                          }}
+                        >
                           {/* Sender name label — only for first in a run from others */}
                           {!isMine && isFirstInRun ? (
                             <p className={`mb-0.5 ml-1 text-[10px] font-semibold ${senderColorClass}`}>
@@ -1162,22 +1195,30 @@ export default function GroupChatWindow({
                             ) : null}
                           </div>
 
-                          {/* Hover action bar */}
+                          {/* Action bar — hover (desktop) + long-press (mobile) */}
                           {isMine && !isDeleted && !isEditing ? (
-                            <div className="absolute -top-8 right-0 hidden items-center gap-0.5 rounded-full border border-white/70 bg-white/90 px-2 py-1 shadow-lg backdrop-blur-md group-hover:flex">
+                            <div className={`absolute -top-8 right-0 items-center gap-0.5 rounded-full border border-white/70 bg-white/90 px-2 py-1 shadow-lg backdrop-blur-md ui-fade-in ${
+                              longPressMessageId === message.id ? 'flex' : 'hidden group-hover:flex'
+                            }`}>
                               <button
                                 type="button"
-                                onClick={() => startEditingMessage(message)}
-                                className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-slate-600 hover:bg-slate-100"
+                                onClick={() => {
+                                  startEditingMessage(message);
+                                  setLongPressMessageId(null);
+                                }}
+                                className="rounded-full px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-100"
                               >
                                 Edit
                               </button>
                               <span className="text-slate-300">·</span>
                               <button
                                 type="button"
-                                onClick={() => void softDeleteMessage(message.id)}
+                                onClick={() => {
+                                  void softDeleteMessage(message.id);
+                                  setLongPressMessageId(null);
+                                }}
                                 disabled={isDeletingMessageId === message.id}
-                                className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-red-500 hover:bg-red-50 disabled:opacity-60"
+                                className="rounded-full px-2.5 py-1 text-[11px] font-semibold text-red-500 hover:bg-red-50 disabled:opacity-60"
                               >
                                 {isDeletingMessageId === message.id ? '…' : 'Delete'}
                               </button>

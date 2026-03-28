@@ -21,6 +21,8 @@ import {
   subscribeToStorageKey,
 } from '@/lib/clientStorage';
 import { uploadChatMediaFile } from '@/lib/chatMedia';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
+import { useTheme } from '@/hooks/useTheme';
 import {
   createClientMessageId,
   createOutboxItem,
@@ -680,6 +682,7 @@ function BuddyListContent() {
   const outboxItemsRef = useRef<OutboxItem[]>([]);
   const isFlushingOutboxRef = useRef(false);
   const playSound = useSoundPlayer();
+  const { isDark, toggleDark } = useTheme();
   const router = useRouter();
   const searchParams = useSearchParams();
   const {
@@ -1364,6 +1367,13 @@ function BuddyListContent() {
     );
     setIsLoadingBuddies(false);
   }, [loadManyUserProfiles]);
+
+  const pullToRefresh = usePullToRefresh({
+    onRefresh: async () => {
+      if (!userId) return;
+      await Promise.all([loadBuddies(userId), syncFromServer()]);
+    },
+  });
 
   const syncUnreadDirectFromServer = useCallback(async (targetUserId: string) => {
     const { data, error } = await supabase
@@ -3742,11 +3752,32 @@ function BuddyListContent() {
                     Admin Reset
                   </button>
                 ) : null}
+                <div className="mx-2 my-1 border-t border-slate-200" />
+                <button
+                  type="button"
+                  onClick={toggleDark}
+                  className="block w-full rounded-xl border border-transparent px-3 py-2 text-left text-[12px] font-semibold text-slate-700 hover:bg-blue-50"
+                >
+                  {isDark ? '☀ Light Mode' : '☾ Dark Mode'}
+                </button>
               </div>
             </div>
           ) : null}
 
-          <div className="min-h-0 flex-1 overflow-y-auto pb-20">
+          <div
+            className="min-h-0 flex-1 overflow-y-auto pb-20"
+            onTouchStart={pullToRefresh.onTouchStart}
+            onTouchMove={pullToRefresh.onTouchMove}
+            onTouchEnd={pullToRefresh.onTouchEnd}
+          >
+            {(pullToRefresh.pullDistance > 0 || pullToRefresh.isRefreshing) ? (
+              <div
+                className="flex items-center justify-center overflow-hidden text-[12px] font-medium text-slate-400 transition-all"
+                style={{ height: pullToRefresh.isRefreshing ? 36 : pullToRefresh.pullDistance * 0.5 }}
+              >
+                {pullToRefresh.isRefreshing ? 'Refreshing…' : pullToRefresh.pullDistance >= 70 ? 'Release to refresh' : 'Pull to refresh'}
+              </div>
+            ) : null}
             <div className="px-3 pt-3 pb-2">
               <div className="rounded-2xl border border-white/65 bg-white/72 px-3.5 py-3 shadow-sm">
                 <div className="flex items-center gap-2.5">
@@ -3912,12 +3943,38 @@ function BuddyListContent() {
                       </select>
                     </div>
 
-                    {isBootstrapping ? <p className="px-3 py-2 italic text-slate-500">Dialing in...</p> : null}
-                    {!isBootstrapping && isLoadingBuddies ? (
-                      <p className="px-3 py-2 italic text-slate-500">Loading your buddy list...</p>
+                    {isBootstrapping || (!isBootstrapping && isLoadingBuddies) ? (
+                      <div className="space-y-2 px-3 py-2 ui-fade-in">
+                        {Array.from({ length: 5 }).map((_, idx) => (
+                          <div key={idx} className="flex items-center gap-3 rounded-2xl px-2 py-2">
+                            <div className="ui-skeleton-circle h-10 w-10 shrink-0" />
+                            <div className="flex-1 space-y-2">
+                              <div className="ui-skeleton h-3.5 w-28" />
+                              <div className="ui-skeleton h-2.5 w-20" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     ) : null}
                     {!isBootstrapping && !isLoadingBuddies && acceptedBuddies.length === 0 ? (
-                      <p className="px-3 py-2 italic text-slate-500">List is empty.</p>
+                      <div className="flex flex-col items-center gap-3 px-6 py-10 ui-fade-in">
+                        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-50">
+                          <AppIcon kind="smile" className="h-8 w-8 text-blue-400" />
+                        </div>
+                        <div className="text-center">
+                          <p className="text-[14px] font-semibold text-slate-500">No buddies yet</p>
+                          <p className="mt-1 text-[12px] leading-relaxed text-slate-400">
+                            Add your first buddy to start messaging
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={openAddWindow}
+                          className="mt-1 rounded-full border border-blue-200 bg-blue-50 px-5 py-2 text-[12px] font-semibold text-blue-600 transition hover:bg-blue-100 active:scale-95"
+                        >
+                          + Add Buddy
+                        </button>
+                      </div>
                     ) : null}
                     {!isBootstrapping &&
                       (showSplitPresenceSections ? onlineBuddiesSorted : sortedDirectMessageBuddies).map((buddy) =>
@@ -3965,7 +4022,12 @@ function BuddyListContent() {
 
                 {isActiveChatsOpen ? (
                   activeRooms.length === 0 ? (
-                    <p className="px-3 py-2 italic text-slate-500">No active rooms.</p>
+                    <div className="flex flex-col items-center gap-2 px-4 py-6 ui-fade-in">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-violet-50">
+                        <AppIcon kind="chat" className="h-5 w-5 text-violet-400" />
+                      </div>
+                      <p className="text-[12px] text-slate-400">Join a room to start chatting</p>
+                    </div>
                   ) : (
                     activeRooms.map((roomName) => {
                       const unreadCount = getUnreadCountForRoom(roomName);

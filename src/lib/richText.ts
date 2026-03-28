@@ -184,14 +184,19 @@ function basicSanitizeFallback(rawHtml: string): string {
     .replace(/\sstyle\s*=\s*(['"])\s*.*?javascript:.*?\1/gi, '');
 }
 
-export function sanitizeRichTextHtml(rawHtml: string | null | undefined): string {
+interface SanitizeResult {
+  html: string;
+  document: Document | null;
+}
+
+function sanitizeRichTextHtmlWithDoc(rawHtml: string | null | undefined): SanitizeResult {
   if (!rawHtml) {
-    return '';
+    return { html: '', document: null };
   }
 
   const input = String(rawHtml);
   if (typeof window === 'undefined') {
-    return basicSanitizeFallback(input);
+    return { html: basicSanitizeFallback(input), document: null };
   }
 
   const parser = new DOMParser();
@@ -231,7 +236,11 @@ export function sanitizeRichTextHtml(rawHtml: string | null | undefined): string
     }
   }
 
-  return documentNode.body.innerHTML;
+  return { html: documentNode.body.innerHTML, document: documentNode };
+}
+
+export function sanitizeRichTextHtml(rawHtml: string | null | undefined): string {
+  return sanitizeRichTextHtmlWithDoc(rawHtml).html;
 }
 
 export function formatRichText(rawText: string, format: RichTextFormat): string {
@@ -267,14 +276,13 @@ export function htmlToPlainText(rawHtml: string | null | undefined): string {
     return '';
   }
 
-  const sanitized = sanitizeRichTextHtml(rawHtml).replace(/<br\s*\/?>/gi, '\n');
-  if (typeof window === 'undefined') {
-    return sanitized.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ');
+  const result = sanitizeRichTextHtmlWithDoc(rawHtml);
+  if (result.document) {
+    return (result.document.body.textContent ?? '').replace(/\u00a0/g, ' ');
   }
 
-  const parser = new DOMParser();
-  const documentNode = parser.parseFromString(sanitized, 'text/html');
-  return (documentNode.body.textContent ?? '').replace(/\u00a0/g, ' ');
+  const sanitized = result.html.replace(/<br\s*\/?>/gi, '\n');
+  return sanitized.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ');
 }
 
 export function detectRichTextFormat(rawHtml: string | null | undefined): RichTextFormat {
@@ -282,21 +290,19 @@ export function detectRichTextFormat(rawHtml: string | null | undefined): RichTe
     return { ...DEFAULT_RICH_TEXT_FORMAT };
   }
 
-  const sanitized = sanitizeRichTextHtml(rawHtml);
-  if (!sanitized) {
+  const result = sanitizeRichTextHtmlWithDoc(rawHtml);
+  if (!result.html) {
     return { ...DEFAULT_RICH_TEXT_FORMAT };
   }
 
   let styleValue = '';
 
-  if (typeof window === 'undefined') {
-    const styleMatch = sanitized.match(/style\s*=\s*(['"])(.*?)\1/i);
-    styleValue = styleMatch?.[2] ?? '';
-  } else {
-    const parser = new DOMParser();
-    const documentNode = parser.parseFromString(sanitized, 'text/html');
-    const firstSpan = documentNode.querySelector('span[style]');
+  if (result.document) {
+    const firstSpan = result.document.querySelector('span[style]');
     styleValue = firstSpan?.getAttribute('style') ?? '';
+  } else {
+    const styleMatch = result.html.match(/style\s*=\s*(['"])(.*?)\1/i);
+    styleValue = styleMatch?.[2] ?? '';
   }
 
   const safeStyle = sanitizeInlineStyle(styleValue);
@@ -364,18 +370,22 @@ export function isDefaultRichTextFormat(format: RichTextFormat): boolean {
 }
 
 export function getRichTextPresentation(rawHtml: string | null | undefined): RichTextPresentation {
+  const result = sanitizeRichTextHtmlWithDoc(rawHtml);
   const format = detectRichTextFormat(rawHtml);
   const hasCustomStyling = !isDefaultRichTextFormat(format);
 
   if (!hasCustomStyling) {
+    const plainText = result.document
+      ? (result.document.body.textContent ?? '').replace(/\u00a0/g, ' ')
+      : result.html.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ');
     return {
-      html: plainTextToHtml(htmlToPlainText(rawHtml)),
+      html: plainTextToHtml(plainText),
       hasCustomStyling: false,
     };
   }
 
   return {
-    html: sanitizeRichTextHtml(rawHtml),
+    html: result.html,
     hasCustomStyling: true,
   };
 }

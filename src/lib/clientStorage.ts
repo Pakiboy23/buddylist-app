@@ -26,9 +26,15 @@ interface WriteJSONOptions<T> {
 
 const memoryStorage = new Map<string, string>();
 
+let cachedStorage: Storage | null | undefined;
+
 function getStorage() {
   if (typeof window === 'undefined') {
     return null;
+  }
+
+  if (cachedStorage !== undefined) {
+    return cachedStorage;
   }
 
   try {
@@ -36,8 +42,10 @@ function getStorage() {
     const probeKey = '__buddylist_storage_probe__';
     storage.setItem(probeKey, '1');
     storage.removeItem(probeKey);
+    cachedStorage = storage;
     return storage;
   } catch {
+    cachedStorage = null;
     return null;
   }
 }

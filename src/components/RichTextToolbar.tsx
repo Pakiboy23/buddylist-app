@@ -25,7 +25,7 @@ export default function RichTextToolbar({ value, onChange }: RichTextToolbarProp
   const toggleUnderline = () => updateValue({ underline: !value.underline });
 
   const toggleClassName = (active: boolean) =>
-    `inline-flex h-7 min-w-7 items-center justify-center rounded-lg border px-2 text-[11px] font-semibold transition focus:outline-none ${
+    `inline-flex h-11 min-w-11 items-center justify-center rounded-lg border px-2 text-[13px] font-semibold transition focus:outline-none ${
       active
         ? 'border-blue-400/70 bg-blue-50 text-blue-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]'
         : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
@@ -78,7 +78,7 @@ export default function RichTextToolbar({ value, onChange }: RichTextToolbarProp
               title={color.name}
               aria-label={color.name}
               onClick={() => updateValue({ color: color.value })}
-              className={`h-5 w-5 rounded-full border transition ${
+              className={`h-7 w-7 rounded-full border transition ${
                 isActive
                   ? 'border-blue-500 shadow-[0_0_0_2px_rgba(191,219,254,0.9)]'
                   : 'border-slate-300 hover:scale-105'

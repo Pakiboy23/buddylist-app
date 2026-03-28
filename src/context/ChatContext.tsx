@@ -12,6 +12,7 @@ import {
 } from 'react';
 import { waitForSessionOrNull } from '@/lib/authClient';
 import { getRaw, removeValue, setVersionedData, subscribeToStorageKey } from '@/lib/clientStorage';
+import { setAppBadgeCount } from '@/lib/badge';
 import { normalizeRoomKey, normalizeRoomName } from '@/lib/roomName';
 import { initSoundSystem, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
@@ -46,6 +47,7 @@ const CHAT_STATE_CACHE_VERSION = 2;
 const CHAT_STATE_WRITE_DEBOUNCE_MS = 180;
 const CHAT_STATE_ROOM_LIMIT = 250;
 const CHAT_STATE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const SYNC_RETRY_DELAYS_MS = [1500, 4000, 10000] as const;
 
 interface UserActiveRoomRow {
   user_id?: string;
@@ -314,24 +316,35 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setSyncState('syncing');
       setLastSyncError(null);
 
-      const { data, error } = await supabase
-        .from('user_active_rooms')
-        .select('user_id,room_key,room_name,unread_count,updated_at')
-        .eq('user_id', sessionUserId)
-        .order('updated_at', { ascending: false });
+      for (let attempt = 0; attempt <= SYNC_RETRY_DELAYS_MS.length; attempt += 1) {
+        const { data, error } = await supabase
+          .from('user_active_rooms')
+          .select('user_id,room_key,room_name,unread_count,updated_at')
+          .eq('user_id', sessionUserId)
+          .order('updated_at', { ascending: false });
 
-      if (error) {
+        if (!error) {
+          const rows = (data ?? []) as UserActiveRoomRow[];
+          const nextRooms = mapRowsToStoredRooms(rows);
+          setRooms((previous) => (areRoomsEqual(previous, nextRooms) ? previous : nextRooms));
+          setLastSyncedAt(new Date().toISOString());
+          setSyncState('live');
+          return;
+        }
+
+        if (attempt < SYNC_RETRY_DELAYS_MS.length) {
+          const delay = SYNC_RETRY_DELAYS_MS[attempt];
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          if (userIdRef.current !== sessionUserId) {
+            return;
+          }
+          continue;
+        }
+
         setSyncState('error');
         setLastSyncError(error.message);
-        console.error('Failed to sync persistent chat state:', error.message);
-        return;
+        console.error('Failed to sync persistent chat state after retries:', error.message);
       }
-
-      const rows = (data ?? []) as UserActiveRoomRow[];
-      const nextRooms = mapRowsToStoredRooms(rows);
-      setRooms((previous) => (areRoomsEqual(previous, nextRooms) ? previous : nextRooms));
-      setLastSyncedAt(new Date().toISOString());
-      setSyncState('live');
     })();
 
     syncInFlightRef.current = syncPromise;
@@ -446,6 +459,31 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }
     };
   }, [rooms, userId]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const flushPendingCacheWrite = () => {
+      if (cacheWriteTimeoutRef.current && userIdRef.current) {
+        clearTimeout(cacheWriteTimeoutRef.current);
+        cacheWriteTimeoutRef.current = null;
+        writeCachedRooms(userIdRef.current, roomsRef.current);
+      }
+    };
+
+    window.addEventListener('beforeunload', flushPendingCacheWrite);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        flushPendingCacheWrite();
+      }
+    });
+
+    return () => {
+      window.removeEventListener('beforeunload', flushPendingCacheWrite);
+    };
+  }, []);
 
   useEffect(() => {
     if (!userId || typeof window === 'undefined' || typeof document === 'undefined') {
@@ -655,6 +693,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }, {}),
     [rooms],
   );
+
+  // Sync total unread count to native app badge
+  useEffect(() => {
+    const total = Object.values(unreadMessages).reduce((sum, count) => sum + count, 0);
+    void setAppBadgeCount(total);
+  }, [unreadMessages]);
 
   const value = useMemo(
     () => ({

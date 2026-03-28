@@ -122,9 +122,9 @@ export default function IncomingMessageBanner({
             type="button"
             onClick={dismissBanner}
             aria-label="Dismiss notification"
-            className="ml-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-200/80 bg-slate-100/80 text-[11px] font-semibold text-slate-500 hover:bg-slate-200 active:scale-95"
+            className="ml-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-slate-200/80 bg-slate-100/80 text-[11px] font-semibold text-slate-500 hover:bg-slate-200"
           >
-            <AppIcon kind="close" className="h-3.5 w-3.5" />
+            <AppIcon kind="close" className="h-4 w-4" />
           </button>
         </div>
       </div>

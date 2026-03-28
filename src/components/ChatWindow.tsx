@@ -19,6 +19,8 @@ import {
   RichTextFormat,
   sanitizeRichTextHtml,
 } from '@/lib/richText';
+import { hapticLight, hapticSuccess, hapticWarning } from '@/lib/haptics';
+import { useSwipeBack } from '@/hooks/useSwipeBack';
 import type { ResolvedPresenceState } from '@/lib/presence';
 import { supabase } from '@/lib/supabase';
 
@@ -97,6 +99,8 @@ export default function ChatWindow({
   const [editDraft, setEditDraft] = useState('');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [isDeletingMessageId, setIsDeletingMessageId] = useState<number | null>(null);
+  const [longPressMessageId, setLongPressMessageId] = useState<number | null>(null);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [reactionRows, setReactionRows] = useState<MessageReactionRow[]>([]);
   const [attachmentRows, setAttachmentRows] = useState<MessageAttachmentRow[]>([]);
   const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
@@ -105,6 +109,7 @@ export default function ChatWindow({
   const [attachmentLoadError, setAttachmentLoadError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
+  const swipeBack = useSwipeBack({ onSwipeBack: onClose });
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -374,8 +379,9 @@ export default function ChatWindow({
       onDraftChange?.('');
       clearPendingAttachments();
       setAttachmentError(null);
+      void hapticSuccess();
     } catch {
-      // Keep the draft intact if the send fails.
+      void hapticWarning();
     }
   };
 
@@ -430,6 +436,7 @@ export default function ChatWindow({
       return;
     }
 
+    void hapticLight();
     setEditingMessageId(message.id);
     setEditDraft(htmlToPlainText(message.content));
   };
@@ -517,7 +524,7 @@ export default function ChatWindow({
           : 'text-emerald-500';
 
   return (
-    <div className="fixed inset-0 z-40 chat-slide-in">
+    <div className="fixed inset-0 z-40 chat-slide-in" {...swipeBack}>
       <RetroWindow
         title={`IM with ${buddyScreenname}`}
         variant="xp_shell"
@@ -594,22 +601,27 @@ export default function ChatWindow({
           {/* Messages area */}
           <div className="mx-3 mt-1.5 min-h-0 flex-1 overflow-y-auto rounded-2xl border border-white/55 bg-white/55 px-3 py-3 backdrop-blur-sm">
             {isLoading && (
-              <div className="flex flex-col gap-3 pt-2">
-                {[72, 48, 88, 56].map((w, i) => (
+              <div className="flex flex-col gap-3 pt-2 ui-fade-in">
+                {[40, 65, 50, 75, 35, 60].map((widthPercent, i) => (
                   <div key={i} className={`flex ${i % 2 === 0 ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`h-8 animate-pulse rounded-2xl bg-white/60`} style={{ width: `${w}px` }} />
+                    <div className="ui-skeleton h-9 rounded-2xl" style={{ width: `${widthPercent}%` }} />
                   </div>
                 ))}
               </div>
             )}
             {!isLoading && messages.length === 0 && (
-              <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
-                <AppIcon kind="mail" className="h-8 w-8 text-slate-300" />
-                <p className="text-[12px] text-slate-400">No messages yet. Say hey.</p>
+              <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center ui-fade-in">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-50">
+                  <AppIcon kind="mail" className="h-7 w-7 text-blue-400" />
+                </div>
+                <div>
+                  <p className="text-[13px] font-semibold text-slate-500">No messages yet</p>
+                  <p className="mt-0.5 text-[11px] text-slate-400">Send a message to start the conversation</p>
+                </div>
               </div>
             )}
             {!isLoading && (
-              <div className="flex flex-col gap-0.5">
+              <div className="flex flex-col gap-0.5" onClick={() => setLongPressMessageId(null)}>
                 {messages.map((message, index) => {
                   const isMine = message.sender_id === currentUserId;
                   const isDeleted = Boolean(message.deleted_at);
@@ -654,7 +666,28 @@ export default function ChatWindow({
                       <div className={`flex ${isMine ? 'justify-end' : 'justify-start'} ${
                         normalizedSearchQuery && !isMatch ? 'opacity-35' : ''
                       }`}>
-                        <div className="group relative max-w-[78%]">
+                        <div
+                          className="group relative max-w-[78%]"
+                          onTouchStart={() => {
+                            if (!isMine || isDeleted) return;
+                            longPressTimerRef.current = setTimeout(() => {
+                              void hapticLight();
+                              setLongPressMessageId(message.id);
+                            }, 500);
+                          }}
+                          onTouchEnd={() => {
+                            if (longPressTimerRef.current) {
+                              clearTimeout(longPressTimerRef.current);
+                              longPressTimerRef.current = null;
+                            }
+                          }}
+                          onTouchMove={() => {
+                            if (longPressTimerRef.current) {
+                              clearTimeout(longPressTimerRef.current);
+                              longPressTimerRef.current = null;
+                            }
+                          }}
+                        >
                           {/* Bubble */}
                           <div
                             className={`relative msg-enter px-3 py-2 ${
@@ -719,22 +752,30 @@ export default function ChatWindow({
                             ) : null}
                           </div>
 
-                          {/* Hover action bar — only for own non-deleted messages */}
+                          {/* Action bar — hover (desktop) + long-press (mobile) */}
                           {isMine && !isDeleted && !isEditing ? (
-                            <div className="absolute -top-8 right-0 hidden items-center gap-0.5 rounded-full border border-white/70 bg-white/90 px-2 py-1 shadow-lg backdrop-blur-md group-hover:flex">
+                            <div className={`absolute -top-8 right-0 items-center gap-0.5 rounded-full border border-white/70 bg-white/90 px-2 py-1 shadow-lg backdrop-blur-md ui-fade-in ${
+                              longPressMessageId === message.id ? 'flex' : 'hidden group-hover:flex'
+                            }`}>
                               <button
                                 type="button"
-                                onClick={() => startEditingMessage(message)}
-                                className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-slate-600 hover:bg-slate-100"
+                                onClick={() => {
+                                  startEditingMessage(message);
+                                  setLongPressMessageId(null);
+                                }}
+                                className="rounded-full px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-100"
                               >
                                 Edit
                               </button>
                               <span className="text-slate-300">·</span>
                               <button
                                 type="button"
-                                onClick={() => void softDeleteMessage(message.id)}
+                                onClick={() => {
+                                  void softDeleteMessage(message.id);
+                                  setLongPressMessageId(null);
+                                }}
                                 disabled={isDeletingMessageId === message.id}
-                                className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-red-500 hover:bg-red-50 disabled:opacity-60"
+                                className="rounded-full px-2.5 py-1 text-[11px] font-semibold text-red-500 hover:bg-red-50 disabled:opacity-60"
                               >
                                 {isDeletingMessageId === message.id ? '…' : 'Delete'}
                               </button>
