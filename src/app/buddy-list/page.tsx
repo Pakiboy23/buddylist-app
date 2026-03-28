@@ -29,10 +29,13 @@ import {
   getOutboxStorageKey,
   isOutboxItemDue,
   loadOutbox,
+  markOutboxSending,
   markOutboxAttemptFailure,
   normalizeOutboxItems,
   type OutboxItem,
+  type OutboxItemStatus,
   saveOutbox,
+  scheduleOutboxRetryNow,
 } from '@/lib/outbox';
 import {
   DIRECT_MESSAGE_SELECT_FIELDS,
@@ -1050,6 +1053,14 @@ function BuddyListContent() {
     };
   }, [userId]);
 
+  const upsertOutboxItem = useCallback((item: OutboxItem) => {
+    setOutboxItems((previous) => normalizeOutboxItems([...previous.filter((candidate) => candidate.id !== item.id), item]));
+  }, []);
+
+  const removeOutboxItem = useCallback((itemId: string) => {
+    setOutboxItems((previous) => previous.filter((candidate) => candidate.id !== itemId));
+  }, []);
+
   const flushOutbox = useCallback(async () => {
     if (!userId || isFlushingOutboxRef.current) {
       return;
@@ -1066,9 +1077,18 @@ function BuddyListContent() {
       const nowMs = Date.now();
 
       for (const item of snapshot) {
+        if (item.status === 'sending') {
+          continue;
+        }
+
         if (!isOutboxItemDue(item, nowMs)) {
           continue;
         }
+
+        nextItems = nextItems.map((candidate) =>
+          candidate.id === item.id ? markOutboxSending(candidate) : candidate,
+        );
+        setOutboxItems(normalizeOutboxItems(nextItems));
 
         if (item.type === 'dm') {
           const { data, error } = await sendDirectMessageWithClientMessageId({
@@ -1082,6 +1102,7 @@ function BuddyListContent() {
             nextItems = nextItems.map((candidate) =>
               candidate.id === item.id ? markOutboxAttemptFailure(candidate, error.message) : candidate,
             );
+            setOutboxItems(normalizeOutboxItems(nextItems));
             continue;
           }
 
@@ -1098,6 +1119,7 @@ function BuddyListContent() {
             );
           }
           nextItems = nextItems.filter((candidate) => candidate.id !== item.id);
+          setOutboxItems(normalizeOutboxItems(nextItems));
           continue;
         }
 
@@ -1111,12 +1133,14 @@ function BuddyListContent() {
           nextItems = nextItems.map((candidate) =>
             candidate.id === item.id ? markOutboxAttemptFailure(candidate, error.message) : candidate,
           );
+          setOutboxItems(normalizeOutboxItems(nextItems));
           continue;
         }
         if (activeRoom?.id === item.targetId && data) {
           setActiveRoomReloadToken((previous) => previous + 1);
         }
         nextItems = nextItems.filter((candidate) => candidate.id !== item.id);
+        setOutboxItems(normalizeOutboxItems(nextItems));
       }
 
       setOutboxItems(normalizeOutboxItems(nextItems));
@@ -1165,14 +1189,20 @@ function BuddyListContent() {
   }, [flushOutbox, outboxItems.length, userId]);
 
   const queueOutboxMessage = useCallback(
-    (item: { type: 'dm' | 'room'; targetId: string; content: string; clientMessageId?: string }) => {
+    (item: {
+      type: 'dm' | 'room';
+      targetId: string;
+      content: string;
+      clientMessageId?: string;
+      status?: OutboxItemStatus;
+    }) => {
       if (!userId) {
-        return false;
+        return null;
       }
 
       const trimmedContent = item.content.trim();
       if (!trimmedContent) {
-        return false;
+        return null;
       }
 
       const entry = createOutboxItem({
@@ -1180,11 +1210,34 @@ function BuddyListContent() {
         targetId: item.targetId,
         content: trimmedContent,
         clientMessageId: item.clientMessageId,
+        status: item.status,
       });
-      setOutboxItems((previous) => normalizeOutboxItems([...previous, entry]));
-      return true;
+      upsertOutboxItem(entry);
+      return entry;
     },
-    [userId],
+    [upsertOutboxItem, userId],
+  );
+
+  const retryOutboxMessage = useCallback(
+    (itemId: string) => {
+      let didScheduleRetry = false;
+      setOutboxItems((previous) =>
+        normalizeOutboxItems(
+          previous.map((item) => {
+            if (item.id !== itemId) {
+              return item;
+            }
+            didScheduleRetry = true;
+            return scheduleOutboxRetryNow(item);
+          }),
+        ),
+      );
+
+      if (didScheduleRetry && (typeof navigator === 'undefined' || navigator.onLine)) {
+        void flushOutbox();
+      }
+    },
+    [flushOutbox],
   );
 
   const updateDmDraft = useCallback((buddyId: string, draft: string) => {
@@ -3142,6 +3195,16 @@ function BuddyListContent() {
           ? 'Sent an attachment.'
           : 'Sent attachments.';
       const clientMessageId = createClientMessageId();
+      const trackedOutboxItem =
+        normalizedAttachments.length === 0
+          ? queueOutboxMessage({
+              type: 'dm',
+              targetId: activeChatBuddyId,
+              content: messageContent,
+              clientMessageId,
+              status: 'sending',
+            })
+          : null;
 
       setIsSendingMessage(true);
       setChatError(null);
@@ -3159,17 +3222,20 @@ function BuddyListContent() {
         const isLikelyNetworkIssue =
           (typeof navigator !== 'undefined' && !navigator.onLine) ||
           /network|fetch|offline|timeout/i.test(error.message);
-        if (isLikelyNetworkIssue && normalizedAttachments.length === 0) {
-          const queued = queueOutboxMessage({
-            type: 'dm',
-            targetId: activeChatBuddyId,
-            content: messageContent,
-            clientMessageId,
-          });
-          if (queued) {
+        if (trackedOutboxItem) {
+          if (isLikelyNetworkIssue) {
+            setOutboxItems((previous) =>
+              normalizeOutboxItems(
+                previous.map((item) =>
+                  item.id === trackedOutboxItem.id ? markOutboxAttemptFailure(item, error.message) : item,
+                ),
+              ),
+            );
             setChatError('Offline: message queued and will retry automatically.');
             return;
           }
+
+          removeOutboxItem(trackedOutboxItem.id);
         }
 
         setChatError(error.message);
@@ -3187,6 +3253,9 @@ function BuddyListContent() {
           ? previous
           : [...previous, insertedMessage],
       );
+      if (trackedOutboxItem) {
+        removeOutboxItem(trackedOutboxItem.id);
+      }
 
       if (normalizedAttachments.length > 0) {
         const attachmentRows: Array<{
@@ -3228,19 +3297,50 @@ function BuddyListContent() {
         }
       }
     },
-    [activeChatBuddyId, queueOutboxMessage, userId],
+    [activeChatBuddyId, queueOutboxMessage, removeOutboxItem, userId],
   );
 
   const handleQueueRoomMessage = useCallback(
-    ({ roomId, content, clientMessageId }: { roomId: string; content: string; clientMessageId?: string }) => {
-      return queueOutboxMessage({
+    ({
+      roomId,
+      content,
+      clientMessageId,
+      errorMessage,
+    }: {
+      roomId: string;
+      content: string;
+      clientMessageId?: string;
+      errorMessage?: string;
+    }) => {
+      const entry = queueOutboxMessage({
         type: 'room',
         targetId: roomId,
         content,
         clientMessageId,
       });
+      if (!entry) {
+        return false;
+      }
+
+      if (errorMessage) {
+        setOutboxItems((previous) =>
+          normalizeOutboxItems(
+            previous.map((item) => (item.id === entry.id ? markOutboxAttemptFailure(item, errorMessage) : item)),
+          ),
+        );
+      }
+
+      return true;
     },
     [queueOutboxMessage],
+  );
+
+  const handleRetryConversationOutboxMessage = useCallback(
+    (itemId: string) => {
+      setChatError(null);
+      retryOutboxMessage(itemId);
+    },
+    [retryOutboxMessage],
   );
 
   const requestedRoomName = searchParams.get('room')?.trim() ?? '';
@@ -3593,11 +3693,31 @@ function BuddyListContent() {
             ? `Live${lastSyncedAt ? ` (${new Date(lastSyncedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})` : ''}`
             : 'Idle';
   const pendingOutboxCount = outboxItems.length;
+  const sendingOutboxCount = outboxItems.filter((item) => item.status === 'sending').length;
+  const failedOutboxCount = outboxItems.filter((item) => item.status === 'failed').length;
   const outboxSummary =
     pendingOutboxCount === 0
       ? 'Outbox empty'
-      : `${pendingOutboxCount} queued${pendingOutboxCount === 1 ? '' : ' messages'}`;
+      : failedOutboxCount > 0
+        ? `${failedOutboxCount} failed${failedOutboxCount === 1 ? '' : ' messages'}`
+        : sendingOutboxCount > 0
+          ? `${sendingOutboxCount} sending${sendingOutboxCount === 1 ? '' : ' messages'}`
+          : `${pendingOutboxCount} queued${pendingOutboxCount === 1 ? '' : ' messages'}`;
   const latestOutboxError = outboxItems.find((item) => item.lastError)?.lastError ?? null;
+  const activeDirectOutboxItems = useMemo(() => {
+    if (!activeChatBuddyId) {
+      return [];
+    }
+
+    return outboxItems.filter((item) => item.type === 'dm' && item.targetId === activeChatBuddyId);
+  }, [activeChatBuddyId, outboxItems]);
+  const activeRoomOutboxItems = useMemo(() => {
+    if (!activeRoom?.id) {
+      return [];
+    }
+
+    return outboxItems.filter((item) => item.type === 'room' && item.targetId === activeRoom.id);
+  }, [activeRoom?.id, outboxItems]);
   const shouldShowSystemStatusChip =
     syncState === 'hydrating' || syncState === 'syncing' || syncState === 'error' || pendingOutboxCount > 0;
 
@@ -4956,11 +5076,13 @@ function BuddyListContent() {
             buddyIconPath={activeChatBuddy.buddy_icon_path}
             currentUserId={userId}
             messages={chatMessages}
+            outboxItems={activeDirectOutboxItems}
             initialUnreadCount={initialUnreadForActiveChat}
             initialDraft={draftCache.dm[activeChatBuddy.id] ?? ''}
             typingText={activeDmTypingText}
             onSendMessage={handleSendMessage}
             onTypingActivity={sendDmTypingPulse}
+            onRetryOutboxMessage={handleRetryConversationOutboxMessage}
             onDraftChange={(draft) => updateDmDraft(activeChatBuddy.id, draft)}
             onClose={closeChatWindow}
             onSignOff={handleSignOff}
@@ -4986,8 +5108,10 @@ function BuddyListContent() {
           currentUserBuddyIconPath={buddyIconPath}
           initialUnreadCount={initialUnreadForActiveRoom}
           initialDraft={draftCache.rooms[normalizeRoomKey(activeRoom.name)] ?? ''}
+          outboxItems={activeRoomOutboxItems}
           reloadToken={activeRoomReloadToken}
           onDraftChange={(draft) => updateRoomDraft(activeRoom.name, draft)}
+          onRetryOutboxMessage={handleRetryConversationOutboxMessage}
           onQueueRoomMessage={handleQueueRoomMessage}
           onBack={handleBackFromRoom}
           onLeave={handleLeaveCurrentRoom}

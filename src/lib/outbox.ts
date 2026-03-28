@@ -1,6 +1,7 @@
 import { getVersionedData, setVersionedData } from '@/lib/clientStorage';
 
 export type OutboxItemType = 'dm' | 'room';
+export type OutboxItemStatus = 'queued' | 'sending' | 'failed';
 
 interface OutboxEnvelopeData {
   items: OutboxItem[];
@@ -12,6 +13,7 @@ export interface OutboxItem {
   targetId: string;
   content: string;
   createdAt: string;
+  status: OutboxItemStatus;
   attempts: number;
   nextAttemptAt: string;
   lastError: string | null;
@@ -22,6 +24,7 @@ export interface NewOutboxItem {
   targetId: string;
   content: string;
   clientMessageId?: string;
+  status?: OutboxItemStatus;
 }
 
 const OUTBOX_STORAGE_KEY_PREFIX = 'buddylist:outbox:v1:';
@@ -61,6 +64,12 @@ function normalizeItem(value: unknown): OutboxItem | null {
   const content = typeof candidate.content === 'string' ? candidate.content.trim() : '';
   const id = typeof candidate.id === 'string' && candidate.id.trim() ? candidate.id : '';
   const createdAt = typeof candidate.createdAt === 'string' ? candidate.createdAt : nowIsoString();
+  const status =
+    candidate.status === 'queued' || candidate.status === 'sending' || candidate.status === 'failed'
+      ? candidate.status
+      : typeof candidate.lastError === 'string'
+        ? 'failed'
+        : 'queued';
   const attempts =
     typeof candidate.attempts === 'number' && Number.isFinite(candidate.attempts) && candidate.attempts >= 0
       ? Math.floor(candidate.attempts)
@@ -79,6 +88,7 @@ function normalizeItem(value: unknown): OutboxItem | null {
     targetId,
     content: content.slice(0, OUTBOX_MAX_CONTENT_CHARS),
     createdAt,
+    status,
     attempts,
     nextAttemptAt,
     lastError,
@@ -154,8 +164,27 @@ export function createOutboxItem(input: NewOutboxItem): OutboxItem {
     targetId: input.targetId,
     content: input.content.trim().slice(0, OUTBOX_MAX_CONTENT_CHARS),
     createdAt,
+    status: input.status ?? 'queued',
     attempts: 0,
     nextAttemptAt: createdAt,
+    lastError: null,
+  };
+}
+
+export function markOutboxSending(item: OutboxItem) {
+  return {
+    ...item,
+    status: 'sending' as const,
+    nextAttemptAt: nowIsoString(),
+    lastError: null,
+  };
+}
+
+export function scheduleOutboxRetryNow(item: OutboxItem) {
+  return {
+    ...item,
+    status: 'queued' as const,
+    nextAttemptAt: nowIsoString(),
     lastError: null,
   };
 }
@@ -164,6 +193,7 @@ export function markOutboxAttemptFailure(item: OutboxItem, errorMessage: string)
   const nextAttempts = item.attempts + 1;
   return {
     ...item,
+    status: 'failed' as const,
     attempts: nextAttempts,
     nextAttemptAt: computeNextAttemptIso(nextAttempts),
     lastError: errorMessage,

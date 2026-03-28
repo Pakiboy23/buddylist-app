@@ -5,6 +5,7 @@ import AppIcon from '@/components/AppIcon';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import RetroWindow from '@/components/RetroWindow';
 import RichTextToolbar from '@/components/RichTextToolbar';
+import type { OutboxItem } from '@/lib/outbox';
 import {
   CHAT_MEDIA_MAX_ATTACHMENTS,
   type ChatMediaAttachmentRecord,
@@ -47,11 +48,13 @@ interface ChatWindowProps {
   buddyIconPath?: string | null;
   currentUserId: string;
   messages: ChatMessage[];
+  outboxItems?: OutboxItem[];
   initialUnreadCount?: number;
   initialDraft?: string;
   typingText?: string | null;
   onSendMessage: (content: string, attachments?: File[]) => Promise<void> | void;
   onTypingActivity?: () => void;
+  onRetryOutboxMessage?: (itemId: string) => void;
   onDraftChange?: (draft: string) => void;
   onClose: () => void;
   onSignOff?: () => void;
@@ -88,11 +91,13 @@ export default function ChatWindow({
   buddyIconPath = null,
   currentUserId,
   messages,
+  outboxItems = [],
   initialUnreadCount = 0,
   initialDraft = '',
   typingText = null,
   onSendMessage,
   onTypingActivity,
+  onRetryOutboxMessage,
   onDraftChange,
   onClose,
   onSignOff,
@@ -393,6 +398,15 @@ export default function ChatWindow({
     }
     return presentation;
   }, [messages]);
+  const visibleOutboxItems = useMemo(() => {
+    const deliveredClientIds = new Set(
+      messages
+        .map((message) => message.client_msg_id)
+        .filter((clientMessageId): clientMessageId is string => Boolean(clientMessageId)),
+    );
+
+    return outboxItems.filter((item) => !deliveredClientIds.has(item.id));
+  }, [messages, outboxItems]);
 
   const clearPendingAttachments = useCallback(() => {
     setPendingAttachments([]);
@@ -950,6 +964,77 @@ export default function ChatWindow({
                               })}
                             </div>
                           ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                {visibleOutboxItems.map((item) => {
+                  const richTextPresentation = getRichTextPresentation(item.content);
+                  const hasCustomStyling = richTextPresentation.hasCustomStyling;
+                  const timestampDate = new Date(item.createdAt);
+                  const fullTimestamp = timestampDate.toLocaleString();
+                  const timestamp = timestampDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                  const statusLabel =
+                    item.status === 'sending' ? 'Sending' : item.status === 'failed' ? 'Failed' : 'Queued';
+                  const statusToneClass =
+                    item.status === 'failed'
+                      ? 'text-red-600'
+                      : item.status === 'queued'
+                        ? 'text-amber-600'
+                        : 'text-slate-400';
+                  const bubbleToneClass =
+                    item.status === 'failed'
+                      ? 'border border-red-200/80 bg-red-50/90 text-red-950 shadow-[0_8px_24px_rgba(239,68,68,0.12)]'
+                      : item.status === 'queued'
+                        ? 'border border-amber-200/80 bg-amber-50/90 text-amber-950 shadow-[0_8px_24px_rgba(245,158,11,0.12)]'
+                        : 'bg-blue-500/92 text-white shadow-[0_2px_8px_rgba(37,99,235,0.28)]';
+
+                  return (
+                    <div key={`outbox-${item.id}`} className="flex flex-col">
+                      <p
+                        className="my-2 text-center text-[length:var(--ui-text-2xs)] text-slate-400"
+                        title={fullTimestamp}
+                      >
+                        {timestamp}
+                      </p>
+                      <div className="flex justify-end">
+                        <div className="max-w-[78%]">
+                          <div
+                            className={`relative rounded-2xl rounded-br-[6px] px-3 py-2 ${
+                              hasCustomStyling
+                                ? 'text-[length:var(--ui-text-lg)] leading-[1.48]'
+                                : 'text-[length:var(--ui-text-md)] leading-[1.42]'
+                            } ${bubbleToneClass}`}
+                          >
+                            <span
+                              className={`aim-rich-html ${hasCustomStyling ? 'aim-rich-html--styled' : ''}`}
+                              dangerouslySetInnerHTML={{ __html: richTextPresentation.html }}
+                            />
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center justify-end gap-2">
+                            <span className={`text-[length:var(--ui-text-2xs)] font-semibold ${statusToneClass}`}>
+                              {statusLabel}
+                            </span>
+                            {item.lastError ? (
+                              <span
+                                className="max-w-[12rem] truncate text-[length:var(--ui-text-2xs)] text-slate-400"
+                                title={item.lastError}
+                              >
+                                {item.lastError}
+                              </span>
+                            ) : null}
+                            {item.status !== 'sending' && onRetryOutboxMessage ? (
+                              <button
+                                type="button"
+                                onClick={() => onRetryOutboxMessage(item.id)}
+                                className="ui-focus-ring rounded-full border border-slate-200 bg-white/85 px-2 py-1 text-[length:var(--ui-text-2xs)] font-semibold text-slate-600 hover:bg-white"
+                                aria-label="Retry message"
+                              >
+                                Retry
+                              </button>
+                            ) : null}
+                          </div>
                         </div>
                       </div>
                     </div>
