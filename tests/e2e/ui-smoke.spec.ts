@@ -1,40 +1,17 @@
 import { expect, test, type Page } from '@playwright/test';
-
-function missingOrPlaceholder(value: string | undefined) {
-  if (!value) {
-    return true;
-  }
-
-  const normalized = value.trim().toLowerCase();
-  return normalized.startsWith('your-') || normalized.includes('changeme');
-}
-
-function getRequiredEnvValue(name: string) {
-  const value = process.env[name];
-  return missingOrPlaceholder(value) ? null : value ?? null;
-}
+import { readNamedEnv } from './support/env';
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-const TEST_ENV = {
-  supabaseUrl: getRequiredEnvValue('NEXT_PUBLIC_SUPABASE_URL'),
-  supabaseAnonKey: getRequiredEnvValue('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
-  userAScreenname: getRequiredEnvValue('PLAYWRIGHT_USER_A_SCREENNAME'),
-  userAPassword: getRequiredEnvValue('PLAYWRIGHT_USER_A_PASSWORD'),
-  userBScreenname: getRequiredEnvValue('PLAYWRIGHT_USER_B_SCREENNAME'),
-};
-
-const missingEnv = [
-  ['NEXT_PUBLIC_SUPABASE_URL', TEST_ENV.supabaseUrl],
-  ['NEXT_PUBLIC_SUPABASE_ANON_KEY', TEST_ENV.supabaseAnonKey],
-  ['PLAYWRIGHT_USER_A_SCREENNAME', TEST_ENV.userAScreenname],
-  ['PLAYWRIGHT_USER_A_PASSWORD', TEST_ENV.userAPassword],
-  ['PLAYWRIGHT_USER_B_SCREENNAME', TEST_ENV.userBScreenname],
-]
-  .filter(([, value]) => !value)
-  .map(([name]) => name);
+const { values: TEST_ENV, missing: missingEnv } = readNamedEnv({
+  supabaseUrl: 'NEXT_PUBLIC_SUPABASE_URL',
+  supabaseAnonKey: 'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+  userAScreenname: 'PLAYWRIGHT_USER_A_SCREENNAME',
+  userAPassword: 'PLAYWRIGHT_USER_A_PASSWORD',
+  userBScreenname: 'PLAYWRIGHT_USER_B_SCREENNAME',
+} as const);
 
 async function signOn(page: Page, screenname: string, password: string) {
   await page.goto('/');

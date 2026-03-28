@@ -1,7 +1,9 @@
 import { loadEnvConfig } from '@next/env';
 import { defineConfig, devices } from '@playwright/test';
+import { SEEDED_E2E_ENV, warnAboutMissingE2EEnv } from './tests/e2e/support/env';
 
 loadEnvConfig(process.cwd());
+warnAboutMissingE2EEnv(SEEDED_E2E_ENV);
 
 const defaultPort = process.env.PLAYWRIGHT_PORT || '3100';
 const baseURL = process.env.PLAYWRIGHT_BASE_URL || `http://127.0.0.1:${defaultPort}`;
