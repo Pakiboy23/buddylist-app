@@ -28,7 +28,7 @@ export default defineConfig({
   webServer: useExternalBaseUrl
     ? undefined
     : {
-        command: `npm run build && npm run start -- --port ${defaultPort}`,
+        command: `node scripts/run-without-no-color.mjs "npm run build && npm run start -- --port ${defaultPort}"`,
         url: baseURL,
         reuseExistingServer: false,
         timeout: 240_000,
