@@ -67,7 +67,10 @@ export default function IncomingMessageBanner({
 
   return createPortal(
     <div
-      className={`fixed left-0 top-0 z-[9999] w-full transform transition-all duration-300 ease-out ${
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      className={`fixed left-0 top-0 z-[9999] w-full transform transition-all duration-300 ease-out motion-reduce:transition-none ${
         isVisible ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0'
       }`}
       style={{ paddingTop: 'max(env(safe-area-inset-top), 0.75rem)' }}
@@ -94,9 +97,9 @@ export default function IncomingMessageBanner({
           <button
             type="button"
             onClick={onClick}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-xl transition hover:opacity-80 active:scale-95"
+            className="ui-focus-ring flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-xl transition hover:opacity-80 active:scale-95"
             style={{ background: variant === 'dm' ? '#dbeafe' : '#ede9fe' }}
-            aria-label={`Open message from ${senderName}`}
+            aria-label={`Open ${variant === 'dm' ? 'conversation' : 'room'} notification from ${senderName}`}
           >
             <AppIcon
               kind={variant === 'dm' ? 'mail' : 'chat'}
@@ -107,22 +110,23 @@ export default function IncomingMessageBanner({
           <button
             type="button"
             onClick={onClick}
-            className="min-w-0 flex-1 text-left transition active:opacity-80"
+            className="ui-focus-ring min-w-0 flex-1 rounded-xl text-left transition active:opacity-80"
+            aria-label={`Open ${variant === 'dm' ? 'conversation' : 'room'} from ${senderName}`}
           >
             <div className="flex items-baseline gap-1.5">
-              <span className="truncate text-[13px] font-semibold text-slate-800">{senderName}</span>
+              <span className="truncate text-[length:var(--ui-text-md)] font-semibold text-slate-800">{senderName}</span>
               {count > 1 ? (
-                <span className="shrink-0 text-[11px] text-slate-400">{count} new</span>
+                <span className="shrink-0 text-[length:var(--ui-text-xs)] text-slate-400">{count} new</span>
               ) : null}
             </div>
-            <p className="truncate text-[12px] text-slate-500">{messagePreview}</p>
+            <p className="truncate text-[length:var(--ui-text-sm)] text-slate-500">{messagePreview}</p>
           </button>
           {/* Dismiss button */}
           <button
             type="button"
             onClick={dismissBanner}
-            aria-label="Dismiss notification"
-            className="ml-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-slate-200/80 bg-slate-100/80 text-[11px] font-semibold text-slate-500 hover:bg-slate-200"
+            aria-label={`Dismiss notification from ${senderName}`}
+            className="ui-focus-ring ml-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-slate-200/80 bg-slate-100/80 text-[length:var(--ui-text-xs)] font-semibold text-slate-500 hover:bg-slate-200"
           >
             <AppIcon kind="close" className="h-4 w-4" />
           </button>

@@ -15,12 +15,23 @@
   --shadow-glass: 0 20px 44px rgba(15, 23, 42, 0.14), 0 8px 20px rgba(15, 23, 42, 0.08);
 }
 
+:root {
+  --ui-text-2xs: clamp(0.75rem, 0.72rem + 0.16vw, 0.8125rem);
+  --ui-text-xs: clamp(0.8125rem, 0.79rem + 0.2vw, 0.875rem);
+  --ui-text-sm: clamp(0.875rem, 0.845rem + 0.24vw, 0.9375rem);
+  --ui-text-md: clamp(0.9375rem, 0.9rem + 0.3vw, 1rem);
+  --ui-text-lg: clamp(1rem, 0.96rem + 0.38vw, 1.125rem);
+  --ui-text-xl: clamp(1.125rem, 1.06rem + 0.52vw, 1.25rem);
+}
+
 html,
 body {
   width: 100vw;
   height: 100dvh;
   overflow: hidden;
   overscroll-behavior-y: none;
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
@@ -266,7 +277,7 @@ html.dark body {
 }
 
 .ui-focus-ring {
-  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:ring-offset-1;
+  @apply focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-blue-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white;
 }
 
 /* ── Button press feedback ────────────────────────────────────────── */
@@ -336,6 +347,59 @@ button:not(:disabled):active,
   animation: ui-fade-in 220ms ease-out;
 }
 
+@keyframes ui-chat-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.chat-slide-in {
+  animation: ui-chat-slide-in 220ms ease-out;
+}
+
+@keyframes ui-message-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.msg-enter {
+  animation: ui-message-enter 180ms ease-out;
+}
+
+@keyframes ui-typing-dot {
+  0%, 80%, 100% {
+    transform: translateY(0);
+    opacity: 0.55;
+  }
+  40% {
+    transform: translateY(-2px);
+    opacity: 1;
+  }
+}
+
+.typing-dot {
+  animation: ui-typing-dot 1s ease-in-out infinite;
+}
+
+.typing-dot:nth-child(2) {
+  animation-delay: 120ms;
+}
+
+.typing-dot:nth-child(3) {
+  animation-delay: 240ms;
+}
+
 /* ── Status dot pulse ────────────────────────────────────────────── */
 @keyframes ui-status-pulse {
   0%, 100% {
@@ -362,6 +426,12 @@ button:not(:disabled):active,
   }
 
   .ui-fade-in {
+    animation: none;
+  }
+
+  .chat-slide-in,
+  .msg-enter,
+  .typing-dot {
     animation: none;
   }
 

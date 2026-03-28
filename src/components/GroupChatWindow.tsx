@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, KeyboardEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import AppIcon from '@/components/AppIcon';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import RetroWindow from '@/components/RetroWindow';
@@ -116,6 +116,14 @@ function getStableSenderColorClass(senderId: string) {
   return GROUP_SENDER_COLOR_CLASSES[hash % GROUP_SENDER_COLOR_CLASSES.length];
 }
 
+function getChatScrollBehavior(): ScrollBehavior {
+  if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    return 'auto';
+  }
+
+  return 'smooth';
+}
+
 export default function GroupChatWindow({
   roomId,
   roomName,
@@ -169,6 +177,12 @@ export default function GroupChatWindow({
   const [typingMap, setTypingMap] = useState<Record<string, string>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+  const searchInputId = useId();
+  const searchResultsId = useId();
+  const messagesLogId = useId();
+  const composerInputId = useId();
+  const composerHelpId = useId();
   const roomChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const lastTypingSentAtRef = useRef(0);
   const typingTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -195,6 +209,10 @@ export default function GroupChatWindow({
   useEffect(() => {
     setDraft(initialDraft);
   }, [initialDraft]);
+
+  useEffect(() => {
+    composerRef.current?.focus();
+  }, []);
 
   useEffect(() => {
     const messageIds = messages.map((message) => message.id);
@@ -414,7 +432,7 @@ export default function GroupChatWindow({
   }, [currentUserBuddyIconPath, currentUserId, currentUserScreenname]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    messagesEndRef.current?.scrollIntoView({ behavior: getChatScrollBehavior(), block: 'end' });
   }, [messages]);
 
   useEffect(() => {
@@ -863,7 +881,7 @@ export default function GroupChatWindow({
   };
 
   const xpTinyToolbarButtonClass = (active = false) =>
-    `inline-flex h-7 min-w-7 items-center justify-center rounded-lg border px-1.5 text-[11px] font-semibold text-slate-700 transition ${
+    `ui-focus-ring inline-flex h-7 min-w-7 items-center justify-center rounded-lg border px-1.5 text-[length:var(--ui-text-xs)] font-semibold text-slate-700 transition ${
       active
         ? 'border-blue-400/70 bg-blue-50 text-blue-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]'
         : 'border-slate-200 bg-white/80 hover:bg-white'
@@ -954,7 +972,13 @@ export default function GroupChatWindow({
       : null;
 
   return (
-    <div className="fixed inset-0 z-50 chat-slide-in" {...swipeBack}>
+    <div
+      className="fixed inset-0 z-50 chat-slide-in"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Room chat ${roomName}`}
+      {...swipeBack}
+    >
       <RetroWindow
         title={`#${roomName}`}
         variant="xp_shell"
@@ -962,10 +986,14 @@ export default function GroupChatWindow({
         onXpClose={onBack}
         onXpSignOff={onSignOff}
       >
-        <div className="flex h-full min-h-0 flex-col rounded-[1.4rem] border border-white/55 bg-white/72 text-[13px] backdrop-blur-xl shadow-[0_20px_44px_rgba(15,23,42,0.12)]">
+        <div className="flex h-full min-h-0 flex-col rounded-[1.4rem] border border-white/55 bg-white/72 text-[length:var(--ui-text-md)] backdrop-blur-xl shadow-[0_20px_44px_rgba(15,23,42,0.12)]">
 
           {/* Room header: name + participants */}
-          <div className="mx-3 mt-2.5 rounded-2xl border border-white/70 bg-white/88 px-3 py-2 text-[11px] shadow-sm">
+          <div
+            className="mx-3 mt-2.5 rounded-2xl border border-white/70 bg-white/88 px-3 py-2 text-[length:var(--ui-text-xs)] shadow-sm"
+            role="region"
+            aria-label={`${roomName} room header`}
+          >
             <p className="font-semibold text-slate-700">#{roomName}</p>
             <div className="mt-2 flex items-center gap-2">
               <div className="flex -space-x-2">
@@ -982,7 +1010,9 @@ export default function GroupChatWindow({
                 ))}
               </div>
               {participants.length > 4 ? (
-                <span className="text-[10px] font-semibold text-slate-400">+{participants.length - 4}</span>
+                <span className="text-[length:var(--ui-text-2xs)] font-semibold text-slate-400">
+                  +{participants.length - 4}
+                </span>
               ) : null}
             </div>
             <p className="mt-0.5 truncate text-slate-500">
@@ -996,36 +1026,60 @@ export default function GroupChatWindow({
 
           {/* Search bar */}
           <div className="mx-3 mt-1.5 rounded-2xl border border-white/65 bg-white/72 px-3 py-1.5 shadow-sm">
+            <label htmlFor={searchInputId} className="sr-only">
+              Search room {roomName}
+            </label>
             <div className="flex items-center gap-2">
-              <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg
+                className="h-3.5 w-3.5 shrink-0 text-slate-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
               <input
-                id="room-search-input"
+                id={searchInputId}
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
                 placeholder={`Search #${roomName}`}
-                className="h-6 min-w-0 flex-1 bg-transparent text-[11px] text-slate-700 placeholder-slate-400 focus:outline-none"
+                aria-describedby={normalizedSearchQuery ? searchResultsId : undefined}
+                className="ui-focus-ring h-6 min-w-0 flex-1 rounded-lg bg-transparent text-[length:var(--ui-text-xs)] text-slate-700 placeholder-slate-400"
               />
               {searchQuery ? (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  className="shrink-0 text-[10px] font-semibold text-slate-400 hover:text-slate-600"
+                  className="ui-focus-ring shrink-0 rounded-full text-[length:var(--ui-text-2xs)] font-semibold text-slate-400 hover:text-slate-600"
+                  aria-label="Clear room search"
                 >
                   <AppIcon kind="close" className="h-3.5 w-3.5" />
                 </button>
               ) : null}
             </div>
             {normalizedSearchQuery ? (
-              <p className="mt-0.5 text-[10px] text-slate-400">
+              <p
+                id={searchResultsId}
+                role="status"
+                aria-live="polite"
+                className="mt-0.5 text-[length:var(--ui-text-2xs)] text-slate-400"
+              >
                 {searchMatchCount} {searchMatchCount === 1 ? 'match' : 'matches'}
               </p>
             ) : null}
           </div>
 
           {/* Messages area */}
-          <div className="mx-3 mt-1.5 min-h-0 flex-1 overflow-y-auto rounded-2xl border border-white/55 bg-white/55 px-3 py-3 backdrop-blur-sm">
+          <div
+            id={messagesLogId}
+            role="log"
+            aria-live="polite"
+            aria-relevant="additions text"
+            aria-busy={isLoadingMessages}
+            aria-label={`Conversation in room ${roomName}`}
+            className="mx-3 mt-1.5 min-h-0 flex-1 overflow-y-auto rounded-2xl border border-white/55 bg-white/55 px-3 py-3 backdrop-blur-sm"
+          >
             {isLoadingMessages && (
               <div className="flex flex-col gap-3 pt-2 ui-fade-in">
                 {[45, 70, 35, 60, 50, 80].map((widthPercent, i) => (
@@ -1041,8 +1095,10 @@ export default function GroupChatWindow({
                   <AppIcon kind="chat" className="h-7 w-7 text-violet-400" />
                 </div>
                 <div>
-                  <p className="text-[13px] font-semibold text-slate-500">No messages yet</p>
-                  <p className="mt-0.5 text-[11px] text-slate-400">Be the first to say something in this room</p>
+                  <p className="text-[length:var(--ui-text-md)] font-semibold text-slate-500">No messages yet</p>
+                  <p className="mt-0.5 text-[length:var(--ui-text-xs)] text-slate-400">
+                    Be the first to say something in this room
+                  </p>
                 </div>
               </div>
             )}
@@ -1089,7 +1145,10 @@ export default function GroupChatWindow({
                       {separatorIndex === index ? (
                         <p className="aim-new-messages-separator my-2">New messages</p>
                       ) : showTimeDivider ? (
-                        <p className="my-2 text-center text-[10px] text-slate-400" title={fullTimestamp}>
+                        <p
+                          className="my-2 text-center text-[length:var(--ui-text-2xs)] text-slate-400"
+                          title={fullTimestamp}
+                        >
                           {timestamp}
                         </p>
                       ) : null}
@@ -1098,7 +1157,8 @@ export default function GroupChatWindow({
                         normalizedSearchQuery && !isMatch ? 'opacity-35' : ''
                       } ${isMentioningCurrentUser && !normalizedSearchQuery ? 'opacity-100' : ''}`}>
                         <div
-                          className="group relative max-w-[78%]"
+                          className="group relative max-w-[78%] focus:outline-none"
+                          tabIndex={isMine && !isDeleted && !isEditing ? 0 : undefined}
                           onTouchStart={() => {
                             if (!isMine || isDeleted) return;
                             longPressTimerRef.current = setTimeout(() => {
@@ -1121,7 +1181,7 @@ export default function GroupChatWindow({
                         >
                           {/* Sender name label — only for first in a run from others */}
                           {!isMine && isFirstInRun ? (
-                            <p className={`mb-0.5 ml-1 text-[10px] font-semibold ${senderColorClass}`}>
+                            <p className={`mb-0.5 ml-1 text-[length:var(--ui-text-2xs)] font-semibold ${senderColorClass}`}>
                               {senderName}
                             </p>
                           ) : null}
@@ -1134,7 +1194,9 @@ export default function GroupChatWindow({
                           {/* Bubble */}
                           <div
                             className={`relative msg-enter px-3 py-2 ${
-                              hasCustomStyling ? 'text-[15px] leading-[1.48]' : 'text-[14px] leading-[1.42]'
+                              hasCustomStyling
+                                ? 'text-[length:var(--ui-text-lg)] leading-[1.48]'
+                                : 'text-[length:var(--ui-text-md)] leading-[1.42]'
                             } ${
                               isLastInRun ? 'mb-2' : 'mb-0.5'
                             } ${
@@ -1143,17 +1205,18 @@ export default function GroupChatWindow({
                                   ? `rounded-2xl border border-blue-200/80 bg-white/96 text-slate-900 shadow-[0_10px_24px_rgba(37,99,235,0.16)] ${isLastInRun ? 'rounded-br-[8px]' : ''}`
                                   : `rounded-2xl bg-blue-500 text-white shadow-[0_2px_8px_rgba(37,99,235,0.28)] ${isLastInRun ? 'rounded-br-[6px]' : ''}`
                                 : `rounded-2xl border border-white/70 bg-white/85 text-slate-800 shadow-sm backdrop-blur-sm ${isLastInRun ? 'rounded-bl-[6px]' : ''} ${isMentioningCurrentUser ? 'border-amber-300/70 bg-amber-50/80' : ''}`
-                            } ${isMatch ? 'ring-2 ring-amber-400' : ''}`}
+                            } ${isMatch ? 'ring-2 ring-amber-400' : ''} ${isMine && !isDeleted && !isEditing ? 'ui-focus-ring' : ''}`}
                           >
                             {isEditing ? (
                               <div className="flex min-w-[200px] flex-col gap-2">
                                 <input
                                   value={editDraft}
                                   onChange={(event) => setEditDraft(event.target.value)}
-                                  className={`w-full rounded-xl border bg-white/20 px-2.5 py-1.5 text-[12px] focus:outline-none focus:ring-1 ${
+                                  aria-label="Edit message"
+                                  className={`ui-focus-ring w-full rounded-xl border bg-white/20 px-2.5 py-1.5 text-[length:var(--ui-text-sm)] ${
                                     isMine
-                                      ? 'border-white/30 text-white placeholder-white/50 focus:ring-white/30'
-                                      : 'border-slate-200 text-slate-800 focus:ring-blue-200'
+                                      ? 'border-white/30 text-white placeholder-white/50'
+                                      : 'border-slate-200 text-slate-800'
                                   }`}
                                   maxLength={1500}
                                   autoFocus
@@ -1162,7 +1225,7 @@ export default function GroupChatWindow({
                                   <button
                                     type="button"
                                     onClick={cancelEditingMessage}
-                                    className={`rounded-xl px-2.5 py-1 text-[11px] font-semibold ${
+                                    className={`ui-focus-ring rounded-xl px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold ${
                                       isMine ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                                     }`}
                                   >
@@ -1172,7 +1235,7 @@ export default function GroupChatWindow({
                                     type="button"
                                     onClick={() => void saveEditedMessage(message.id)}
                                     disabled={isSavingEdit || !editDraft.trim()}
-                                    className={`rounded-xl px-2.5 py-1 text-[11px] font-semibold disabled:opacity-60 ${
+                                    className={`ui-focus-ring rounded-xl px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold disabled:opacity-60 ${
                                       isMine ? 'bg-white/30 text-white hover:bg-white/40' : 'bg-blue-500 text-white hover:bg-blue-600'
                                     }`}
                                   >
@@ -1189,7 +1252,7 @@ export default function GroupChatWindow({
                               />
                             )}
                             {isEdited && !isEditing ? (
-                              <span className={`ml-1.5 text-[9px] ${
+                              <span className={`ml-1.5 text-[length:var(--ui-text-2xs)] ${
                                 isMine ? (hasCustomStyling ? 'text-slate-400' : 'text-blue-200') : 'text-slate-400'
                               }`}>(edited)</span>
                             ) : null}
@@ -1198,7 +1261,7 @@ export default function GroupChatWindow({
                           {/* Action bar — hover (desktop) + long-press (mobile) */}
                           {isMine && !isDeleted && !isEditing ? (
                             <div className={`absolute -top-8 right-0 items-center gap-0.5 rounded-full border border-white/70 bg-white/90 px-2 py-1 shadow-lg backdrop-blur-md ui-fade-in ${
-                              longPressMessageId === message.id ? 'flex' : 'hidden group-hover:flex'
+                              longPressMessageId === message.id ? 'flex' : 'hidden group-hover:flex group-focus-within:flex'
                             }`}>
                               <button
                                 type="button"
@@ -1206,7 +1269,8 @@ export default function GroupChatWindow({
                                   startEditingMessage(message);
                                   setLongPressMessageId(null);
                                 }}
-                                className="rounded-full px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-100"
+                                className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100"
+                                aria-label={`Edit message sent at ${timestamp}`}
                               >
                                 Edit
                               </button>
@@ -1218,7 +1282,8 @@ export default function GroupChatWindow({
                                   setLongPressMessageId(null);
                                 }}
                                 disabled={isDeletingMessageId === message.id}
-                                className="rounded-full px-2.5 py-1 text-[11px] font-semibold text-red-500 hover:bg-red-50 disabled:opacity-60"
+                                className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-red-500 hover:bg-red-50 disabled:opacity-60"
+                                aria-label={`Delete message sent at ${timestamp}`}
                               >
                                 {isDeletingMessageId === message.id ? '…' : 'Delete'}
                               </button>
@@ -1231,7 +1296,7 @@ export default function GroupChatWindow({
                               {reactionEntries.map(([emoji, count]) => (
                                 <span
                                   key={`${message.id}-${emoji}`}
-                                  className="rounded-full border border-white/70 bg-white/85 px-1.5 py-[2px] text-[10px] text-slate-600 shadow-sm backdrop-blur-sm"
+                                  className="rounded-full border border-white/70 bg-white/85 px-1.5 py-[2px] text-[length:var(--ui-text-2xs)] text-slate-600 shadow-sm backdrop-blur-sm"
                                 >
                                   {emoji} {count}
                                 </span>
@@ -1252,9 +1317,10 @@ export default function GroupChatWindow({
                                     href={data.publicUrl}
                                     target="_blank"
                                     rel="noreferrer"
-                                  className={`block text-[10px] underline ${isMine ? 'text-blue-200' : 'text-blue-600'}`}
-                                  title={attachment.storage_path}
-                                >
+                                    className={`ui-focus-ring block rounded-lg text-[length:var(--ui-text-2xs)] underline ${isMine ? 'text-blue-200' : 'text-blue-600'}`}
+                                    title={attachment.storage_path}
+                                    aria-label={`Open attachment ${attachment.file_name}${attachment.size_bytes ? `, ${formatFileSize(attachment.size_bytes)}` : ''}`}
+                                  >
                                     <span className="inline-flex items-center gap-1">
                                       <AppIcon kind="attachment" className="h-3 w-3" />
                                       <span>{attachment.file_name}</span>
@@ -1275,19 +1341,31 @@ export default function GroupChatWindow({
             )}
           </div>
 
-          {reactionError ? <p className="mx-3 mt-1 text-[10px] text-red-600">{reactionError}</p> : null}
-          {attachmentLoadError ? <p className="mx-3 mt-1 text-[10px] text-red-600">{attachmentLoadError}</p> : null}
-          {error ? <p className="mx-3 mt-1 text-[10px] text-red-600">{error}</p> : null}
+          {reactionError ? (
+            <p role="alert" className="mx-3 mt-1 text-[length:var(--ui-text-2xs)] text-red-600">
+              {reactionError}
+            </p>
+          ) : null}
+          {attachmentLoadError ? (
+            <p role="alert" className="mx-3 mt-1 text-[length:var(--ui-text-2xs)] text-red-600">
+              {attachmentLoadError}
+            </p>
+          ) : null}
+          {error ? (
+            <p role="alert" className="mx-3 mt-1 text-[length:var(--ui-text-2xs)] text-red-600">
+              {error}
+            </p>
+          ) : null}
 
           {/* Typing indicator */}
           {typingText ? (
-            <div className="mx-3 mt-1.5 flex items-center gap-2">
+            <div className="mx-3 mt-1.5 flex items-center gap-2" role="status" aria-live="polite" aria-atomic="true">
               <div className="flex items-center gap-1 rounded-full border border-white/65 bg-white/80 px-3 py-1.5 shadow-sm backdrop-blur-sm">
                 <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-400" />
                 <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-400" />
                 <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-400" />
               </div>
-              <span className="text-[10px] text-slate-400">{typingText}</span>
+              <span className="text-[length:var(--ui-text-2xs)] text-slate-400">{typingText}</span>
             </div>
           ) : null}
 
@@ -1299,21 +1377,35 @@ export default function GroupChatWindow({
                 type="button"
                 onClick={() => setShowFormatting((previous) => !previous)}
                 className={`${xpTinyToolbarButtonClass(showFormatting)} px-2.5`}
-                aria-label="Toggle formatting"
+                aria-label={showFormatting ? 'Hide formatting toolbar' : 'Show formatting toolbar'}
+                aria-expanded={showFormatting}
               >
                 Font
               </button>
-              <button type="button" onClick={toggleBold} className={xpTinyToolbarButtonClass(format.bold)} aria-label="Bold">
+              <button
+                type="button"
+                onClick={toggleBold}
+                className={xpTinyToolbarButtonClass(format.bold)}
+                aria-label="Toggle bold"
+                aria-pressed={format.bold}
+              >
                 <span className="font-bold">B</span>
               </button>
-              <button type="button" onClick={toggleItalic} className={xpTinyToolbarButtonClass(format.italic)} aria-label="Italic">
+              <button
+                type="button"
+                onClick={toggleItalic}
+                className={xpTinyToolbarButtonClass(format.italic)}
+                aria-label="Toggle italic"
+                aria-pressed={format.italic}
+              >
                 <span className="italic">I</span>
               </button>
               <button
                 type="button"
                 onClick={toggleUnderline}
                 className={xpTinyToolbarButtonClass(format.underline)}
-                aria-label="Underline"
+                aria-label="Toggle underline"
+                aria-pressed={format.underline}
               >
                 <span className="underline">U</span>
               </button>
@@ -1321,18 +1413,18 @@ export default function GroupChatWindow({
                 type="button"
                 disabled
                 className={`${xpTinyToolbarButtonClass()} opacity-50`}
-                aria-label="Link"
+                aria-label="Insert link coming soon"
               >
                 <AppIcon kind="link" className="h-3.5 w-3.5" />
               </button>
-              <button type="button" className={xpTinyToolbarButtonClass()} aria-label="Emoji">
+              <button type="button" className={xpTinyToolbarButtonClass()} aria-label="Emoji picker coming soon">
                 <AppIcon kind="smile" className="h-3.5 w-3.5" />
               </button>
               <button
                 type="button"
                 onClick={() => attachmentInputRef.current?.click()}
                 className={xpTinyToolbarButtonClass(pendingAttachments.length > 0)}
-                aria-label="Attach files"
+                aria-label={`Attach files to your message in room ${roomName}`}
               >
                 <AppIcon kind="attachment" className="h-3.5 w-3.5" />
               </button>
@@ -1342,13 +1434,14 @@ export default function GroupChatWindow({
                 multiple
                 onChange={(event) => handleSelectAttachments(event.target.files)}
                 className="hidden"
+                aria-label={`Choose attachments for room ${roomName}`}
               />
               {/* Leave room button, pushed to trailing edge */}
               <button
                 type="button"
                 onClick={onLeave}
-                className="ml-auto inline-flex h-7 min-w-7 items-center justify-center rounded-lg border border-red-200/80 bg-white/80 px-2 text-[11px] font-semibold text-red-500 hover:bg-red-50"
-                aria-label="Leave room"
+                className="ui-focus-ring ml-auto inline-flex h-7 min-w-7 items-center justify-center rounded-lg border border-red-200/80 bg-white/80 px-2 text-[length:var(--ui-text-xs)] font-semibold text-red-500 hover:bg-red-50"
+                aria-label={`Leave room ${roomName}`}
                 title="Leave room"
               >
                 Leave
@@ -1366,14 +1459,15 @@ export default function GroupChatWindow({
               <div className="space-y-1 rounded-2xl border border-white/65 bg-white/72 p-2">
                 {pendingAttachments.map((file, index) => (
                   <div key={`${file.name}-${file.size}-${file.lastModified}`} className="flex items-center gap-2">
-                    <span className="min-w-0 flex flex-1 items-center gap-1 truncate text-[10px] text-slate-600">
+                    <span className="min-w-0 flex flex-1 items-center gap-1 truncate text-[length:var(--ui-text-2xs)] text-slate-600">
                       <AppIcon kind="attachment" className="h-3 w-3 shrink-0" />
                       <span className="truncate">{file.name} ({formatFileSize(file.size)})</span>
                     </span>
                     <button
                       type="button"
                       onClick={() => removePendingAttachment(index)}
-                      className="shrink-0 rounded-lg border border-red-200/80 bg-white px-1.5 text-[10px] font-semibold text-red-500 hover:bg-red-50"
+                      className="ui-focus-ring shrink-0 rounded-lg border border-red-200/80 bg-white px-1.5 text-[length:var(--ui-text-2xs)] font-semibold text-red-500 hover:bg-red-50"
+                      aria-label={`Remove attachment ${file.name}`}
                     >
                       <AppIcon kind="close" className="h-3 w-3" />
                     </button>
@@ -1382,29 +1476,42 @@ export default function GroupChatWindow({
               </div>
             ) : null}
 
-            {attachmentError ? <p className="text-[10px] text-red-600">{attachmentError}</p> : null}
+            {attachmentError ? (
+              <p role="alert" className="text-[length:var(--ui-text-2xs)] text-red-600">
+                {attachmentError}
+              </p>
+            ) : null}
 
             {/* Pill compose input */}
+            <p id={composerHelpId} className="sr-only">
+              Press Enter to send. Press Command or Control plus Enter to insert a line break.
+            </p>
             <form
               onSubmit={handleSendMessage}
               className="flex items-end gap-2 rounded-2xl border border-white/65 bg-white/88 px-3.5 py-2.5 shadow-[0_4px_16px_rgba(15,23,42,0.08)] backdrop-blur-sm"
             >
+              <label htmlFor={composerInputId} className="sr-only">
+                Message room {roomName}
+              </label>
               <textarea
+                id={composerInputId}
+                ref={composerRef}
                 value={draft}
                 onChange={(event) => handleDraftChange(event.target.value)}
                 onKeyDown={handleDraftKeyDown}
                 placeholder={`Message #${roomName}…`}
                 rows={1}
                 maxLength={1500}
-                className="min-h-[24px] flex-1 resize-none bg-transparent text-[13px] text-slate-800 placeholder-slate-400 focus:outline-none"
+                aria-describedby={composerHelpId}
+                className="ui-focus-ring min-h-[24px] flex-1 resize-none rounded-xl bg-transparent text-[length:var(--ui-text-md)] text-slate-800 placeholder-slate-400"
                 style={{ maxHeight: '88px', overflowY: 'auto' }}
               />
               {(draft.trim() || pendingAttachments.length > 0) ? (
                 <button
                   type="submit"
                   disabled={isSending}
-                  className="mb-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-500 text-[14px] font-bold text-white shadow-[0_4px_10px_rgba(37,99,235,0.4)] transition hover:bg-blue-600 active:scale-95 disabled:opacity-60"
-                  aria-label="Send message"
+                  className="ui-focus-ring mb-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-500 text-[length:var(--ui-text-md)] font-bold text-white shadow-[0_4px_10px_rgba(37,99,235,0.4)] transition hover:bg-blue-600 active:scale-95 disabled:opacity-60"
+                  aria-label={`Send message to room ${roomName}`}
                 >
                   {isSending ? '…' : '↑'}
                 </button>
