@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, KeyboardEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { FormEvent, KeyboardEvent, type CSSProperties, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import AppIcon from '@/components/AppIcon';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import RetroWindow from '@/components/RetroWindow';
@@ -13,6 +13,7 @@ import {
   validateChatMediaFile,
 } from '@/lib/chatMedia';
 import { hapticLight, hapticSuccess } from '@/lib/haptics';
+import { useKeyboardViewport } from '@/hooks/useKeyboardViewport';
 import { useSwipeBack } from '@/hooks/useSwipeBack';
 import { supabase } from '@/lib/supabase';
 import {
@@ -170,6 +171,7 @@ export default function GroupChatWindow({
   const [reactionError, setReactionError] = useState<string | null>(null);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [attachmentLoadError, setAttachmentLoadError] = useState<string | null>(null);
+  const [composerAreaHeight, setComposerAreaHeight] = useState(0);
 
   const swipeBack = useSwipeBack({ onSwipeBack: onBack });
   const [isSending, setIsSending] = useState(false);
@@ -178,6 +180,7 @@ export default function GroupChatWindow({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
+  const composerAreaRef = useRef<HTMLDivElement>(null);
   const searchInputId = useId();
   const searchResultsId = useId();
   const messagesLogId = useId();
@@ -186,6 +189,10 @@ export default function GroupChatWindow({
   const roomChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const lastTypingSentAtRef = useRef(0);
   const typingTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const { isKeyboardOpen, viewportHeight } = useKeyboardViewport();
+  const scrollToLatestMessage = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: getChatScrollBehavior(), block: 'end' });
+  }, []);
 
   useEffect(() => {
     screennameMapRef.current = screennameMap;
@@ -212,6 +219,32 @@ export default function GroupChatWindow({
 
   useEffect(() => {
     composerRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    const composerArea = composerAreaRef.current;
+    if (!composerArea) {
+      return;
+    }
+
+    const updateHeight = () => {
+      setComposerAreaHeight(composerArea.getBoundingClientRect().height);
+    };
+
+    updateHeight();
+
+    if (typeof ResizeObserver === 'undefined') {
+      return;
+    }
+
+    const observer = new ResizeObserver(() => {
+      updateHeight();
+    });
+    observer.observe(composerArea);
+
+    return () => {
+      observer.disconnect();
+    };
   }, []);
 
   useEffect(() => {
@@ -432,8 +465,22 @@ export default function GroupChatWindow({
   }, [currentUserBuddyIconPath, currentUserId, currentUserScreenname]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: getChatScrollBehavior(), block: 'end' });
-  }, [messages]);
+    scrollToLatestMessage();
+  }, [messages, scrollToLatestMessage]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !isKeyboardOpen) {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      scrollToLatestMessage();
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [composerAreaHeight, isKeyboardOpen, scrollToLatestMessage, viewportHeight]);
 
   useEffect(() => {
     void clearUnreads(roomName);
@@ -970,6 +1017,15 @@ export default function GroupChatWindow({
     messages.length > 0
       ? Math.max(0, messages.length - normalizedInitialUnreadCount)
       : null;
+  const chatShellStyle =
+    isKeyboardOpen && viewportHeight ? ({ height: `${viewportHeight}px` } satisfies CSSProperties) : undefined;
+  const messagesAreaStyle =
+    composerAreaHeight > 0
+      ? ({ scrollPaddingBottom: `${composerAreaHeight + 16}px` } satisfies CSSProperties)
+      : undefined;
+  const composerAreaStyle = {
+    paddingBottom: isKeyboardOpen ? '0.75rem' : 'calc(env(safe-area-inset-bottom) + 0.75rem)',
+  } satisfies CSSProperties;
 
   return (
     <div
@@ -985,6 +1041,7 @@ export default function GroupChatWindow({
         xpTitleText={`#${roomName}`}
         onXpClose={onBack}
         onXpSignOff={onSignOff}
+        style={chatShellStyle}
       >
         <div className="flex h-full min-h-0 flex-col rounded-[1.4rem] border border-white/55 bg-white/72 text-[length:var(--ui-text-md)] backdrop-blur-xl shadow-[0_20px_44px_rgba(15,23,42,0.12)]">
 
@@ -1079,6 +1136,7 @@ export default function GroupChatWindow({
             aria-busy={isLoadingMessages}
             aria-label={`Conversation in room ${roomName}`}
             className="mx-3 mt-1.5 min-h-0 flex-1 overflow-y-auto rounded-2xl border border-white/55 bg-white/55 px-3 py-3 backdrop-blur-sm"
+            style={messagesAreaStyle}
           >
             {isLoadingMessages && (
               <div className="flex flex-col gap-3 pt-2 ui-fade-in">
@@ -1370,7 +1428,7 @@ export default function GroupChatWindow({
           ) : null}
 
           {/* Input area */}
-          <div className="mx-3 mb-3 mt-2 space-y-1.5">
+          <div ref={composerAreaRef} className="mx-3 mt-2 space-y-1.5" style={composerAreaStyle}>
             {/* Formatting toolbar */}
             <div className="flex items-center gap-1">
               <button
@@ -1499,6 +1557,15 @@ export default function GroupChatWindow({
                 value={draft}
                 onChange={(event) => handleDraftChange(event.target.value)}
                 onKeyDown={handleDraftKeyDown}
+                onFocus={() => {
+                  if (typeof window === 'undefined') {
+                    return;
+                  }
+
+                  window.requestAnimationFrame(() => {
+                    scrollToLatestMessage();
+                  });
+                }}
                 placeholder={`Message #${roomName}…`}
                 rows={1}
                 maxLength={1500}

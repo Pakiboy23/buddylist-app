@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, KeyboardEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { FormEvent, KeyboardEvent, type CSSProperties, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import AppIcon from '@/components/AppIcon';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import RetroWindow from '@/components/RetroWindow';
@@ -20,6 +20,7 @@ import {
   sanitizeRichTextHtml,
 } from '@/lib/richText';
 import { hapticLight, hapticSuccess, hapticWarning } from '@/lib/haptics';
+import { useKeyboardViewport } from '@/hooks/useKeyboardViewport';
 import { useSwipeBack } from '@/hooks/useSwipeBack';
 import type { ResolvedPresenceState } from '@/lib/presence';
 import { supabase } from '@/lib/supabase';
@@ -115,19 +116,26 @@ export default function ChatWindow({
   const [reactionError, setReactionError] = useState<string | null>(null);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [attachmentLoadError, setAttachmentLoadError] = useState<string | null>(null);
+  const [composerAreaHeight, setComposerAreaHeight] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
+  const composerAreaRef = useRef<HTMLDivElement>(null);
   const searchInputId = useId();
   const searchResultsId = useId();
   const messagesLogId = useId();
   const composerInputId = useId();
   const composerHelpId = useId();
   const swipeBack = useSwipeBack({ onSwipeBack: onClose });
+  const { isKeyboardOpen, viewportHeight } = useKeyboardViewport();
+
+  const scrollToLatestMessage = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: getChatScrollBehavior(), block: 'end' });
+  }, []);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: getChatScrollBehavior(), block: 'end' });
-  }, [messages]);
+    scrollToLatestMessage();
+  }, [messages, scrollToLatestMessage]);
 
   useEffect(() => {
     setDraft(initialDraft);
@@ -136,6 +144,46 @@ export default function ChatWindow({
   useEffect(() => {
     composerRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    const composerArea = composerAreaRef.current;
+    if (!composerArea) {
+      return;
+    }
+
+    const updateHeight = () => {
+      setComposerAreaHeight(composerArea.getBoundingClientRect().height);
+    };
+
+    updateHeight();
+
+    if (typeof ResizeObserver === 'undefined') {
+      return;
+    }
+
+    const observer = new ResizeObserver(() => {
+      updateHeight();
+    });
+    observer.observe(composerArea);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !isKeyboardOpen) {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      scrollToLatestMessage();
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [composerAreaHeight, isKeyboardOpen, scrollToLatestMessage, viewportHeight]);
 
   useEffect(() => {
     const messageIds = messages.map((message) => message.id);
@@ -540,6 +588,15 @@ export default function ChatWindow({
         : buddyPresenceState === 'offline'
           ? 'text-slate-400'
           : 'text-emerald-500';
+  const chatShellStyle =
+    isKeyboardOpen && viewportHeight ? ({ height: `${viewportHeight}px` } satisfies CSSProperties) : undefined;
+  const messagesAreaStyle =
+    composerAreaHeight > 0
+      ? ({ scrollPaddingBottom: `${composerAreaHeight + 16}px` } satisfies CSSProperties)
+      : undefined;
+  const composerAreaStyle = {
+    paddingBottom: isKeyboardOpen ? '0.75rem' : 'calc(env(safe-area-inset-bottom) + 0.75rem)',
+  } satisfies CSSProperties;
 
   return (
     <div
@@ -555,6 +612,7 @@ export default function ChatWindow({
         xpTitleText={`Instant Message — ${buddyScreenname}`}
         onXpClose={onClose}
         onXpSignOff={onSignOff}
+        style={chatShellStyle}
       >
         <div className="flex h-full min-h-0 flex-col rounded-[1.4rem] border border-white/55 bg-white/72 text-[length:var(--ui-text-md)] backdrop-blur-xl shadow-[0_20px_44px_rgba(15,23,42,0.12)]">
 
@@ -656,6 +714,7 @@ export default function ChatWindow({
             aria-busy={isLoading}
             aria-label={`Conversation with ${buddyScreenname}`}
             className="mx-3 mt-1.5 min-h-0 flex-1 overflow-y-auto rounded-2xl border border-white/55 bg-white/55 px-3 py-3 backdrop-blur-sm"
+            style={messagesAreaStyle}
           >
             {isLoading && (
               <div className="flex flex-col gap-3 pt-2 ui-fade-in">
@@ -925,7 +984,7 @@ export default function ChatWindow({
           ) : null}
 
           {/* Input area */}
-          <div className="mx-3 mb-3 mt-2 space-y-1.5">
+          <div ref={composerAreaRef} className="mx-3 mt-2 space-y-1.5" style={composerAreaStyle}>
             {/* Formatting toolbar */}
             <div className="flex items-center gap-1">
               <button
@@ -1052,6 +1111,15 @@ export default function ChatWindow({
                 value={draft}
                 onChange={(event) => handleDraftChange(event.target.value)}
                 onKeyDown={handleDraftKeyDown}
+                onFocus={() => {
+                  if (typeof window === 'undefined') {
+                    return;
+                  }
+
+                  window.requestAnimationFrame(() => {
+                    scrollToLatestMessage();
+                  });
+                }}
                 placeholder="Message…"
                 rows={1}
                 maxLength={1000}
