@@ -1,12 +1,12 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import { FormEvent, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppIcon from '@/components/AppIcon';
 import BuddyListTabIcon from '@/components/BuddyListTabIcon';
-import ChatWindow, { ChatMessage } from '@/components/ChatWindow';
-import GroupChatWindow from '@/components/GroupChatWindow';
+import type { ChatMessage } from '@/components/ChatWindow';
 import BuddyProfileSheet from '@/components/BuddyProfileSheet';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import { getAccessTokenOrNull, waitForSessionOrNull } from '@/lib/authClient';
@@ -69,6 +69,16 @@ import {
 } from '@/lib/unread-dm';
 import RetroWindow from '@/components/RetroWindow';
 import { useChatContext } from '@/context/ChatContext';
+
+const ChatWindow = dynamic(() => import('@/components/ChatWindow'), {
+  ssr: false,
+  loading: () => null,
+});
+
+const GroupChatWindow = dynamic(() => import('@/components/GroupChatWindow'), {
+  ssr: false,
+  loading: () => null,
+});
 
 interface UserProfile {
   id: string;

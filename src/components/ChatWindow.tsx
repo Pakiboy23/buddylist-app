@@ -121,6 +121,7 @@ export default function ChatWindow({
   const [reactionError, setReactionError] = useState<string | null>(null);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [attachmentLoadError, setAttachmentLoadError] = useState<string | null>(null);
+  const [enableSupplementalRealtime, setEnableSupplementalRealtime] = useState(false);
   const [composerAreaHeight, setComposerAreaHeight] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
@@ -148,6 +149,34 @@ export default function ChatWindow({
 
   useEffect(() => {
     composerRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let idleCallbackId: number | null = null;
+
+    const enableRealtime = () => {
+      setEnableSupplementalRealtime(true);
+    };
+
+    if ('requestIdleCallback' in window) {
+      idleCallbackId = window.requestIdleCallback(enableRealtime, { timeout: 350 });
+    } else {
+      timeoutId = setTimeout(enableRealtime, 180);
+    }
+
+    return () => {
+      if (idleCallbackId !== null && 'cancelIdleCallback' in window) {
+        window.cancelIdleCallback(idleCallbackId);
+      }
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -226,6 +255,10 @@ export default function ChatWindow({
   }, [messages]);
 
   useEffect(() => {
+    if (!enableSupplementalRealtime) {
+      return;
+    }
+
     const messageIdSet = new Set(messages.map((message) => message.id));
     if (messageIdSet.size === 0) {
       return;
@@ -270,7 +303,7 @@ export default function ChatWindow({
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [currentUserId, messages]);
+  }, [currentUserId, enableSupplementalRealtime, messages]);
 
   useEffect(() => {
     const messageIds = messages.map((message) => message.id);
@@ -307,6 +340,10 @@ export default function ChatWindow({
   }, [messages]);
 
   useEffect(() => {
+    if (!enableSupplementalRealtime) {
+      return;
+    }
+
     const messageIdSet = new Set(messages.map((message) => message.id));
     if (messageIdSet.size === 0) {
       return;
@@ -337,7 +374,7 @@ export default function ChatWindow({
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [currentUserId, messages]);
+  }, [currentUserId, enableSupplementalRealtime, messages]);
 
   const normalizedInitialUnreadCount = Math.max(0, Math.floor(initialUnreadCount));
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();

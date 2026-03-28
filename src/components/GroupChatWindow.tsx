@@ -182,6 +182,7 @@ export default function GroupChatWindow({
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [attachmentLoadError, setAttachmentLoadError] = useState<string | null>(null);
   const [composerAreaHeight, setComposerAreaHeight] = useState(0);
+  const [enableSupplementalRealtime, setEnableSupplementalRealtime] = useState(false);
 
   const swipeBack = useSwipeBack({ onSwipeBack: onBack });
   const [isSending, setIsSending] = useState(false);
@@ -229,6 +230,34 @@ export default function GroupChatWindow({
 
   useEffect(() => {
     composerRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let idleCallbackId: number | null = null;
+
+    const enableRealtime = () => {
+      setEnableSupplementalRealtime(true);
+    };
+
+    if ('requestIdleCallback' in window) {
+      idleCallbackId = window.requestIdleCallback(enableRealtime, { timeout: 350 });
+    } else {
+      timeoutId = setTimeout(enableRealtime, 180);
+    }
+
+    return () => {
+      if (idleCallbackId !== null && 'cancelIdleCallback' in window) {
+        window.cancelIdleCallback(idleCallbackId);
+      }
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -293,6 +322,10 @@ export default function GroupChatWindow({
   }, [messages]);
 
   useEffect(() => {
+    if (!enableSupplementalRealtime) {
+      return;
+    }
+
     const messageIdSet = new Set(messages.map((message) => message.id));
     if (messageIdSet.size === 0) {
       return;
@@ -337,7 +370,7 @@ export default function GroupChatWindow({
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [messages, roomId]);
+  }, [enableSupplementalRealtime, messages, roomId]);
 
   useEffect(() => {
     const messageIds = messages.map((message) => message.id);
@@ -374,6 +407,10 @@ export default function GroupChatWindow({
   }, [messages]);
 
   useEffect(() => {
+    if (!enableSupplementalRealtime) {
+      return;
+    }
+
     const messageIdSet = new Set(messages.map((message) => message.id));
     if (messageIdSet.size === 0) {
       return;
@@ -402,7 +439,7 @@ export default function GroupChatWindow({
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [messages, roomId]);
+  }, [enableSupplementalRealtime, messages, roomId]);
 
   const ensureScreennames = useCallback(async (userIds: string[]) => {
     const uniqueUserIds = [...new Set(userIds.filter(Boolean))];
