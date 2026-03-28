@@ -1,3 +1,5 @@
+/// <reference types="@capacitor/push-notifications" />
+
 import { CapacitorConfig } from '@capacitor/cli';
 
 const isHostedBuild = process.env.CAPACITOR_HOSTED === '1';
@@ -22,6 +24,9 @@ const config: CapacitorConfig = {
       overlaysWebView: false,
       style: 'LIGHT',
       backgroundColor: '#1D4ED8',
+    },
+    PushNotifications: {
+      presentationOptions: ['badge', 'sound', 'alert'],
     },
   },
 };

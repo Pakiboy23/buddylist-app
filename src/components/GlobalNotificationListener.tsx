@@ -4,6 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { LocalNotificationsPlugin } from '@capacitor/local-notifications';
+import type {
+  ActionPerformed,
+  PushNotificationSchema,
+  PushNotificationsPlugin,
+  Token,
+} from '@capacitor/push-notifications';
 import IncomingMessageBanner from '@/components/IncomingMessageBanner';
 import { useChatContext } from '@/context/ChatContext';
 import { navigateAppPath, normalizeAppPath } from '@/lib/appNavigation';
@@ -19,6 +25,7 @@ interface BannerData {
   variant: 'room' | 'dm';
   count?: number;
   queuedAtMs?: number;
+  source?: 'realtime' | 'push';
 }
 
 interface MessageInsert {
@@ -43,6 +50,13 @@ interface ChatRoomLookup {
   name: string | null;
 }
 
+interface PushNotificationData {
+  targetPath?: unknown;
+  senderName?: unknown;
+  messagePreview?: unknown;
+  variant?: unknown;
+}
+
 const BUDDY_LIST_PATH = '/buddy-list';
 const MAX_BANNER_QUEUE = 20;
 const BANNER_DEDUPE_WINDOW_MS = 2000;
@@ -50,6 +64,31 @@ const BANNER_DEDUPE_WINDOW_MS = 2000;
 function normalizeTextContent(content: string | null | undefined, fallback: string) {
   const text = htmlToPlainText(content ?? '').trim();
   return text || fallback;
+}
+
+function resolvePushBannerData(notification: Pick<PushNotificationSchema, 'title' | 'body' | 'data'>) {
+  const rawData =
+    notification.data && typeof notification.data === 'object'
+      ? (notification.data as PushNotificationData)
+      : {};
+  const targetPath =
+    typeof rawData.targetPath === 'string' ? normalizeAppPath(rawData.targetPath) : BUDDY_LIST_PATH;
+  const variant = rawData.variant === 'room' || rawData.variant === 'dm' ? rawData.variant : 'dm';
+  const senderName =
+    typeof rawData.senderName === 'string' && rawData.senderName.trim()
+      ? rawData.senderName.trim()
+      : notification.title?.trim() || 'BuddyList';
+  const messagePreview =
+    typeof rawData.messagePreview === 'string' && rawData.messagePreview.trim()
+      ? rawData.messagePreview.trim()
+      : notification.body?.trim() || 'New message.';
+
+  return {
+    senderName,
+    messagePreview,
+    targetPath,
+    variant,
+  } satisfies Omit<BannerData, 'count' | 'queuedAtMs' | 'source'>;
 }
 
 export default function GlobalNotificationListener() {
@@ -72,8 +111,11 @@ export default function GlobalNotificationListener() {
   const roomNameCacheRef = useRef<Record<string, string>>({});
   const senderNameCacheRef = useRef<Record<string, string>>({});
   const localNotificationsRef = useRef<LocalNotificationsPlugin | null>(null);
+  const pushNotificationsRef = useRef<PushNotificationsPlugin | null>(null);
   const localNotificationsEnabledRef = useRef(false);
   const nextLocalNotificationIdRef = useRef(1);
+  const pendingPushTokenRef = useRef<string | null>(null);
+  const persistedPushTokenRef = useRef<string | null>(null);
 
   useEffect(() => {
     currentUserIdRef.current = currentUserId;
@@ -162,6 +204,7 @@ export default function GlobalNotificationListener() {
       setCurrentUserId(session?.user.id ?? null);
       if (!session) {
         setBannerQueue([]);
+        persistedPushTokenRef.current = null;
       }
     };
 
@@ -173,6 +216,7 @@ export default function GlobalNotificationListener() {
       setCurrentUserId(session?.user.id ?? null);
       if (!session) {
         setBannerQueue([]);
+        persistedPushTokenRef.current = null;
       }
     });
 
@@ -217,11 +261,50 @@ export default function GlobalNotificationListener() {
     };
   }, [currentUserId]);
 
+  const persistPushToken = useCallback(async (userId: string, tokenValue: string) => {
+    if (!userId || !tokenValue.trim()) {
+      return;
+    }
+
+    const { error } = await supabase.from('user_push_tokens').upsert(
+      {
+        user_id: userId,
+        token: tokenValue.trim(),
+        platform: Capacitor.getPlatform(),
+        last_registered_at: new Date().toISOString(),
+      },
+      {
+        onConflict: 'user_id,token',
+      },
+    );
+
+    if (error) {
+      console.error('Failed saving push notification token:', error.message);
+      return;
+    }
+
+    persistedPushTokenRef.current = tokenValue.trim();
+  }, []);
+
+  useEffect(() => {
+    const pendingToken = pendingPushTokenRef.current;
+    if (!currentUserId || !pendingToken || persistedPushTokenRef.current === pendingToken) {
+      return;
+    }
+
+    void persistPushToken(currentUserId, pendingToken);
+  }, [currentUserId, persistPushToken]);
+
   const enqueueBanner = useCallback((banner: BannerData) => {
     playChatSoundRef.current('message');
 
     const localNotifications = localNotificationsRef.current;
-    if (Capacitor.isNativePlatform() && localNotifications && localNotificationsEnabledRef.current) {
+    if (
+      banner.source !== 'push' &&
+      Capacitor.isNativePlatform() &&
+      localNotifications &&
+      localNotificationsEnabledRef.current
+    ) {
       const notificationId = nextLocalNotificationIdRef.current++;
       void localNotifications
         .schedule({
@@ -281,6 +364,100 @@ export default function GlobalNotificationListener() {
       return next;
     });
   }, []);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) {
+      return;
+    }
+
+    let isCancelled = false;
+    const listenerHandles: Array<{ remove: () => Promise<void> | void }> = [];
+
+    const initializePushNotifications = async () => {
+      try {
+        const { PushNotifications } = await import('@capacitor/push-notifications');
+        if (isCancelled) {
+          return;
+        }
+
+        pushNotificationsRef.current = PushNotifications;
+
+        listenerHandles.push(
+          await PushNotifications.addListener('registration', (token: Token) => {
+            const tokenValue = token.value.trim();
+            if (!tokenValue) {
+              return;
+            }
+
+            pendingPushTokenRef.current = tokenValue;
+            const currentUser = currentUserIdRef.current;
+            if (currentUser && persistedPushTokenRef.current !== tokenValue) {
+              void persistPushToken(currentUser, tokenValue);
+            }
+          }),
+        );
+
+        listenerHandles.push(
+          await PushNotifications.addListener('registrationError', (error) => {
+            console.error('Push registration error:', error.error);
+          }),
+        );
+
+        listenerHandles.push(
+          await PushNotifications.addListener('pushNotificationReceived', (notification: PushNotificationSchema) => {
+            const banner = resolvePushBannerData(notification);
+            const currentPath = normalizeAppPath(
+              `${pathnameRef.current}${searchParamsRef.current ? `?${searchParamsRef.current}` : ''}`,
+            );
+
+            if (banner.targetPath === currentPath) {
+              return;
+            }
+
+            enqueueBanner({
+              ...banner,
+              source: 'push',
+            });
+          }),
+        );
+
+        listenerHandles.push(
+          await PushNotifications.addListener(
+            'pushNotificationActionPerformed',
+            (action: ActionPerformed) => {
+              const banner = resolvePushBannerData(action.notification);
+              if (banner.targetPath.startsWith(BUDDY_LIST_PATH)) {
+                navigateAppPath(router, banner.targetPath);
+              }
+            },
+          ),
+        );
+
+        let permissionState = await PushNotifications.checkPermissions();
+        if (permissionState.receive === 'prompt') {
+          permissionState = await PushNotifications.requestPermissions();
+        }
+
+        if (isCancelled || permissionState.receive !== 'granted') {
+          return;
+        }
+
+        await PushNotifications.register();
+      } catch (error) {
+        console.error('Failed initializing push notifications:', error);
+      }
+    };
+
+    void initializePushNotifications();
+
+    return () => {
+      isCancelled = true;
+      pushNotificationsRef.current = null;
+      listenerHandles.forEach((handle) => {
+        void handle.remove();
+      });
+    };
+  }, [enqueueBanner, persistPushToken, router]);
 
   const resolveSenderNameById = useCallback(async (senderId: string, fallbackScreenname?: string | null) => {
     if (typeof fallbackScreenname === 'string' && fallbackScreenname.trim()) {
@@ -389,6 +566,7 @@ export default function GlobalNotificationListener() {
                 `${BUDDY_LIST_PATH}?dm=${encodeURIComponent(senderId)}`,
               ),
               variant: 'dm',
+              source: 'realtime',
             });
           })();
         },
@@ -456,6 +634,7 @@ export default function GlobalNotificationListener() {
                 `${BUDDY_LIST_PATH}?room=${encodeURIComponent(activeRoomName)}`,
               ),
               variant: 'room',
+              source: 'realtime',
             });
           })();
         },
