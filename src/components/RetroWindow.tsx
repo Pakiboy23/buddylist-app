@@ -13,6 +13,7 @@ interface RetroWindowProps {
   onBack?: () => void;
   headerActions?: React.ReactNode;
   xpTitleText?: string;
+  xpSubtitleText?: string;
   onXpClose?: () => void;
   onXpSignOff?: () => void;
 }
@@ -29,6 +30,7 @@ export default function RetroWindow({
   onBack,
   headerActions,
   xpTitleText,
+  xpSubtitleText,
   onXpClose,
   onXpSignOff,
 }: RetroWindowProps) {
@@ -39,34 +41,38 @@ export default function RetroWindow({
         style={style}
       >
         <div
-          className={`relative z-20 mx-3 mt-3 flex min-h-[56px] items-center rounded-[1.4rem] border border-white/45 bg-white/50 px-3 pb-1.5 text-[13px] font-semibold text-slate-700 shadow-[0_10px_30px_rgba(15,23,42,0.15)] backdrop-blur-xl ${titleBarClassName ?? ''}`}
+          className={`ui-window-header relative z-20 mx-3 mt-3 flex min-h-[60px] items-center rounded-[1.4rem] px-3 py-2 text-[13px] font-semibold ${titleBarClassName ?? ''}`}
           style={{ paddingTop: 'env(safe-area-inset-top)' }}
         >
-          <div className="z-10 flex min-w-[44px] items-center">
+          <div className="z-10 flex min-w-0 flex-1 items-center gap-2.5 pr-3">
             {onXpClose ? (
               <button
                 type="button"
                 onClick={onXpClose}
-                className="inline-flex h-8 min-w-8 items-center justify-center rounded-full border border-slate-200 bg-white/80 px-1 text-[13px] font-semibold leading-none text-slate-700 transition hover:bg-white"
+                className="ui-focus-ring ui-window-header-button px-1 text-[13px] font-semibold leading-none"
                 aria-label="Back"
                 title="Back"
               >
                 ←
               </button>
             ) : null}
-          </div>
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center gap-1 px-16">
-            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-500/10 text-blue-600">
+            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-blue-600 dark:bg-blue-500/15 dark:text-blue-300">
               <AppIcon kind="sparkle" className="h-3.5 w-3.5" />
             </span>
-            <span className="truncate tracking-[0.01em] text-slate-700">{xpTitleText ?? title}</span>
+            <div className="min-w-0">
+              <p className="truncate tracking-[0.01em] text-slate-700 dark:text-slate-100">{xpTitleText ?? title}</p>
+              {xpSubtitleText ? (
+                <p className="truncate text-[11px] font-medium text-slate-400 dark:text-slate-400">{xpSubtitleText}</p>
+              ) : null}
+            </div>
           </div>
-          <div className="z-10 ml-auto flex min-w-[44px] justify-end">
+          <div className="z-10 ml-auto flex shrink-0 items-center justify-end gap-2">
+            {headerActions}
             {onXpSignOff ? (
               <button
                 type="button"
                 onClick={onXpSignOff}
-                className="inline-flex h-8 min-w-8 items-center justify-center rounded-full border border-slate-200 bg-white/80 px-1 text-[14px] font-semibold text-slate-700 transition hover:bg-white"
+                className="ui-focus-ring ui-window-header-button px-1 text-[14px] font-semibold"
                 aria-label="Settings"
                 title="Settings"
               >
@@ -89,14 +95,14 @@ export default function RetroWindow({
       style={style}
     >
       <div
-        className={`relative mx-3 mt-3 flex min-h-[56px] items-center rounded-[1.4rem] border border-white/45 bg-white/55 px-3 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] text-sm font-semibold text-slate-700 shadow-[0_12px_30px_rgba(15,23,42,0.15)] backdrop-blur-xl ${titleBarClassName ?? ''}`}
+        className={`ui-window-header relative mx-3 mt-3 flex min-h-[56px] items-center rounded-[1.4rem] px-3 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] text-sm font-semibold ${titleBarClassName ?? ''}`}
       >
         <div className="z-10 flex min-w-[44px] items-center gap-2">
           {showBackButton ? (
             <button
               type="button"
               onClick={onBack}
-              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full border border-slate-200 bg-white/85 px-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-white"
+              className="ui-focus-ring ui-window-header-button min-h-[44px] min-w-[44px] px-2 text-xs font-semibold"
             >
               {backButtonLabel}
             </button>
@@ -106,7 +112,7 @@ export default function RetroWindow({
           <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-blue-600">
             <AppIcon kind="sparkle" className="h-3.5 w-3.5" />
           </span>
-          <span className="ml-2 truncate tracking-wide text-slate-700">
+          <span className="ml-2 truncate tracking-wide text-slate-700 dark:text-slate-100">
             {title}
           </span>
         </div>

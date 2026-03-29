@@ -5,10 +5,15 @@ interface AppIconProps {
     | 'chevron'
     | 'close'
     | 'clock'
+    | 'flag'
+    | 'lock'
     | 'link'
     | 'mail'
+    | 'media'
     | 'menu'
+    | 'mic'
     | 'moon'
+    | 'shield'
     | 'smile'
     | 'sparkle';
   className?: string;
@@ -95,6 +100,38 @@ export default function AppIcon({ kind, className = 'h-5 w-5' }: AppIconProps) {
           <path d="M12 8v4l2.5 2.5" />
         </svg>
       );
+    case 'flag':
+      return (
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={className}
+        >
+          <path d="M6 20V5" />
+          <path d="M6 6c2-1.5 4-1.5 6 0s4 1.5 6 0v8c-2 1.5-4 1.5-6 0s-4-1.5-6 0" />
+        </svg>
+      );
+    case 'lock':
+      return (
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={className}
+        >
+          <rect x="5.5" y="10" width="13" height="10" rx="2.5" />
+          <path d="M8.5 10V8a3.5 3.5 0 1 1 7 0v2" />
+        </svg>
+      );
     case 'link':
       return (
         <svg
@@ -128,6 +165,24 @@ export default function AppIcon({ kind, className = 'h-5 w-5' }: AppIconProps) {
           <path d="m6 8 6 5 6-5" />
         </svg>
       );
+    case 'media':
+      return (
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={className}
+        >
+          <rect x="4.5" y="5" width="15" height="14" rx="2.5" />
+          <circle cx="9" cy="10" r="1.5" />
+          <path d="m19.5 15-4.8-4.8a1.5 1.5 0 0 0-2.12 0L7 15" />
+          <path d="m11.5 15 1.8-1.8a1.5 1.5 0 0 1 2.12 0l2.1 2.1" />
+        </svg>
+      );
     case 'menu':
       return (
         <svg
@@ -139,6 +194,24 @@ export default function AppIcon({ kind, className = 'h-5 w-5' }: AppIconProps) {
           <circle cx="6" cy="12" r="1.5" />
           <circle cx="12" cy="12" r="1.5" />
           <circle cx="18" cy="12" r="1.5" />
+        </svg>
+      );
+    case 'mic':
+      return (
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={className}
+        >
+          <rect x="9" y="4" width="6" height="10" rx="3" />
+          <path d="M6.5 11.5a5.5 5.5 0 0 0 11 0" />
+          <path d="M12 17v3" />
+          <path d="M9 20h6" />
         </svg>
       );
     case 'moon':
@@ -172,6 +245,22 @@ export default function AppIcon({ kind, className = 'h-5 w-5' }: AppIconProps) {
           <path d="M9 10h.01" />
           <path d="M15 10h.01" />
           <path d="M8.5 14c.9 1.2 2 1.8 3.5 1.8s2.6-.6 3.5-1.8" />
+        </svg>
+      );
+    case 'shield':
+      return (
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={className}
+        >
+          <path d="M12 4 18 6.5v5.2c0 3.6-2.3 6.8-6 8.3-3.7-1.5-6-4.7-6-8.3V6.5Z" />
+          <path d="m9.5 11.5 1.7 1.7 3.3-3.7" />
         </svg>
       );
     case 'sparkle':
