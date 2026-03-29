@@ -16,6 +16,8 @@ export interface RichTextPresentation {
   hasCustomStyling: boolean;
 }
 
+export const RICH_TEXT_FORMAT_STORAGE_KEY = 'buddylist_rich_text_format';
+
 export const AIM_FONT_OPTIONS = [
   'Arial',
   'Comic Sans MS',
@@ -115,6 +117,18 @@ function normalizeColor(color: string | null | undefined): string {
   }
 
   return DEFAULT_RICH_TEXT_FORMAT.color;
+}
+
+export function normalizeRichTextFormat(
+  format: Partial<RichTextFormat> | null | undefined,
+): RichTextFormat {
+  return {
+    fontFamily: normalizeFontFamily(format?.fontFamily),
+    color: normalizeColor(format?.color),
+    bold: Boolean(format?.bold),
+    italic: Boolean(format?.italic),
+    underline: Boolean(format?.underline),
+  };
 }
 
 function sanitizeInlineStyle(styleValue: string): string {

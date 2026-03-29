@@ -9,8 +9,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: 'BuddyList messenger',
     start_url: '/',
     display: 'standalone',
-    background_color: '#eef4ff',
-    theme_color: '#1d4ed8',
+    background_color: '#020617',
+    theme_color: '#0f172a',
     icons: [
       {
         src: '/favicon.ico',

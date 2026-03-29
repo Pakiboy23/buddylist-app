@@ -6,6 +6,7 @@ import ProfileAvatar from '@/components/ProfileAvatar';
 import RetroWindow from '@/components/RetroWindow';
 import RichTextToolbar from '@/components/RichTextToolbar';
 import type { OutboxItem } from '@/lib/outbox';
+import { getJSON, setJSON } from '@/lib/clientStorage';
 import {
   CHAT_MEDIA_MAX_ATTACHMENTS,
   type ChatMediaAttachmentRecord,
@@ -22,6 +23,9 @@ import {
   getRichTextPresentation,
   formatRichText,
   htmlToPlainText,
+  isDefaultRichTextFormat,
+  normalizeRichTextFormat,
+  RICH_TEXT_FORMAT_STORAGE_KEY,
   RichTextFormat,
   sanitizeRichTextHtml,
 } from '@/lib/richText';
@@ -133,6 +137,14 @@ function getChatScrollBehavior(): ScrollBehavior {
   return 'smooth';
 }
 
+function loadStoredRichTextFormat() {
+  return normalizeRichTextFormat(
+    getJSON<Partial<RichTextFormat>>(RICH_TEXT_FORMAT_STORAGE_KEY, {
+      fallback: DEFAULT_RICH_TEXT_FORMAT,
+    }),
+  );
+}
+
 export default function GroupChatWindow({
   roomId,
   roomName,
@@ -166,8 +178,8 @@ export default function GroupChatWindow({
   const [isLoadingMessages, setIsLoadingMessages] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState(initialDraft);
-  const [format, setFormat] = useState<RichTextFormat>(DEFAULT_RICH_TEXT_FORMAT);
-  const [showFormatting, setShowFormatting] = useState(true);
+  const [format, setFormat] = useState<RichTextFormat>(() => loadStoredRichTextFormat());
+  const [showFormatting, setShowFormatting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
@@ -201,6 +213,15 @@ export default function GroupChatWindow({
   const lastTypingSentAtRef = useRef(0);
   const typingTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const { isKeyboardOpen, viewportHeight } = useKeyboardViewport();
+  const hasCustomFormatting = !isDefaultRichTextFormat(format);
+  const composerTextStyle: CSSProperties = {
+    maxHeight: '88px',
+    overflowY: 'auto',
+    fontFamily: format.fontFamily,
+    fontWeight: format.bold ? 'bold' : 'normal',
+    fontStyle: format.italic ? 'italic' : 'normal',
+    textDecoration: format.underline ? 'underline' : 'none',
+  };
   const scrollToLatestMessage = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: getChatScrollBehavior(), block: 'end' });
   }, []);
@@ -231,6 +252,10 @@ export default function GroupChatWindow({
   useEffect(() => {
     composerRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    setJSON(RICH_TEXT_FORMAT_STORAGE_KEY, normalizeRichTextFormat(format));
+  }, [format]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -978,8 +1003,8 @@ export default function GroupChatWindow({
   const xpTinyToolbarButtonClass = (active = false) =>
     `ui-focus-ring inline-flex h-7 min-w-7 items-center justify-center rounded-lg border px-1.5 text-[length:var(--ui-text-xs)] font-semibold text-slate-700 transition ${
       active
-        ? 'border-blue-400/70 bg-blue-50 text-blue-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]'
-        : 'border-slate-200 bg-white/80 hover:bg-white'
+        ? 'border-blue-400/70 bg-blue-50 text-blue-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:border-blue-400/50 dark:bg-blue-500/15 dark:text-blue-200'
+        : 'border-slate-200 bg-white/80 hover:bg-white dark:border-slate-700 dark:bg-slate-950/65 dark:text-slate-200 dark:hover:bg-slate-900'
     }`;
 
   const resolvedTypingUsers = useMemo(() => {
@@ -1096,15 +1121,16 @@ export default function GroupChatWindow({
         title={`#${roomName}`}
         variant="xp_shell"
         xpTitleText={`#${roomName}`}
+        xpSubtitleText={`${participants.length} participant${participants.length === 1 ? '' : 's'}`}
         onXpClose={onBack}
         onXpSignOff={onSignOff}
         style={chatShellStyle}
       >
-        <div className="flex h-full min-h-0 flex-col rounded-[1.4rem] border border-white/55 bg-white/72 text-[length:var(--ui-text-md)] backdrop-blur-xl shadow-[0_20px_44px_rgba(15,23,42,0.12)]">
+        <div className="ui-window-panel flex h-full min-h-0 flex-col rounded-[1.4rem] text-[length:var(--ui-text-md)]">
 
           {/* Room header: name + participants */}
           <div
-            className="mx-3 mt-2.5 rounded-2xl border border-white/70 bg-white/88 px-3 py-2 text-[length:var(--ui-text-xs)] shadow-sm"
+            className="ui-chat-header-card mx-3 mt-2.5 rounded-2xl px-3 py-2 text-[length:var(--ui-text-xs)]"
             role="region"
             aria-label={`${roomName} room header`}
           >
@@ -1119,7 +1145,7 @@ export default function GroupChatWindow({
                     size="sm"
                     showStatusDot={false}
                     tone="violet"
-                    className="ring-2 ring-white"
+                    className="ring-2 ring-white dark:ring-slate-950"
                   />
                 ))}
               </div>
@@ -1139,7 +1165,7 @@ export default function GroupChatWindow({
           </div>
 
           {/* Search bar */}
-          <div className="mx-3 mt-1.5 rounded-2xl border border-white/65 bg-white/72 px-3 py-1.5 shadow-sm">
+          <div className="ui-search-surface mx-3 mt-1.5 rounded-2xl px-3 py-1.5">
             <label htmlFor={searchInputId} className="sr-only">
               Search room {roomName}
             </label>
@@ -1192,7 +1218,7 @@ export default function GroupChatWindow({
             aria-relevant="additions text"
             aria-busy={isLoadingMessages}
             aria-label={`Conversation in room ${roomName}`}
-            className="mx-3 mt-1.5 min-h-0 flex-1 overflow-y-auto rounded-2xl border border-white/55 bg-white/55 px-3 py-3 backdrop-blur-sm"
+            className="ui-chat-log mx-3 mt-1.5 min-h-0 flex-1 overflow-y-auto rounded-2xl px-3 py-3"
             style={messagesAreaStyle}
           >
             {isLoadingMessages && (
@@ -1205,7 +1231,7 @@ export default function GroupChatWindow({
               </div>
             )}
             {!isLoadingMessages && messages.length === 0 && (
-              <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center ui-fade-in">
+              <div className="ui-empty-state h-full px-6 ui-fade-in">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-violet-50">
                   <AppIcon kind="chat" className="h-7 w-7 text-violet-400" />
                 </div>
@@ -1510,7 +1536,7 @@ export default function GroupChatWindow({
                               <button
                                 type="button"
                                 onClick={() => onRetryOutboxMessage(item.id)}
-                                className="ui-focus-ring rounded-full border border-slate-200 bg-white/85 px-2 py-1 text-[length:var(--ui-text-2xs)] font-semibold text-slate-600 hover:bg-white"
+                                className="ui-focus-ring ui-button-secondary ui-button-compact rounded-full px-2 py-1 text-[length:var(--ui-text-2xs)]"
                                 aria-label="Retry message"
                               >
                                 Retry
@@ -1546,7 +1572,7 @@ export default function GroupChatWindow({
           {/* Typing indicator */}
           {typingText ? (
             <div className="mx-3 mt-1.5 flex items-center gap-2" role="status" aria-live="polite" aria-atomic="true">
-              <div className="flex items-center gap-1 rounded-full border border-white/65 bg-white/80 px-3 py-1.5 shadow-sm backdrop-blur-sm">
+              <div className="ui-toolbar-surface flex items-center gap-1 rounded-full px-3 py-1.5">
                 <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-400" />
                 <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-400" />
                 <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-400" />
@@ -1562,11 +1588,15 @@ export default function GroupChatWindow({
               <button
                 type="button"
                 onClick={() => setShowFormatting((previous) => !previous)}
-                className={`${xpTinyToolbarButtonClass(showFormatting)} px-2.5`}
+                className={`${xpTinyToolbarButtonClass(showFormatting || hasCustomFormatting)} px-2.5`}
                 aria-label={showFormatting ? 'Hide formatting toolbar' : 'Show formatting toolbar'}
                 aria-expanded={showFormatting}
+                title="Text style"
               >
-                Font
+                <span className="inline-flex items-center gap-1">
+                  <span>Style</span>
+                  {hasCustomFormatting ? <span className="h-1.5 w-1.5 rounded-full bg-current" /> : null}
+                </span>
               </button>
               <button
                 type="button"
@@ -1626,7 +1656,7 @@ export default function GroupChatWindow({
               <button
                 type="button"
                 onClick={onLeave}
-                className="ui-focus-ring ml-auto inline-flex h-7 min-w-7 items-center justify-center rounded-lg border border-red-200/80 bg-white/80 px-2 text-[length:var(--ui-text-xs)] font-semibold text-red-500 hover:bg-red-50"
+                className="ui-focus-ring ui-button-danger ui-button-compact ml-auto inline-flex h-8 min-w-8 items-center justify-center px-2 text-[length:var(--ui-text-xs)]"
                 aria-label={`Leave room ${roomName}`}
                 title="Leave room"
               >
@@ -1634,15 +1664,11 @@ export default function GroupChatWindow({
               </button>
             </div>
 
-            {showFormatting ? (
-              <div className="rounded-2xl border border-white/65 bg-white/80 p-2 shadow-sm">
-                <RichTextToolbar value={format} onChange={setFormat} />
-              </div>
-            ) : null}
+            {showFormatting ? <RichTextToolbar value={format} onChange={setFormat} /> : null}
 
             {/* Pending attachments */}
             {pendingAttachments.length > 0 ? (
-              <div className="space-y-1 rounded-2xl border border-white/65 bg-white/72 p-2">
+              <div className="ui-toolbar-surface space-y-1 rounded-2xl p-2">
                 {pendingAttachments.map((file, index) => (
                   <div key={`${file.name}-${file.size}-${file.lastModified}`} className="flex items-center gap-2">
                     <span className="min-w-0 flex flex-1 items-center gap-1 truncate text-[length:var(--ui-text-2xs)] text-slate-600">
@@ -1652,7 +1678,7 @@ export default function GroupChatWindow({
                     <button
                       type="button"
                       onClick={() => removePendingAttachment(index)}
-                      className="ui-focus-ring shrink-0 rounded-lg border border-red-200/80 bg-white px-1.5 text-[length:var(--ui-text-2xs)] font-semibold text-red-500 hover:bg-red-50"
+                      className="ui-focus-ring ui-button-danger ui-button-compact shrink-0 px-1.5 text-[length:var(--ui-text-2xs)]"
                       aria-label={`Remove attachment ${file.name}`}
                     >
                       <AppIcon kind="close" className="h-3 w-3" />
@@ -1674,7 +1700,7 @@ export default function GroupChatWindow({
             </p>
             <form
               onSubmit={handleSendMessage}
-              className="flex items-end gap-2 rounded-2xl border border-white/65 bg-white/88 px-3.5 py-2.5 shadow-[0_4px_16px_rgba(15,23,42,0.08)] backdrop-blur-sm"
+              className="ui-compose-surface flex items-end gap-2 rounded-2xl px-3.5 py-2.5"
             >
               <label htmlFor={composerInputId} className="sr-only">
                 Message room {roomName}
@@ -1698,14 +1724,14 @@ export default function GroupChatWindow({
                 rows={1}
                 maxLength={1500}
                 aria-describedby={composerHelpId}
-                className="ui-focus-ring min-h-[24px] flex-1 resize-none rounded-xl bg-transparent text-[length:var(--ui-text-md)] text-slate-800 placeholder-slate-400"
-                style={{ maxHeight: '88px', overflowY: 'auto' }}
+                className="ui-focus-ring min-h-[24px] flex-1 resize-none rounded-xl bg-transparent text-[length:var(--ui-text-md)] text-slate-800 placeholder-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
+                style={composerTextStyle}
               />
               {(draft.trim() || pendingAttachments.length > 0) ? (
                 <button
                   type="submit"
                   disabled={isSending}
-                  className="ui-focus-ring mb-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-500 text-[length:var(--ui-text-md)] font-bold text-white shadow-[0_4px_10px_rgba(37,99,235,0.4)] transition hover:bg-blue-600 active:scale-95 disabled:opacity-60"
+                  className="ui-focus-ring ui-button-primary mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full p-0 text-[length:var(--ui-text-md)] font-bold disabled:opacity-60"
                   aria-label={`Send message to room ${roomName}`}
                 >
                   {isSending ? '…' : '↑'}

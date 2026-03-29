@@ -2,10 +2,12 @@
 
 import { FormEvent, KeyboardEvent, type CSSProperties, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import AppIcon from '@/components/AppIcon';
+import ChatMediaGallerySheet, { type ChatMediaGalleryItem } from '@/components/ChatMediaGallerySheet';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import RetroWindow from '@/components/RetroWindow';
 import RichTextToolbar from '@/components/RichTextToolbar';
 import type { OutboxItem } from '@/lib/outbox';
+import { getJSON, setJSON } from '@/lib/clientStorage';
 import {
   CHAT_MEDIA_MAX_ATTACHMENTS,
   type ChatMediaAttachmentRecord,
@@ -17,6 +19,9 @@ import {
   getRichTextPresentation,
   formatRichText,
   htmlToPlainText,
+  isDefaultRichTextFormat,
+  normalizeRichTextFormat,
+  RICH_TEXT_FORMAT_STORAGE_KEY,
   RichTextFormat,
   sanitizeRichTextHtml,
 } from '@/lib/richText';
@@ -25,6 +30,11 @@ import { useKeyboardViewport } from '@/hooks/useKeyboardViewport';
 import { useSwipeBack } from '@/hooks/useSwipeBack';
 import type { ResolvedPresenceState } from '@/lib/presence';
 import { supabase } from '@/lib/supabase';
+import {
+  DISAPPEARING_TIMER_OPTIONS,
+  filterExpiredMessages,
+  formatDisappearingTimerLabel,
+} from '@/lib/trustSafety';
 
 export interface ChatMessage {
   id: number;
@@ -32,10 +42,24 @@ export interface ChatMessage {
   receiver_id: string;
   content: string;
   created_at: string;
+  delivered_at?: string | null;
+  read_at?: string | null;
+  reply_to_message_id?: number | null;
+  forward_source_message_id?: number | null;
+  forward_source_sender_id?: string | null;
+  expires_at?: string | null;
+  preview_type?: string | null;
   client_msg_id?: string | null;
   edited_at?: string | null;
   deleted_at?: string | null;
   deleted_by?: string | null;
+}
+
+export interface ChatComposeSubmitPayload {
+  content: string;
+  attachments?: File[];
+  replyToMessageId?: number | null;
+  previewType?: 'text' | 'attachment' | 'forwarded' | 'voice_note';
 }
 
 interface ChatWindowProps {
@@ -52,10 +76,20 @@ interface ChatWindowProps {
   initialUnreadCount?: number;
   initialDraft?: string;
   typingText?: string | null;
-  onSendMessage: (content: string, attachments?: File[]) => Promise<void> | void;
+  isPinned?: boolean;
+  isMuted?: boolean;
+  isArchived?: boolean;
+  disappearingTimerSeconds?: number | null;
+  onSendMessage: (payload: ChatComposeSubmitPayload) => Promise<void> | void;
   onTypingActivity?: () => void;
   onRetryOutboxMessage?: (itemId: string) => void;
   onDraftChange?: (draft: string) => void;
+  onTogglePinned?: () => void;
+  onToggleMuted?: () => void;
+  onToggleArchived?: () => void;
+  onSetDisappearingTimer?: (seconds: number | null) => void;
+  onForwardMessage?: (message: ChatMessage) => void;
+  onSaveMessage?: (message: ChatMessage) => void;
   onClose: () => void;
   onSignOff?: () => void;
   onOpenProfile?: () => void;
@@ -73,12 +107,71 @@ interface MessageAttachmentRow extends ChatMediaAttachmentRecord {
   message_id: number;
 }
 
+type MediaGalleryFilter = 'all' | 'media' | 'audio' | 'files';
+
+const VOICE_NOTE_MIME_CANDIDATES = [
+  'audio/mp4',
+  'audio/webm;codecs=opus',
+  'audio/webm',
+  'audio/ogg;codecs=opus',
+] as const;
+
 function getChatScrollBehavior(): ScrollBehavior {
   if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     return 'auto';
   }
 
   return 'smooth';
+}
+
+function loadStoredRichTextFormat() {
+  return normalizeRichTextFormat(
+    getJSON<Partial<RichTextFormat>>(RICH_TEXT_FORMAT_STORAGE_KEY, {
+      fallback: DEFAULT_RICH_TEXT_FORMAT,
+    }),
+  );
+}
+
+function getSupportedVoiceNoteMimeType() {
+  if (typeof window === 'undefined' || typeof MediaRecorder === 'undefined' || typeof MediaRecorder.isTypeSupported !== 'function') {
+    return '';
+  }
+
+  return VOICE_NOTE_MIME_CANDIDATES.find((mimeType) => MediaRecorder.isTypeSupported(mimeType)) ?? '';
+}
+
+function getVoiceNoteExtension(mimeType: string) {
+  if (mimeType.includes('mp4')) {
+    return 'm4a';
+  }
+  if (mimeType.includes('ogg')) {
+    return 'ogg';
+  }
+  return 'webm';
+}
+
+function formatRecordingDuration(totalSeconds: number) {
+  const minutes = Math.floor(totalSeconds / 60)
+    .toString()
+    .padStart(2, '0');
+  const seconds = Math.floor(totalSeconds % 60)
+    .toString()
+    .padStart(2, '0');
+  return `${minutes}:${seconds}`;
+}
+
+function getAttachmentKind(mimeType: string | null | undefined) {
+  const normalizedMimeType = (mimeType ?? '').toLowerCase();
+  if (normalizedMimeType.startsWith('image/')) {
+    return 'image' as const;
+  }
+  if (normalizedMimeType.startsWith('video/')) {
+    return 'video' as const;
+  }
+  if (normalizedMimeType.startsWith('audio/')) {
+    return 'audio' as const;
+  }
+  return 'file' as const;
 }
 
 export default function ChatWindow({
@@ -95,10 +188,20 @@ export default function ChatWindow({
   initialUnreadCount = 0,
   initialDraft = '',
   typingText = null,
+  isPinned = false,
+  isMuted = false,
+  isArchived = false,
+  disappearingTimerSeconds = null,
   onSendMessage,
   onTypingActivity,
   onRetryOutboxMessage,
   onDraftChange,
+  onTogglePinned,
+  onToggleMuted,
+  onToggleArchived,
+  onSetDisappearingTimer,
+  onForwardMessage,
+  onSaveMessage,
   onClose,
   onSignOff,
   onOpenProfile,
@@ -106,8 +209,8 @@ export default function ChatWindow({
   isLoading = false,
 }: ChatWindowProps) {
   const [draft, setDraft] = useState(initialDraft);
-  const [format, setFormat] = useState<RichTextFormat>(DEFAULT_RICH_TEXT_FORMAT);
-  const [showFormatting, setShowFormatting] = useState(true);
+  const [format, setFormat] = useState<RichTextFormat>(() => loadStoredRichTextFormat());
+  const [showFormatting, setShowFormatting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
   const [editDraft, setEditDraft] = useState('');
@@ -121,12 +224,26 @@ export default function ChatWindow({
   const [reactionError, setReactionError] = useState<string | null>(null);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [attachmentLoadError, setAttachmentLoadError] = useState<string | null>(null);
+  const [voiceNoteError, setVoiceNoteError] = useState<string | null>(null);
   const [enableSupplementalRealtime, setEnableSupplementalRealtime] = useState(false);
   const [composerAreaHeight, setComposerAreaHeight] = useState(0);
+  const [replyingToMessageId, setReplyingToMessageId] = useState<number | null>(null);
+  const [showMediaGallery, setShowMediaGallery] = useState(false);
+  const [mediaGalleryFilter, setMediaGalleryFilter] = useState<MediaGalleryFilter>('all');
+  const [showDisappearingMenu, setShowDisappearingMenu] = useState(false);
+  const [isRequestingMicrophone, setIsRequestingMicrophone] = useState(false);
+  const [isRecordingVoiceNote, setIsRecordingVoiceNote] = useState(false);
+  const [voiceNoteElapsedSeconds, setVoiceNoteElapsedSeconds] = useState(0);
+  const [expiryTick, setExpiryTick] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const composerAreaRef = useRef<HTMLDivElement>(null);
+  const voiceNoteStreamRef = useRef<MediaStream | null>(null);
+  const voiceNoteRecorderRef = useRef<MediaRecorder | null>(null);
+  const voiceNoteChunksRef = useRef<Blob[]>([]);
+  const voiceNoteTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const voiceNoteMimeTypeRef = useRef('');
   const searchInputId = useId();
   const searchResultsId = useId();
   const messagesLogId = useId();
@@ -134,6 +251,15 @@ export default function ChatWindow({
   const composerHelpId = useId();
   const swipeBack = useSwipeBack({ onSwipeBack: onClose });
   const { isKeyboardOpen, viewportHeight } = useKeyboardViewport();
+  const hasCustomFormatting = !isDefaultRichTextFormat(format);
+  const composerTextStyle: CSSProperties = {
+    maxHeight: '88px',
+    overflowY: 'auto',
+    fontFamily: format.fontFamily,
+    fontWeight: format.bold ? 'bold' : 'normal',
+    fontStyle: format.italic ? 'italic' : 'normal',
+    textDecoration: format.underline ? 'underline' : 'none',
+  };
 
   const scrollToLatestMessage = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: getChatScrollBehavior(), block: 'end' });
@@ -150,6 +276,24 @@ export default function ChatWindow({
   useEffect(() => {
     composerRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    if (!messages.some((message) => Boolean(message.expires_at))) {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      setExpiryTick((previous) => previous + 1);
+    }, 15000);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [messages]);
+
+  useEffect(() => {
+    setJSON(RICH_TEXT_FORMAT_STORAGE_KEY, normalizeRichTextFormat(format));
+  }, [format]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -218,6 +362,22 @@ export default function ChatWindow({
       window.cancelAnimationFrame(frameId);
     };
   }, [composerAreaHeight, isKeyboardOpen, scrollToLatestMessage, viewportHeight]);
+
+  useEffect(() => {
+    return () => {
+      if (voiceNoteTimerRef.current) {
+        clearInterval(voiceNoteTimerRef.current);
+      }
+      if (voiceNoteRecorderRef.current && voiceNoteRecorderRef.current.state !== 'inactive') {
+        voiceNoteRecorderRef.current.onstop = null;
+        voiceNoteRecorderRef.current.stop();
+      }
+      voiceNoteStreamRef.current?.getTracks().forEach((track) => track.stop());
+      voiceNoteRecorderRef.current = null;
+      voiceNoteStreamRef.current = null;
+      voiceNoteTimerRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     const messageIds = messages.map((message) => message.id);
@@ -378,26 +538,30 @@ export default function ChatWindow({
 
   const normalizedInitialUnreadCount = Math.max(0, Math.floor(initialUnreadCount));
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const visibleMessages = useMemo(() => {
+    const nowMs = Date.now() + expiryTick;
+    return filterExpiredMessages(messages, nowMs);
+  }, [expiryTick, messages]);
   const messageMatches = useMemo(() => {
     const matches = new Map<number, boolean>();
     if (!normalizedSearchQuery) {
       return matches;
     }
 
-    for (const message of messages) {
+    for (const message of visibleMessages) {
       const plainText = htmlToPlainText(message.content).toLowerCase();
       matches.set(message.id, plainText.includes(normalizedSearchQuery));
     }
 
     return matches;
-  }, [messages, normalizedSearchQuery]);
+  }, [normalizedSearchQuery, visibleMessages]);
   const searchMatchCount = useMemo(
     () => Array.from(messageMatches.values()).filter(Boolean).length,
     [messageMatches],
   );
   const separatorIndex =
-    !isLoading && normalizedInitialUnreadCount > 0 && messages.length > 0
-      ? Math.max(0, messages.length - normalizedInitialUnreadCount)
+    !isLoading && normalizedInitialUnreadCount > 0 && visibleMessages.length > 0
+      ? Math.max(0, visibleMessages.length - normalizedInitialUnreadCount)
       : null;
 
   const reactionSummaryByMessageId = useMemo(() => {
@@ -430,20 +594,52 @@ export default function ChatWindow({
   }, [attachmentRows]);
   const richTextPresentationByMessageId = useMemo(() => {
     const presentation = new Map<number, ReturnType<typeof getRichTextPresentation>>();
-    for (const message of messages) {
+    for (const message of visibleMessages) {
       presentation.set(message.id, getRichTextPresentation(message.content));
     }
     return presentation;
-  }, [messages]);
+  }, [visibleMessages]);
   const visibleOutboxItems = useMemo(() => {
     const deliveredClientIds = new Set(
-      messages
+      visibleMessages
         .map((message) => message.client_msg_id)
         .filter((clientMessageId): clientMessageId is string => Boolean(clientMessageId)),
     );
 
     return outboxItems.filter((item) => !deliveredClientIds.has(item.id));
-  }, [messages, outboxItems]);
+  }, [outboxItems, visibleMessages]);
+  const messagesById = useMemo(() => {
+    return new Map(visibleMessages.map((message) => [message.id, message] as const));
+  }, [visibleMessages]);
+  const latestOutgoingMessageId = useMemo(() => {
+    for (let index = visibleMessages.length - 1; index >= 0; index -= 1) {
+      const message = visibleMessages[index];
+      if (message.sender_id === currentUserId && !message.deleted_at) {
+        return message.id;
+      }
+    }
+    return null;
+  }, [currentUserId, visibleMessages]);
+  const replyingToMessage = replyingToMessageId ? messagesById.get(replyingToMessageId) ?? null : null;
+  const mediaGalleryItems = useMemo<ChatMediaGalleryItem[]>(() => {
+    return visibleMessages
+      .flatMap((message) => {
+        const senderLabel = message.sender_id === currentUserId ? 'You' : buddyScreenname;
+        return (attachmentsByMessageId.get(message.id) ?? []).map((attachment) => {
+          const { data } = supabase.storage.from(attachment.bucket).getPublicUrl(attachment.storage_path);
+          return {
+            id: attachment.id,
+            fileName: attachment.file_name,
+            mimeType: attachment.mime_type,
+            sizeBytes: attachment.size_bytes,
+            publicUrl: data.publicUrl,
+            createdAt: message.created_at,
+            senderLabel,
+          };
+        });
+      })
+      .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt));
+  }, [attachmentsByMessageId, buddyScreenname, currentUserId, visibleMessages]);
 
   const clearPendingAttachments = useCallback(() => {
     setPendingAttachments([]);
@@ -452,12 +648,11 @@ export default function ChatWindow({
     }
   }, []);
 
-  const handleSelectAttachments = (files: FileList | null) => {
-    if (!files || files.length === 0) {
+  const appendPendingFiles = useCallback((selected: File[]) => {
+    if (selected.length === 0) {
       return;
     }
 
-    const selected = Array.from(files);
     const validationError = selected.map((file) => validateChatMediaFile(file)).find(Boolean);
     if (validationError) {
       setAttachmentError(validationError);
@@ -465,6 +660,7 @@ export default function ChatWindow({
     }
 
     setAttachmentError(null);
+    setVoiceNoteError(null);
     setPendingAttachments((previous) => {
       const existingKeys = new Set(previous.map((file) => `${file.name}:${file.size}:${file.lastModified}`));
       const combined = [...previous];
@@ -480,7 +676,110 @@ export default function ChatWindow({
       }
       return combined.slice(0, CHAT_MEDIA_MAX_ATTACHMENTS);
     });
+  }, []);
+
+  const handleSelectAttachments = (files: FileList | null) => {
+    if (!files || files.length === 0) {
+      return;
+    }
+
+    appendPendingFiles(Array.from(files));
   };
+
+  const stopVoiceNoteRecording = useCallback(
+    async (mode: 'save' | 'discard') => {
+      const recorder = voiceNoteRecorderRef.current;
+      const stream = voiceNoteStreamRef.current;
+      if (!recorder) {
+        return;
+      }
+
+      const stopped = new Promise<void>((resolve) => {
+        recorder.onstop = () => {
+          const mimeType = voiceNoteMimeTypeRef.current || recorder.mimeType || 'audio/webm';
+          const blob = new Blob(voiceNoteChunksRef.current, {
+            type: mimeType || 'audio/webm',
+          });
+          voiceNoteChunksRef.current = [];
+          stream?.getTracks().forEach((track) => track.stop());
+          voiceNoteRecorderRef.current = null;
+          voiceNoteStreamRef.current = null;
+          voiceNoteMimeTypeRef.current = '';
+          setIsRecordingVoiceNote(false);
+          setVoiceNoteElapsedSeconds(0);
+          if (voiceNoteTimerRef.current) {
+            clearInterval(voiceNoteTimerRef.current);
+            voiceNoteTimerRef.current = null;
+          }
+
+          if (mode === 'save' && blob.size > 0) {
+            const extension = getVoiceNoteExtension(mimeType);
+            const file = new File(
+              [blob],
+              `buddylist-voice-note-${Date.now()}.${extension}`,
+              { type: mimeType || 'audio/webm', lastModified: Date.now() },
+            );
+            appendPendingFiles([file]);
+          }
+
+          resolve();
+        };
+      });
+
+      if (recorder.state === 'inactive') {
+        return;
+      }
+
+      recorder.stop();
+      await stopped;
+    },
+    [appendPendingFiles],
+  );
+
+  const startVoiceNoteRecording = useCallback(async () => {
+    if (isRecordingVoiceNote || isRequestingMicrophone) {
+      return;
+    }
+
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      setVoiceNoteError('Voice notes are not supported on this device.');
+      return;
+    }
+
+    setVoiceNoteError(null);
+    setAttachmentError(null);
+    setIsRequestingMicrophone(true);
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = getSupportedVoiceNoteMimeType();
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      voiceNoteRecorderRef.current = recorder;
+      voiceNoteStreamRef.current = stream;
+      voiceNoteMimeTypeRef.current = mimeType;
+      voiceNoteChunksRef.current = [];
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          voiceNoteChunksRef.current.push(event.data);
+        }
+      };
+      recorder.start();
+      setVoiceNoteElapsedSeconds(0);
+      setIsRecordingVoiceNote(true);
+      if (voiceNoteTimerRef.current) {
+        clearInterval(voiceNoteTimerRef.current);
+      }
+      voiceNoteTimerRef.current = setInterval(() => {
+        setVoiceNoteElapsedSeconds((previous) => previous + 1);
+      }, 1000);
+      void hapticLight();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Microphone access failed.';
+      setVoiceNoteError(message);
+    } finally {
+      setIsRequestingMicrophone(false);
+    }
+  }, [isRecordingVoiceNote, isRequestingMicrophone]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -491,11 +790,29 @@ export default function ChatWindow({
 
     try {
       const formatted = trimmed ? formatRichText(trimmed, format) : '';
-      await Promise.resolve(onSendMessage(formatted, pendingAttachments));
+      const includesOnlyAudioAttachment =
+        pendingAttachments.length === 1 &&
+        pendingAttachments[0] &&
+        getAttachmentKind(pendingAttachments[0].type) === 'audio';
+      await Promise.resolve(
+        onSendMessage({
+          content: formatted,
+          attachments: pendingAttachments,
+          replyToMessageId: replyingToMessageId,
+          previewType:
+            pendingAttachments.length > 0 && !trimmed
+              ? includesOnlyAudioAttachment
+                ? 'voice_note'
+                : 'attachment'
+              : 'text',
+        }),
+      );
       setDraft('');
+      setReplyingToMessageId(null);
       onDraftChange?.('');
       clearPendingAttachments();
       setAttachmentError(null);
+      setVoiceNoteError(null);
       void hapticSuccess();
     } catch {
       void hapticWarning();
@@ -625,11 +942,130 @@ export default function ChatWindow({
     setFormat((previous) => ({ ...previous, underline: !previous.underline }));
   };
 
+  const startReplyingToMessage = (message: ChatMessage) => {
+    if (message.deleted_at) {
+      return;
+    }
+
+    setReplyingToMessageId(message.id);
+    setLongPressMessageId(null);
+    void hapticLight();
+    window.requestAnimationFrame(() => {
+      composerRef.current?.focus();
+      scrollToLatestMessage();
+    });
+  };
+
+  const cancelReply = () => {
+    setReplyingToMessageId(null);
+  };
+
+  const formatDeliveryStatus = (message: ChatMessage) => {
+    if (message.read_at) {
+      return {
+        label: 'Read',
+        detail: new Date(message.read_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+    }
+
+    if (message.delivered_at) {
+      return {
+        label: 'Delivered',
+        detail: null,
+      };
+    }
+
+    return {
+      label: 'Sent',
+      detail: null,
+    };
+  };
+
+  const renderAttachmentPreview = (
+    attachment: MessageAttachmentRow,
+    options: { isMine: boolean; previewType?: string | null },
+  ) => {
+    const kind = getAttachmentKind(attachment.mime_type);
+    const { data } = supabase.storage.from(attachment.bucket).getPublicUrl(attachment.storage_path);
+    const linkToneClass = options.isMine ? 'text-blue-200' : 'text-blue-600';
+
+    if (kind === 'image') {
+      return (
+        <a
+          key={attachment.id}
+          href={data.publicUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="ui-focus-ring block overflow-hidden rounded-[1rem] border border-white/30 bg-black/5"
+          aria-label={`Open image attachment ${attachment.file_name}`}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={data.publicUrl} alt={attachment.file_name} className="max-h-64 w-full object-cover" />
+        </a>
+      );
+    }
+
+    if (kind === 'video') {
+      return (
+        <video
+          key={attachment.id}
+          controls
+          preload="metadata"
+          playsInline
+          className="block max-h-64 w-full rounded-[1rem] border border-white/30 bg-black/20"
+          src={data.publicUrl}
+        />
+      );
+    }
+
+    if (kind === 'audio') {
+      return (
+        <div
+          key={attachment.id}
+          className={`rounded-[1rem] border px-3 py-2 ${
+            options.isMine
+              ? 'border-white/20 bg-white/10'
+              : 'border-slate-200 bg-slate-100/80 dark:border-slate-700 dark:bg-slate-900/70'
+          }`}
+        >
+          <div className="mb-2 flex items-center gap-2">
+            <AppIcon kind="mic" className={`h-3.5 w-3.5 ${linkToneClass}`} />
+            <p className={`text-[length:var(--ui-text-2xs)] font-semibold ${linkToneClass}`}>
+              {options.previewType === 'voice_note' ? 'Voice note' : attachment.file_name}
+              {attachment.size_bytes ? ` · ${formatFileSize(attachment.size_bytes)}` : ''}
+            </p>
+          </div>
+          <audio controls preload="metadata" className="w-full" src={data.publicUrl} />
+        </div>
+      );
+    }
+
+    return (
+      <a
+        key={attachment.id}
+        href={data.publicUrl}
+        target="_blank"
+        rel="noreferrer"
+        className={`ui-focus-ring block rounded-lg text-[length:var(--ui-text-2xs)] underline ${linkToneClass}`}
+        title={attachment.storage_path}
+        aria-label={`Open attachment ${attachment.file_name}${attachment.size_bytes ? `, ${formatFileSize(attachment.size_bytes)}` : ''}`}
+      >
+        <span className="inline-flex items-center gap-1">
+          <AppIcon kind="attachment" className="h-3 w-3" />
+          <span>{attachment.file_name}</span>
+        </span>
+        {attachment.size_bytes ? ` (${formatFileSize(attachment.size_bytes)})` : ''}
+      </a>
+    );
+  };
+
+  const disappearingTimerShortLabel = formatDisappearingTimerLabel(disappearingTimerSeconds, { short: true });
+
   const xpTinyToolbarButtonClass = (active = false) =>
     `ui-focus-ring inline-flex h-7 min-w-7 items-center justify-center rounded-lg border px-1.5 text-[length:var(--ui-text-xs)] font-semibold text-slate-700 transition ${
       active
-        ? 'border-blue-400/70 bg-blue-50 text-blue-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]'
-        : 'border-slate-200 bg-white/80 hover:bg-white'
+        ? 'border-blue-400/70 bg-blue-50 text-blue-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:border-blue-400/50 dark:bg-blue-500/15 dark:text-blue-200'
+        : 'border-slate-200 bg-white/80 hover:bg-white dark:border-slate-700 dark:bg-slate-950/65 dark:text-slate-200 dark:hover:bg-slate-900'
     }`;
   const presenceToneClass =
     buddyPresenceState === 'away'
@@ -661,16 +1097,48 @@ export default function ChatWindow({
         title={`IM with ${buddyScreenname}`}
         variant="xp_shell"
         xpTitleText={`Instant Message — ${buddyScreenname}`}
+        xpSubtitleText={buddyPresenceDetail}
+        headerActions={
+          <>
+            <button
+              type="button"
+              onClick={onTogglePinned}
+              className="ui-focus-ring ui-window-header-button px-2.5 text-[11px] font-semibold"
+              aria-pressed={isPinned}
+              title={isPinned ? 'Pinned chat' : 'Pin chat'}
+            >
+              {isPinned ? 'Pinned' : 'Pin'}
+            </button>
+            <button
+              type="button"
+              onClick={onToggleMuted}
+              className="ui-focus-ring ui-window-header-button px-2.5 text-[11px] font-semibold"
+              aria-pressed={isMuted}
+              title={isMuted ? 'Muted chat' : 'Mute chat'}
+            >
+              {isMuted ? 'Muted' : 'Mute'}
+            </button>
+            <button
+              type="button"
+              onClick={onToggleArchived}
+              className="ui-focus-ring ui-window-header-button px-2.5 text-[11px] font-semibold"
+              aria-pressed={isArchived}
+              title={isArchived ? 'Return chat to inbox' : 'Archive chat'}
+            >
+              {isArchived ? 'Inbox' : 'Archive'}
+            </button>
+          </>
+        }
         onXpClose={onClose}
         onXpSignOff={onSignOff}
         style={chatShellStyle}
       >
-        <div className="flex h-full min-h-0 flex-col rounded-[1.4rem] border border-white/55 bg-white/72 text-[length:var(--ui-text-md)] backdrop-blur-xl shadow-[0_20px_44px_rgba(15,23,42,0.12)]">
+        <div className="ui-window-panel flex h-full min-h-0 flex-col rounded-[1.4rem] text-[length:var(--ui-text-md)]">
 
           <button
             type="button"
             onClick={onOpenProfile}
-            className="ui-focus-ring mx-3 mt-2.5 rounded-2xl border border-white/70 bg-white/88 px-3 py-2.5 text-left text-[length:var(--ui-text-xs)] text-slate-600 shadow-sm transition hover:bg-white disabled:cursor-default disabled:hover:bg-white/88"
+            className="ui-focus-ring ui-chat-header-card mx-3 mt-2.5 rounded-2xl px-3 py-2.5 text-left text-[length:var(--ui-text-xs)] text-slate-600 transition hover:bg-white/95 disabled:cursor-default disabled:hover:bg-white/88 dark:hover:bg-slate-900"
             disabled={!onOpenProfile}
             aria-label={
               onOpenProfile ? `Open profile for ${buddyScreenname}` : `${buddyScreenname} profile is unavailable`
@@ -711,7 +1179,7 @@ export default function ChatWindow({
           </button>
 
           {/* Search bar */}
-          <div className="mx-3 mt-1.5 rounded-2xl border border-white/65 bg-white/72 px-3 py-1.5 shadow-sm">
+          <div className="ui-search-surface mx-3 mt-1.5 rounded-2xl px-3 py-1.5">
             <label htmlFor={searchInputId} className="sr-only">
               Search conversation with {buddyScreenname}
             </label>
@@ -733,6 +1201,50 @@ export default function ChatWindow({
                 aria-describedby={normalizedSearchQuery ? searchResultsId : undefined}
                 className="ui-focus-ring h-6 min-w-0 flex-1 rounded-lg bg-transparent text-[length:var(--ui-text-xs)] text-slate-700 placeholder-slate-400"
               />
+              <button
+                type="button"
+                onClick={() => {
+                  setMediaGalleryFilter('all');
+                  setShowMediaGallery(true);
+                }}
+                className="ui-focus-ring shrink-0 rounded-full bg-white/80 px-2.5 py-1 text-[length:var(--ui-text-2xs)] font-semibold text-slate-500 hover:bg-white dark:bg-slate-950/70 dark:text-slate-300 dark:hover:bg-slate-900"
+                aria-label={`Open shared media with ${buddyScreenname}`}
+              >
+                Media
+              </button>
+              <div className="relative shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowDisappearingMenu((previous) => !previous)}
+                  className="ui-focus-ring rounded-full bg-white/80 px-2.5 py-1 text-[length:var(--ui-text-2xs)] font-semibold text-slate-500 hover:bg-white dark:bg-slate-950/70 dark:text-slate-300 dark:hover:bg-slate-900"
+                  aria-expanded={showDisappearingMenu}
+                  aria-label={`Disappearing messages timer: ${formatDisappearingTimerLabel(disappearingTimerSeconds)}`}
+                >
+                  {disappearingTimerShortLabel}
+                </button>
+                {showDisappearingMenu ? (
+                  <div className="absolute right-0 top-[calc(100%+0.35rem)] z-10 min-w-[10rem] rounded-[1.1rem] border border-white/70 bg-white/95 p-1.5 shadow-[0_16px_36px_rgba(15,23,42,0.18)] backdrop-blur-md dark:border-slate-800 dark:bg-slate-950/95">
+                    {DISAPPEARING_TIMER_OPTIONS.map((option) => (
+                      <button
+                        key={option ?? 'off'}
+                        type="button"
+                        onClick={() => {
+                          onSetDisappearingTimer?.(option);
+                          setShowDisappearingMenu(false);
+                        }}
+                        className={`ui-focus-ring flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-[length:var(--ui-text-xs)] font-semibold ${
+                          disappearingTimerSeconds === option
+                            ? 'bg-blue-500 text-white'
+                            : 'text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900'
+                        }`}
+                      >
+                        <span>{option ? formatDisappearingTimerLabel(option) : 'Off'}</span>
+                        {disappearingTimerSeconds === option ? <span>•</span> : null}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
               {searchQuery ? (
                 <button
                   type="button"
@@ -764,7 +1276,7 @@ export default function ChatWindow({
             aria-relevant="additions text"
             aria-busy={isLoading}
             aria-label={`Conversation with ${buddyScreenname}`}
-            className="mx-3 mt-1.5 min-h-0 flex-1 overflow-y-auto rounded-2xl border border-white/55 bg-white/55 px-3 py-3 backdrop-blur-sm"
+            className="ui-chat-log mx-3 mt-1.5 min-h-0 flex-1 overflow-y-auto rounded-2xl px-3 py-3"
             style={messagesAreaStyle}
           >
             {isLoading && (
@@ -776,8 +1288,8 @@ export default function ChatWindow({
                 ))}
               </div>
             )}
-            {!isLoading && messages.length === 0 && (
-              <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center ui-fade-in">
+            {!isLoading && visibleMessages.length === 0 && (
+              <div className="ui-empty-state h-full px-6 ui-fade-in">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-50">
                   <AppIcon kind="mail" className="h-7 w-7 text-blue-400" />
                 </div>
@@ -790,8 +1302,14 @@ export default function ChatWindow({
               </div>
             )}
             {!isLoading && (
-              <div className="flex flex-col gap-0.5" onClick={() => setLongPressMessageId(null)}>
-                {messages.map((message, index) => {
+              <div
+                className="flex flex-col gap-0.5"
+                onClick={() => {
+                  setLongPressMessageId(null);
+                  setShowDisappearingMenu(false);
+                }}
+              >
+                {visibleMessages.map((message, index) => {
                   const isMine = message.sender_id === currentUserId;
                   const isDeleted = Boolean(message.deleted_at);
                   const isEditing = editingMessageId === message.id;
@@ -813,13 +1331,13 @@ export default function ChatWindow({
                   const isEdited = Boolean(message.edited_at && !message.deleted_at);
 
                   // Group logic: show timestamp if first, >5 min gap, or new-message separator
-                  const prevMessage = index > 0 ? messages[index - 1] : null;
+                  const prevMessage = index > 0 ? visibleMessages[index - 1] : null;
                   const prevTime = prevMessage ? new Date(prevMessage.created_at).getTime() : 0;
                   const currTime = timestampDate.getTime();
                   const showTimeDivider = !prevMessage || currTime - prevTime > 5 * 60 * 1000;
                   const timestamp = timestampDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                   // Tail rounding: last in a run from same sender gets the pointed corner
-                  const nextMessage = index < messages.length - 1 ? messages[index + 1] : null;
+                  const nextMessage = index < visibleMessages.length - 1 ? visibleMessages[index + 1] : null;
                   const isLastInRun = !nextMessage || nextMessage.sender_id !== message.sender_id;
 
                   return (
@@ -840,9 +1358,9 @@ export default function ChatWindow({
                       }`}>
                         <div
                           className="group relative max-w-[78%] focus:outline-none"
-                          tabIndex={isMine && !isDeleted && !isEditing ? 0 : undefined}
+                          tabIndex={!isDeleted && !isEditing ? 0 : undefined}
                           onTouchStart={() => {
-                            if (!isMine || isDeleted) return;
+                            if (isDeleted) return;
                             longPressTimerRef.current = setTimeout(() => {
                               void hapticLight();
                               setLongPressMessageId(message.id);
@@ -875,7 +1393,7 @@ export default function ChatWindow({
                                   ? `rounded-2xl border border-blue-200/80 bg-white/96 text-slate-900 shadow-[0_10px_24px_rgba(37,99,235,0.16)] ${isLastInRun ? 'rounded-br-[8px]' : ''}`
                                   : `rounded-2xl bg-blue-500 text-white shadow-[0_2px_8px_rgba(37,99,235,0.28)] ${isLastInRun ? 'rounded-br-[6px]' : ''}`
                                 : `rounded-2xl border border-white/70 bg-white/85 text-slate-800 shadow-sm backdrop-blur-sm ${isLastInRun ? 'rounded-bl-[6px]' : ''}`
-                            } ${isMatch ? 'ring-2 ring-amber-400' : ''} ${isMine && !isDeleted && !isEditing ? 'ui-focus-ring' : ''}`}
+                            } ${isMatch ? 'ring-2 ring-amber-400' : ''} ${!isDeleted && !isEditing ? 'ui-focus-ring' : ''}`}
                           >
                             {isEditing ? (
                               <div className="flex min-w-[200px] flex-col gap-2">
@@ -916,10 +1434,37 @@ export default function ChatWindow({
                             ) : isDeleted ? (
                               <span className="italic opacity-50">Message deleted</span>
                             ) : (
-                              <span
-                                className={`aim-rich-html ${hasCustomStyling ? 'aim-rich-html--styled' : ''}`}
-                                dangerouslySetInnerHTML={{ __html: richTextPresentation.html }}
-                              />
+                              <div className="space-y-1">
+                                {message.forward_source_message_id ? (
+                                  <p className={`text-[length:var(--ui-text-2xs)] font-semibold uppercase tracking-[0.14em] ${
+                                    isMine ? (hasCustomStyling ? 'text-slate-400' : 'text-blue-200') : 'text-slate-400'
+                                  }`}>
+                                    Forwarded
+                                  </p>
+                                ) : null}
+                                {message.reply_to_message_id ? (
+                                  <div className={`rounded-xl border px-2 py-1 text-[length:var(--ui-text-2xs)] ${
+                                    isMine
+                                      ? hasCustomStyling
+                                        ? 'border-slate-200 bg-slate-100/80 text-slate-500'
+                                        : 'border-white/20 bg-white/15 text-blue-100'
+                                      : 'border-slate-200 bg-slate-100/80 text-slate-500'
+                                  }`}>
+                                    <p className="font-semibold">
+                                      {messagesById.get(message.reply_to_message_id)?.sender_id === currentUserId ? 'You' : buddyScreenname}
+                                    </p>
+                                    <p className="truncate">
+                                      {messagesById.get(message.reply_to_message_id)?.deleted_at
+                                        ? 'Message deleted'
+                                        : htmlToPlainText(messagesById.get(message.reply_to_message_id)?.content ?? '') || 'Original message'}
+                                    </p>
+                                  </div>
+                                ) : null}
+                                <span
+                                  className={`aim-rich-html ${hasCustomStyling ? 'aim-rich-html--styled' : ''}`}
+                                  dangerouslySetInnerHTML={{ __html: richTextPresentation.html }}
+                                />
+                              </div>
                             )}
                             {isEdited && !isEditing ? (
                               <span className={`ml-1.5 text-[length:var(--ui-text-2xs)] ${
@@ -929,10 +1474,53 @@ export default function ChatWindow({
                           </div>
 
                           {/* Action bar — hover (desktop) + long-press (mobile) */}
-                          {isMine && !isDeleted && !isEditing ? (
+                          {!isDeleted && !isEditing ? (
                             <div className={`absolute -top-8 right-0 items-center gap-0.5 rounded-full border border-white/70 bg-white/90 px-2 py-1 shadow-lg backdrop-blur-md ui-fade-in ${
                               longPressMessageId === message.id ? 'flex' : 'hidden group-hover:flex group-focus-within:flex'
                             }`}>
+                              <button
+                                type="button"
+                                onClick={() => startReplyingToMessage(message)}
+                                className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100"
+                                aria-label={`Reply to message sent at ${timestamp}`}
+                              >
+                                Reply
+                              </button>
+                              {onForwardMessage ? (
+                                <>
+                                  <span className="text-slate-300">·</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      onForwardMessage(message);
+                                      setLongPressMessageId(null);
+                                    }}
+                                    className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100"
+                                    aria-label={`Forward message sent at ${timestamp}`}
+                                  >
+                                    Forward
+                                  </button>
+                                </>
+                              ) : null}
+                              {onSaveMessage ? (
+                                <>
+                                  <span className="text-slate-300">·</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      onSaveMessage(message);
+                                      setLongPressMessageId(null);
+                                    }}
+                                    className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100"
+                                    aria-label={`Save message sent at ${timestamp}`}
+                                  >
+                                    Save
+                                  </button>
+                                </>
+                              ) : null}
+                              {isMine ? (
+                                <>
+                                  <span className="text-slate-300">·</span>
                               <button
                                 type="button"
                                 onClick={() => {
@@ -941,10 +1529,10 @@ export default function ChatWindow({
                                 }}
                                 className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100"
                                 aria-label={`Edit message sent at ${timestamp}`}
-                              >
-                                Edit
-                              </button>
-                              <span className="text-slate-300">·</span>
+                                >
+                                  Edit
+                                </button>
+                                  <span className="text-slate-300">·</span>
                               <button
                                 type="button"
                                 onClick={() => {
@@ -957,6 +1545,8 @@ export default function ChatWindow({
                               >
                                 {isDeletingMessageId === message.id ? '…' : 'Delete'}
                               </button>
+                                </>
+                              ) : null}
                             </div>
                           ) : null}
 
@@ -977,29 +1567,19 @@ export default function ChatWindow({
                           {/* Attachments */}
                           {!isDeleted && messageAttachments.length > 0 ? (
                             <div className={`-mt-1 mb-1 space-y-0.5 ${isMine ? 'text-right' : ''}`}>
-                              {messageAttachments.map((attachment) => {
-                                const { data } = supabase.storage
-                                  .from(attachment.bucket)
-                                  .getPublicUrl(attachment.storage_path);
-                                return (
-                                  <a
-                                    key={attachment.id}
-                                    href={data.publicUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className={`ui-focus-ring block rounded-lg text-[length:var(--ui-text-2xs)] underline ${isMine ? 'text-blue-200' : 'text-blue-600'}`}
-                                    title={attachment.storage_path}
-                                    aria-label={`Open attachment ${attachment.file_name}${attachment.size_bytes ? `, ${formatFileSize(attachment.size_bytes)}` : ''}`}
-                                  >
-                                    <span className="inline-flex items-center gap-1">
-                                      <AppIcon kind="attachment" className="h-3 w-3" />
-                                      <span>{attachment.file_name}</span>
-                                    </span>
-                                    {attachment.size_bytes ? ` (${formatFileSize(attachment.size_bytes)})` : ''}
-                                  </a>
-                                );
-                              })}
+                              {messageAttachments.map((attachment) =>
+                                renderAttachmentPreview(attachment, {
+                                  isMine,
+                                  previewType: message.preview_type,
+                                }),
+                              )}
                             </div>
+                          ) : null}
+                          {latestOutgoingMessageId === message.id && isMine && !isEditing && !isDeleted ? (
+                            <p className="mt-1 text-right text-[length:var(--ui-text-2xs)] text-slate-400">
+                              {formatDeliveryStatus(message).label}
+                              {formatDeliveryStatus(message).detail ? ` · ${formatDeliveryStatus(message).detail}` : ''}
+                            </p>
                           ) : null}
                         </div>
                       </div>
@@ -1065,7 +1645,7 @@ export default function ChatWindow({
                               <button
                                 type="button"
                                 onClick={() => onRetryOutboxMessage(item.id)}
-                                className="ui-focus-ring rounded-full border border-slate-200 bg-white/85 px-2 py-1 text-[length:var(--ui-text-2xs)] font-semibold text-slate-600 hover:bg-white"
+                                className="ui-focus-ring ui-button-secondary ui-button-compact rounded-full px-2 py-1 text-[length:var(--ui-text-2xs)]"
                                 aria-label="Retry message"
                               >
                                 Retry
@@ -1092,11 +1672,16 @@ export default function ChatWindow({
               {attachmentLoadError}
             </p>
           ) : null}
+          {voiceNoteError ? (
+            <p role="alert" className="mx-3 mt-1 text-[length:var(--ui-text-2xs)] text-red-600">
+              {voiceNoteError}
+            </p>
+          ) : null}
 
           {/* Typing indicator */}
           {typingText ? (
             <div className="mx-3 mt-1.5 flex items-center gap-2" role="status" aria-live="polite" aria-atomic="true">
-              <div className="flex items-center gap-1 rounded-full border border-white/65 bg-white/80 px-3 py-1.5 shadow-sm backdrop-blur-sm">
+              <div className="ui-toolbar-surface flex items-center gap-1 rounded-full px-3 py-1.5">
                 <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-400" />
                 <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-400" />
                 <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-400" />
@@ -1107,17 +1692,42 @@ export default function ChatWindow({
 
           {/* Input area */}
           <div ref={composerAreaRef} className="mx-3 mt-2 space-y-1.5" style={composerAreaStyle}>
+            {replyingToMessage ? (
+              <div className="ui-toolbar-surface flex items-start justify-between gap-3 rounded-2xl px-3 py-2">
+                <div className="min-w-0">
+                  <p className="text-[length:var(--ui-text-2xs)] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                    Replying to {replyingToMessage.sender_id === currentUserId ? 'You' : buddyScreenname}
+                  </p>
+                  <p className="truncate text-[length:var(--ui-text-xs)] text-slate-600">
+                    {replyingToMessage.deleted_at
+                      ? 'Message deleted'
+                      : htmlToPlainText(replyingToMessage.content).trim() || 'Original message'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={cancelReply}
+                  className="ui-focus-ring rounded-full p-1 text-slate-400 hover:text-slate-600"
+                  aria-label="Cancel reply"
+                >
+                  <AppIcon kind="close" className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ) : null}
             {/* Formatting toolbar */}
             <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={() => setShowFormatting((previous) => !previous)}
-                className={`${xpTinyToolbarButtonClass(showFormatting)} px-2.5`}
+                className={`${xpTinyToolbarButtonClass(showFormatting || hasCustomFormatting)} px-2.5`}
                 aria-label={showFormatting ? 'Hide formatting toolbar' : 'Show formatting toolbar'}
                 aria-expanded={showFormatting}
-                title="Formatting"
+                title="Text style"
               >
-                Font
+                <span className="inline-flex items-center gap-1">
+                  <span>Style</span>
+                  {hasCustomFormatting ? <span className="h-1.5 w-1.5 rounded-full bg-current" /> : null}
+                </span>
               </button>
               <button
                 type="button"
@@ -1165,12 +1775,40 @@ export default function ChatWindow({
               </button>
               <button
                 type="button"
+                onClick={() => {
+                  setMediaGalleryFilter('all');
+                  setShowMediaGallery(true);
+                }}
+                className={xpTinyToolbarButtonClass(showMediaGallery)}
+                aria-label={`Open media gallery for ${buddyScreenname}`}
+                title="Media gallery"
+              >
+                <AppIcon kind="media" className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
                 onClick={() => attachmentInputRef.current?.click()}
                 className={xpTinyToolbarButtonClass(pendingAttachments.length > 0)}
                 aria-label={`Attach files to your message to ${buddyScreenname}`}
                 title="Attach files"
               >
                 <AppIcon kind="attachment" className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (isRecordingVoiceNote) {
+                    void stopVoiceNoteRecording('save');
+                    return;
+                  }
+                  void startVoiceNoteRecording();
+                }}
+                disabled={isRequestingMicrophone}
+                className={`${xpTinyToolbarButtonClass(isRecordingVoiceNote)} ${isRequestingMicrophone ? 'opacity-60' : ''}`}
+                aria-label={isRecordingVoiceNote ? 'Stop voice note recording' : `Record a voice note for ${buddyScreenname}`}
+                title={isRecordingVoiceNote ? 'Stop recording' : 'Record voice note'}
+              >
+                <AppIcon kind="mic" className="h-3.5 w-3.5" />
               </button>
               <input
                 ref={attachmentInputRef}
@@ -1182,25 +1820,55 @@ export default function ChatWindow({
               />
             </div>
 
-            {showFormatting ? (
-              <div className="rounded-2xl border border-white/65 bg-white/80 p-2 shadow-sm">
-                <RichTextToolbar value={format} onChange={setFormat} />
+            {showFormatting ? <RichTextToolbar value={format} onChange={setFormat} /> : null}
+
+            {isRecordingVoiceNote ? (
+              <div className="ui-toolbar-surface flex items-center justify-between gap-3 rounded-2xl px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                  <div>
+                    <p className="text-[length:var(--ui-text-xs)] font-semibold text-slate-700 dark:text-slate-100">
+                      Recording voice note
+                    </p>
+                    <p className="text-[length:var(--ui-text-2xs)] text-slate-400">
+                      {formatRecordingDuration(voiceNoteElapsedSeconds)}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void stopVoiceNoteRecording('discard')}
+                    className="ui-focus-ring ui-button-secondary ui-button-compact rounded-full px-3"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void stopVoiceNoteRecording('save')}
+                    className="ui-focus-ring ui-button-primary ui-button-compact rounded-full px-3"
+                  >
+                    Save
+                  </button>
+                </div>
               </div>
             ) : null}
 
             {/* Pending attachments */}
             {pendingAttachments.length > 0 ? (
-              <div className="space-y-1 rounded-2xl border border-white/65 bg-white/72 p-2">
+              <div className="ui-toolbar-surface space-y-1 rounded-2xl p-2">
                 {pendingAttachments.map((file, index) => (
                   <div key={`${file.name}-${file.size}-${file.lastModified}`} className="flex items-center gap-2">
                     <span className="min-w-0 flex flex-1 items-center gap-1 truncate text-[length:var(--ui-text-2xs)] text-slate-600">
-                      <AppIcon kind="attachment" className="h-3 w-3 shrink-0" />
-                      <span className="truncate">{file.name} ({formatFileSize(file.size)})</span>
+                      <AppIcon kind={getAttachmentKind(file.type) === 'audio' ? 'mic' : 'attachment'} className="h-3 w-3 shrink-0" />
+                      <span className="truncate">
+                        {getAttachmentKind(file.type) === 'audio' ? 'Voice note' : file.name} ({formatFileSize(file.size)})
+                      </span>
                     </span>
                     <button
                       type="button"
                       onClick={() => removePendingAttachment(index)}
-                      className="ui-focus-ring shrink-0 rounded-lg border border-red-200/80 bg-white px-1.5 text-[length:var(--ui-text-2xs)] font-semibold text-red-500 hover:bg-red-50"
+                      className="ui-focus-ring ui-button-danger ui-button-compact shrink-0 px-1.5 text-[length:var(--ui-text-2xs)]"
                       aria-label={`Remove attachment ${file.name}`}
                     >
                       <AppIcon kind="close" className="h-3 w-3" />
@@ -1222,7 +1890,7 @@ export default function ChatWindow({
             </p>
             <form
               onSubmit={handleSubmit}
-              className="flex items-end gap-2 rounded-2xl border border-white/65 bg-white/88 px-3.5 py-2.5 shadow-[0_4px_16px_rgba(15,23,42,0.08)] backdrop-blur-sm"
+              className="ui-compose-surface flex items-end gap-2 rounded-2xl px-3.5 py-2.5"
             >
               <label htmlFor={composerInputId} className="sr-only">
                 Message {buddyScreenname}
@@ -1246,14 +1914,14 @@ export default function ChatWindow({
                 rows={1}
                 maxLength={1000}
                 aria-describedby={composerHelpId}
-                className="ui-focus-ring min-h-[24px] flex-1 resize-none rounded-xl bg-transparent text-[length:var(--ui-text-md)] text-slate-800 placeholder-slate-400"
-                style={{ maxHeight: '88px', overflowY: 'auto' }}
+                className="ui-focus-ring min-h-[24px] flex-1 resize-none rounded-xl bg-transparent text-[length:var(--ui-text-md)] text-slate-800 placeholder-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
+                style={composerTextStyle}
               />
               {(draft.trim() || pendingAttachments.length > 0) ? (
                 <button
                   type="submit"
                   disabled={isSending}
-                  className="ui-focus-ring mb-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-500 text-[length:var(--ui-text-md)] font-bold text-white shadow-[0_4px_10px_rgba(37,99,235,0.4)] transition hover:bg-blue-600 active:scale-95 disabled:opacity-60"
+                  className="ui-focus-ring ui-button-primary mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full p-0 text-[length:var(--ui-text-md)] font-bold disabled:opacity-60"
                   aria-label={`Send message to ${buddyScreenname}`}
                 >
                   {isSending ? '…' : '↑'}
@@ -1263,6 +1931,15 @@ export default function ChatWindow({
           </div>
         </div>
       </RetroWindow>
+      {showMediaGallery ? (
+        <ChatMediaGallerySheet
+          title={`Shared Media — ${buddyScreenname}`}
+          items={mediaGalleryItems}
+          filter={mediaGalleryFilter}
+          onFilterChange={setMediaGalleryFilter}
+          onClose={() => setShowMediaGallery(false)}
+        />
+      ) : null}
     </div>
   );
 }

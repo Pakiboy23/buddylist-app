@@ -14,9 +14,22 @@ import IncomingMessageBanner from '@/components/IncomingMessageBanner';
 import { useChatContext } from '@/context/ChatContext';
 import { navigateAppPath, normalizeAppPath } from '@/lib/appNavigation';
 import { waitForSessionOrNull } from '@/lib/authClient';
+import { subscribeToStorageKey } from '@/lib/clientStorage';
+import {
+  applyNotificationPreview,
+  DEFAULT_USER_PRIVACY_SETTINGS,
+  getDmPreference,
+  getDmPreferencesStorageKey,
+  getPrivacySettingsStorageKey,
+  loadDmPreferencesSnapshot,
+  loadPrivacySettingsSnapshot,
+  type DmConversationPreference,
+  type UserPrivacySettings,
+} from '@/lib/privateChat';
 import { normalizeRoomName, sameRoom } from '@/lib/roomName';
 import { htmlToPlainText } from '@/lib/richText';
 import { supabase } from '@/lib/supabase';
+import { normalizeBlockedUserIds } from '@/lib/trustSafety';
 
 interface BannerData {
   senderName: string;
@@ -116,6 +129,9 @@ export default function GlobalNotificationListener() {
   const nextLocalNotificationIdRef = useRef(1);
   const pendingPushTokenRef = useRef<string | null>(null);
   const persistedPushTokenRef = useRef<string | null>(null);
+  const privacySettingsRef = useRef<UserPrivacySettings>(DEFAULT_USER_PRIVACY_SETTINGS);
+  const dmPreferencesRef = useRef<Record<string, DmConversationPreference>>({});
+  const blockedUserIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     currentUserIdRef.current = currentUserId;
@@ -140,6 +156,74 @@ export default function GlobalNotificationListener() {
   useEffect(() => {
     playChatSoundRef.current = playChatSound;
   }, [playChatSound]);
+
+  useEffect(() => {
+    if (!currentUserId) {
+      privacySettingsRef.current = DEFAULT_USER_PRIVACY_SETTINGS;
+      dmPreferencesRef.current = {};
+      blockedUserIdsRef.current = new Set();
+      if (typeof document !== 'undefined') {
+        document.documentElement.classList.remove('privacy-shield-active');
+        document.body.classList.remove('privacy-shield-active');
+      }
+      return;
+    }
+
+    privacySettingsRef.current = loadPrivacySettingsSnapshot(currentUserId);
+    dmPreferencesRef.current = loadDmPreferencesSnapshot(currentUserId);
+    void supabase
+      .from('blocked_users')
+      .select('blockedId:blocked_id')
+      .eq('blocker_id', currentUserId)
+      .then(({ data, error }) => {
+        if (error) {
+          return;
+        }
+
+        blockedUserIdsRef.current = new Set(
+          normalizeBlockedUserIds((data ?? []) as Array<{ blockedId?: string | null }>),
+        );
+      });
+
+    const unsubscribePreferences = subscribeToStorageKey(getDmPreferencesStorageKey(currentUserId), () => {
+      dmPreferencesRef.current = loadDmPreferencesSnapshot(currentUserId);
+    });
+    const unsubscribePrivacy = subscribeToStorageKey(getPrivacySettingsStorageKey(currentUserId), () => {
+      privacySettingsRef.current = loadPrivacySettingsSnapshot(currentUserId);
+      if (typeof document !== 'undefined') {
+        const shouldShield =
+          privacySettingsRef.current.screenShieldEnabled && document.visibilityState !== 'visible';
+        document.documentElement.classList.toggle('privacy-shield-active', shouldShield);
+        document.body.classList.toggle('privacy-shield-active', shouldShield);
+      }
+    });
+
+    return () => {
+      unsubscribePreferences();
+      unsubscribePrivacy();
+    };
+  }, [currentUserId]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') {
+      return;
+    }
+
+    const applyShieldState = () => {
+      const shouldShield =
+        privacySettingsRef.current.screenShieldEnabled && document.visibilityState !== 'visible';
+      document.documentElement.classList.toggle('privacy-shield-active', shouldShield);
+      document.body.classList.toggle('privacy-shield-active', shouldShield);
+    };
+
+    applyShieldState();
+    document.addEventListener('visibilitychange', applyShieldState);
+    return () => {
+      document.removeEventListener('visibilitychange', applyShieldState);
+      document.documentElement.classList.remove('privacy-shield-active');
+      document.body.classList.remove('privacy-shield-active');
+    };
+  }, []);
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) {
@@ -296,6 +380,14 @@ export default function GlobalNotificationListener() {
   }, [currentUserId, persistPushToken]);
 
   const enqueueBanner = useCallback((banner: BannerData) => {
+    const previewedBanner = applyNotificationPreview(
+      {
+        senderName: banner.senderName,
+        messagePreview: banner.messagePreview,
+      },
+      privacySettingsRef.current,
+    );
+
     playChatSoundRef.current('message');
 
     const localNotifications = localNotificationsRef.current;
@@ -311,8 +403,8 @@ export default function GlobalNotificationListener() {
           notifications: [
             {
               id: notificationId,
-              title: banner.senderName,
-              body: banner.messagePreview,
+              title: previewedBanner.senderName,
+              body: previewedBanner.messagePreview,
               schedule: { at: new Date(Date.now() + 200) },
               extra: { targetPath: banner.targetPath },
             },
@@ -343,8 +435,8 @@ export default function GlobalNotificationListener() {
         const existing = next[dedupeIndex];
         next[dedupeIndex] = {
           ...existing,
-          senderName: banner.senderName,
-          messagePreview: banner.messagePreview,
+          senderName: previewedBanner.senderName,
+          messagePreview: previewedBanner.messagePreview,
           variant: banner.variant,
           count: Math.max(1, existing.count ?? 1) + 1,
           queuedAtMs: now,
@@ -352,6 +444,8 @@ export default function GlobalNotificationListener() {
       } else {
         next.push({
           ...banner,
+          senderName: previewedBanner.senderName,
+          messagePreview: previewedBanner.messagePreview,
           count: Math.max(1, banner.count ?? 1),
           queuedAtMs: now,
         });
@@ -549,6 +643,14 @@ export default function GlobalNotificationListener() {
           }
 
           if (receiverId !== currentUser || senderId === currentUser) {
+            return;
+          }
+
+          if (blockedUserIdsRef.current.has(senderId)) {
+            return;
+          }
+
+          if (getDmPreference(dmPreferencesRef.current, senderId).isMuted) {
             return;
           }
 

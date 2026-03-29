@@ -5,6 +5,7 @@ import {
   AIM_FONT_OPTIONS,
   DEFAULT_RICH_TEXT_FORMAT,
   RichTextFormat,
+  isDefaultRichTextFormat,
 } from '@/lib/richText';
 
 interface RichTextToolbarProps {
@@ -19,88 +20,114 @@ export default function RichTextToolbar({ value, onChange }: RichTextToolbarProp
       ...partial,
     });
   };
-
-  const toggleWeight = () => updateValue({ bold: !value.bold });
-  const toggleItalic = () => updateValue({ italic: !value.italic });
-  const toggleUnderline = () => updateValue({ underline: !value.underline });
-
-  const toggleClassName = (active: boolean) =>
-    `inline-flex h-11 min-w-11 items-center justify-center rounded-lg border px-2 text-[13px] font-semibold transition focus:outline-none ${
-      active
-        ? 'border-blue-400/70 bg-blue-50 text-blue-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]'
-        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-    }`;
+  const selectedColor = AIM_COLOR_OPTIONS.find(
+    (option) => option.value.toLowerCase() === value.color.toLowerCase(),
+  ) ?? AIM_COLOR_OPTIONS[0];
+  const hasCustomStyling = !isDefaultRichTextFormat(value);
+  const previewUsesDarkSurface = new Set([
+    '#FFFFFF',
+    '#C0C0C0',
+    '#FFD400',
+    '#00FFFF',
+    '#00FF00',
+    '#7CFC00',
+  ]).has(selectedColor.value.toUpperCase());
 
   return (
-    <div className="rounded-2xl border border-white/70 bg-white/85 px-2 py-2 shadow-[0_8px_24px_rgba(15,23,42,0.1)] backdrop-blur-sm">
-      <div className="flex flex-wrap items-center gap-1.5">
-        <label className="sr-only" htmlFor="rich-font-select">
-          Font
-        </label>
-        <select
-          id="rich-font-select"
-          value={value.fontFamily}
-          onChange={(event) => updateValue({ fontFamily: event.target.value })}
-          className="h-8 min-w-[150px] rounded-lg border border-slate-200 bg-white px-2 text-[12px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
+    <div className="ui-toolbar-surface rounded-2xl px-3 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+            Text Style
+          </p>
+          <p className="mt-1 text-[12px] text-slate-600 dark:text-slate-300">
+            {value.fontFamily} · {selectedColor.name}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => onChange(DEFAULT_RICH_TEXT_FORMAT)}
+          disabled={!hasCustomStyling}
+          className="ui-focus-ring ui-button-secondary ui-button-compact disabled:opacity-50"
         >
-          {AIM_FONT_OPTIONS.map((fontName) => (
-            <option key={fontName} value={fontName}>
-              {fontName}
-            </option>
-          ))}
-        </select>
+          Reset
+        </button>
+      </div>
 
-        <div className="ml-0.5 flex items-center gap-1 border-l border-slate-200 pl-2">
-          <button type="button" aria-label="Bold" onClick={toggleWeight} className={toggleClassName(value.bold)}>
-            B
-          </button>
-          <button type="button" aria-label="Italic" onClick={toggleItalic} className={toggleClassName(value.italic)}>
-            I
-          </button>
-          <button
-            type="button"
-            aria-label="Underline"
-            onClick={toggleUnderline}
-            className={toggleClassName(value.underline)}
-          >
-            U
-          </button>
+      <div className="mt-3">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+          Font
+        </p>
+        <div className="mt-2 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {AIM_FONT_OPTIONS.map((fontName) => {
+            const isActive = value.fontFamily === fontName;
+            return (
+              <button
+                key={fontName}
+                type="button"
+                onClick={() => updateValue({ fontFamily: fontName })}
+                className={`ui-focus-ring shrink-0 rounded-full border px-3 py-1.5 text-[12px] font-semibold transition ${
+                  isActive
+                    ? 'border-blue-400/70 bg-blue-500 text-white shadow-[0_10px_20px_rgba(37,99,235,0.24)]'
+                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950/65 dark:text-slate-200 dark:hover:bg-slate-900'
+                }`}
+                style={{ fontFamily: fontName }}
+                aria-pressed={isActive}
+              >
+                {fontName}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        {AIM_COLOR_OPTIONS.map((color) => {
-          const isActive = value.color.toLowerCase() === color.value.toLowerCase();
-          return (
-            <button
-              key={color.value}
-              type="button"
-              title={color.name}
-              aria-label={color.name}
-              onClick={() => updateValue({ color: color.value })}
-              className={`h-7 w-7 rounded-full border transition ${
-                isActive
-                  ? 'border-blue-500 shadow-[0_0_0_2px_rgba(191,219,254,0.9)]'
-                  : 'border-slate-300 hover:scale-105'
-              }`}
-              style={{ backgroundColor: color.value }}
-            />
-          );
-        })}
+      <div className="mt-3">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
+          Color
+        </p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {AIM_COLOR_OPTIONS.map((color) => {
+            const isActive = value.color.toLowerCase() === color.value.toLowerCase();
+            return (
+              <button
+                key={color.value}
+                type="button"
+                title={color.name}
+                aria-label={color.name}
+                onClick={() => updateValue({ color: color.value })}
+                className={`ui-focus-ring flex h-8 w-8 items-center justify-center rounded-full border transition ${
+                  isActive
+                    ? 'border-blue-500 shadow-[0_0_0_2px_rgba(191,219,254,0.9)] dark:shadow-[0_0_0_2px_rgba(59,130,246,0.35)]'
+                    : 'border-slate-300 hover:scale-105 dark:border-slate-600'
+                }`}
+                aria-pressed={isActive}
+              >
+                <span
+                  className="h-5 w-5 rounded-full border border-white/70 shadow-sm"
+                  style={{ backgroundColor: color.value }}
+                />
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      <p
-        className="mt-2 truncate rounded-lg border border-slate-200 bg-slate-950 px-2 py-1.5 text-[11px]"
-        style={{
-          fontFamily: value.fontFamily || DEFAULT_RICH_TEXT_FORMAT.fontFamily,
-          color: value.color || DEFAULT_RICH_TEXT_FORMAT.color,
-          fontWeight: value.bold ? 'bold' : 'normal',
-          fontStyle: value.italic ? 'italic' : 'normal',
-          textDecoration: value.underline ? 'underline' : 'none',
-        }}
-      >
-        Preview: message style
-      </p>
+      <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-950/55">
+        <p className="text-[12px] text-slate-500 dark:text-slate-400">Applies to your next message</p>
+        <span
+          className="inline-flex items-center rounded-full border border-slate-200 px-3 py-1 text-[12px] dark:border-slate-700"
+          style={{
+            backgroundColor: previewUsesDarkSurface ? '#0F172A' : '#FFFFFF',
+            fontFamily: value.fontFamily || DEFAULT_RICH_TEXT_FORMAT.fontFamily,
+            color: value.color || DEFAULT_RICH_TEXT_FORMAT.color,
+            fontWeight: value.bold ? 'bold' : 'normal',
+            fontStyle: value.italic ? 'italic' : 'normal',
+            textDecoration: value.underline ? 'underline' : 'none',
+          }}
+        >
+          Aa
+        </span>
+      </div>
     </div>
   );
 }

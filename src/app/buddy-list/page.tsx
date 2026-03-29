@@ -5,10 +5,12 @@ import Image from 'next/image';
 import { FormEvent, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppIcon from '@/components/AppIcon';
+import AppLockSheet from '@/components/AppLockSheet';
 import BuddyListTabIcon from '@/components/BuddyListTabIcon';
 import type { ChatMessage } from '@/components/ChatWindow';
 import BuddyProfileSheet from '@/components/BuddyProfileSheet';
 import ProfileAvatar from '@/components/ProfileAvatar';
+import SavedMessagesWindow from '@/components/SavedMessagesWindow';
 import { getAccessTokenOrNull, waitForSessionOrNull } from '@/lib/authClient';
 import { getAppApiUrl } from '@/lib/appApi';
 import { navigateAppPath, replaceAppPathInPlace } from '@/lib/appNavigation';
@@ -23,6 +25,22 @@ import {
 import { uploadChatMediaFile } from '@/lib/chatMedia';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useTheme } from '@/hooks/useTheme';
+import {
+  DEFAULT_APP_LOCK_SETTINGS,
+  loadAppLockSettings,
+  saveAppLockSettings,
+  hashAppLockPin,
+  verifyAppLockPin,
+  isValidAppLockPin,
+  formatAppLockTimeoutLabel,
+  type AppLockSettings,
+} from '@/lib/appLock';
+import {
+  DEFAULT_BIOMETRIC_AVAILABILITY,
+  authenticateWithBiometrics,
+  checkBiometricAvailability,
+  getBiometricErrorCode,
+} from '@/lib/biometrics';
 import {
   createClientMessageId,
   createOutboxItem,
@@ -39,6 +57,8 @@ import {
 } from '@/lib/outbox';
 import {
   DIRECT_MESSAGE_SELECT_FIELDS,
+  LEGACY_DIRECT_MESSAGE_SELECT_FIELDS,
+  isDirectMessageMetadataSchemaMissingError,
   sendDirectMessageWithClientMessageId,
   sendRoomMessageWithClientMessageId,
 } from '@/lib/messageIdempotency';
@@ -55,6 +75,23 @@ import {
 import { initSoundSystem, playFallbackTone, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
 import { normalizeRoomKey, sameRoom } from '@/lib/roomName';
+import { htmlToPlainText } from '@/lib/richText';
+import {
+  DEFAULT_USER_PRIVACY_SETTINGS,
+  getDmPreference,
+  getDmPreferencesStorageKey,
+  getPrivacySettingsStorageKey,
+  loadDmPreferencesSnapshot,
+  loadPrivacySettingsSnapshot,
+  normalizeDmConversationPreference,
+  normalizeDmPreferencesRows,
+  normalizeUserPrivacySettings,
+  saveDmPreferencesSnapshot,
+  savePrivacySettingsSnapshot,
+  type DmConversationPreference,
+  type SavedMessageRow,
+  type UserPrivacySettings,
+} from '@/lib/privateChat';
 import {
   formatPresenceSince,
   getPresenceDetail,
@@ -69,6 +106,13 @@ import {
 } from '@/lib/unread-dm';
 import RetroWindow from '@/components/RetroWindow';
 import { useChatContext } from '@/context/ChatContext';
+import {
+  ABUSE_REPORT_CATEGORY_OPTIONS,
+  getMessageExpiresAt,
+  isTrustSafetySchemaMissingError,
+  normalizeBlockedUserIds,
+  type AbuseReportCategory,
+} from '@/lib/trustSafety';
 
 const ChatWindow = dynamic(() => import('@/components/ChatWindow'), {
   ssr: false,
@@ -172,6 +216,8 @@ interface BuddyActivityToast {
   message: string;
   tone: 'online' | 'offline' | 'away' | 'back';
 }
+
+type ConversationFilter = 'all' | 'unread' | 'pinned' | 'requests' | 'archived';
 
 type UserSelectQuery = ReturnType<ReturnType<typeof supabase.from>['select']>;
 
@@ -613,6 +659,31 @@ function BuddyListContent() {
   const [isUiCacheHydrated, setIsUiCacheHydrated] = useState(false);
   const [awayReplyCooldowns, setAwayReplyCooldowns] = useState<Record<string, number>>({});
   const [draftCache, setDraftCache] = useState<UiDraftState>({ dm: {}, rooms: {} });
+  const [conversationFilter, setConversationFilter] = useState<ConversationFilter>('all');
+  const [dmPreferencesByBuddyId, setDmPreferencesByBuddyId] = useState<Record<string, DmConversationPreference>>({});
+  const [privacySettings, setPrivacySettings] = useState<UserPrivacySettings>(DEFAULT_USER_PRIVACY_SETTINGS);
+  const [appLockSettings, setAppLockSettings] = useState<AppLockSettings>(DEFAULT_APP_LOCK_SETTINGS);
+  const [isAppLocked, setIsAppLocked] = useState(false);
+  const [showAppLockSheet, setShowAppLockSheet] = useState(false);
+  const [appLockMode, setAppLockMode] = useState<'setup' | 'unlock'>('setup');
+  const [appLockPinDraft, setAppLockPinDraft] = useState('');
+  const [appLockConfirmDraft, setAppLockConfirmDraft] = useState('');
+  const [appLockError, setAppLockError] = useState<string | null>(null);
+  const [biometricAvailability, setBiometricAvailability] = useState(DEFAULT_BIOMETRIC_AVAILABILITY);
+  const [isBiometricAuthenticating, setIsBiometricAuthenticating] = useState(false);
+  const [showPrivacySheet, setShowPrivacySheet] = useState(false);
+  const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
+  const [blockedProfiles, setBlockedProfiles] = useState<UserProfile[]>([]);
+  const [trustSafetyError, setTrustSafetyError] = useState<string | null>(null);
+  const [savedMessages, setSavedMessages] = useState<SavedMessageRow[]>([]);
+  const [showSavedMessagesWindow, setShowSavedMessagesWindow] = useState(false);
+  const [savedMessageDraft, setSavedMessageDraft] = useState('');
+  const [savedMessageError, setSavedMessageError] = useState<string | null>(null);
+  const [isSavingSavedMessage, setIsSavingSavedMessage] = useState(false);
+  const [deletingSavedMessageId, setDeletingSavedMessageId] = useState<string | null>(null);
+  const [forwardingMessage, setForwardingMessage] = useState<ChatMessage | null>(null);
+  const [forwardError, setForwardError] = useState<string | null>(null);
+  const [isForwardingToId, setIsForwardingToId] = useState<string | null>(null);
 
   const [isRecoverySetupOpen, setIsRecoverySetupOpen] = useState(false);
   const [recoveryCodeDraft, setRecoveryCodeDraft] = useState('');
@@ -627,9 +698,12 @@ function BuddyListContent() {
   const [isSearching, setIsSearching] = useState(false);
   const [isAddingBuddyId, setIsAddingBuddyId] = useState<string | null>(null);
   const [isRemovingBuddyId, setIsRemovingBuddyId] = useState<string | null>(null);
+  const [isBlockingBuddyId, setIsBlockingBuddyId] = useState<string | null>(null);
+  const [isReportingBuddyId, setIsReportingBuddyId] = useState<string | null>(null);
   const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(false);
   const [profileSheetBuddyId, setProfileSheetBuddyId] = useState<string | null>(null);
   const [profileSheetError, setProfileSheetError] = useState<string | null>(null);
+  const [profileSheetFeedback, setProfileSheetFeedback] = useState<string | null>(null);
   const [showSystemStatusSheet, setShowSystemStatusSheet] = useState(false);
   const [buddyActivityToasts, setBuddyActivityToasts] = useState<BuddyActivityToast[]>([]);
 
@@ -666,11 +740,13 @@ function BuddyListContent() {
   const [initialUnreadForActiveRoom, setInitialUnreadForActiveRoom] = useState(0);
   const [activeRoomReloadToken, setActiveRoomReloadToken] = useState(0);
   const [outboxItems, setOutboxItems] = useState<OutboxItem[]>([]);
+  const [awayModalMode, setAwayModalMode] = useState<'profile' | 'away'>('profile');
 
   const hasPresenceSyncedRef = useRef(false);
   const isSigningOffRef = useRef(false);
   const activeChatBuddyIdRef = useRef<string | null>(null);
   const acceptedBuddyIdsRef = useRef<Set<string>>(new Set());
+  const blockedUserIdsRef = useRef<Set<string>>(new Set());
   const buddyRowsRef = useRef<Buddy[]>([]);
   const pendingRequestsRef = useRef<PendingRequest[]>([]);
   const temporaryChatAllowedIdsRef = useRef<Set<string>>(new Set());
@@ -694,6 +770,10 @@ function BuddyListContent() {
   const dmTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const outboxItemsRef = useRef<OutboxItem[]>([]);
   const isFlushingOutboxRef = useRef(false);
+  const appHiddenAtRef = useRef<number | null>(null);
+  const attemptedBiometricUnlockRef = useRef(false);
+  const quickPhotoInputRef = useRef<HTMLInputElement | null>(null);
+  const awayMessageFieldRef = useRef<HTMLTextAreaElement | null>(null);
   const playSound = useSoundPlayer();
   const { isDark, toggleDark } = useTheme();
   const router = useRouter();
@@ -722,6 +802,30 @@ function BuddyListContent() {
   useEffect(() => {
     pendingRequestsRef.current = pendingRequests;
   }, [pendingRequests]);
+
+  useEffect(() => {
+    blockedUserIdsRef.current = new Set(blockedUserIds);
+  }, [blockedUserIds]);
+
+  useEffect(() => {
+    if (!showAwayModal || awayModalMode !== 'away' || typeof window === 'undefined') {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      const field = awayMessageFieldRef.current;
+      if (!field) {
+        return;
+      }
+
+      field.scrollIntoView({ block: 'center' });
+      field.focus();
+      const selectionStart = field.value.length;
+      field.setSelectionRange(selectionStart, selectionStart);
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [awayModalMode, showAwayModal]);
 
   useEffect(() => {
     temporaryChatAllowedIdsRef.current = new Set(temporaryChatAllowedIds);
@@ -973,6 +1077,219 @@ function BuddyListContent() {
   }, [applyUiCachePayload, userId]);
 
   useEffect(() => {
+    if (!userId) {
+      setDmPreferencesByBuddyId({});
+      setPrivacySettings(DEFAULT_USER_PRIVACY_SETTINGS);
+      setBlockedUserIds([]);
+      setAppLockSettings(DEFAULT_APP_LOCK_SETTINGS);
+      setBiometricAvailability(DEFAULT_BIOMETRIC_AVAILABILITY);
+      setIsBiometricAuthenticating(false);
+      attemptedBiometricUnlockRef.current = false;
+      setIsAppLocked(false);
+      return;
+    }
+
+    setDmPreferencesByBuddyId(loadDmPreferencesSnapshot(userId));
+    setPrivacySettings(loadPrivacySettingsSnapshot(userId));
+    setAppLockSettings(loadAppLockSettings(userId));
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const refreshBiometricAvailability = async () => {
+      const nextAvailability = await checkBiometricAvailability();
+      if (!cancelled) {
+        setBiometricAvailability(nextAvailability);
+      }
+    };
+
+    void refreshBiometricAvailability();
+
+    if (typeof document === 'undefined') {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void refreshBiometricAvailability();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId) {
+      setSavedMessages([]);
+      return;
+    }
+
+    let isCancelled = false;
+
+    const loadPrivateChatData = async () => {
+      const [preferencesResponse, privacyResponse, savedMessagesResponse, blockedUsersResponse] = await Promise.all([
+        supabase
+          .from('user_dm_preferences')
+          .select(
+            'buddyId:buddy_id,isPinned:is_pinned,isMuted:is_muted,isArchived:is_archived,themeKey:theme_key,wallpaperKey:wallpaper_key,disappearingTimerSeconds:disappearing_timer_seconds,updatedAt:updated_at',
+          )
+          .eq('user_id', userId),
+        supabase
+          .from('user_privacy_settings')
+          .select(
+            'shareReadReceipts:share_read_receipts,notificationPreviewMode:notification_preview_mode,screenShieldEnabled:screen_shield_enabled',
+          )
+          .eq('user_id', userId)
+          .maybeSingle(),
+        supabase
+          .from('saved_messages')
+          .select('id,user_id,content,source_message_id,source_sender_id,source_screenname,created_at,updated_at')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(200),
+        supabase
+          .from('blocked_users')
+          .select('blockedId:blocked_id')
+          .eq('blocker_id', userId),
+      ]);
+
+      if (isCancelled) {
+        return;
+      }
+
+      if (!preferencesResponse.error) {
+        const normalizedPreferences = normalizeDmPreferencesRows(
+          (preferencesResponse.data ?? []) as Array<Partial<DmConversationPreference> & { buddyId?: string | null }>,
+        );
+        setDmPreferencesByBuddyId(normalizedPreferences);
+        saveDmPreferencesSnapshot(userId, normalizedPreferences);
+      } else {
+        console.warn('Private-chat preferences unavailable:', preferencesResponse.error.message);
+      }
+
+      if (!privacyResponse.error) {
+        const normalizedPrivacy = normalizeUserPrivacySettings(
+          (privacyResponse.data as Partial<UserPrivacySettings> | null | undefined) ?? DEFAULT_USER_PRIVACY_SETTINGS,
+        );
+        setPrivacySettings(normalizedPrivacy);
+        savePrivacySettingsSnapshot(userId, normalizedPrivacy);
+        if (!privacyResponse.data) {
+          void supabase.from('user_privacy_settings').upsert({
+            user_id: userId,
+            share_read_receipts: normalizedPrivacy.shareReadReceipts,
+            notification_preview_mode: normalizedPrivacy.notificationPreviewMode,
+            screen_shield_enabled: normalizedPrivacy.screenShieldEnabled,
+          });
+        }
+      } else {
+        console.warn('Privacy settings unavailable:', privacyResponse.error.message);
+      }
+
+      if (!savedMessagesResponse.error) {
+        setSavedMessages((savedMessagesResponse.data ?? []) as SavedMessageRow[]);
+      } else {
+        console.warn('Saved messages unavailable:', savedMessagesResponse.error.message);
+      }
+
+      if (!blockedUsersResponse.error) {
+        setBlockedUserIds(normalizeBlockedUserIds((blockedUsersResponse.data ?? []) as Array<{ blockedId?: string | null }>));
+      } else if (!isTrustSafetySchemaMissingError(blockedUsersResponse.error)) {
+        console.warn('Blocked users unavailable:', blockedUsersResponse.error.message);
+      }
+    };
+
+    void loadPrivateChatData();
+
+    const unsubscribePreferences = subscribeToStorageKey(getDmPreferencesStorageKey(userId), () => {
+      setDmPreferencesByBuddyId(loadDmPreferencesSnapshot(userId));
+    });
+    const unsubscribePrivacy = subscribeToStorageKey(getPrivacySettingsStorageKey(userId), () => {
+      setPrivacySettings(loadPrivacySettingsSnapshot(userId));
+    });
+
+    return () => {
+      isCancelled = true;
+      unsubscribePreferences();
+      unsubscribePrivacy();
+    };
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId) {
+      return;
+    }
+
+    saveDmPreferencesSnapshot(userId, dmPreferencesByBuddyId);
+  }, [dmPreferencesByBuddyId, userId]);
+
+  useEffect(() => {
+    if (!userId) {
+      return;
+    }
+
+    savePrivacySettingsSnapshot(userId, privacySettings);
+  }, [privacySettings, userId]);
+
+  useEffect(() => {
+    if (!userId) {
+      return;
+    }
+
+    saveAppLockSettings(userId, appLockSettings);
+  }, [appLockSettings, userId]);
+
+  useEffect(() => {
+    if (!appLockSettings.enabled || typeof document === 'undefined') {
+      return;
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        appHiddenAtRef.current = Date.now();
+        return;
+      }
+
+      if (document.visibilityState !== 'visible') {
+        return;
+      }
+
+      const hiddenAt = appHiddenAtRef.current;
+      appHiddenAtRef.current = null;
+      if (hiddenAt === null) {
+        return;
+      }
+
+      const elapsedSeconds = (Date.now() - hiddenAt) / 1000;
+      if (appLockSettings.autoLockSeconds === 0 || elapsedSeconds >= appLockSettings.autoLockSeconds) {
+        setAppLockMode('unlock');
+        setAppLockPinDraft('');
+        setAppLockConfirmDraft('');
+        setAppLockError(null);
+        attemptedBiometricUnlockRef.current = false;
+        setIsBiometricAuthenticating(false);
+        setShowAppLockSheet(true);
+        setIsAppLocked(true);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [appLockSettings.autoLockSeconds, appLockSettings.enabled]);
+
+  useEffect(() => {
     if (selectedAwayPresetId === '__custom__') {
       return;
     }
@@ -1031,6 +1348,405 @@ function BuddyListContent() {
         setBuddyActivityToasts((previous) => previous.filter((item) => item.id !== id));
         delete activityTimeoutsRef.current[id];
       }, PROFILE_ACTIVITY_TTL_MS);
+    },
+    [userId],
+  );
+
+  const resolveScreennameForUserId = useCallback(
+    (targetUserId: string) => {
+      if (!targetUserId) {
+        return 'Buddy';
+      }
+
+      if (targetUserId === userId) {
+        return screennameRef.current || 'You';
+      }
+
+      return (
+        buddyRowsRef.current.find((buddy) => buddy.id === targetUserId)?.screenname ||
+        temporaryChatProfilesRef.current[targetUserId]?.screenname ||
+        pendingRequestsRef.current.find((request) => request.senderId === targetUserId)?.screenname ||
+        'Buddy'
+      );
+    },
+    [userId],
+  );
+
+  const upsertConversationPreference = useCallback(
+    async (
+      buddyId: string,
+      updater:
+        | Partial<Omit<DmConversationPreference, 'buddyId'>>
+        | ((current: DmConversationPreference) => Partial<Omit<DmConversationPreference, 'buddyId'>>),
+    ) => {
+      if (!buddyId) {
+        return null;
+      }
+
+      const current = getDmPreference(dmPreferencesByBuddyId, buddyId);
+      const patch = typeof updater === 'function' ? updater(current) : updater;
+      const nextPreference = normalizeDmConversationPreference(buddyId, {
+        ...current,
+        ...patch,
+        updatedAt: new Date().toISOString(),
+      });
+
+      setDmPreferencesByBuddyId((previous) => ({
+        ...previous,
+        [buddyId]: nextPreference,
+      }));
+
+      if (!userId) {
+        return nextPreference;
+      }
+
+      const { error } = await supabase.from('user_dm_preferences').upsert(
+        {
+          user_id: userId,
+          buddy_id: buddyId,
+          is_pinned: nextPreference.isPinned,
+          is_muted: nextPreference.isMuted,
+          is_archived: nextPreference.isArchived,
+          theme_key: nextPreference.themeKey,
+          wallpaper_key: nextPreference.wallpaperKey,
+          disappearing_timer_seconds: nextPreference.disappearingTimerSeconds,
+        },
+        {
+          onConflict: 'user_id,buddy_id',
+        },
+      );
+
+      if (error) {
+        console.error('Failed saving conversation preference:', error.message);
+      }
+
+      return nextPreference;
+    },
+    [dmPreferencesByBuddyId, userId],
+  );
+
+  const updatePrivacyPreferences = useCallback(
+    async (updater: Partial<UserPrivacySettings> | ((current: UserPrivacySettings) => Partial<UserPrivacySettings>)) => {
+      const patch = typeof updater === 'function' ? updater(privacySettings) : updater;
+      const nextSettings = normalizeUserPrivacySettings({
+        ...privacySettings,
+        ...patch,
+      });
+
+      setPrivacySettings(nextSettings);
+      if (!userId) {
+        return nextSettings;
+      }
+
+      const { error } = await supabase.from('user_privacy_settings').upsert(
+        {
+          user_id: userId,
+          share_read_receipts: nextSettings.shareReadReceipts,
+          notification_preview_mode: nextSettings.notificationPreviewMode,
+          screen_shield_enabled: nextSettings.screenShieldEnabled,
+        },
+        {
+          onConflict: 'user_id',
+        },
+      );
+
+      if (error) {
+        console.error('Failed saving privacy settings:', error.message);
+      }
+
+      return nextSettings;
+    },
+    [privacySettings, userId],
+  );
+
+  const openAppLockSetup = useCallback(() => {
+    setAppLockMode('setup');
+    setAppLockPinDraft('');
+    setAppLockConfirmDraft('');
+    setAppLockError(null);
+    attemptedBiometricUnlockRef.current = false;
+    setIsBiometricAuthenticating(false);
+    setShowAppLockSheet(true);
+  }, []);
+
+  const handleDisableAppLock = useCallback(() => {
+    setAppLockSettings({
+      enabled: false,
+      pinHash: null,
+      autoLockSeconds: appLockSettings.autoLockSeconds,
+      biometricsEnabled: false,
+    });
+    setIsAppLocked(false);
+    setAppLockPinDraft('');
+    setAppLockConfirmDraft('');
+    setAppLockError(null);
+    setIsBiometricAuthenticating(false);
+    attemptedBiometricUnlockRef.current = false;
+    setShowAppLockSheet(false);
+  }, [appLockSettings.autoLockSeconds]);
+
+  const handleLockAppNow = useCallback(() => {
+    if (!appLockSettings.enabled || !appLockSettings.pinHash) {
+      return;
+    }
+
+    setAppLockMode('unlock');
+    setAppLockPinDraft('');
+    setAppLockConfirmDraft('');
+    setAppLockError(null);
+    attemptedBiometricUnlockRef.current = false;
+    setIsBiometricAuthenticating(false);
+    setIsAppLocked(true);
+    setShowAppLockSheet(true);
+  }, [appLockSettings.enabled, appLockSettings.pinHash]);
+
+  const completeAppUnlock = useCallback(() => {
+    setAppLockPinDraft('');
+    setAppLockConfirmDraft('');
+    setAppLockError(null);
+    setShowAppLockSheet(false);
+    setIsAppLocked(false);
+    setIsBiometricAuthenticating(false);
+    attemptedBiometricUnlockRef.current = false;
+  }, []);
+
+  const handleUseBiometrics = useCallback(async () => {
+    if (!appLockSettings.enabled || !appLockSettings.biometricsEnabled || !biometricAvailability.isAvailable) {
+      return;
+    }
+
+    setAppLockError(null);
+    setIsBiometricAuthenticating(true);
+
+    try {
+      await authenticateWithBiometrics('Unlock BuddyList');
+      completeAppUnlock();
+    } catch (error) {
+      const errorCode = getBiometricErrorCode(error);
+      if (errorCode === 'userCancel' || errorCode === 'userFallback' || errorCode === 'systemCancel') {
+        setIsBiometricAuthenticating(false);
+        return;
+      }
+
+      console.error('Biometric authentication failed:', error);
+      setIsBiometricAuthenticating(false);
+      setAppLockError(`${biometricAvailability.label} wasn't available. Use your PIN instead.`);
+      void checkBiometricAvailability().then((nextAvailability) => {
+        setBiometricAvailability(nextAvailability);
+      });
+    }
+  }, [
+    appLockSettings.biometricsEnabled,
+    appLockSettings.enabled,
+    biometricAvailability.isAvailable,
+    biometricAvailability.label,
+    completeAppUnlock,
+  ]);
+
+  const handleSubmitAppLock = useCallback(async () => {
+    if (appLockMode === 'setup') {
+      if (!isValidAppLockPin(appLockPinDraft)) {
+        setAppLockError('Choose a 4 to 6 digit PIN.');
+        return;
+      }
+
+      if (appLockPinDraft !== appLockConfirmDraft) {
+        setAppLockError('Those PINs do not match.');
+        return;
+      }
+
+      const pinHash = await hashAppLockPin(appLockPinDraft);
+      setAppLockSettings({
+        enabled: true,
+        pinHash,
+        autoLockSeconds: appLockSettings.autoLockSeconds,
+        biometricsEnabled: biometricAvailability.isAvailable,
+      });
+      setAppLockPinDraft('');
+      setAppLockConfirmDraft('');
+      setAppLockError(null);
+      setIsBiometricAuthenticating(false);
+      attemptedBiometricUnlockRef.current = false;
+      setShowAppLockSheet(false);
+      setIsAppLocked(false);
+      return;
+    }
+
+    if (!(await verifyAppLockPin(appLockPinDraft, appLockSettings.pinHash))) {
+      setAppLockError('That PIN does not match this device lock.');
+      return;
+    }
+
+    completeAppUnlock();
+  }, [
+    appLockConfirmDraft,
+    appLockMode,
+    appLockPinDraft,
+    appLockSettings.autoLockSeconds,
+    appLockSettings.pinHash,
+    biometricAvailability.isAvailable,
+    completeAppUnlock,
+  ]);
+
+  useEffect(() => {
+    if (!showAppLockSheet || appLockMode !== 'unlock') {
+      attemptedBiometricUnlockRef.current = false;
+      setIsBiometricAuthenticating(false);
+      return;
+    }
+
+    if (
+      !appLockSettings.enabled ||
+      !appLockSettings.biometricsEnabled ||
+      !biometricAvailability.isAvailable ||
+      attemptedBiometricUnlockRef.current
+    ) {
+      return;
+    }
+
+    attemptedBiometricUnlockRef.current = true;
+    void handleUseBiometrics();
+  }, [
+    appLockMode,
+    appLockSettings.biometricsEnabled,
+    appLockSettings.enabled,
+    biometricAvailability.isAvailable,
+    handleUseBiometrics,
+    showAppLockSheet,
+  ]);
+
+  const handleBlockBuddyById = useCallback(
+    async (buddyId: string) => {
+      if (!userId || !buddyId) {
+        return false;
+      }
+
+      setTrustSafetyError(null);
+      setProfileSheetError(null);
+      setProfileSheetFeedback(null);
+      setIsBlockingBuddyId(buddyId);
+
+      const { error: blockError } = await supabase.from('blocked_users').upsert(
+        {
+          blocker_id: userId,
+          blocked_id: buddyId,
+        },
+        { onConflict: 'blocker_id,blocked_id' },
+      );
+
+      if (blockError) {
+        setIsBlockingBuddyId(null);
+        const message = isTrustSafetySchemaMissingError(blockError)
+          ? 'Run trust_safety_slice.sql to enable blocking and reporting.'
+          : blockError.message;
+        setTrustSafetyError(message);
+        setProfileSheetError(message);
+        return false;
+      }
+
+      const { error: cleanupError } = await supabase
+        .from('buddies')
+        .delete()
+        .or(`and(user_id.eq.${userId},buddy_id.eq.${buddyId}),and(user_id.eq.${buddyId},buddy_id.eq.${userId})`);
+
+      if (cleanupError) {
+        console.warn('Blocked buddy relationship cleanup failed:', cleanupError.message);
+      }
+
+      setBlockedUserIds((previous) => (previous.includes(buddyId) ? previous : [...previous, buddyId]));
+      setPendingRequests((previous) => previous.filter((request) => request.senderId !== buddyId));
+      setTemporaryChatAllowedIds((previous) => previous.filter((id) => id !== buddyId));
+      setTemporaryChatProfiles((previous) => {
+        const next = { ...previous };
+        delete next[buddyId];
+        return next;
+      });
+      setSearchResults((previous) => previous.filter((profile) => profile.id !== buddyId));
+
+      if (activeChatBuddyIdRef.current === buddyId) {
+        setActiveChatBuddyId(null);
+        activeChatBuddyIdRef.current = null;
+        setInitialUnreadForActiveChat(0);
+        setActiveDmTypingText(null);
+        setChatMessages([]);
+        setChatError(null);
+        replaceAppPathInPlace(BUDDY_LIST_PATH);
+      }
+
+      setProfileSheetFeedback('Buddy blocked. They can no longer send you new messages or requests.');
+      setIsBlockingBuddyId(null);
+      return true;
+    },
+    [userId],
+  );
+
+  const handleUnblockBuddyById = useCallback(
+    async (buddyId: string) => {
+      if (!userId || !buddyId) {
+        return false;
+      }
+
+      setTrustSafetyError(null);
+      setProfileSheetError(null);
+      setProfileSheetFeedback(null);
+      setIsBlockingBuddyId(buddyId);
+      const { error } = await supabase
+        .from('blocked_users')
+        .delete()
+        .eq('blocker_id', userId)
+        .eq('blocked_id', buddyId);
+
+      setIsBlockingBuddyId(null);
+
+      if (error) {
+        const message = isTrustSafetySchemaMissingError(error)
+          ? 'Run trust_safety_slice.sql to enable blocking and reporting.'
+          : error.message;
+        setTrustSafetyError(message);
+        setProfileSheetError(message);
+        return false;
+      }
+
+      setBlockedUserIds((previous) => previous.filter((id) => id !== buddyId));
+      setProfileSheetFeedback('Buddy unblocked.');
+      return true;
+    },
+    [userId],
+  );
+
+  const handleReportBuddy = useCallback(
+    async (buddyId: string, payload: { category: AbuseReportCategory; details: string }) => {
+      if (!userId || !buddyId) {
+        return false;
+      }
+
+      setTrustSafetyError(null);
+      setProfileSheetError(null);
+      setProfileSheetFeedback(null);
+      setIsReportingBuddyId(buddyId);
+
+      const { error } = await supabase.from('abuse_reports').insert({
+        reporter_id: userId,
+        target_user_id: buddyId,
+        category: payload.category,
+        details: payload.details || null,
+      });
+
+      setIsReportingBuddyId(null);
+
+      if (error) {
+        const message = isTrustSafetySchemaMissingError(error)
+          ? 'Run trust_safety_slice.sql to enable blocking and reporting.'
+          : error.message;
+        setTrustSafetyError(message);
+        setProfileSheetError(message);
+        return false;
+      }
+
+      const categoryLabel =
+        ABUSE_REPORT_CATEGORY_OPTIONS.find((option) => option.value === payload.category)?.label ?? 'Report';
+      setProfileSheetFeedback(`${categoryLabel} report sent. Thanks for flagging it.`);
+      return true;
     },
     [userId],
   );
@@ -1106,6 +1822,11 @@ function BuddyListContent() {
             receiverId: item.targetId,
             content: item.content,
             clientMessageId: item.id,
+            expiresAt: item.expiresAt,
+            replyToMessageId: item.replyToMessageId,
+            forwardSourceMessageId: item.forwardSourceMessageId,
+            forwardSourceSenderId: item.forwardSourceSenderId,
+            previewType: item.previewType,
           });
 
           if (error) {
@@ -1205,6 +1926,11 @@ function BuddyListContent() {
       content: string;
       clientMessageId?: string;
       status?: OutboxItemStatus;
+      expiresAt?: string | null;
+      replyToMessageId?: number | null;
+      forwardSourceMessageId?: number | null;
+      forwardSourceSenderId?: string | null;
+      previewType?: 'text' | 'attachment' | 'forwarded' | 'voice_note';
     }) => {
       if (!userId) {
         return null;
@@ -1221,6 +1947,11 @@ function BuddyListContent() {
         content: trimmedContent,
         clientMessageId: item.clientMessageId,
         status: item.status,
+        expiresAt: item.expiresAt,
+        replyToMessageId: item.replyToMessageId,
+        forwardSourceMessageId: item.forwardSourceMessageId,
+        forwardSourceSenderId: item.forwardSourceSenderId,
+        previewType: item.previewType,
       });
       upsertOutboxItem(entry);
       return entry;
@@ -1248,6 +1979,191 @@ function BuddyListContent() {
       }
     },
     [flushOutbox],
+  );
+
+  const saveMessageToSavedMessages = useCallback(
+    async ({
+      content,
+      sourceMessage,
+    }: {
+      content: string;
+      sourceMessage?: ChatMessage | null;
+    }) => {
+      if (!userId) {
+        return null;
+      }
+
+      const trimmedContent = content.trim();
+      if (!trimmedContent) {
+        return null;
+      }
+
+      setSavedMessageError(null);
+      const payload = {
+        user_id: userId,
+        content: trimmedContent,
+        source_message_id: sourceMessage?.id ?? null,
+        source_sender_id: sourceMessage?.sender_id ?? null,
+        source_screenname: sourceMessage ? resolveScreennameForUserId(sourceMessage.sender_id) : null,
+      };
+
+      const { data, error } = await supabase
+        .from('saved_messages')
+        .insert(payload)
+        .select('id,user_id,content,source_message_id,source_sender_id,source_screenname,created_at,updated_at')
+        .single();
+
+      if (error) {
+        setSavedMessageError(error.message);
+        return null;
+      }
+
+      const nextEntry = data as SavedMessageRow;
+      setSavedMessages((previous) => [nextEntry, ...previous.filter((entry) => entry.id !== nextEntry.id)].slice(0, 200));
+      return nextEntry;
+    },
+    [resolveScreennameForUserId, userId],
+  );
+
+  const handleSaveSavedMessageDraft = useCallback(async () => {
+    setIsSavingSavedMessage(true);
+    try {
+      const saved = await saveMessageToSavedMessages({
+        content: savedMessageDraft,
+      });
+      if (saved) {
+        setSavedMessageDraft('');
+      }
+    } finally {
+      setIsSavingSavedMessage(false);
+    }
+  }, [saveMessageToSavedMessages, savedMessageDraft]);
+
+  const handleDeleteSavedMessage = useCallback(
+    async (entryId: string) => {
+      if (!entryId) {
+        return;
+      }
+
+      setDeletingSavedMessageId(entryId);
+      const { error } = await supabase
+        .from('saved_messages')
+        .delete()
+        .eq('id', entryId)
+        .eq('user_id', userId);
+      setDeletingSavedMessageId(null);
+
+      if (error) {
+        setSavedMessageError(error.message);
+        return;
+      }
+
+      setSavedMessages((previous) => previous.filter((entry) => entry.id !== entryId));
+    },
+    [userId],
+  );
+
+  const handleSaveDirectMessage = useCallback(
+    async (message: ChatMessage) => {
+      const saved = await saveMessageToSavedMessages({ content: message.content, sourceMessage: message });
+      if (saved) {
+        setShowSavedMessagesWindow(true);
+      }
+    },
+    [saveMessageToSavedMessages],
+  );
+
+  const handleForwardMessageToTarget = useCallback(
+    async (message: ChatMessage, targetBuddyId: string | 'saved') => {
+      if (!userId) {
+        return;
+      }
+
+      setForwardError(null);
+
+      if (targetBuddyId === 'saved') {
+        setIsForwardingToId('saved');
+        const saved = await saveMessageToSavedMessages({ content: message.content, sourceMessage: message });
+        setIsForwardingToId(null);
+        if (saved) {
+          setForwardingMessage(null);
+          setShowSavedMessagesWindow(true);
+        }
+        return;
+      }
+
+      setIsForwardingToId(targetBuddyId);
+      const clientMessageId = createClientMessageId();
+      const expiresAt = getMessageExpiresAt(
+        getDmPreference(dmPreferencesByBuddyId, targetBuddyId).disappearingTimerSeconds,
+      );
+      const trackedOutboxItem = queueOutboxMessage({
+        type: 'dm',
+        targetId: targetBuddyId,
+        content: message.content,
+        clientMessageId,
+        status: 'sending',
+        expiresAt,
+        forwardSourceMessageId: message.id,
+        forwardSourceSenderId: message.sender_id,
+        previewType: 'forwarded',
+      });
+
+      const { data, error } = await sendDirectMessageWithClientMessageId({
+        senderId: userId,
+        receiverId: targetBuddyId,
+        content: message.content,
+        clientMessageId,
+        expiresAt,
+        forwardSourceMessageId: message.id,
+        forwardSourceSenderId: message.sender_id,
+        previewType: 'forwarded',
+      });
+
+      setIsForwardingToId(null);
+
+      if (error) {
+        const isLikelyNetworkIssue =
+          (typeof navigator !== 'undefined' && !navigator.onLine) ||
+          /network|fetch|offline|timeout/i.test(error.message);
+        if (trackedOutboxItem) {
+          if (isLikelyNetworkIssue) {
+            setOutboxItems((previous) =>
+              normalizeOutboxItems(
+                previous.map((item) =>
+                  item.id === trackedOutboxItem.id ? markOutboxAttemptFailure(item, error.message) : item,
+                ),
+              ),
+            );
+            setForwardError('Offline: forward queued and will retry automatically.');
+            return;
+          }
+
+          removeOutboxItem(trackedOutboxItem.id);
+        }
+
+        setForwardError(error.message);
+        return;
+      }
+
+      const insertedMessage = data as ChatMessage;
+      setBuddyLastMessageAt((previous) => ({
+        ...previous,
+        [targetBuddyId]: insertedMessage.created_at,
+      }));
+      if (activeChatBuddyIdRef.current === targetBuddyId) {
+        setChatMessages((previous) =>
+          previous.some((candidate) => candidate.id === insertedMessage.id)
+            ? previous
+            : [...previous, insertedMessage],
+        );
+      }
+      if (trackedOutboxItem) {
+        removeOutboxItem(trackedOutboxItem.id);
+      }
+      setForwardingMessage(null);
+    },
+    [dmPreferencesByBuddyId, queueOutboxMessage, removeOutboxItem, saveMessageToSavedMessages, userId],
   );
 
   const updateDmDraft = useCallback((buddyId: string, draft: string) => {
@@ -1361,6 +2277,38 @@ function BuddyListContent() {
     },
     [markProfileSchemaUnavailable],
   );
+
+  useEffect(() => {
+    if (!userId || blockedUserIds.length === 0) {
+      setBlockedProfiles([]);
+      return;
+    }
+
+    let isCancelled = false;
+
+    const loadBlockedProfiles = async () => {
+      const { data, error } = await loadManyUserProfiles({
+        applyFilters: (query) => query.in('id', blockedUserIds),
+      });
+
+      if (isCancelled) {
+        return;
+      }
+
+      if (error) {
+        console.warn('Blocked profile lookup unavailable:', error.message);
+        return;
+      }
+
+      setBlockedProfiles(data);
+    };
+
+    void loadBlockedProfiles();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [blockedUserIds, loadManyUserProfiles, userId]);
 
   const loadBuddies = useCallback(async (targetUserId: string) => {
     setIsLoadingBuddies(true);
@@ -1643,6 +2591,40 @@ function BuddyListContent() {
 
   useEffect(() => {
     if (!userId) {
+      return;
+    }
+
+    const blockedUsersChannel = supabase
+      .channel(`blocked_users:${userId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'blocked_users', filter: `blocker_id=eq.${userId}` },
+        async () => {
+          const { data, error } = await supabase
+            .from('blocked_users')
+            .select('blockedId:blocked_id')
+            .eq('blocker_id', userId);
+
+          if (error) {
+            if (!isTrustSafetySchemaMissingError(error)) {
+              console.error('Failed to sync blocked users:', error.message);
+            }
+            return;
+          }
+
+          setBlockedUserIds(normalizeBlockedUserIds((data ?? []) as Array<{ blockedId?: string | null }>));
+          void loadBuddies(userId);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(blockedUsersChannel);
+    };
+  }, [loadBuddies, userId]);
+
+  useEffect(() => {
+    if (!userId) {
       setUnreadDirectMessages({});
       return;
     }
@@ -1907,14 +2889,24 @@ function BuddyListContent() {
   );
   const alphabeticallySortedAcceptedBuddies = useMemo(
     () =>
-      [...acceptedBuddies].sort((left, right) =>
-        left.screenname.localeCompare(right.screenname, undefined, { sensitivity: 'base' }),
-      ),
-    [acceptedBuddies],
+      [...acceptedBuddies].sort((left, right) => {
+        const leftPinned = getDmPreference(dmPreferencesByBuddyId, left.id).isPinned;
+        const rightPinned = getDmPreference(dmPreferencesByBuddyId, right.id).isPinned;
+        if (leftPinned !== rightPinned) {
+          return leftPinned ? -1 : 1;
+        }
+        return left.screenname.localeCompare(right.screenname, undefined, { sensitivity: 'base' });
+      }),
+    [acceptedBuddies, dmPreferencesByBuddyId],
   );
   const recentActivitySortedAcceptedBuddies = useMemo(
     () =>
       [...acceptedBuddies].sort((left, right) => {
+        const leftPinned = getDmPreference(dmPreferencesByBuddyId, left.id).isPinned;
+        const rightPinned = getDmPreference(dmPreferencesByBuddyId, right.id).isPinned;
+        if (leftPinned !== rightPinned) {
+          return leftPinned ? -1 : 1;
+        }
         const rightTime = normalizeTimestampMs(buddyLastMessageAt[right.id]);
         const leftTime = normalizeTimestampMs(buddyLastMessageAt[left.id]);
         if (leftTime !== rightTime) {
@@ -1922,7 +2914,7 @@ function BuddyListContent() {
         }
         return left.screenname.localeCompare(right.screenname, undefined, { sensitivity: 'base' });
       }),
-    [acceptedBuddies, buddyLastMessageAt],
+    [acceptedBuddies, buddyLastMessageAt, dmPreferencesByBuddyId],
   );
   const sortedDirectMessageBuddies = useMemo(() => {
     if (buddySortMode === 'alpha') {
@@ -1935,13 +2927,45 @@ function BuddyListContent() {
     const offline = alphabeticallySortedAcceptedBuddies.filter((buddy) => !buddy.isOnline);
     return [...online, ...offline];
   }, [alphabeticallySortedAcceptedBuddies, buddySortMode, recentActivitySortedAcceptedBuddies]);
+  const unarchivedDirectMessageBuddies = useMemo(
+    () => sortedDirectMessageBuddies.filter((buddy) => !getDmPreference(dmPreferencesByBuddyId, buddy.id).isArchived),
+    [dmPreferencesByBuddyId, sortedDirectMessageBuddies],
+  );
+  const archivedDirectMessageBuddies = useMemo(
+    () => sortedDirectMessageBuddies.filter((buddy) => getDmPreference(dmPreferencesByBuddyId, buddy.id).isArchived),
+    [dmPreferencesByBuddyId, sortedDirectMessageBuddies],
+  );
+  const filteredDirectMessageBuddies = useMemo(() => {
+    if (conversationFilter === 'archived') {
+      return archivedDirectMessageBuddies;
+    }
+
+    const baseList = unarchivedDirectMessageBuddies;
+    if (conversationFilter === 'pinned') {
+      return baseList.filter((buddy) => getDmPreference(dmPreferencesByBuddyId, buddy.id).isPinned);
+    }
+    if (conversationFilter === 'unread') {
+      return baseList.filter((buddy) => (unreadDirectMessages[buddy.id] ?? 0) > 0);
+    }
+    return baseList;
+  }, [
+    archivedDirectMessageBuddies,
+    conversationFilter,
+    dmPreferencesByBuddyId,
+    unreadDirectMessages,
+    unarchivedDirectMessageBuddies,
+  ]);
   const onlineBuddies = useMemo(
     () => acceptedBuddies.filter((buddy) => buddy.isOnline),
     [acceptedBuddies],
   );
-  const offlineBuddies = useMemo(
-    () => acceptedBuddies.filter((buddy) => !buddy.isOnline),
-    [acceptedBuddies],
+  const visibleOnlineDirectMessageBuddies = useMemo(
+    () => filteredDirectMessageBuddies.filter((buddy) => buddy.isOnline),
+    [filteredDirectMessageBuddies],
+  );
+  const visibleOfflineDirectMessageBuddies = useMemo(
+    () => filteredDirectMessageBuddies.filter((buddy) => !buddy.isOnline),
+    [filteredDirectMessageBuddies],
   );
 
   const activeChatBuddy = useMemo(() => {
@@ -2087,6 +3111,20 @@ function BuddyListContent() {
   }, [getBuddyPresenceSummary, selectedProfileBuddy]);
 
   useEffect(() => {
+    if (!activeChatBuddyId || !blockedUserIds.includes(activeChatBuddyId)) {
+      return;
+    }
+
+    setActiveChatBuddyId(null);
+    activeChatBuddyIdRef.current = null;
+    setInitialUnreadForActiveChat(0);
+    setActiveDmTypingText(null);
+    setChatMessages([]);
+    setChatError(null);
+    replaceAppPathInPlace(BUDDY_LIST_PATH);
+  }, [activeChatBuddyId, blockedUserIds]);
+
+  useEffect(() => {
     acceptedBuddyIdsRef.current = new Set(acceptedBuddies.map((buddy) => buddy.id));
   }, [acceptedBuddies]);
 
@@ -2100,12 +3138,30 @@ function BuddyListContent() {
       setChatError(null);
 
       const chatFilter = `and(sender_id.eq.${userId},receiver_id.eq.${buddyId}),and(sender_id.eq.${buddyId},receiver_id.eq.${userId})`;
-      const { data, error } = await supabase
-        .from('messages')
-        .select(DIRECT_MESSAGE_SELECT_FIELDS)
-        .or(chatFilter)
-        .order('created_at', { ascending: true })
-        .limit(200);
+      let data: unknown = null;
+      let error: { message: string } | null = null;
+
+      {
+        const response = await supabase
+          .from('messages')
+          .select(DIRECT_MESSAGE_SELECT_FIELDS)
+          .or(chatFilter)
+          .order('created_at', { ascending: true })
+          .limit(200);
+        data = response.data;
+        error = response.error;
+      }
+
+      if (isDirectMessageMetadataSchemaMissingError(error)) {
+        const legacyResponse = await supabase
+          .from('messages')
+          .select(LEGACY_DIRECT_MESSAGE_SELECT_FIELDS)
+          .or(chatFilter)
+          .order('created_at', { ascending: true })
+          .limit(200);
+        data = legacyResponse.data;
+        error = legacyResponse.error;
+      }
 
       if (activeChatBuddyIdRef.current !== buddyId) {
         return;
@@ -2330,6 +3386,9 @@ function BuddyListContent() {
 
         const senderId = incomingMessage.sender_id;
         const incomingContent = typeof incomingMessage.content === 'string' ? incomingMessage.content : '';
+        if (blockedUserIdsRef.current.has(senderId)) {
+          return;
+        }
         setBuddyLastMessageAt((previous) => {
           const current = normalizeTimestampMs(previous[senderId]);
           const incoming = normalizeTimestampMs(incomingMessage.created_at);
@@ -2449,9 +3508,20 @@ function BuddyListContent() {
     setLastActiveAt(null);
     setShowAwayModal(false);
     setShowSystemStatusSheet(false);
+    setShowAppLockSheet(false);
+    setIsAppLocked(false);
+    setAppLockPinDraft('');
+    setAppLockConfirmDraft('');
+    setAppLockError(null);
+    setBiometricAvailability(DEFAULT_BIOMETRIC_AVAILABILITY);
+    setIsBiometricAuthenticating(false);
+    attemptedBiometricUnlockRef.current = false;
     setProfileSheetBuddyId(null);
     setProfileSheetError(null);
+    setProfileSheetFeedback(null);
     setBuddyActivityToasts([]);
+    setBlockedUserIds([]);
+    setBlockedProfiles([]);
     autoAwayTriggeredRef.current = false;
     let didCompleteSignOut = false;
     try {
@@ -2616,8 +3686,12 @@ function BuddyListContent() {
     [markProfileSchemaUnavailable, userId],
   );
 
-  const openAwayModal = useCallback(() => {
+  const openAwayModal = useCallback((
+    mode: 'profile' | 'away' = 'profile',
+    options?: { preservePhotoDraft?: boolean },
+  ) => {
     setIsHeaderMenuOpen(false);
+    setAwayModalMode(mode);
     const matchingPreset = awayPresets.find((preset) => preset.message === awayMessage);
     if (matchingPreset) {
       setSelectedAwayPresetId(matchingPreset.id);
@@ -2631,28 +3705,35 @@ function BuddyListContent() {
     setSaveAwayPreset(false);
     setProfileStatusDraft(statusMsg);
     setProfileBioDraft(profileBio);
-    setPendingBuddyIconFile(null);
-    setRemoveBuddyIconOnSave(false);
-    setBuddyIconPreviewUrl(null);
+
+    if (!options?.preservePhotoDraft) {
+      if (buddyIconPreviewUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(buddyIconPreviewUrl);
+      }
+      setPendingBuddyIconFile(null);
+      setRemoveBuddyIconOnSave(false);
+      setBuddyIconPreviewUrl(null);
+    }
+
     setAwayModalError(null);
     setShowAwayModal(true);
-  }, [awayMessage, awayPresets, profileBio, statusMsg]);
+  }, [awayMessage, awayPresets, buddyIconPreviewUrl, profileBio, statusMsg]);
 
   const handleSelectBuddyIcon = useCallback((fileList: FileList | null) => {
     const nextFile = fileList?.[0] ?? null;
     if (!nextFile) {
-      return;
+      return false;
     }
 
     if (isProfileSchemaUnavailable) {
       setAwayModalError(PROFILE_SCHEMA_NOTICE);
-      return;
+      return false;
     }
 
     const validationError = validateBuddyIconFile(nextFile);
     if (validationError) {
       setAwayModalError(validationError);
-      return;
+      return false;
     }
 
     if (buddyIconPreviewUrl?.startsWith('blob:')) {
@@ -2663,7 +3744,29 @@ function BuddyListContent() {
     setPendingBuddyIconFile(nextFile);
     setRemoveBuddyIconOnSave(false);
     setBuddyIconPreviewUrl(URL.createObjectURL(nextFile));
+    return true;
   }, [buddyIconPreviewUrl, isProfileSchemaUnavailable]);
+
+  const handleQuickPhotoPickerOpen = useCallback(() => {
+    setIsHeaderMenuOpen(false);
+
+    if (isProfileSchemaUnavailable) {
+      openAwayModal('profile');
+      setAwayModalError(PROFILE_SCHEMA_NOTICE);
+      return;
+    }
+
+    quickPhotoInputRef.current?.click();
+  }, [isProfileSchemaUnavailable, openAwayModal]);
+
+  const handleQuickPhotoSelection = useCallback((fileList: FileList | null) => {
+    const didQueuePhoto = handleSelectBuddyIcon(fileList);
+    if (!didQueuePhoto) {
+      return;
+    }
+
+    openAwayModal('profile', { preservePhotoDraft: true });
+  }, [handleSelectBuddyIcon, openAwayModal]);
 
   const saveProfileSettings = useCallback(
     async ({ goAway }: { goAway: boolean }) => {
@@ -3059,7 +4162,7 @@ function BuddyListContent() {
       return;
     }
 
-    setSearchResults(data);
+    setSearchResults(data.filter((profile) => !blockedUserIdsRef.current.has(profile.id)));
   };
 
   const handleAddBuddyById = useCallback(async (buddyId: string) => {
@@ -3179,16 +4282,28 @@ function BuddyListContent() {
 
   const openBuddyProfile = useCallback((buddyId: string) => {
     setProfileSheetError(null);
+    setProfileSheetFeedback(null);
     setProfileSheetBuddyId(buddyId);
   }, []);
 
   const closeBuddyProfile = useCallback(() => {
     setProfileSheetError(null);
+    setProfileSheetFeedback(null);
     setProfileSheetBuddyId(null);
   }, []);
 
   const handleSendMessage = useCallback(
-    async (content: string, attachments: File[] = []) => {
+    async ({
+      content,
+      attachments = [],
+      replyToMessageId = null,
+      previewType = 'text',
+    }: {
+      content: string;
+      attachments?: File[];
+      replyToMessageId?: number | null;
+      previewType?: 'text' | 'attachment' | 'forwarded' | 'voice_note';
+    }) => {
       if (!userId || !activeChatBuddyId) {
         return;
       }
@@ -3205,6 +4320,9 @@ function BuddyListContent() {
           ? 'Sent an attachment.'
           : 'Sent attachments.';
       const clientMessageId = createClientMessageId();
+      const expiresAt = getMessageExpiresAt(
+        getDmPreference(dmPreferencesByBuddyId, activeChatBuddyId).disappearingTimerSeconds,
+      );
       const trackedOutboxItem =
         normalizedAttachments.length === 0
           ? queueOutboxMessage({
@@ -3213,6 +4331,9 @@ function BuddyListContent() {
               content: messageContent,
               clientMessageId,
               status: 'sending',
+              expiresAt,
+              replyToMessageId,
+              previewType,
             })
           : null;
 
@@ -3224,6 +4345,9 @@ function BuddyListContent() {
         receiverId: activeChatBuddyId,
         content: messageContent,
         clientMessageId,
+        expiresAt,
+        replyToMessageId,
+        previewType,
       });
 
       setIsSendingMessage(false);
@@ -3307,7 +4431,7 @@ function BuddyListContent() {
         }
       }
     },
-    [activeChatBuddyId, queueOutboxMessage, removeOutboxItem, userId],
+    [activeChatBuddyId, dmPreferencesByBuddyId, queueOutboxMessage, removeOutboxItem, userId],
   );
 
   const handleQueueRoomMessage = useCallback(
@@ -3351,6 +4475,61 @@ function BuddyListContent() {
       retryOutboxMessage(itemId);
     },
     [retryOutboxMessage],
+  );
+
+  const handleBeginForwardMessage = useCallback((message: ChatMessage) => {
+    setForwardError(null);
+    setForwardingMessage(message);
+  }, []);
+
+  const handleTogglePinnedForActiveChat = useCallback(() => {
+    if (!activeChatBuddyId) {
+      return;
+    }
+
+    void upsertConversationPreference(activeChatBuddyId, (current) => ({
+      isPinned: !current.isPinned,
+    }));
+  }, [activeChatBuddyId, upsertConversationPreference]);
+
+  const handleToggleMutedForActiveChat = useCallback(() => {
+    if (!activeChatBuddyId) {
+      return;
+    }
+
+    void upsertConversationPreference(activeChatBuddyId, (current) => ({
+      isMuted: !current.isMuted,
+    }));
+  }, [activeChatBuddyId, upsertConversationPreference]);
+
+  const handleToggleArchivedForActiveChat = useCallback(() => {
+    if (!activeChatBuddyId) {
+      return;
+    }
+
+    const currentPreference = getDmPreference(dmPreferencesByBuddyId, activeChatBuddyId);
+    void upsertConversationPreference(activeChatBuddyId, {
+      isArchived: !currentPreference.isArchived,
+    });
+
+    if (!currentPreference.isArchived) {
+      setActiveChatBuddyId(null);
+      activeChatBuddyIdRef.current = null;
+      replaceAppPathInPlace(BUDDY_LIST_PATH);
+    }
+  }, [activeChatBuddyId, dmPreferencesByBuddyId, upsertConversationPreference]);
+
+  const handleSetDisappearingTimerForActiveChat = useCallback(
+    (seconds: number | null) => {
+      if (!activeChatBuddyId) {
+        return;
+      }
+
+      void upsertConversationPreference(activeChatBuddyId, {
+        disappearingTimerSeconds: seconds,
+      });
+    },
+    [activeChatBuddyId, upsertConversationPreference],
   );
 
   const requestedRoomName = searchParams.get('room')?.trim() ?? '';
@@ -3679,18 +4858,16 @@ function BuddyListContent() {
   const isCurrentUserIdle = currentUserPresenceState === 'idle';
   const activePendingRequest = pendingRequests[0] ?? null;
   const activeChatBuddyPresenceSummary = activeChatBuddy ? getBuddyPresenceSummary(activeChatBuddy) : null;
-  const xpGroupHeaderClass =
-    'flex min-h-[36px] w-full items-center gap-2 px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-widest text-slate-400';
-  const xpModalFrameClass =
-    'rounded-[1.4rem] border border-white/60 bg-white/90 p-2 shadow-[0_24px_42px_rgba(15,23,42,0.2)] backdrop-blur-xl';
-  const xpModalBodyClass = 'space-y-3 px-2 pb-2 text-[12px] text-slate-700';
-  const xpModalInputClass =
-    'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] text-slate-700 shadow-[inset_0_1px_1px_rgba(15,23,42,0.05)] focus:outline-none focus:ring-2 focus:ring-blue-200';
-  const xpModalButtonClass =
-    'min-h-[32px] rounded-xl border border-slate-200 bg-white px-3 text-[12px] font-semibold text-slate-700 hover:bg-slate-50';
-  const showSplitPresenceSections = buddySortMode === 'online_then_alpha';
-  const onlineBuddiesSorted = alphabeticallySortedAcceptedBuddies.filter((buddy) => buddy.isOnline);
-  const offlineBuddiesSorted = alphabeticallySortedAcceptedBuddies.filter((buddy) => !buddy.isOnline);
+  const xpGroupHeaderClass = 'ui-section-header';
+  const xpModalFrameClass = 'ui-modal-frame';
+  const xpModalHeaderClass = 'ui-modal-header';
+  const xpModalBodyClass = 'ui-modal-body';
+  const xpModalInputClass = 'ui-focus-ring ui-modal-input';
+  const xpModalSelectClass = 'ui-focus-ring ui-modal-select';
+  const xpModalButtonClass = 'ui-focus-ring ui-button-secondary ui-button-compact';
+  const showSplitPresenceSections = buddySortMode === 'online_then_alpha' && conversationFilter === 'all';
+  const onlineBuddiesSorted = visibleOnlineDirectMessageBuddies;
+  const offlineBuddiesSorted = visibleOfflineDirectMessageBuddies;
   const isChatSyncBusy = syncState === 'hydrating' || syncState === 'syncing';
   const chatSyncSummary =
     syncState === 'hydrating'
@@ -3721,6 +4898,10 @@ function BuddyListContent() {
 
     return outboxItems.filter((item) => item.type === 'dm' && item.targetId === activeChatBuddyId);
   }, [activeChatBuddyId, outboxItems]);
+  const activeChatPreference = useMemo(
+    () => (activeChatBuddyId ? getDmPreference(dmPreferencesByBuddyId, activeChatBuddyId) : null),
+    [activeChatBuddyId, dmPreferencesByBuddyId],
+  );
   const activeRoomOutboxItems = useMemo(() => {
     if (!activeRoom?.id) {
       return [];
@@ -3730,11 +4911,36 @@ function BuddyListContent() {
   }, [activeRoom?.id, outboxItems]);
   const shouldShowSystemStatusChip =
     syncState === 'hydrating' || syncState === 'syncing' || syncState === 'error' || pendingOutboxCount > 0;
+  const activeTab =
+    showAwayModal || showPrivacySheet
+      ? 'profile'
+      : showAddWindow || Boolean(activePendingRequest)
+        ? 'buddy'
+        : showRoomsWindow || Boolean(activeRoom)
+          ? 'chat'
+          : 'im';
+  const headerSummaryParts = acceptedBuddies.length === 0
+    ? ['Add your first buddy to get started']
+    : [
+        `${onlineBuddies.length} online`,
+        `${acceptedBuddies.length} buddy${acceptedBuddies.length === 1 ? '' : 'ies'}`,
+      ];
+  if (pendingRequests.length > 0) {
+    headerSummaryParts.push(`${pendingRequests.length} request${pendingRequests.length === 1 ? '' : 's'}`);
+  }
+  if (activeRooms.length > 0) {
+    headerSummaryParts.push(`${activeRooms.length} room${activeRooms.length === 1 ? '' : 's'}`);
+  }
+  const buddyListHeaderSummary = headerSummaryParts.join(' · ');
+  const headerActionButtonClass =
+    'ui-focus-ring ui-window-header-button min-h-[40px] px-3 text-[11px] font-semibold';
 
   const renderDirectMessageRow = (buddy: (typeof acceptedBuddies)[number]) => {
     const unreadDirectCount = unreadDirectMessages[buddy.id] ?? 0;
     const isSelected = selectedBuddyId === buddy.id;
     const presenceSummary = getBuddyPresenceSummary(buddy);
+    const conversationPreference = getDmPreference(dmPreferencesByBuddyId, buddy.id);
+    const isBlockedBuddy = blockedUserIds.includes(buddy.id);
     const presenceToneClass =
       presenceSummary.presenceState === 'away'
         ? 'text-amber-500'
@@ -3750,11 +4956,8 @@ function BuddyListContent() {
         data-testid={`dm-row-${buddy.id}`}
         data-unread-dm={unreadDirectCount}
         data-screenname={buddy.screenname}
-        className={`group flex min-h-[52px] w-full items-center gap-3 px-3 py-2.5 text-left transition active:scale-[0.98] ${
-          isSelected
-            ? 'bg-blue-500/15'
-            : 'hover:bg-white/60'
-        }`}
+        data-active={isSelected ? 'true' : 'false'}
+        className="ui-list-row group text-left"
       >
         <button
           type="button"
@@ -3773,6 +4976,28 @@ function BuddyListContent() {
             }`}>
               {buddy.screenname}
             </p>
+            <div className="mt-0.5 flex flex-wrap items-center gap-1">
+              {conversationPreference.isPinned ? (
+                <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-blue-600 dark:bg-blue-500/15 dark:text-blue-200">
+                  Pinned
+                </span>
+              ) : null}
+              {isBlockedBuddy ? (
+                <span className="rounded-full bg-red-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-red-500 dark:bg-red-500/15 dark:text-red-200">
+                  Blocked
+                </span>
+              ) : null}
+              {conversationPreference.isMuted ? (
+                <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:bg-slate-900 dark:text-slate-300">
+                  Muted
+                </span>
+              ) : null}
+              {unreadDirectCount > 0 ? (
+                <span className="rounded-full bg-red-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-red-500 dark:bg-red-500/15 dark:text-red-200">
+                  Unread
+                </span>
+              ) : null}
+            </div>
             <p className={`truncate text-[11px] font-semibold ${presenceToneClass}`}>
               {presenceSummary.presenceLabel}
             </p>
@@ -3795,20 +5020,55 @@ function BuddyListContent() {
         ) : null}
         <button
           type="button"
-          onClick={() => handleOpenChat(buddy.id)}
-          className={`shrink-0 rounded-xl border px-2.5 py-1.5 text-[11px] font-semibold transition active:scale-95 ${
-            isSelected
-              ? 'border-blue-200 bg-blue-500 text-white'
-              : 'border-white/70 bg-white/85 text-slate-600 hover:bg-white'
-          }`}
+          onClick={() => (isBlockedBuddy ? openBuddyProfile(buddy.id) : handleOpenChat(buddy.id))}
+          className={`ui-focus-ring shrink-0 ${isSelected && !isBlockedBuddy ? 'ui-button-primary' : 'ui-button-secondary'} ui-button-compact`}
         >
-          IM
+          {isBlockedBuddy ? 'View' : 'IM'}
         </button>
       </div>
     );
   };
+  const renderSavedMessagesRow = () => (
+    <div
+      key="saved-messages"
+      data-active={showSavedMessagesWindow ? 'true' : 'false'}
+      className="ui-list-row group text-left"
+    >
+      <button
+        type="button"
+        onClick={() => {
+          setSavedMessageError(null);
+          setShowSavedMessagesWindow(true);
+        }}
+        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+      >
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-200">
+          <AppIcon kind="mail" className="h-4 w-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[13px] font-semibold leading-tight text-slate-800">Saved Messages</p>
+          <p className="truncate text-[11px] font-semibold text-blue-500">Private notes</p>
+          <p className="truncate text-[11px] text-slate-400">
+            {savedMessages[0]
+              ? htmlToPlainText(savedMessages[0].content).trim() || 'Saved keepsakes'
+              : 'Save standout messages or jot down notes'}
+          </p>
+        </div>
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          setSavedMessageError(null);
+          setShowSavedMessagesWindow(true);
+        }}
+        className={`ui-focus-ring shrink-0 ${showSavedMessagesWindow ? 'ui-button-primary' : 'ui-button-secondary'} ui-button-compact`}
+      >
+        Open
+      </button>
+    </div>
+  );
   const xpModalPrimaryButtonClass =
-    'min-h-[32px] rounded-xl border border-blue-500/70 bg-gradient-to-b from-blue-500 to-blue-600 px-3 text-[12px] font-semibold text-white shadow-[0_10px_20px_rgba(37,99,235,0.32)] disabled:opacity-60';
+    'ui-focus-ring ui-button-primary ui-button-compact disabled:opacity-60';
 
   const handleOpenImFromActionBar = () => {
     const fallbackBuddyId =
@@ -3843,53 +5103,74 @@ function BuddyListContent() {
         title="Buddy List"
         variant="xp_shell"
         xpTitleText="Buddy List"
+        xpSubtitleText={buddyListHeaderSummary}
+        headerActions={(
+          <>
+            <button
+              type="button"
+              onClick={toggleDark}
+              className={headerActionButtonClass}
+              aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {isDark ? 'Light' : 'Dark'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSavedMessageError(null);
+                setShowSavedMessagesWindow(true);
+              }}
+              className={headerActionButtonClass}
+              aria-label="Open saved messages"
+            >
+              Saved
+            </button>
+            <button
+              type="button"
+              onClick={openAddWindow}
+              className={headerActionButtonClass}
+              aria-label="Add a buddy"
+            >
+              Add
+            </button>
+          </>
+        )}
         onXpSignOff={() => setIsHeaderMenuOpen((previous) => !previous)}
       >
-        <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-[1.6rem] border border-white/45 bg-white/50 text-[12px] text-slate-700 shadow-[0_20px_44px_rgba(15,23,42,0.14)] backdrop-blur-2xl">
+        <div className="ui-window-panel relative flex h-full min-h-0 flex-col overflow-hidden rounded-[1.6rem] text-[12px] text-slate-700">
           {isHeaderMenuOpen ? (
             <div className="fixed inset-0 z-30" onClick={() => setIsHeaderMenuOpen(false)}>
               <div
-                className="absolute right-2 top-[calc(env(safe-area-inset-top)+3.2rem)] w-52 rounded-2xl border border-white/60 bg-white/85 p-1.5 shadow-[0_18px_40px_rgba(15,23,42,0.18)] backdrop-blur-xl"
+                className="ui-popover-menu absolute right-2 top-[calc(env(safe-area-inset-top)+3.2rem)] w-56 rounded-2xl p-1.5"
                 onClick={(event) => event.stopPropagation()}
               >
                 <button
                   type="button"
+                  onClick={() => {
+                    setIsHeaderMenuOpen(false);
+                    setShowPrivacySheet(true);
+                  }}
+                  className="ui-focus-ring ui-popover-item mt-0.5"
+                >
+                  Privacy
+                </button>
+                <button
+                  type="button"
                   onClick={() => void handleSignOff()}
-                  className="block w-full rounded-xl border border-transparent px-3 py-2 text-left text-[12px] font-semibold text-slate-700 hover:bg-blue-50"
+                  className="ui-focus-ring ui-popover-item"
                 >
                   Sign Off
-                </button>
-                <button
-                  type="button"
-                  onClick={openAwayModal}
-                  className="mt-0.5 block w-full rounded-xl border border-transparent px-3 py-2 text-left text-[12px] font-semibold text-slate-700 hover:bg-blue-50"
-                >
-                  Profile & Away
-                </button>
-                <button
-                  type="button"
-                  onClick={openAddWindow}
-                  className="mt-0.5 block w-full rounded-xl border border-transparent px-3 py-2 text-left text-[12px] font-semibold text-slate-700 hover:bg-blue-50"
-                >
-                  Add Buddy
                 </button>
                 {isAdminUser ? (
                   <button
                     type="button"
                     onClick={openAdminResetWindow}
-                    className="mt-0.5 block w-full rounded-xl border border-transparent px-3 py-2 text-left text-[12px] font-semibold text-slate-700 hover:bg-blue-50"
+                    className="ui-focus-ring ui-popover-item mt-0.5"
                   >
                     Admin Reset
                   </button>
                 ) : null}
-                <div className="mx-2 my-1 border-t border-slate-200" />
-                <button
-                  type="button"
-                  onClick={toggleDark}
-                  className="block w-full rounded-xl border border-transparent px-3 py-2 text-left text-[12px] font-semibold text-slate-700 hover:bg-blue-50"
-                >
-                  {isDark ? '☀ Light Mode' : '☾ Dark Mode'}
-                </button>
               </div>
             </div>
           ) : null}
@@ -3909,13 +5190,24 @@ function BuddyListContent() {
               </div>
             ) : null}
             <div className="px-3 pt-3 pb-2">
-              <div className="rounded-2xl border border-white/65 bg-white/72 px-3.5 py-3 shadow-sm">
-                <div className="flex items-center gap-2.5">
+              <div className="ui-panel-card rounded-[1.45rem] px-4 py-4">
+                <input
+                  ref={quickPhotoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={isProfileSchemaUnavailable}
+                  onChange={(event) => {
+                    handleQuickPhotoSelection(event.target.files);
+                    event.currentTarget.value = '';
+                  }}
+                />
+                <div className="flex items-start gap-3">
                   <button
                     type="button"
-                    onClick={openAwayModal}
+                    onClick={handleQuickPhotoPickerOpen}
                     className="group relative shrink-0 rounded-full text-left transition active:scale-95"
-                    aria-label="Edit profile photo"
+                    aria-label="Change profile photo"
                   >
                     <ProfileAvatar
                       screenname={screenname}
@@ -3924,11 +5216,12 @@ function BuddyListContent() {
                       size="md"
                     />
                     <span className="absolute -bottom-1 -right-1 rounded-full border border-white/80 bg-slate-900/90 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white shadow-sm">
-                      Edit
+                      Photo
                     </span>
                   </button>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[14px] font-semibold text-slate-800">{screenname}</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">You</p>
+                    <p className="truncate text-[14px] font-semibold text-slate-800 dark:text-slate-100">{screenname}</p>
                     <p className={`truncate text-[11px] font-semibold ${
                       currentUserPresenceState === 'away'
                         ? 'text-amber-500'
@@ -3938,37 +5231,37 @@ function BuddyListContent() {
                     }`}>
                       {getPresenceLabel(currentUserPresenceState)}
                     </p>
-                    <p className="truncate text-[11px] text-slate-400">{currentUserPresenceDetail}</p>
-                    {profileBio ? <p className="mt-1 truncate text-[11px] text-slate-400">{profileBio}</p> : null}
-                    <p className="mt-1 truncate text-[10px] font-semibold text-slate-400">
-                      {buddyIconPath ? 'Profile photo live on your card' : 'Add a profile photo to personalize your card'}
+                    <p className="truncate text-[11px] text-slate-400 dark:text-slate-400">{currentUserPresenceDetail}</p>
+                    {profileBio ? <p className="mt-1 truncate text-[11px] text-slate-400 dark:text-slate-400">{profileBio}</p> : null}
+                    <p className="mt-1 truncate text-[10px] font-semibold text-slate-400 dark:text-slate-500">
+                      {buddyIconPath ? 'Tap your avatar to change your photo.' : 'Tap your avatar to add a profile photo.'}
                     </p>
                   </div>
-                  <div className="shrink-0 space-y-1.5">
+                  <div className="shrink-0 space-y-2">
                     <button
                       type="button"
-                      onClick={openAwayModal}
-                      className="block w-full rounded-xl border border-white/65 bg-white/80 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 shadow-sm hover:bg-white active:scale-95"
+                      onClick={() => openAwayModal('away')}
+                      className="ui-focus-ring ui-button-primary ui-button-compact block w-full"
                     >
-                      Edit Profile
+                      {currentUserPresenceState === 'away' ? 'Update away' : 'Away message'}
                     </button>
                     <button
                       type="button"
-                      onClick={openAwayModal}
-                      className="block w-full rounded-xl border border-blue-200/80 bg-blue-50/85 px-2.5 py-1.5 text-[11px] font-semibold text-blue-700 shadow-sm hover:bg-blue-100/80 active:scale-95"
+                      onClick={() => openAwayModal('profile')}
+                      className="ui-focus-ring ui-button-secondary ui-button-compact block w-full"
                     >
-                      Edit Photo
+                      Profile
                     </button>
                   </div>
                 </div>
               </div>
-              {awayModalError ? <p className="mt-2 text-[11px] font-semibold text-red-600">{awayModalError}</p> : null}
+              {awayModalError ? <p className="ui-note-error mt-2">{awayModalError}</p> : null}
 
               {shouldShowSystemStatusChip ? (
                 <button
                   type="button"
                   onClick={() => setShowSystemStatusSheet(true)}
-                  className="mt-2 flex w-full items-center justify-between gap-2 rounded-2xl border border-white/55 bg-white/55 px-3 py-1.5 text-[10px] text-slate-500 transition hover:bg-white/70"
+                  className="ui-focus-ring ui-status-chip mt-2"
                 >
                   <div className="flex min-w-0 items-center gap-1.5">
                     <span className={`h-1.5 w-1.5 rounded-full ${
@@ -3987,7 +5280,7 @@ function BuddyListContent() {
                             : 'System status'}
                     </span>
                   </div>
-                  <span className="shrink-0 rounded-full border border-white/70 bg-white/80 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                  <span className="shrink-0 rounded-full border border-white/70 bg-white/80 px-2 py-0.5 text-[10px] font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-300">
                     Details
                   </span>
                 </button>
@@ -3995,7 +5288,7 @@ function BuddyListContent() {
             </div>
 
             {isCurrentUserAway ? (
-              <div className="mx-3 mt-2 rounded-2xl border border-amber-200/70 bg-amber-50/90 px-3 py-3 backdrop-blur-sm">
+              <div className="ui-note-warning mx-3 mt-2">
                 <div className="flex items-start gap-2">
                   <AppIcon kind="moon" className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
                   <div className="min-w-0 flex-1">
@@ -4012,7 +5305,7 @@ function BuddyListContent() {
                   <button
                     type="button"
                     onClick={handleImBack}
-                    className="shrink-0 rounded-xl border border-amber-300 bg-white/80 px-2.5 py-1 text-[11px] font-semibold text-amber-700 shadow-sm hover:bg-white active:scale-95"
+                    className="ui-focus-ring ui-button-secondary ui-button-compact shrink-0"
                   >
                     Back
                   </button>
@@ -4021,7 +5314,7 @@ function BuddyListContent() {
             ) : null}
 
             {isCurrentUserIdle ? (
-              <div className="mx-3 mt-2 rounded-2xl border border-sky-200/70 bg-sky-50/90 px-3 py-3 backdrop-blur-sm">
+              <div className="ui-note-info mx-3 mt-2">
                 <div className="flex items-start gap-2">
                   <AppIcon kind="clock" className="mt-0.5 h-4 w-4 shrink-0 text-sky-500" />
                   <div className="min-w-0 flex-1">
@@ -4031,7 +5324,7 @@ function BuddyListContent() {
                   <button
                     type="button"
                     onClick={handleClearIdle}
-                    className="shrink-0 rounded-xl border border-sky-300 bg-white/80 px-2.5 py-1 text-[11px] font-semibold text-sky-700 shadow-sm hover:bg-white active:scale-95"
+                    className="ui-focus-ring ui-button-secondary ui-button-compact shrink-0"
                   >
                     I&apos;m Here
                   </button>
@@ -4047,17 +5340,28 @@ function BuddyListContent() {
                   className={xpGroupHeaderClass}
                 >
                   <AppIcon kind="chevron" className={`h-3 w-3 transition-transform ${isBuddiesOpen ? 'rotate-90' : ''}`} />
-                  <span>
-                    {showSplitPresenceSections
-                      ? `Online — ${onlineBuddies.length} of ${acceptedBuddies.length}`
-                      : `Direct Messages — ${acceptedBuddies.length}`}
+                  <span className="flex-1">
+                    {conversationFilter === 'requests'
+                      ? 'Message requests'
+                      : showSplitPresenceSections
+                        ? 'Online'
+                        : conversationFilter === 'archived'
+                          ? 'Archived chats'
+                          : 'Direct messages'}
+                  </span>
+                  <span className="ui-section-count">
+                    {conversationFilter === 'requests'
+                      ? pendingRequests.length
+                      : showSplitPresenceSections
+                        ? `${onlineBuddiesSorted.length}/${filteredDirectMessageBuddies.length}`
+                        : filteredDirectMessageBuddies.length}
                   </span>
                 </button>
 
                 {isBuddiesOpen ? (
                   <div>
                     <div className="flex items-center justify-between px-3 py-1.5">
-                      <label htmlFor="buddy-sort-mode" className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+                      <label htmlFor="buddy-sort-mode" className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">
                         Sort
                       </label>
                       <select
@@ -4065,12 +5369,45 @@ function BuddyListContent() {
                         title="Buddy Sort Mode"
                         value={buddySortMode}
                         onChange={(event) => setBuddySortMode(event.target.value as BuddySortMode)}
-                        className="min-h-[28px] rounded-xl border border-white/65 bg-white/80 px-2 py-0.5 text-[11px] text-slate-700 shadow-sm"
+                        className={`${xpModalSelectClass} min-h-[32px] w-auto py-1 pl-3 pr-8 text-[11px]`}
                       >
                         <option value="online_then_alpha">Online first</option>
                         <option value="alpha">A – Z</option>
                         <option value="recent_activity">Recent activity</option>
                       </select>
+                    </div>
+
+                    <div className="px-3 pb-2">
+                      <div className="flex gap-1 overflow-x-auto pb-1">
+                        {([
+                          { id: 'all', label: 'All', count: unarchivedDirectMessageBuddies.length },
+                          {
+                            id: 'unread',
+                            label: 'Unread',
+                            count: unarchivedDirectMessageBuddies.filter((buddy) => (unreadDirectMessages[buddy.id] ?? 0) > 0).length,
+                          },
+                          {
+                            id: 'pinned',
+                            label: 'Pinned',
+                            count: unarchivedDirectMessageBuddies.filter((buddy) => getDmPreference(dmPreferencesByBuddyId, buddy.id).isPinned).length,
+                          },
+                          { id: 'requests', label: 'Requests', count: pendingRequests.length },
+                          { id: 'archived', label: 'Archived', count: archivedDirectMessageBuddies.length },
+                        ] as Array<{ id: ConversationFilter; label: string; count: number }>).map((filterOption) => (
+                          <button
+                            key={filterOption.id}
+                            type="button"
+                            onClick={() => setConversationFilter(filterOption.id)}
+                            className={`ui-focus-ring rounded-full border px-3 py-1 text-[11px] font-semibold transition ${
+                              conversationFilter === filterOption.id
+                                ? 'border-blue-400/70 bg-blue-500 text-white'
+                                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-200 dark:hover:bg-slate-900'
+                            }`}
+                          >
+                            {filterOption.label} {filterOption.count > 0 ? `(${filterOption.count})` : ''}
+                          </button>
+                        ))}
+                      </div>
                     </div>
 
                     {isBootstrapping || (!isBootstrapping && isLoadingBuddies) ? (
@@ -4086,8 +5423,8 @@ function BuddyListContent() {
                         ))}
                       </div>
                     ) : null}
-                    {!isBootstrapping && !isLoadingBuddies && acceptedBuddies.length === 0 ? (
-                      <div className="flex flex-col items-center gap-3 px-6 py-10 ui-fade-in">
+                    {!isBootstrapping && !isLoadingBuddies && acceptedBuddies.length === 0 && conversationFilter !== 'requests' ? (
+                      <div className="ui-empty-state px-6 py-10 ui-fade-in">
                         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-50">
                           <AppIcon kind="smile" className="h-8 w-8 text-blue-400" />
                         </div>
@@ -4100,20 +5437,78 @@ function BuddyListContent() {
                         <button
                           type="button"
                           onClick={openAddWindow}
-                          className="mt-1 rounded-full border border-blue-200 bg-blue-50 px-5 py-2 text-[12px] font-semibold text-blue-600 transition hover:bg-blue-100 active:scale-95"
+                          className="ui-focus-ring ui-button-secondary ui-button-compact mt-1"
                         >
-                          + Add Buddy
+                          Add buddy
                         </button>
                       </div>
                     ) : null}
-                    {!isBootstrapping &&
-                      (showSplitPresenceSections ? onlineBuddiesSorted : sortedDirectMessageBuddies).map((buddy) =>
+                    {!isBootstrapping && conversationFilter !== 'requests' ? renderSavedMessagesRow() : null}
+                    {!isBootstrapping && conversationFilter === 'requests' ? (
+                      pendingRequests.length === 0 ? (
+                        <div className="ui-empty-state px-6 py-10 ui-fade-in">
+                          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-50">
+                            <AppIcon kind="mail" className="h-8 w-8 text-blue-400" />
+                          </div>
+                          <div className="text-center">
+                            <p className="text-[14px] font-semibold text-slate-500">No message requests</p>
+                            <p className="mt-1 text-[12px] leading-relaxed text-slate-400">
+                              New people who message you will show up here first.
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-2 px-3 pb-2">
+                          {pendingRequests.map((request) => (
+                            <div key={request.senderId} className="ui-panel-card rounded-2xl px-3 py-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="truncate text-[13px] font-semibold text-slate-800">{request.screenname}</p>
+                                  <p className="text-[11px] text-slate-400">Wants to start a chat</p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAcceptPendingRequest(request.senderId)}
+                                    className="ui-focus-ring ui-button-primary ui-button-compact"
+                                  >
+                                    Accept
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeclinePendingRequest(request.senderId)}
+                                    className="ui-focus-ring ui-button-secondary ui-button-compact"
+                                  >
+                                    Decline
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    ) : null}
+                    {!isBootstrapping && conversationFilter !== 'requests' && filteredDirectMessageBuddies.length === 0 && acceptedBuddies.length > 0 ? (
+                      <div className="ui-empty-state px-6 py-10 ui-fade-in">
+                        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-50">
+                          <AppIcon kind="chat" className="h-6 w-6 text-blue-400" />
+                        </div>
+                        <div className="text-center">
+                          <p className="text-[14px] font-semibold text-slate-500">No chats in this view</p>
+                          <p className="mt-1 text-[12px] leading-relaxed text-slate-400">
+                            Try another filter or start a new conversation.
+                          </p>
+                        </div>
+                      </div>
+                    ) : null}
+                    {!isBootstrapping && conversationFilter !== 'requests' &&
+                      (showSplitPresenceSections ? onlineBuddiesSorted : filteredDirectMessageBuddies).map((buddy) =>
                         renderDirectMessageRow(buddy),
                       )}
 
                     {pendingBuddies.length > 0 ? (
-                      <div className="mx-3 mb-2 rounded-2xl border border-amber-200/70 bg-amber-50/80 px-3 py-2">
-                        <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600">Pending ({pendingBuddies.length})</p>
+                      <div className="ui-note-warning mx-3 mb-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600 dark:text-amber-200">Pending ({pendingBuddies.length})</p>
                         {pendingBuddies.map((buddy) => (
                           <p key={buddy.id} className="mt-0.5 truncate text-[12px] italic text-amber-700">
                             {buddy.screenname}
@@ -4127,17 +5522,18 @@ function BuddyListContent() {
 
               {showSplitPresenceSections ? (
                 <div className="select-none">
-                  <button
-                    type="button"
-                    onClick={() => setIsOfflineOpen((previous) => !previous)}
-                    className={xpGroupHeaderClass}
-                  >
-                    <AppIcon kind="chevron" className={`h-3 w-3 transition-transform ${isOfflineOpen ? 'rotate-90' : ''}`} />
-                    <span>Offline — {offlineBuddies.length}</span>
-                  </button>
+                <button
+                  type="button"
+                  onClick={() => setIsOfflineOpen((previous) => !previous)}
+                  className={xpGroupHeaderClass}
+                >
+                  <AppIcon kind="chevron" className={`h-3 w-3 transition-transform ${isOfflineOpen ? 'rotate-90' : ''}`} />
+                  <span className="flex-1">Offline</span>
+                  <span className="ui-section-count">{offlineBuddiesSorted.length}</span>
+                </button>
 
-                  {isOfflineOpen ? offlineBuddiesSorted.map((buddy) => renderDirectMessageRow(buddy)) : null}
-                </div>
+                {isOfflineOpen ? offlineBuddiesSorted.map((buddy) => renderDirectMessageRow(buddy)) : null}
+              </div>
               ) : null}
 
               <div className="select-none">
@@ -4147,12 +5543,13 @@ function BuddyListContent() {
                   className={xpGroupHeaderClass}
                 >
                   <AppIcon kind="chevron" className={`h-3 w-3 transition-transform ${isActiveChatsOpen ? 'rotate-90' : ''}`} />
-                  <span>Group Rooms — {activeRooms.length}</span>
+                  <span className="flex-1">Group rooms</span>
+                  <span className="ui-section-count">{activeRooms.length}</span>
                 </button>
 
                 {isActiveChatsOpen ? (
                   activeRooms.length === 0 ? (
-                    <div className="flex flex-col items-center gap-2 px-4 py-6 ui-fade-in">
+                    <div className="ui-empty-state px-4 py-6 ui-fade-in">
                       <div className="flex h-11 w-11 items-center justify-center rounded-full bg-violet-50">
                         <AppIcon kind="chat" className="h-5 w-5 text-violet-400" />
                       </div>
@@ -4172,9 +5569,8 @@ function BuddyListContent() {
                             data-testid={`room-row-${normalizedRoomKey}`}
                             data-room-name={roomName}
                             data-room-unread={unreadCount}
-                            className={`flex min-h-[44px] flex-1 items-center gap-3 rounded-2xl px-2.5 py-2 text-left transition active:scale-[0.98] ${
-                              isRoomSelected ? 'bg-blue-500/12' : 'hover:bg-white/60'
-                            }`}
+                            data-active={isRoomSelected ? 'true' : 'false'}
+                            className="ui-list-row flex-1 text-left"
                           >
                             {/* Room avatar */}
                             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet-100 text-[13px] font-bold text-violet-700">
@@ -4199,7 +5595,7 @@ function BuddyListContent() {
                           <button
                             type="button"
                             onClick={() => void handleLeaveRoom(roomName)}
-                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-red-200/80 bg-white/80 text-[11px] font-semibold text-red-400 transition hover:bg-red-50"
+                            className="ui-focus-ring ui-button-danger ui-button-compact flex h-8 w-8 shrink-0 p-0"
                             aria-label={`Leave ${roomName}`}
                             title="Leave room"
                           >
@@ -4219,41 +5615,53 @@ function BuddyListContent() {
 
           {/* iOS-style tab bar */}
           <div
-            className="fixed bottom-0 left-0 z-20 w-full border-t border-white/50 bg-white/68 backdrop-blur-xl shadow-[0_-6px_24px_rgba(15,23,42,0.08)]"
+            className="ui-tabbar fixed bottom-0 left-0 z-20 w-full"
             style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
           >
             <div className="grid h-16 grid-cols-4 items-center">
               <button
                 type="button"
                 onClick={handleOpenImFromActionBar}
-                className="flex flex-col items-center justify-center gap-0.5 py-2 transition active:scale-90"
+                className="ui-focus-ring ui-tabbar-button"
+                data-active={activeTab === 'im' ? 'true' : 'false'}
               >
-                <BuddyListTabIcon kind="im" className="h-5 w-5 text-current" />
-                <span className="text-[10px] font-semibold text-blue-500">IM</span>
+                <span className="ui-tabbar-icon">
+                  <BuddyListTabIcon kind="im" className="h-5 w-5 text-current" />
+                </span>
+                <span className="ui-tabbar-label">IM</span>
               </button>
               <button
                 type="button"
                 onClick={openRoomsWindow}
-                className="flex flex-col items-center justify-center gap-0.5 py-2 transition active:scale-90"
+                className="ui-focus-ring ui-tabbar-button"
+                data-active={activeTab === 'chat' ? 'true' : 'false'}
               >
-                <BuddyListTabIcon kind="chat" className="h-5 w-5 text-current" />
-                <span className="text-[10px] font-semibold text-slate-500">Chat</span>
+                <span className="ui-tabbar-icon">
+                  <BuddyListTabIcon kind="chat" className="h-5 w-5 text-current" />
+                </span>
+                <span className="ui-tabbar-label">Chat</span>
               </button>
               <button
                 type="button"
                 onClick={openAddWindow}
-                className="flex flex-col items-center justify-center gap-0.5 py-2 transition active:scale-90"
+                className="ui-focus-ring ui-tabbar-button"
+                data-active={activeTab === 'buddy' ? 'true' : 'false'}
               >
-                <BuddyListTabIcon kind="buddy" className="h-5 w-5 text-current" />
-                <span className="text-[10px] font-semibold text-slate-500">Buddy</span>
+                <span className="ui-tabbar-icon">
+                  <BuddyListTabIcon kind="buddy" className="h-5 w-5 text-current" />
+                </span>
+                <span className="ui-tabbar-label">Buddy</span>
               </button>
               <button
                 type="button"
                 onClick={handleSetupAction}
-                className="flex flex-col items-center justify-center gap-0.5 py-2 transition active:scale-90"
+                className="ui-focus-ring ui-tabbar-button"
+                data-active={activeTab === 'profile' ? 'true' : 'false'}
               >
-                <BuddyListTabIcon kind="profile" className="h-5 w-5 text-current" />
-                <span className="text-[10px] font-semibold text-slate-500">Profile</span>
+                <span className="ui-tabbar-icon">
+                  <BuddyListTabIcon kind="profile" className="h-5 w-5 text-current" />
+                </span>
+                <span className="ui-tabbar-label">Profile</span>
               </button>
             </div>
           </div>
@@ -4264,13 +5672,11 @@ function BuddyListContent() {
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-[1px]">
           <div className="w-full max-w-md">
             <div className={xpModalFrameClass}>
-              <div className="mb-2 flex min-h-[34px] items-center rounded-xl border border-white/70 bg-white/70 px-3 text-[12px] font-semibold text-slate-800">
-                Set Recovery Code
-              </div>
+              <div className={`${xpModalHeaderClass} mb-2`}>Set Recovery Code</div>
               <form onSubmit={handleSaveRecoveryCode} className={xpModalBodyClass}>
-                <p className="rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] text-amber-900">
-                  You must set a recovery code before continuing. Store this safely. It is required for forgotten
-                  password recovery.
+                <p className="ui-note-warning">
+                  Set a recovery code before continuing. Keep it somewhere safe because you will need it if you ever
+                  forget your password.
                 </p>
 
                 <div>
@@ -4307,9 +5713,7 @@ function BuddyListContent() {
                 </div>
 
                 {recoverySetupError && (
-                  <p className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] text-red-700">
-                    {recoverySetupError}
-                  </p>
+                  <p className="ui-note-error">{recoverySetupError}</p>
                 )}
 
                 <div className="flex justify-end gap-2">
@@ -4338,11 +5742,9 @@ function BuddyListContent() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-[1px]">
           <div className="w-full max-w-md">
             <div className={xpModalFrameClass}>
-              <div className="mb-2 flex min-h-[34px] items-center rounded-xl border border-white/70 bg-white/70 px-3 text-[12px] font-semibold text-slate-800">
-                Admin Password Reset
-              </div>
+              <div className={`${xpModalHeaderClass} mb-2`}>Admin Password Reset</div>
               <form onSubmit={handleIssueAdminResetTicket} className={xpModalBodyClass}>
-                <div className="border border-[#b95f5f] bg-[#fff0f0] px-2 py-1.5 text-[11px] text-[#8b2020]">
+                <div className="ui-note-error">
                   <p className="font-bold uppercase tracking-wide">Admin Tools</p>
                   <p className="mt-1">Issue a one-time password reset ticket for out-of-band delivery.</p>
                 </div>
@@ -4360,7 +5762,7 @@ function BuddyListContent() {
                   />
                 </div>
 
-                <label className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50/80 px-2.5 py-2 text-[11px] text-amber-900">
+                <label className="ui-note-warning flex items-start gap-2">
                   <input
                     type="checkbox"
                     checked={confirmAdminResetAction}
@@ -4372,13 +5774,11 @@ function BuddyListContent() {
                 </label>
 
                 {adminResetError && (
-                  <p className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] text-red-700">
-                    {adminResetError}
-                  </p>
+                  <p className="ui-note-error">{adminResetError}</p>
                 )}
 
                 {issuedAdminTicket && (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] text-amber-900">
+                  <div className="ui-note-warning">
                     <p className="font-bold">One-time ticket (share securely):</p>
                     <p className="mt-1 break-all font-mono text-[13px] font-bold">{issuedAdminTicket.ticket}</p>
                     <p className="mt-1 text-[11px]">
@@ -4389,30 +5789,28 @@ function BuddyListContent() {
                       onClick={() => {
                         void navigator.clipboard.writeText(issuedAdminTicket.ticket);
                       }}
-                      className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] font-semibold text-amber-800"
+                      className="ui-focus-ring ui-button-secondary ui-button-compact mt-2"
                     >
                       Copy Ticket
                     </button>
                   </div>
                 )}
 
-                <div className="rounded-xl border border-slate-200 bg-white/75 px-2.5 py-2 text-[11px] text-slate-700">
+                <div className="ui-panel-card rounded-2xl px-3 py-3 text-[11px] text-slate-700">
                   <div className="flex items-center justify-between gap-2">
                     <p className="font-bold">Recent Recovery Activity</p>
                     <button
                       type="button"
                       onClick={() => void fetchAdminAuditEntries()}
                       disabled={isLoadingAdminAudit}
-                      className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 disabled:opacity-60"
+                      className={`${xpModalButtonClass} disabled:opacity-60`}
                     >
                       {isLoadingAdminAudit ? 'Refreshing...' : 'Refresh'}
                     </button>
                   </div>
 
                   {adminAuditError ? (
-                    <p className="mt-2 border border-[#b95f5f] bg-[#ffe5e5] px-2 py-1 text-[11px] text-[#8b2020]">
-                      {adminAuditError}
-                    </p>
+                    <p className="ui-note-error mt-2">{adminAuditError}</p>
                   ) : null}
 
                   {!adminAuditError && !isLoadingAdminAudit && adminAuditEntries.length === 0 ? (
@@ -4430,7 +5828,7 @@ function BuddyListContent() {
                             : null;
 
                         return (
-                          <div key={entry.id} className="rounded-lg border border-slate-200 bg-white px-2.5 py-2">
+                          <div key={entry.id} className="ui-panel-muted rounded-xl px-2.5 py-2">
                             <p className="font-semibold text-slate-700">{formatAdminAuditEvent(entry.eventType)}</p>
                             <p className="text-[10px] text-slate-500">{new Date(entry.createdAt).toLocaleString()}</p>
                             <p className="mt-0.5">
@@ -4479,22 +5877,22 @@ function BuddyListContent() {
           onClick={() => { setShowAwayModal(false); setAwayModalError(null); }}
         >
           <div
-            className="w-full max-w-lg bottom-sheet rounded-t-[2rem] border border-white/60 bg-white/90 shadow-[var(--shadow-elevated)] backdrop-blur-2xl"
+            className="ui-sheet-surface w-full max-w-lg bottom-sheet rounded-t-[2rem]"
             style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Drag handle */}
             <div className="flex justify-center pt-3 pb-1">
-              <div className="h-1 w-10 rounded-full bg-slate-300" />
+              <div className="ui-drag-handle" />
             </div>
 
             {/* Header */}
-            <div className="flex items-center justify-between px-5 pb-3 pt-1">
-              <h2 className="text-[17px] font-semibold text-slate-800">Profile &amp; Away</h2>
+            <div className="ui-sheet-header">
+              <h2 className="ui-sheet-title">{awayModalMode === 'away' ? 'Away Message' : 'Profile'}</h2>
               <button
                 type="button"
                 onClick={() => { setShowAwayModal(false); setAwayModalError(null); }}
-                className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-[13px] font-semibold text-slate-500 hover:bg-slate-200"
+                className="ui-focus-ring ui-sheet-close"
               >
                 <AppIcon kind="close" className="h-3.5 w-3.5" />
               </button>
@@ -4507,7 +5905,7 @@ function BuddyListContent() {
               }}
               className="space-y-4 px-5 pb-2"
             >
-              <div className="rounded-2xl border border-white/65 bg-white/78 px-4 py-3">
+              <div className="ui-panel-card rounded-2xl px-4 py-4">
                 <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Profile</p>
                 <div className="flex items-center gap-3">
                   <label
@@ -4568,7 +5966,7 @@ function BuddyListContent() {
                 ) : null}
 
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <label className={`inline-flex items-center rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 shadow-sm ${isProfileSchemaUnavailable ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-slate-50'}`}>
+                  <label className={`ui-focus-ring inline-flex items-center rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-200 ${isProfileSchemaUnavailable ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900'}`}>
                     Upload Profile Photo
                     <input
                       type="file"
@@ -4592,7 +5990,7 @@ function BuddyListContent() {
                       setRemoveBuddyIconOnSave(true);
                     }}
                     disabled={!buddyIconPath && !buddyIconPreviewUrl}
-                    className="rounded-xl border border-red-200/80 bg-white px-3 py-1.5 text-[11px] font-semibold text-red-500 shadow-sm hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-white"
+                    className="ui-focus-ring ui-button-danger ui-button-compact disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Remove Photo
                   </button>
@@ -4603,7 +6001,7 @@ function BuddyListContent() {
                   <input
                     value={profileStatusDraft}
                     onChange={(event) => setProfileStatusDraft(event.target.value.slice(0, PROFILE_STATUS_MAX_LENGTH))}
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 text-[13px] text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    className={xpModalInputClass}
                     placeholder="What should buddies see?"
                     maxLength={PROFILE_STATUS_MAX_LENGTH}
                   />
@@ -4615,7 +6013,7 @@ function BuddyListContent() {
                   <textarea
                     value={profileBioDraft}
                     onChange={(event) => setProfileBioDraft(event.target.value.slice(0, PROFILE_BIO_MAX_LENGTH))}
-                    className="min-h-[84px] w-full resize-none rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 text-[13px] text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    className={`${xpModalInputClass} min-h-[84px] resize-none`}
                     placeholder="Add a short AIM-style profile blurb…"
                     maxLength={PROFILE_BIO_MAX_LENGTH}
                   />
@@ -4636,10 +6034,10 @@ function BuddyListContent() {
                         setAwayLabelDraft(preset.label);
                         setAwayText(preset.message);
                       }}
-                      className={`rounded-full border px-3 py-1 text-[11px] font-semibold transition active:scale-95 ${
+                      className={`ui-focus-ring rounded-full border px-3 py-1 text-[11px] font-semibold transition active:scale-95 ${
                         selectedAwayPresetId === preset.id
                           ? 'border-blue-400/70 bg-blue-500 text-white'
-                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-200 dark:hover:bg-slate-900'
                       }`}
                     >
                       {preset.label}
@@ -4648,10 +6046,10 @@ function BuddyListContent() {
                   <button
                     type="button"
                     onClick={() => { setSelectedAwayPresetId('__custom__'); setAwayText(''); setAwayLabelDraft(''); }}
-                    className={`rounded-full border px-3 py-1 text-[11px] font-semibold transition active:scale-95 ${
+                    className={`ui-focus-ring rounded-full border px-3 py-1 text-[11px] font-semibold transition active:scale-95 ${
                       selectedAwayPresetId === '__custom__'
                         ? 'border-blue-400/70 bg-blue-500 text-white'
-                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-200 dark:hover:bg-slate-900'
                     }`}
                   >
                     Custom…
@@ -4664,9 +6062,10 @@ function BuddyListContent() {
                 <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Message</p>
                 <textarea
                   id="away-message-input"
+                  ref={awayMessageFieldRef}
                   value={awayText}
                   onChange={(event) => setAwayText(event.target.value)}
-                  className="min-h-[90px] w-full resize-none rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 text-[13px] text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  className={`${xpModalInputClass} min-h-[90px] resize-none`}
                   placeholder="Use %n for buddy's name, %t for time, %d for date…"
                   maxLength={320}
                 />
@@ -4680,7 +6079,7 @@ function BuddyListContent() {
               </div>
 
               {/* Auto-away settings */}
-              <div className="space-y-3 rounded-2xl border border-white/65 bg-white/72 px-4 py-3">
+              <div className="ui-panel-muted space-y-3 rounded-2xl px-4 py-3">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-[13px] font-semibold text-slate-700">Show Idle when inactive</p>
@@ -4700,7 +6099,7 @@ function BuddyListContent() {
                     <select
                       value={autoAwayMinutes}
                       onChange={(event) => setAutoAwayMinutes(Number(event.target.value))}
-                      className="rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-[12px] focus:outline-none focus:ring-2 focus:ring-blue-200"
+                      className={`${xpModalSelectClass} w-auto py-1 pl-3 pr-8 text-[12px]`}
                     >
                       {AUTO_AWAY_MINUTE_OPTIONS.map((minutes) => (
                         <option key={minutes} value={minutes}>{minutes} min</option>
@@ -4735,13 +6134,13 @@ function BuddyListContent() {
               </div>
 
               {isProfileSchemaUnavailable ? (
-                <p className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] font-semibold text-amber-800">
+                <p className="ui-note-warning font-semibold">
                   {PROFILE_SCHEMA_NOTICE}
                 </p>
               ) : null}
 
               {awayModalError ? (
-                <p className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-[12px] font-semibold text-red-700">
+                <p className="ui-note-error font-semibold">
                   {awayModalError}
                 </p>
               ) : null}
@@ -4751,14 +6150,14 @@ function BuddyListContent() {
                   type="button"
                   onClick={() => void saveProfileSettings({ goAway: false })}
                   disabled={isSavingAwayMessage}
-                  className="flex-1 rounded-2xl border border-white/65 bg-white py-3.5 text-[15px] font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 active:scale-[0.98] disabled:opacity-60"
+                  className="ui-focus-ring ui-button-secondary flex-1 disabled:opacity-60"
                 >
                   {isSavingAwayMessage ? 'Saving…' : 'Save Profile'}
                 </button>
                 <button
                   type="submit"
                   disabled={isSavingAwayMessage}
-                  className="flex-1 rounded-2xl border border-blue-500/50 bg-blue-500 py-3.5 text-[15px] font-semibold text-white shadow-[0_8px_20px_rgba(37,99,235,0.35)] transition hover:bg-blue-600 active:scale-[0.98] disabled:opacity-60"
+                  className="ui-focus-ring ui-button-primary flex-1 disabled:opacity-60"
                 >
                   {isSavingAwayMessage ? 'Saving…' : 'Go Away'}
                 </button>
@@ -4774,26 +6173,26 @@ function BuddyListContent() {
           onClick={() => setShowSystemStatusSheet(false)}
         >
           <div
-            className="w-full max-w-lg bottom-sheet rounded-t-[2rem] border border-white/60 bg-white/92 shadow-[var(--shadow-elevated)] backdrop-blur-2xl"
+            className="ui-sheet-surface w-full max-w-lg bottom-sheet rounded-t-[2rem]"
             style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex justify-center pb-1 pt-3">
-              <div className="h-1 w-10 rounded-full bg-slate-300" />
+              <div className="ui-drag-handle" />
             </div>
-            <div className="flex items-center justify-between px-5 pb-3 pt-1">
-              <h2 className="text-[17px] font-semibold text-slate-800">System Status</h2>
+            <div className="ui-sheet-header">
+              <h2 className="ui-sheet-title">System Status</h2>
               <button
                 type="button"
                 onClick={() => setShowSystemStatusSheet(false)}
-                className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-[13px] font-semibold text-slate-500 hover:bg-slate-200"
+                className="ui-focus-ring ui-sheet-close"
               >
                 <AppIcon kind="close" className="h-3.5 w-3.5" />
               </button>
             </div>
 
             <div className="space-y-3 px-5 pb-2">
-              <div className="rounded-2xl border border-white/65 bg-white/82 px-3.5 py-3">
+              <div className="ui-panel-card rounded-2xl px-3.5 py-3">
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Sync</p>
                 <p className="mt-1 text-[14px] font-semibold text-slate-800">{chatSyncSummary}</p>
                 <p className="mt-1 text-[12px] text-slate-500">
@@ -4802,19 +6201,15 @@ function BuddyListContent() {
                     : 'No successful sync yet in this session.'}
                 </p>
                 {lastSyncError ? (
-                  <p className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-700">
-                    {lastSyncError}
-                  </p>
+                  <p className="ui-note-error mt-2">{lastSyncError}</p>
                 ) : null}
               </div>
 
-              <div className="rounded-2xl border border-white/65 bg-white/82 px-3.5 py-3">
+              <div className="ui-panel-card rounded-2xl px-3.5 py-3">
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Outbox</p>
                 <p className="mt-1 text-[14px] font-semibold text-slate-800">{outboxSummary}</p>
                 {latestOutboxError ? (
-                  <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
-                    {latestOutboxError}
-                  </p>
+                  <p className="ui-note-warning mt-2">{latestOutboxError}</p>
                 ) : null}
               </div>
 
@@ -4840,16 +6235,276 @@ function BuddyListContent() {
         </div>
       )}
 
+      {showPrivacySheet && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/25 backdrop-blur-[2px]"
+          onClick={() => setShowPrivacySheet(false)}
+        >
+          <div
+            className="ui-sheet-surface w-full max-w-lg bottom-sheet rounded-t-[2rem]"
+            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex justify-center pb-1 pt-3">
+              <div className="ui-drag-handle" />
+            </div>
+            <div className="ui-sheet-header">
+              <h2 className="ui-sheet-title">Privacy</h2>
+              <button
+                type="button"
+                onClick={() => setShowPrivacySheet(false)}
+                className="ui-focus-ring ui-sheet-close"
+              >
+                <AppIcon kind="close" className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 px-5 pb-2">
+              {trustSafetyError ? (
+                <p className="ui-note-error text-[12px] font-semibold">{trustSafetyError}</p>
+              ) : null}
+              <div className="ui-panel-card rounded-2xl px-4 py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[13px] font-semibold text-slate-700">Share read receipts</p>
+                    <p className="text-[11px] text-slate-400">Let buddies know when you have read their messages.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void updatePrivacyPreferences((current) => ({
+                      shareReadReceipts: !current.shareReadReceipts,
+                    }))}
+                    className={`ios-toggle ${privacySettings.shareReadReceipts ? 'on' : ''}`}
+                    role="switch"
+                    aria-checked={privacySettings.shareReadReceipts}
+                  />
+                </div>
+              </div>
+
+              <div className="ui-panel-card rounded-2xl px-4 py-4">
+                <p className="text-[13px] font-semibold text-slate-700">Notification previews</p>
+                <p className="mt-1 text-[11px] text-slate-400">Choose how much message detail appears in banners.</p>
+                <select
+                  value={privacySettings.notificationPreviewMode}
+                  onChange={(event) =>
+                    void updatePrivacyPreferences({
+                      notificationPreviewMode: event.target.value as UserPrivacySettings['notificationPreviewMode'],
+                    })}
+                  className={`${xpModalSelectClass} mt-3 w-full py-2 pl-3 pr-8 text-[12px]`}
+                >
+                  <option value="full">Show sender and message</option>
+                  <option value="name_only">Show sender only</option>
+                  <option value="hidden">Hide message details</option>
+                </select>
+              </div>
+
+              <div className="ui-panel-card rounded-2xl px-4 py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[13px] font-semibold text-slate-700">Screen shield</p>
+                    <p className="text-[11px] text-slate-400">Obscure the app when it moves to the background.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void updatePrivacyPreferences((current) => ({
+                      screenShieldEnabled: !current.screenShieldEnabled,
+                    }))}
+                    className={`ios-toggle ${privacySettings.screenShieldEnabled ? 'on' : ''}`}
+                    role="switch"
+                    aria-checked={privacySettings.screenShieldEnabled}
+                  />
+                </div>
+              </div>
+
+              <div className="ui-panel-card rounded-2xl px-4 py-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[13px] font-semibold text-slate-700">App lock</p>
+                    <p className="text-[11px] text-slate-400">
+                      Device-only PIN lock that appears when BuddyList returns from the background.
+                    </p>
+                    <p className="mt-1 text-[10px] text-slate-400">
+                      {appLockSettings.enabled
+                        ? `Auto-locks ${formatAppLockTimeoutLabel(appLockSettings.autoLockSeconds).toLowerCase()}.`
+                        : 'Currently off on this device.'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (appLockSettings.enabled) {
+                        handleDisableAppLock();
+                        return;
+                      }
+                      openAppLockSetup();
+                    }}
+                    className={`ios-toggle ${appLockSettings.enabled ? 'on' : ''}`}
+                    role="switch"
+                    aria-checked={appLockSettings.enabled}
+                  />
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {appLockSettings.enabled ? (
+                    <button
+                      type="button"
+                      onClick={handleLockAppNow}
+                      className="ui-focus-ring ui-button-secondary ui-button-compact"
+                    >
+                      Lock now
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={openAppLockSetup}
+                      className="ui-focus-ring ui-button-secondary ui-button-compact"
+                    >
+                      Set PIN
+                    </button>
+                  )}
+                </div>
+                {appLockSettings.enabled ? (
+                  <div className="mt-3 space-y-3">
+                    {biometricAvailability.isAvailable ? (
+                      <div className="flex items-center justify-between gap-3 rounded-[1rem] border border-white/70 bg-white/75 px-3 py-3 dark:border-slate-800 dark:bg-slate-950/55">
+                        <div>
+                          <p className="text-[12px] font-semibold text-slate-700 dark:text-slate-100">
+                            Use {biometricAvailability.label}
+                          </p>
+                          <p className="mt-0.5 text-[10px] text-slate-400">Try biometrics first, then fall back to your app PIN.</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setAppLockSettings((current) => ({
+                              ...current,
+                              biometricsEnabled: !current.biometricsEnabled,
+                            }))
+                          }
+                          className={`ios-toggle ${appLockSettings.biometricsEnabled ? 'on' : ''}`}
+                          role="switch"
+                          aria-checked={appLockSettings.biometricsEnabled}
+                          aria-label={`Use ${biometricAvailability.label} for app unlock`}
+                        />
+                      </div>
+                    ) : null}
+                    <div>
+                      <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                        Auto-lock timing
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {[0, 30, 60, 300].map((value) => {
+                          const selected = appLockSettings.autoLockSeconds === value;
+                          return (
+                            <button
+                              key={value}
+                              type="button"
+                              onClick={() =>
+                                setAppLockSettings((current) => ({
+                                  ...current,
+                                  autoLockSeconds: value,
+                                }))
+                              }
+                              className={`ui-focus-ring rounded-full border px-3 py-2 text-[11px] font-semibold transition ${
+                                selected
+                                  ? 'border-blue-500 bg-blue-600 text-white shadow-[0_12px_30px_rgba(37,99,235,0.22)]'
+                                  : 'border-white/75 bg-white/78 text-slate-600 dark:border-slate-800 dark:bg-slate-950/45 dark:text-slate-300'
+                              }`}
+                            >
+                              {formatAppLockTimeoutLabel(value)}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="ui-panel-card rounded-2xl px-4 py-4">
+                <p className="text-[13px] font-semibold text-slate-700">Blocked buddies</p>
+                <p className="mt-1 text-[11px] text-slate-400">Blocked contacts cannot send new messages or requests.</p>
+                {blockedUserIds.length === 0 ? (
+                  <p className="mt-3 text-[11px] text-slate-400">No one is blocked right now.</p>
+                ) : (
+                  <div className="mt-3 space-y-2">
+                    {blockedUserIds.map((blockedUserId) => {
+                      const blockedProfile = blockedProfiles.find((profile) => profile.id === blockedUserId);
+                      return (
+                        <div
+                          key={blockedUserId}
+                          className="flex items-center justify-between gap-3 rounded-[1rem] border border-white/70 bg-white/75 px-3 py-2 dark:border-slate-800 dark:bg-slate-950/55"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-[12px] font-semibold text-slate-700 dark:text-slate-100">
+                              {blockedProfile?.screenname?.trim() || 'Blocked buddy'}
+                            </p>
+                            <p className="truncate text-[10px] text-slate-400">{blockedUserId}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => void handleUnblockBuddyById(blockedUserId)}
+                            disabled={isBlockingBuddyId === blockedUserId}
+                            className="ui-focus-ring ui-button-secondary ui-button-compact disabled:opacity-60"
+                          >
+                            {isBlockingBuddyId === blockedUserId ? '...' : 'Unblock'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <AppLockSheet
+        key={`${appLockMode}-${showAppLockSheet ? 'open' : 'closed'}`}
+        isOpen={showAppLockSheet}
+        mode={appLockMode}
+        pinDraft={appLockPinDraft}
+        confirmDraft={appLockConfirmDraft}
+        errorMessage={appLockError}
+        autoLockSeconds={appLockSettings.autoLockSeconds}
+        biometricLabel={biometricAvailability.label}
+        isBiometricAvailable={biometricAvailability.isAvailable && appLockSettings.biometricsEnabled}
+        isBiometricAuthenticating={isBiometricAuthenticating}
+        onPinChange={setAppLockPinDraft}
+        onConfirmChange={setAppLockConfirmDraft}
+        onAutoLockSecondsChange={(value) =>
+          setAppLockSettings((current) => ({
+            ...current,
+            autoLockSeconds: value,
+          }))
+        }
+        onUseBiometrics={() => void handleUseBiometrics()}
+        onSubmit={() => void handleSubmitAppLock()}
+        onCancel={() => {
+          if (appLockMode === 'unlock') {
+            return;
+          }
+          setShowAppLockSheet(false);
+          setAppLockError(null);
+          setAppLockPinDraft('');
+          setAppLockConfirmDraft('');
+          setIsBiometricAuthenticating(false);
+          attemptedBiometricUnlockRef.current = false;
+        }}
+      />
+
+      {isAppLocked ? (
+        <div className="pointer-events-auto fixed inset-0 z-[65] bg-slate-950/18 backdrop-blur-[10px]" aria-hidden="true" />
+      ) : null}
+
       {showRoomsWindow && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-[1px]">
           <div className="w-full max-w-sm">
             <div className={xpModalFrameClass}>
-              <div className="mb-2 flex min-h-[34px] items-center rounded-xl border border-white/70 bg-white/70 px-3 text-[12px] font-semibold text-slate-800">
-                Join a Chat Room
-              </div>
+              <div className={`${xpModalHeaderClass} mb-2`}>Join a Room</div>
               <form onSubmit={handleJoinRoom} className="flex flex-col gap-3 px-2 pb-2 text-[11px]">
                 <label htmlFor="room-name-input" className="font-semibold text-slate-700">
-                  Room name:
+                  Room name
                 </label>
                 <input
                   id="room-name-input"
@@ -4859,11 +6514,9 @@ function BuddyListContent() {
                   placeholder="cool_kids_club"
                   maxLength={80}
                 />
-                <p className="text-[12px] text-slate-500">If the room does not exist, it will be created.</p>
+                <p className="text-[12px] text-slate-500">If the room does not exist yet, BuddyList will create it.</p>
                 {roomJoinError && (
-                  <p className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] text-red-700">
-                    {roomJoinError}
-                  </p>
+                  <p className="ui-note-error">{roomJoinError}</p>
                 )}
                 <div className="flex justify-end gap-2">
                   <button
@@ -4891,20 +6544,23 @@ function BuddyListContent() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-[1px]">
           <div className="w-full max-w-sm">
             <div className={xpModalFrameClass}>
-              <div className="mb-2 flex min-h-[34px] items-center rounded-xl border border-white/70 bg-white/70 px-3 text-[12px] font-semibold text-slate-800">
-                Incoming Message
-              </div>
+              <div className={`${xpModalHeaderClass} mb-2`}>New Message Request</div>
               <div className="flex flex-col gap-3 px-2 pb-2 text-[11px] text-slate-700">
                 <p>
-                  <span className="font-bold text-blue-700">{activePendingRequest.screenname}</span> is trying to
-                  send you a message, but they are not on your Buddy List.
+                  <span className="font-bold text-blue-700">{activePendingRequest.screenname}</span> wants to message
+                  you, but they are not on your buddy list yet.
                 </p>
                 {pendingRequestError && (
-                  <p className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] text-red-700">
-                    {pendingRequestError}
-                  </p>
+                  <p className="ui-note-error">{pendingRequestError}</p>
                 )}
                 <div className="flex flex-wrap justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleBlockBuddyById(activePendingRequest.senderId)}
+                    className="ui-focus-ring ui-button-danger ui-button-compact"
+                  >
+                    Block
+                  </button>
                   <button
                     type="button"
                     onClick={() => handleAcceptPendingRequest(activePendingRequest.senderId)}
@@ -4938,33 +6594,31 @@ function BuddyListContent() {
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-[1px]">
           <div className="w-full max-w-md">
             <div className={xpModalFrameClass}>
-              <div className="mb-2 flex min-h-[34px] items-center rounded-xl border border-white/70 bg-white/70 px-3 text-[12px] font-semibold text-slate-800">
-                Add Buddy
-              </div>
+              <div className={`${xpModalHeaderClass} mb-2`}>Add Buddy</div>
               <div className="flex flex-col gap-3 px-2 pb-2 text-[11px]">
                 <form onSubmit={handleSearch} className="flex gap-2">
                   <input
                     value={searchTerm}
                     onChange={(event) => setSearchTerm(event.target.value)}
                     className={xpModalInputClass}
-                    placeholder="Search screennames..."
+                    placeholder="Search screen names..."
                   />
                   <button
                     type="submit"
                     className={xpModalPrimaryButtonClass}
                   >
-                    Find
+                    Search
                   </button>
                 </form>
 
-                {searchError && <p className="text-sm text-red-700">{searchError}</p>}
+                {searchError && <p className="ui-note-error">{searchError}</p>}
 
-                <div className="max-h-56 overflow-y-auto border border-[#7f9db9] border-t-[#808080] border-l-[#808080] border-r-white border-b-white bg-white p-2">
+                <div className="max-h-56 overflow-y-auto rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-[inset_0_1px_1px_rgba(15,23,42,0.05)] dark:border-slate-700 dark:bg-slate-950/50">
                   {isSearching && (
-                    <p className="p-2 text-sm italic text-slate-500">Searching screennames...</p>
+                    <p className="p-2 text-sm italic text-slate-500">Searching screen names...</p>
                   )}
                   {!isSearching && searchTerm.trim() !== '' && searchResults.length === 0 && (
-                    <p className="p-2 text-sm italic text-slate-500">No screennames found.</p>
+                    <p className="p-2 text-sm italic text-slate-500">No screen names found.</p>
                   )}
                   {!isSearching &&
                     searchResults.map((profile) => {
@@ -4978,7 +6632,7 @@ function BuddyListContent() {
                       return (
                         <div
                           key={profile.id}
-                          className="mb-2 flex items-center justify-between gap-2 border border-[#d7e2f2] bg-[#f7fbff] p-2"
+                          className="ui-panel-muted mb-2 flex items-center justify-between gap-2 rounded-2xl p-3"
                         >
                           <div className="min-w-0">
                             <p className="truncate font-bold">{profile.screenname || 'Unknown User'}</p>
@@ -5016,11 +6670,94 @@ function BuddyListContent() {
         </div>
       )}
 
+      {forwardingMessage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-[1px]">
+          <div className="w-full max-w-md">
+            <div className={xpModalFrameClass}>
+              <div className={`${xpModalHeaderClass} mb-2`}>Forward Message</div>
+              <div className="flex flex-col gap-3 px-2 pb-2 text-[11px]">
+                <div className="ui-panel-muted rounded-2xl px-3 py-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Preview</p>
+                  <p className="mt-1 text-[12px] text-slate-700">
+                    {htmlToPlainText(forwardingMessage.content).trim() || 'Forwarded message'}
+                  </p>
+                </div>
+
+                {forwardError ? <p className="ui-note-error">{forwardError}</p> : null}
+
+                <button
+                  type="button"
+                  onClick={() => void handleForwardMessageToTarget(forwardingMessage, 'saved')}
+                  disabled={isForwardingToId === 'saved'}
+                  className="ui-focus-ring ui-panel-muted flex items-center justify-between rounded-2xl px-3 py-3 text-left"
+                >
+                  <span>
+                    <span className="block font-semibold text-slate-800">Saved Messages</span>
+                    <span className="block text-[11px] text-slate-400">Keep a copy for yourself</span>
+                  </span>
+                  <span className="ui-button-secondary ui-button-compact">{isForwardingToId === 'saved' ? '…' : 'Save'}</span>
+                </button>
+
+                <div className="max-h-64 overflow-y-auto rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-[inset_0_1px_1px_rgba(15,23,42,0.05)] dark:border-slate-700 dark:bg-slate-950/50">
+                  {sortedDirectMessageBuddies.map((buddy) => (
+                    <button
+                      key={buddy.id}
+                      type="button"
+                      onClick={() => void handleForwardMessageToTarget(forwardingMessage, buddy.id)}
+                      disabled={isForwardingToId === buddy.id}
+                      className="ui-focus-ring ui-panel-muted mb-2 flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left last:mb-0"
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate font-semibold text-slate-800">{buddy.screenname}</span>
+                        <span className="block truncate text-[11px] text-slate-400">Forward as a new message</span>
+                      </span>
+                      <span className="ui-button-secondary ui-button-compact">{isForwardingToId === buddy.id ? '…' : 'Send'}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForwardError(null);
+                      setForwardingMessage(null);
+                    }}
+                    className={xpModalButtonClass}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSavedMessagesWindow ? (
+        <SavedMessagesWindow
+          entries={savedMessages}
+          draft={savedMessageDraft}
+          errorMessage={savedMessageError}
+          isSaving={isSavingSavedMessage}
+          deletingEntryId={deletingSavedMessageId}
+          onDraftChange={setSavedMessageDraft}
+          onSave={handleSaveSavedMessageDraft}
+          onDeleteEntry={handleDeleteSavedMessage}
+          onClose={() => setShowSavedMessagesWindow(false)}
+        />
+      ) : null}
+
       <BuddyProfileSheet
+        key={selectedProfileSummary?.id ?? 'profile-sheet'}
         buddy={selectedProfileSummary}
         isOpen={Boolean(selectedProfileSummary)}
         isUpdating={isAddingBuddyId === selectedProfileSummary?.id || isRemovingBuddyId === selectedProfileSummary?.id}
         errorMessage={profileSheetError}
+        feedbackMessage={profileSheetFeedback}
+        isBlocked={selectedProfileSummary ? blockedUserIds.includes(selectedProfileSummary.id) : false}
+        isBlocking={isBlockingBuddyId === selectedProfileSummary?.id}
+        isReporting={isReportingBuddyId === selectedProfileSummary?.id}
         onClose={closeBuddyProfile}
         onStartChat={() => {
           if (!selectedProfileSummary) {
@@ -5043,6 +6780,27 @@ function BuddyListContent() {
           selectedProfileSummary
             ? async () => {
                 await handleRemoveBuddy(selectedProfileSummary.id);
+              }
+            : undefined
+        }
+        onBlockBuddy={
+          selectedProfileSummary
+            ? async () => {
+                await handleBlockBuddyById(selectedProfileSummary.id);
+              }
+            : undefined
+        }
+        onUnblockBuddy={
+          selectedProfileSummary
+            ? async () => {
+                await handleUnblockBuddyById(selectedProfileSummary.id);
+              }
+            : undefined
+        }
+        onSubmitReport={
+          selectedProfileSummary
+            ? async (payload) => {
+                await handleReportBuddy(selectedProfileSummary.id, payload);
               }
             : undefined
         }
@@ -5090,10 +6848,20 @@ function BuddyListContent() {
             initialUnreadCount={initialUnreadForActiveChat}
             initialDraft={draftCache.dm[activeChatBuddy.id] ?? ''}
             typingText={activeDmTypingText}
+            isPinned={activeChatPreference?.isPinned ?? false}
+            isMuted={activeChatPreference?.isMuted ?? false}
+            isArchived={activeChatPreference?.isArchived ?? false}
+            disappearingTimerSeconds={activeChatPreference?.disappearingTimerSeconds ?? null}
             onSendMessage={handleSendMessage}
             onTypingActivity={sendDmTypingPulse}
             onRetryOutboxMessage={handleRetryConversationOutboxMessage}
             onDraftChange={(draft) => updateDmDraft(activeChatBuddy.id, draft)}
+            onTogglePinned={handleTogglePinnedForActiveChat}
+            onToggleMuted={handleToggleMutedForActiveChat}
+            onToggleArchived={handleToggleArchivedForActiveChat}
+            onSetDisappearingTimer={handleSetDisappearingTimerForActiveChat}
+            onForwardMessage={handleBeginForwardMessage}
+            onSaveMessage={handleSaveDirectMessage}
             onClose={closeChatWindow}
             onSignOff={handleSignOff}
             onOpenProfile={() => openBuddyProfile(activeChatBuddy.id)}

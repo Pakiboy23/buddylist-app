@@ -26,6 +26,10 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>BuddyList uses the camera so you can take a profile photo to share with your buddies.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>BuddyList uses Face ID so you can quickly unlock the app before reading your messages.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>BuddyList uses the microphone so you can record and send voice notes in chat.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>BuddyList uses your photo library so you can choose a profile photo to share with your buddies.</string>
 	<key>UILaunchStoryboardName</key>

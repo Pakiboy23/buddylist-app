@@ -2,6 +2,7 @@ import { getVersionedData, setVersionedData } from '@/lib/clientStorage';
 
 export type OutboxItemType = 'dm' | 'room';
 export type OutboxItemStatus = 'queued' | 'sending' | 'failed';
+export type OutboxPreviewType = 'text' | 'attachment' | 'forwarded' | 'voice_note';
 
 interface OutboxEnvelopeData {
   items: OutboxItem[];
@@ -12,6 +13,11 @@ export interface OutboxItem {
   type: OutboxItemType;
   targetId: string;
   content: string;
+  expiresAt: string | null;
+  replyToMessageId: number | null;
+  forwardSourceMessageId: number | null;
+  forwardSourceSenderId: string | null;
+  previewType: OutboxPreviewType;
   createdAt: string;
   status: OutboxItemStatus;
   attempts: number;
@@ -25,6 +31,11 @@ export interface NewOutboxItem {
   content: string;
   clientMessageId?: string;
   status?: OutboxItemStatus;
+  expiresAt?: string | null;
+  replyToMessageId?: number | null;
+  forwardSourceMessageId?: number | null;
+  forwardSourceSenderId?: string | null;
+  previewType?: OutboxPreviewType;
 }
 
 const OUTBOX_STORAGE_KEY_PREFIX = 'buddylist:outbox:v1:';
@@ -64,6 +75,25 @@ function normalizeItem(value: unknown): OutboxItem | null {
   const content = typeof candidate.content === 'string' ? candidate.content.trim() : '';
   const id = typeof candidate.id === 'string' && candidate.id.trim() ? candidate.id : '';
   const createdAt = typeof candidate.createdAt === 'string' ? candidate.createdAt : nowIsoString();
+  const expiresAt = typeof candidate.expiresAt === 'string' && candidate.expiresAt.trim() ? candidate.expiresAt : null;
+  const replyToMessageId =
+    typeof candidate.replyToMessageId === 'number' && Number.isFinite(candidate.replyToMessageId)
+      ? Math.floor(candidate.replyToMessageId)
+      : null;
+  const forwardSourceMessageId =
+    typeof candidate.forwardSourceMessageId === 'number' && Number.isFinite(candidate.forwardSourceMessageId)
+      ? Math.floor(candidate.forwardSourceMessageId)
+      : null;
+  const forwardSourceSenderId =
+    typeof candidate.forwardSourceSenderId === 'string' && candidate.forwardSourceSenderId.trim()
+      ? candidate.forwardSourceSenderId.trim()
+      : null;
+  const previewType: OutboxPreviewType =
+    candidate.previewType === 'attachment' ||
+    candidate.previewType === 'forwarded' ||
+    candidate.previewType === 'voice_note'
+      ? candidate.previewType
+      : 'text';
   const status =
     candidate.status === 'queued' || candidate.status === 'sending' || candidate.status === 'failed'
       ? candidate.status
@@ -87,6 +117,11 @@ function normalizeItem(value: unknown): OutboxItem | null {
     type,
     targetId,
     content: content.slice(0, OUTBOX_MAX_CONTENT_CHARS),
+    expiresAt,
+    replyToMessageId,
+    forwardSourceMessageId,
+    forwardSourceSenderId,
+    previewType,
     createdAt,
     status,
     attempts,
@@ -163,6 +198,23 @@ export function createOutboxItem(input: NewOutboxItem): OutboxItem {
     type: input.type,
     targetId: input.targetId,
     content: input.content.trim().slice(0, OUTBOX_MAX_CONTENT_CHARS),
+    expiresAt: typeof input.expiresAt === 'string' && input.expiresAt.trim() ? input.expiresAt.trim() : null,
+    replyToMessageId:
+      typeof input.replyToMessageId === 'number' && Number.isFinite(input.replyToMessageId)
+        ? Math.floor(input.replyToMessageId)
+        : null,
+    forwardSourceMessageId:
+      typeof input.forwardSourceMessageId === 'number' && Number.isFinite(input.forwardSourceMessageId)
+        ? Math.floor(input.forwardSourceMessageId)
+        : null,
+    forwardSourceSenderId:
+      typeof input.forwardSourceSenderId === 'string' && input.forwardSourceSenderId.trim()
+        ? input.forwardSourceSenderId.trim()
+        : null,
+    previewType:
+      input.previewType === 'attachment' || input.previewType === 'forwarded' || input.previewType === 'voice_note'
+        ? input.previewType
+        : 'text',
     createdAt,
     status: input.status ?? 'queued',
     attempts: 0,
