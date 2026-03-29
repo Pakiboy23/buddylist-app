@@ -72,7 +72,7 @@ import {
   withProfileSchemaDefaults,
   withProfileSchemaDefaultsList,
 } from '@/lib/profileSchema';
-import { hapticLight } from '@/lib/haptics';
+import { hapticLight, hapticWarning, hapticSelection } from '@/lib/haptics';
 import { initSoundSystem, playFallbackTone, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
 import { normalizeRoomKey, sameRoom } from '@/lib/roomName';
@@ -99,6 +99,7 @@ import {
   getPresenceLabel,
   resolvePresenceState,
 } from '@/lib/presence';
+import { generateClientRecoveryCode, RECOVERY_CODE_MIN_LENGTH } from '@/lib/recoveryCode';
 import {
   applyDmStateEvent,
   mapRowsToUnreadDirectMessages,
@@ -618,6 +619,15 @@ function formatAuditUserLabel(screenname: string | null, userId: string | null) 
   return 'System';
 }
 
+function buildAdminResetHandoff(screenname: string, ticket: string, expiresAt: string) {
+  return [
+    `Buddy List secure reset for ${screenname}`,
+    `Ticket: ${ticket}`,
+    `Expires: ${new Date(expiresAt).toLocaleString()}`,
+    'Open Buddy List, choose "Use reset ticket", then create a new password and recovery code.',
+  ].join('\n');
+}
+
 function BuddyListContent() {
   const [userId, setUserId] = useState<string | null>(null);
   const [screenname, setScreenname] = useState('Loading...');
@@ -691,6 +701,7 @@ function BuddyListContent() {
   const [recoveryCodeDraft, setRecoveryCodeDraft] = useState('');
   const [recoveryCodeConfirmDraft, setRecoveryCodeConfirmDraft] = useState('');
   const [recoverySetupError, setRecoverySetupError] = useState<string | null>(null);
+  const [recoverySetupFeedback, setRecoverySetupFeedback] = useState<string | null>(null);
   const [isSavingRecoveryCode, setIsSavingRecoveryCode] = useState(false);
 
   const [showAddWindow, setShowAddWindow] = useState(false);
@@ -718,6 +729,7 @@ function BuddyListContent() {
   const [isAdminResetOpen, setIsAdminResetOpen] = useState(false);
   const [adminResetScreenname, setAdminResetScreenname] = useState('');
   const [adminResetError, setAdminResetError] = useState<string | null>(null);
+  const [adminResetFeedback, setAdminResetFeedback] = useState<string | null>(null);
   const [isIssuingAdminReset, setIsIssuingAdminReset] = useState(false);
   const [issuedAdminTicket, setIssuedAdminTicket] = useState<{ ticket: string; expiresAt: string } | null>(null);
   const [confirmAdminResetAction, setConfirmAdminResetAction] = useState(false);
@@ -776,6 +788,8 @@ function BuddyListContent() {
   const attemptedBiometricUnlockRef = useRef(false);
   const quickPhotoInputRef = useRef<HTMLInputElement | null>(null);
   const awayMessageFieldRef = useRef<HTMLTextAreaElement | null>(null);
+  const recoveryCodeInputRef = useRef<HTMLInputElement | null>(null);
+  const adminResetInputRef = useRef<HTMLInputElement | null>(null);
   const playSound = useSoundPlayer();
   const { isDark, toggleDark } = useTheme();
   const router = useRouter();
@@ -828,6 +842,42 @@ function BuddyListContent() {
 
     return () => window.cancelAnimationFrame(frameId);
   }, [awayModalMode, showAwayModal]);
+
+  useEffect(() => {
+    if (!isRecoverySetupOpen || typeof window === 'undefined') {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      const field = recoveryCodeInputRef.current;
+      if (!field) {
+        return;
+      }
+
+      field.scrollIntoView({ block: 'center' });
+      field.focus();
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [isRecoverySetupOpen]);
+
+  useEffect(() => {
+    if (!isAdminResetOpen || typeof window === 'undefined') {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      const field = adminResetInputRef.current;
+      if (!field) {
+        return;
+      }
+
+      field.scrollIntoView({ block: 'center' });
+      field.focus();
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [isAdminResetOpen]);
 
   useEffect(() => {
     temporaryChatAllowedIdsRef.current = new Set(temporaryChatAllowedIds);
@@ -3476,6 +3526,11 @@ function BuddyListContent() {
           if (incomingMessage.preview_type === 'buzz') {
             document.body.classList.add('buzz-flash');
             setTimeout(() => document.body.classList.remove('buzz-flash'), 600);
+            void hapticWarning();
+            void playUiSound('/sounds/aim.mp3', { volume: 0.6 });
+          } else {
+            void hapticLight();
+            playFallbackTone();
           }
           return;
         }
@@ -3998,16 +4053,25 @@ function BuddyListContent() {
 
     if (!trimmed || !confirm) {
       setRecoverySetupError('Enter and confirm your recovery code.');
+      setRecoverySetupFeedback(null);
       return;
     }
 
     if (trimmed !== confirm) {
       setRecoverySetupError('Recovery code entries do not match.');
+      setRecoverySetupFeedback(null);
+      return;
+    }
+
+    if (trimmed.length < RECOVERY_CODE_MIN_LENGTH) {
+      setRecoverySetupError(`Recovery code must be at least ${RECOVERY_CODE_MIN_LENGTH} characters.`);
+      setRecoverySetupFeedback(null);
       return;
     }
 
     setIsSavingRecoveryCode(true);
     setRecoverySetupError(null);
+    setRecoverySetupFeedback(null);
 
     const accessToken = await getAccessToken();
     if (!accessToken) {
@@ -4044,6 +4108,20 @@ function BuddyListContent() {
     setRecoveryCodeConfirmDraft('');
     setIsRecoverySetupOpen(false);
     setIsSavingRecoveryCode(false);
+  };
+
+  const handleGenerateRecoveryCodeDraft = async () => {
+    const generated = generateClientRecoveryCode();
+    setRecoveryCodeDraft(generated);
+    setRecoveryCodeConfirmDraft(generated);
+    setRecoverySetupError(null);
+
+    try {
+      await navigator.clipboard.writeText(generated);
+      setRecoverySetupFeedback('Generated a secure recovery code and copied it to your clipboard.');
+    } catch {
+      setRecoverySetupFeedback('Generated a secure recovery code. Save it somewhere safe before you continue.');
+    }
   };
 
   const fetchAdminAuditEntries = async () => {
@@ -4087,6 +4165,7 @@ function BuddyListContent() {
   const openAdminResetWindow = () => {
     setAdminResetScreenname('');
     setAdminResetError(null);
+    setAdminResetFeedback(null);
     setIssuedAdminTicket(null);
     setConfirmAdminResetAction(false);
     setAdminAuditEntries([]);
@@ -4099,16 +4178,19 @@ function BuddyListContent() {
     event.preventDefault();
     if (!confirmAdminResetAction) {
       setAdminResetError('Confirm this admin action before issuing a reset ticket.');
+      setAdminResetFeedback(null);
       return;
     }
     const target = adminResetScreenname.trim();
     if (!target) {
       setAdminResetError('Enter a screen name.');
+      setAdminResetFeedback(null);
       return;
     }
 
     setIsIssuingAdminReset(true);
     setAdminResetError(null);
+    setAdminResetFeedback(null);
     setIssuedAdminTicket(null);
 
     const accessToken = await getAccessToken();
@@ -4147,8 +4229,30 @@ function BuddyListContent() {
       ticket: payload.ticket,
       expiresAt: payload.expiresAt,
     });
+    setAdminResetFeedback(`Secure handoff ready for ${target}.`);
     setIsIssuingAdminReset(false);
     void fetchAdminAuditEntries();
+  };
+
+  const handleCopyAdminResetValue = async (mode: 'ticket' | 'handoff') => {
+    if (!issuedAdminTicket) {
+      return;
+    }
+
+    const target = adminResetScreenname.trim() || 'this member';
+    const value =
+      mode === 'ticket'
+        ? issuedAdminTicket.ticket
+        : buildAdminResetHandoff(target, issuedAdminTicket.ticket, issuedAdminTicket.expiresAt);
+
+    try {
+      await navigator.clipboard.writeText(value);
+      setAdminResetError(null);
+      setAdminResetFeedback(mode === 'ticket' ? 'Reset ticket copied.' : 'Secure handoff instructions copied.');
+    } catch {
+      setAdminResetFeedback(null);
+      setAdminResetError('Could not copy automatically. Please copy it manually.');
+    }
   };
 
   const handleSearch = async (event: FormEvent<HTMLFormElement>) => {
@@ -4825,6 +4929,7 @@ function BuddyListContent() {
   }, [loadSingleUserProfile, openChatWindowForId, requestedDirectMessageUserId, requestedRoomName, userId]);
 
   const openAddWindow = () => {
+    void hapticSelection();
     setSearchTerm('');
     setSearchResults([]);
     setSearchError(null);
@@ -4833,6 +4938,7 @@ function BuddyListContent() {
   };
 
   const openRoomsWindow = () => {
+    void hapticSelection();
     setRoomNameDraft(activeRoom?.name ?? '');
     setRoomJoinError(null);
     setShowRoomsWindow(true);
@@ -5107,6 +5213,7 @@ function BuddyListContent() {
     'ui-focus-ring ui-button-primary ui-button-compact disabled:opacity-60';
 
   const handleOpenImFromActionBar = () => {
+    void hapticSelection();
     const fallbackBuddyId =
       (selectedBuddyId && acceptedBuddies.some((buddy) => buddy.id === selectedBuddyId)
         ? selectedBuddyId
@@ -5122,6 +5229,7 @@ function BuddyListContent() {
   };
 
   const handleSetupAction = () => {
+    void hapticSelection();
     setIsHeaderMenuOpen(false);
     openAwayModal();
   };
@@ -5204,7 +5312,7 @@ function BuddyListContent() {
                     onClick={openAdminResetWindow}
                     className="ui-focus-ring ui-popover-item mt-0.5"
                   >
-                    Admin Reset
+                    Reset Access
                   </button>
                 ) : null}
               </div>
@@ -5719,8 +5827,18 @@ function BuddyListContent() {
                 className="ui-focus-ring ui-tabbar-button"
                 data-active={activeTab === 'im' ? 'true' : 'false'}
               >
-                <span className="ui-tabbar-icon">
+                <span className="ui-tabbar-icon relative">
                   <BuddyListTabIcon kind="im" className="h-5 w-5 text-current" />
+                  {(() => {
+                    const totalUnread = Object.values(unreadDirectMessages).reduce((sum, n) => sum + n, 0);
+                    if (totalUnread <= 0) return null;
+                    const label = totalUnread > 99 ? '99+' : String(totalUnread);
+                    return (
+                      <span className="absolute -right-2.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold leading-none text-white shadow-sm">
+                        {label}
+                      </span>
+                    );
+                  })()}
                 </span>
                 <span className="ui-tabbar-label">IM</span>
               </button>
@@ -5766,25 +5884,43 @@ function BuddyListContent() {
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-[1px]">
           <div className="w-full max-w-md">
             <div className={xpModalFrameClass}>
-              <div className={`${xpModalHeaderClass} mb-2`}>Set Recovery Code</div>
+              <div className={`${xpModalHeaderClass} mb-2`}>Finish Account Protection</div>
               <form onSubmit={handleSaveRecoveryCode} className={xpModalBodyClass}>
-                <p className="ui-note-warning">
-                  Set a recovery code before continuing. Keep it somewhere safe because you will need it if you ever
-                  forget your password.
-                </p>
+                <div className="ui-note-warning">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold">Choose your private recovery code</p>
+                      <p className="mt-1">
+                        Keep it somewhere safe. You will need it if you ever forget your password.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void handleGenerateRecoveryCodeDraft()}
+                      disabled={isSavingRecoveryCode}
+                      className="ui-focus-ring ui-button-secondary ui-button-compact shrink-0"
+                    >
+                      Generate
+                    </button>
+                  </div>
+                </div>
 
                 <div>
                   <label htmlFor="recovery-code-input" className="mb-1 block text-[12px] font-semibold text-slate-700">
                     Recovery code
                   </label>
                   <input
+                    ref={recoveryCodeInputRef}
                     id="recovery-code-input"
                     value={recoveryCodeDraft}
                     onChange={(event) => setRecoveryCodeDraft(event.target.value)}
                     className={xpModalInputClass}
                     placeholder="MY-SECRET-CODE-2026"
-                    minLength={8}
+                    minLength={RECOVERY_CODE_MIN_LENGTH}
                     disabled={isSavingRecoveryCode}
+                    autoCapitalize="characters"
+                    autoCorrect="off"
+                    spellCheck={false}
                   />
                 </div>
 
@@ -5801,10 +5937,17 @@ function BuddyListContent() {
                     onChange={(event) => setRecoveryCodeConfirmDraft(event.target.value)}
                     className={xpModalInputClass}
                     placeholder="Repeat your code"
-                    minLength={8}
+                    minLength={RECOVERY_CODE_MIN_LENGTH}
                     disabled={isSavingRecoveryCode}
+                    autoCapitalize="characters"
+                    autoCorrect="off"
+                    spellCheck={false}
                   />
                 </div>
+
+                {recoverySetupFeedback && (
+                  <p className="ui-note-success">{recoverySetupFeedback}</p>
+                )}
 
                 {recoverySetupError && (
                   <p className="ui-note-error">{recoverySetupError}</p>
@@ -5836,17 +5979,28 @@ function BuddyListContent() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-[1px]">
           <div className="w-full max-w-md">
             <div className={xpModalFrameClass}>
-              <div className={`${xpModalHeaderClass} mb-2`}>Admin Password Reset</div>
+              <div className={`${xpModalHeaderClass} mb-2`}>Reset Account Access</div>
               <form onSubmit={handleIssueAdminResetTicket} className={xpModalBodyClass}>
-                <div className="ui-note-error">
-                  <p className="font-bold uppercase tracking-wide">Admin Tools</p>
-                  <p className="mt-1">Issue a one-time password reset ticket for out-of-band delivery.</p>
+                <div className="ui-note-info">
+                  <div className="flex items-start gap-3">
+                    <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-500/12 text-blue-700 dark:bg-blue-400/16 dark:text-blue-200">
+                      <AppIcon kind="shield" className="h-4 w-4" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="font-bold uppercase tracking-wide">Recovery Concierge</p>
+                      <p className="mt-1">
+                        Issue a one-time handoff ticket for members who missed recovery setup or need assisted access.
+                        Older unused tickets are revoked automatically.
+                      </p>
+                    </div>
+                  </div>
                 </div>
                 <div>
                   <label htmlFor="admin-reset-screenname" className="mb-1 block text-[12px] font-semibold text-slate-700">
-                    Target screen name
+                    Member screen name
                   </label>
                   <input
+                    ref={adminResetInputRef}
                     id="admin-reset-screenname"
                     value={adminResetScreenname}
                     onChange={(event) => setAdminResetScreenname(event.target.value)}
@@ -5864,29 +6018,44 @@ function BuddyListContent() {
                     disabled={isIssuingAdminReset}
                     className="mt-[1px] h-3.5 w-3.5 accent-amber-700"
                   />
-                  <span>I confirm this is an authorized reset request and the ticket will be shared securely.</span>
+                  <span>I verified this request and will deliver the reset handoff through a trusted channel.</span>
                 </label>
+
+                {adminResetFeedback && (
+                  <p className="ui-note-success">{adminResetFeedback}</p>
+                )}
 
                 {adminResetError && (
                   <p className="ui-note-error">{adminResetError}</p>
                 )}
 
                 {issuedAdminTicket && (
-                  <div className="ui-note-warning">
-                    <p className="font-bold">One-time ticket (share securely):</p>
+                  <div className="ui-note-success">
+                    <p className="font-bold">Secure reset ready</p>
+                    <p className="mt-1">
+                      Share this with <span className="font-semibold">{adminResetScreenname.trim() || 'the member'}</span>.
+                      They will choose a fresh password and recovery code after redemption.
+                    </p>
                     <p className="mt-1 break-all font-mono text-[13px] font-bold">{issuedAdminTicket.ticket}</p>
                     <p className="mt-1 text-[11px]">
                       Expires: {new Date(issuedAdminTicket.expiresAt).toLocaleString()}
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void navigator.clipboard.writeText(issuedAdminTicket.ticket);
-                      }}
-                      className="ui-focus-ring ui-button-secondary ui-button-compact mt-2"
-                    >
-                      Copy Ticket
-                    </button>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handleCopyAdminResetValue('ticket')}
+                        className="ui-focus-ring ui-button-secondary ui-button-compact"
+                      >
+                        Copy Ticket
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleCopyAdminResetValue('handoff')}
+                        className="ui-focus-ring ui-button-secondary ui-button-compact"
+                      >
+                        Copy Secure Handoff
+                      </button>
+                    </div>
                   </div>
                 )}
 

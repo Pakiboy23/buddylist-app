@@ -3,6 +3,7 @@ import {
   insertPasswordRecoveryAudit,
   upsertRecoveryCodeForUser,
 } from '@/lib/passwordRecovery';
+import { RECOVERY_CODE_MIN_LENGTH } from '@/lib/recoveryCode';
 import { createSupabaseAdminClient, getRequestUser } from '@/lib/supabaseServer';
 
 export const runtime = 'nodejs';
@@ -25,8 +26,11 @@ export async function POST(request: Request) {
   }
 
   const recoveryCode = typeof body.recoveryCode === 'string' ? body.recoveryCode.trim() : '';
-  if (recoveryCode.length < 8) {
-    return NextResponse.json({ error: 'Recovery code must be at least 8 characters.' }, { status: 400 });
+  if (recoveryCode.length < RECOVERY_CODE_MIN_LENGTH) {
+    return NextResponse.json(
+      { error: `Recovery code must be at least ${RECOVERY_CODE_MIN_LENGTH} characters.` },
+      { status: 400 },
+    );
   }
 
   try {

@@ -7,6 +7,7 @@ import RetroWindow from '@/components/RetroWindow';
 import { waitForSessionOrNull } from '@/lib/authClient';
 import { getAppApiUrl } from '@/lib/appApi';
 import { navigateAppPath } from '@/lib/appNavigation';
+import { generateClientRecoveryCode, RECOVERY_CODE_MIN_LENGTH } from '@/lib/recoveryCode';
 import { initSoundSystem, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
 
@@ -34,6 +35,8 @@ export default function Home() {
   const isHydrated = useSyncExternalStore(subscribeToHydration, () => true, () => false);
   const [authView, setAuthView] = useState<AuthView>('sign-on');
   const [recoveryCode, setRecoveryCode] = useState('');
+  const [signUpRecoveryCode, setSignUpRecoveryCode] = useState('');
+  const [signUpRecoveryCodeConfirm, setSignUpRecoveryCodeConfirm] = useState('');
   const [resetTicket, setResetTicket] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
@@ -41,6 +44,7 @@ export default function Home() {
   const [statusMsg, setStatusMsg] = useState('Welcome back. Enter your screen name and password.');
   const [isLoading, setIsLoading] = useState(false);
   const hasNavigatedRef = useRef(false);
+  const isCompletingSignUpProtectionRef = useRef(false);
   const router = useRouter();
   const controlsDisabled = isLoading || !isHydrated;
 
@@ -99,6 +103,10 @@ export default function Home() {
         return;
       }
 
+      if (isCompletingSignUpProtectionRef.current) {
+        return;
+      }
+
       void routeToBuddyList(true);
     });
 
@@ -119,7 +127,11 @@ export default function Home() {
       return;
     }
 
-    setStatusMsg(signUpMode ? 'Choose a screen name and password to create your account.' : 'Welcome back. Enter your screen name and password.');
+    setStatusMsg(
+      signUpMode
+        ? 'Choose a screen name, password, and secret recovery code to create your account.'
+        : 'Welcome back. Enter your screen name and password.',
+    );
   };
 
   const switchAuthView = (nextView: AuthView) => {
@@ -138,6 +150,11 @@ export default function Home() {
     setConfirmNewPassword('');
   };
 
+  const resetSignUpRecoveryFields = () => {
+    setSignUpRecoveryCode('');
+    setSignUpRecoveryCodeConfirm('');
+  };
+
   const openSignUp = () => {
     setAuthView('sign-on');
     setIsSignUp(true);
@@ -149,6 +166,7 @@ export default function Home() {
     setAuthView('sign-on');
     setIsSignUp(false);
     setRotatedRecoveryCode(null);
+    resetSignUpRecoveryFields();
     applyViewStatusMessage('sign-on', false);
   };
 
@@ -166,6 +184,53 @@ export default function Home() {
     }
   };
 
+  const saveRecoveryCodeWithToken = async (accessToken: string, recoverySecret: string) => {
+    const response = await fetch(getAppApiUrl('/api/auth/recovery/setup'), {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ recoveryCode: recoverySecret }),
+    });
+
+    if (!response.ok) {
+      throw new Error(await readApiError(response));
+    }
+  };
+
+  const validateSignUpRecoveryCode = () => {
+    const trimmed = signUpRecoveryCode.trim();
+    const confirm = signUpRecoveryCodeConfirm.trim();
+
+    if (!trimmed || !confirm) {
+      return 'Create and confirm your secret recovery code.';
+    }
+
+    if (trimmed !== confirm) {
+      return 'Recovery code entries do not match.';
+    }
+
+    if (trimmed.length < RECOVERY_CODE_MIN_LENGTH) {
+      return `Recovery code must be at least ${RECOVERY_CODE_MIN_LENGTH} characters.`;
+    }
+
+    return null;
+  };
+
+  const handleGenerateSignUpRecoveryCode = async () => {
+    const generated = generateClientRecoveryCode();
+    setSignUpRecoveryCode(generated);
+    setSignUpRecoveryCodeConfirm(generated);
+
+    try {
+      await navigator.clipboard.writeText(generated);
+      setStatusMsg('Secure recovery code generated and copied. Save it somewhere safe.');
+    } catch {
+      setStatusMsg('Secure recovery code generated. Save it somewhere safe.');
+    }
+  };
+
   const handleSignOn = async () => {
     const trimmedScreenname = screenname.trim();
     if (!trimmedScreenname || !password) {
@@ -173,11 +238,20 @@ export default function Home() {
       return;
     }
 
+    if (isSignUp) {
+      const recoveryValidationError = validateSignUpRecoveryCode();
+      if (recoveryValidationError) {
+        setStatusMsg(recoveryValidationError);
+        return;
+      }
+    }
+
     const authEmail = getAuthEmail();
     setIsLoading(true);
     setStatusMsg(isSignUp ? 'Creating account...' : 'Dialing in...');
 
     if (isSignUp) {
+      isCompletingSignUpProtectionRef.current = true;
       const { data, error } = await supabase.auth.signUp({
         email: authEmail,
         password,
@@ -190,15 +264,34 @@ export default function Home() {
 
       if (error) {
         setStatusMsg(`Connection failed: ${error.message}`);
+        isCompletingSignUpProtectionRef.current = false;
         setIsLoading(false);
         return;
       }
 
       if (data.session) {
-        setStatusMsg('Account created. Signing you on...');
+        setStatusMsg('Account created. Securing your account...');
+        try {
+          await saveRecoveryCodeWithToken(data.session.access_token, signUpRecoveryCode.trim());
+        } catch (error) {
+          await supabase.auth.signOut();
+          isCompletingSignUpProtectionRef.current = false;
+          setIsSignUp(false);
+          setPassword('');
+          setStatusMsg(
+            `Account created, but protection setup needs one more try: ${error instanceof Error ? error.message : 'Save failed.'}`,
+          );
+          setIsLoading(false);
+          return;
+        }
+
+        resetSignUpRecoveryFields();
+        isCompletingSignUpProtectionRef.current = false;
+        setStatusMsg('Account created. Opening your Buddy List...');
         await routeToBuddyList(true);
       } else {
-        setStatusMsg('Account created. Check your email to confirm, then sign on.');
+        isCompletingSignUpProtectionRef.current = false;
+        setStatusMsg('Account created. Check your email to confirm, then sign in to finish account protection.');
       }
 
       setIsLoading(false);
@@ -372,7 +465,7 @@ export default function Home() {
       : authView === 'redeem-ticket'
         ? 'Use an admin-issued ticket to get back in.'
         : isSignUp
-          ? 'Create your screen name and start chatting.'
+          ? 'Create your screen name, password, and private recovery code.'
           : 'Sign in with your screen name and password.';
   const baselineStatusMsg =
     authView === 'forgot-password'
@@ -380,7 +473,7 @@ export default function Home() {
       : authView === 'redeem-ticket'
         ? 'Use your admin ticket to set a fresh password.'
         : isSignUp
-          ? 'Choose a screen name and password to create your account.'
+          ? 'Choose a screen name, password, and secret recovery code to create your account.'
           : 'Welcome back. Enter your screen name and password.';
   const statusClass = normalizedStatusMsg.includes('failed') || normalizedStatusMsg.includes('invalid') || normalizedStatusMsg.includes('please')
     ? 'border-rose-200/80 bg-rose-50/90 text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200'
@@ -493,6 +586,71 @@ export default function Home() {
                       disabled={isLoading}
                       autoComplete={isSignUp ? 'new-password' : 'current-password'}
                     />
+                  </div>
+                )}
+
+                {isSignOnView && isSignUp && (
+                  <div className="rounded-[1.55rem] border border-blue-100 bg-blue-50/70 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:border-slate-700 dark:bg-slate-950/45">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-700/80 dark:text-blue-300/80">
+                          Account Protection
+                        </p>
+                        <p className="mt-2 text-[13px] leading-5 text-slate-600 dark:text-slate-300">
+                          Create a secret recovery code now so you can reset your password later without admin help.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void handleGenerateSignUpRecoveryCode()}
+                        disabled={controlsDisabled}
+                        className="ui-focus-ring inline-flex min-h-[38px] shrink-0 items-center rounded-full border border-blue-200 bg-white/90 px-3 text-[12px] font-semibold text-blue-700 transition hover:bg-white disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900/70 dark:text-blue-200 dark:hover:bg-slate-900"
+                      >
+                        Generate
+                      </button>
+                    </div>
+
+                    <div className="mt-4 space-y-4">
+                      <div>
+                        <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                          Secret recovery code
+                        </label>
+                        <input
+                          type="text"
+                          value={signUpRecoveryCode}
+                          onChange={(event) => setSignUpRecoveryCode(event.target.value)}
+                          className={fieldClass}
+                          placeholder="MY-PRIVATE-CODE-2026"
+                          disabled={isLoading}
+                          autoCapitalize="characters"
+                          autoCorrect="off"
+                          spellCheck={false}
+                          minLength={RECOVERY_CODE_MIN_LENGTH}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                          Confirm recovery code
+                        </label>
+                        <input
+                          type="text"
+                          value={signUpRecoveryCodeConfirm}
+                          onChange={(event) => setSignUpRecoveryCodeConfirm(event.target.value)}
+                          className={fieldClass}
+                          placeholder="Repeat your code"
+                          disabled={isLoading}
+                          autoCapitalize="characters"
+                          autoCorrect="off"
+                          spellCheck={false}
+                          minLength={RECOVERY_CODE_MIN_LENGTH}
+                        />
+                      </div>
+                    </div>
+
+                    <p className="mt-3 text-[12px] leading-5 text-slate-500 dark:text-slate-400">
+                      Only a secure hash is stored. If you generate one here, copy it somewhere safe before continuing.
+                    </p>
                   </div>
                 )}
 

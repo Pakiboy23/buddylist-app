@@ -1,5 +1,6 @@
 import { randomBytes, scryptSync, timingSafeEqual, createHash } from 'crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { formatRecoveryCodeFromBytes } from '@/lib/recoveryCode';
 
 export const PASSWORD_RESET_MAX_ATTEMPTS = 5;
 export const PASSWORD_RESET_WINDOW_MINUTES = 15;
@@ -60,8 +61,7 @@ function verifySecret(secret: string, salt: string, expectedHash: string) {
 }
 
 export function generateRecoveryCode() {
-  const raw = randomBytes(12).toString('hex').toUpperCase();
-  return raw.match(/.{1,6}/g)?.join('-') ?? raw;
+  return formatRecoveryCodeFromBytes(randomBytes(12));
 }
 
 export function generateAdminResetTicket() {
