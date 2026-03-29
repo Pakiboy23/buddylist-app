@@ -1,6 +1,8 @@
 interface AppIconProps {
   kind:
     | 'attachment'
+    | 'bolt'
+    | 'buddy'
     | 'chat'
     | 'chevron'
     | 'close'
@@ -13,6 +15,7 @@ interface AppIconProps {
     | 'menu'
     | 'mic'
     | 'moon'
+    | 'search'
     | 'shield'
     | 'smile'
     | 'sparkle';
@@ -34,6 +37,40 @@ export default function AppIcon({ kind, className = 'h-5 w-5' }: AppIconProps) {
           className={className}
         >
           <path d="M8.5 12.5 14 7a3 3 0 1 1 4.25 4.25L10 19.5a5 5 0 0 1-7-7l8-8" />
+        </svg>
+      );
+    case 'bolt':
+      return (
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={className}
+        >
+          <path d="M13 2 4.5 13H12l-1 9L19.5 11H12z" />
+        </svg>
+      );
+    case 'buddy':
+      return (
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={className}
+        >
+          <circle cx="12" cy="6.5" r="3" />
+          <path d="M9 12.5 7 20" />
+          <path d="M15 12.5 17 20" />
+          <path d="M8 12.5c1-.8 2.5-1.2 4-1.2s3 .4 4 1.2" />
+          <path d="M10.5 16h3" />
         </svg>
       );
     case 'chat':
@@ -245,6 +282,22 @@ export default function AppIcon({ kind, className = 'h-5 w-5' }: AppIconProps) {
           <path d="M9 10h.01" />
           <path d="M15 10h.01" />
           <path d="M8.5 14c.9 1.2 2 1.8 3.5 1.8s2.6-.6 3.5-1.8" />
+        </svg>
+      );
+    case 'search':
+      return (
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={className}
+        >
+          <circle cx="10.5" cy="10.5" r="6" />
+          <path d="m15 15 5.5 5.5" />
         </svg>
       );
     case 'shield':

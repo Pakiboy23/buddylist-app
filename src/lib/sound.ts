@@ -185,6 +185,31 @@ export async function playUiSound(src: string, options: PlaySoundOptions = {}) {
   }
 }
 
+export function playMessageSendSound() {
+  const audioContext = getAudioContext();
+  if (!audioContext) {
+    return;
+  }
+
+  void resumeAudioContext();
+
+  const oscillator = audioContext.createOscillator();
+  const gainNode = audioContext.createGain();
+
+  oscillator.type = 'sine';
+  oscillator.frequency.setValueAtTime(880, audioContext.currentTime);
+  oscillator.frequency.exponentialRampToValueAtTime(1760, audioContext.currentTime + 0.06);
+
+  gainNode.gain.setValueAtTime(0.04, audioContext.currentTime);
+  gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.08);
+
+  oscillator.connect(gainNode);
+  gainNode.connect(audioContext.destination);
+
+  oscillator.start();
+  oscillator.stop(audioContext.currentTime + 0.09);
+}
+
 export function playFallbackTone() {
   const audioContext = getAudioContext();
   if (!audioContext) {

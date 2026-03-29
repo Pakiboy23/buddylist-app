@@ -90,7 +90,7 @@ export default function ProfileAvatar({
   return (
     <div className={`relative shrink-0 ${className}`}>
       <div
-        className={`flex ${sizeClasses.avatar} items-center justify-center overflow-hidden rounded-full font-bold ring-2 ring-offset-1 ring-offset-transparent ${getPresenceRingClass(presenceState)} ${getFallbackToneClasses(tone)}`}
+        className={`flex ${sizeClasses.avatar} items-center justify-center overflow-hidden rounded-full font-bold ring-2 ring-offset-1 ring-offset-transparent ${getPresenceRingClass(presenceState)} ${presenceState === 'available' ? 'presence-ring-available' : ''} ${getFallbackToneClasses(tone)}`}
       >
         {visibleIconUrl ? (
           // Remote buddy icons may come from arbitrary user-provided URLs.

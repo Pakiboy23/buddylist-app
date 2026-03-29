@@ -26,6 +26,7 @@ import {
   sanitizeRichTextHtml,
 } from '@/lib/richText';
 import { hapticLight, hapticSuccess, hapticWarning } from '@/lib/haptics';
+import { playMessageSendSound, playUiSound } from '@/lib/sound';
 import { useKeyboardViewport } from '@/hooks/useKeyboardViewport';
 import { useSwipeBack } from '@/hooks/useSwipeBack';
 import type { ResolvedPresenceState } from '@/lib/presence';
@@ -59,7 +60,7 @@ export interface ChatComposeSubmitPayload {
   content: string;
   attachments?: File[];
   replyToMessageId?: number | null;
-  previewType?: 'text' | 'attachment' | 'forwarded' | 'voice_note';
+  previewType?: 'text' | 'attachment' | 'forwarded' | 'voice_note' | 'buzz';
 }
 
 interface ChatWindowProps {
@@ -93,8 +94,10 @@ interface ChatWindowProps {
   onClose: () => void;
   onSignOff?: () => void;
   onOpenProfile?: () => void;
+  onChangeTheme?: (themeKey: string | null) => void;
   isSending?: boolean;
   isLoading?: boolean;
+  themeKey?: string | null;
 }
 
 interface MessageReactionRow {
@@ -138,6 +141,17 @@ function getSupportedVoiceNoteMimeType() {
   }
 
   return VOICE_NOTE_MIME_CANDIDATES.find((mimeType) => MediaRecorder.isTypeSupported(mimeType)) ?? '';
+}
+
+function formatRelativeTime(isoString: string): string {
+  const diff = Date.now() - new Date(isoString).getTime();
+  const seconds = Math.floor(diff / 1000);
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
 function getVoiceNoteExtension(mimeType: string) {
@@ -205,9 +219,13 @@ export default function ChatWindow({
   onClose,
   onSignOff,
   onOpenProfile,
+  onChangeTheme,
   isSending = false,
   isLoading = false,
+  themeKey = null,
 }: ChatWindowProps) {
+  const [isClosing, setIsClosing] = useState(false);
+  const [relativeTimeTick, setRelativeTimeTick] = useState(0);
   const [draft, setDraft] = useState(initialDraft);
   const [format, setFormat] = useState<RichTextFormat>(() => loadStoredRichTextFormat());
   const [showFormatting, setShowFormatting] = useState(false);
@@ -249,7 +267,6 @@ export default function ChatWindow({
   const messagesLogId = useId();
   const composerInputId = useId();
   const composerHelpId = useId();
-  const swipeBack = useSwipeBack({ onSwipeBack: onClose });
   const { isKeyboardOpen, viewportHeight } = useKeyboardViewport();
   const hasCustomFormatting = !isDefaultRichTextFormat(format);
   const composerTextStyle: CSSProperties = {
@@ -276,6 +293,20 @@ export default function ChatWindow({
   useEffect(() => {
     composerRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setRelativeTimeTick((previous) => previous + 1);
+    }, 60_000);
+    return () => clearInterval(intervalId);
+  }, []);
+
+  const handleClose = useCallback(() => {
+    setIsClosing(true);
+    setTimeout(() => onClose(), 190);
+  }, [onClose]);
+
+  const swipeBack = useSwipeBack({ onSwipeBack: handleClose });
 
   useEffect(() => {
     if (!messages.some((message) => Boolean(message.expires_at))) {
@@ -814,6 +845,7 @@ export default function ChatWindow({
       setAttachmentError(null);
       setVoiceNoteError(null);
       void hapticSuccess();
+      playMessageSendSound();
     } catch {
       void hapticWarning();
     }
@@ -1087,10 +1119,11 @@ export default function ChatWindow({
 
   return (
     <div
-      className="fixed inset-0 z-40 chat-slide-in"
+      className={`fixed inset-0 z-40 ${isClosing ? 'chat-slide-out' : 'chat-slide-in'}`}
       role="dialog"
       aria-modal="true"
       aria-label={`Chat with ${buddyScreenname}`}
+      data-chat-theme={themeKey ?? undefined}
       {...swipeBack}
     >
       <RetroWindow
@@ -1129,7 +1162,7 @@ export default function ChatWindow({
             </button>
           </>
         }
-        onXpClose={onClose}
+        onXpClose={handleClose}
         onXpSignOff={onSignOff}
         style={chatShellStyle}
       >
@@ -1177,6 +1210,42 @@ export default function ChatWindow({
               </div>
             </div>
           </button>
+
+          {/* Away message strip */}
+          {buddyPresenceState === 'away' && buddyStatusLine ? (
+            <div className="mx-3 mt-1.5 flex items-center gap-2 rounded-xl border border-amber-200/70 bg-amber-50/90 px-3 py-1.5 dark:border-amber-800/40 dark:bg-amber-950/30">
+              <AppIcon kind="moon" className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+              <p className="truncate text-[length:var(--ui-text-xs)] font-medium text-amber-800 dark:text-amber-300">
+                {buddyStatusLine}
+              </p>
+            </div>
+          ) : null}
+
+          {/* Theme picker */}
+          {onChangeTheme ? (
+            <div className="mx-3 mt-1.5 flex items-center gap-2 px-1">
+              <span className="text-[10px] font-semibold tracking-wide text-slate-400 uppercase">Theme</span>
+              <div className="flex items-center gap-1.5">
+                {([
+                  { key: null, color: 'bg-blue-500' },
+                  { key: 'rose', color: 'bg-rose-500' },
+                  { key: 'violet', color: 'bg-violet-500' },
+                  { key: 'emerald', color: 'bg-emerald-500' },
+                  { key: 'amber', color: 'bg-amber-500' },
+                  { key: 'sky', color: 'bg-sky-500' },
+                ] as const).map((t) => (
+                  <button
+                    key={t.key ?? 'default'}
+                    type="button"
+                    onClick={() => onChangeTheme(t.key)}
+                    className={`ui-focus-ring h-5 w-5 rounded-full ${t.color} transition-transform hover:scale-110 ${themeKey === t.key ? 'ring-2 ring-white ring-offset-1 ring-offset-slate-300 scale-110' : 'opacity-70'}`}
+                    title={t.key ?? 'Default'}
+                    aria-pressed={themeKey === t.key}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           {/* Search bar */}
           <div className="ui-search-surface mx-3 mt-1.5 rounded-2xl px-3 py-1.5">
@@ -1276,7 +1345,7 @@ export default function ChatWindow({
             aria-relevant="additions text"
             aria-busy={isLoading}
             aria-label={`Conversation with ${buddyScreenname}`}
-            className="ui-chat-log mx-3 mt-1.5 min-h-0 flex-1 overflow-y-auto rounded-2xl px-3 py-3"
+            className="ui-chat-log ui-chat-wallpaper mx-3 mt-1.5 min-h-0 flex-1 overflow-y-auto rounded-2xl px-3 py-3"
             style={messagesAreaStyle}
           >
             {isLoading && (
@@ -1335,7 +1404,8 @@ export default function ChatWindow({
                   const prevTime = prevMessage ? new Date(prevMessage.created_at).getTime() : 0;
                   const currTime = timestampDate.getTime();
                   const showTimeDivider = !prevMessage || currTime - prevTime > 5 * 60 * 1000;
-                  const timestamp = timestampDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                  void relativeTimeTick;
+                  const timestamp = formatRelativeTime(message.created_at);
                   // Tail rounding: last in a run from same sender gets the pointed corner
                   const nextMessage = index < visibleMessages.length - 1 ? visibleMessages[index + 1] : null;
                   const isLastInRun = !nextMessage || nextMessage.sender_id !== message.sender_id;
@@ -1379,7 +1449,15 @@ export default function ChatWindow({
                             }
                           }}
                         >
+                          {/* Buzz message — special render */}
+                          {message.preview_type === 'buzz' && !isDeleted ? (
+                            <div className="buzz-shake my-2 flex items-center justify-center gap-2 rounded-2xl border border-amber-300/60 bg-amber-50/80 px-4 py-2.5 text-[length:var(--ui-text-sm)] font-semibold text-amber-700 dark:border-amber-700/40 dark:bg-amber-950/30 dark:text-amber-400">
+                              <AppIcon kind="bolt" className="h-4 w-4" />
+                              <span>{isMine ? 'You buzzed' : `${buddyScreenname} buzzed you`}<span className="ml-1 font-normal text-amber-500">!</span></span>
+                            </div>
+                          ) : null}
                           {/* Bubble */}
+                          {message.preview_type !== 'buzz' ? (
                           <div
                             className={`relative msg-enter px-3 py-2 ${
                               hasCustomStyling
@@ -1390,10 +1468,11 @@ export default function ChatWindow({
                             } ${
                               isMine
                                 ? hasCustomStyling
-                                  ? `rounded-2xl border border-blue-200/80 bg-white/96 text-slate-900 shadow-[0_10px_24px_rgba(37,99,235,0.16)] ${isLastInRun ? 'rounded-br-[8px]' : ''}`
-                                  : `rounded-2xl bg-blue-500 text-white shadow-[0_2px_8px_rgba(37,99,235,0.28)] ${isLastInRun ? 'rounded-br-[6px]' : ''}`
-                                : `rounded-2xl border border-white/70 bg-white/85 text-slate-800 shadow-sm backdrop-blur-sm ${isLastInRun ? 'rounded-bl-[6px]' : ''}`
+                                  ? `rounded-2xl border border-blue-200/80 bg-white/96 text-slate-900 shadow-[0_10px_24px_rgba(37,99,235,0.16)] ${isLastInRun ? 'rounded-br-[8px] bubble-tail-out' : ''}`
+                                  : `rounded-2xl text-white shadow-[0_2px_8px_rgba(37,99,235,0.28)] ${isLastInRun ? 'rounded-br-[6px] bubble-tail-out' : ''}`
+                                : `rounded-2xl border border-white/70 bg-white/85 text-slate-800 shadow-sm backdrop-blur-sm ${isLastInRun ? 'rounded-bl-[6px] bubble-tail-in' : ''}`
                             } ${isMatch ? 'ring-2 ring-amber-400' : ''} ${!isDeleted && !isEditing ? 'ui-focus-ring' : ''}`}
+                            style={isMine && !hasCustomStyling ? { background: 'var(--chat-accent, #3b82f6)' } : undefined}
                           >
                             {isEditing ? (
                               <div className="flex min-w-[200px] flex-col gap-2">
@@ -1472,6 +1551,7 @@ export default function ChatWindow({
                               }`}>(edited)</span>
                             ) : null}
                           </div>
+                          ) : null}
 
                           {/* Action bar — hover (desktop) + long-press (mobile) */}
                           {!isDeleted && !isEditing ? (
@@ -1575,10 +1655,25 @@ export default function ChatWindow({
                               )}
                             </div>
                           ) : null}
-                          {latestOutgoingMessageId === message.id && isMine && !isEditing && !isDeleted ? (
-                            <p className="mt-1 text-right text-[length:var(--ui-text-2xs)] text-slate-400">
-                              {formatDeliveryStatus(message).label}
-                              {formatDeliveryStatus(message).detail ? ` · ${formatDeliveryStatus(message).detail}` : ''}
+                          {latestOutgoingMessageId === message.id && isMine && !isEditing && !isDeleted && message.preview_type !== 'buzz' ? (
+                            <p className="mt-1 flex items-center justify-end gap-1 text-right text-[length:var(--ui-text-2xs)] text-slate-400">
+                              {message.read_at ? (
+                                <svg width="14" height="8" viewBox="0 0 14 8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-blue-400" aria-hidden="true">
+                                  <path d="M1 4l3 3L10 1" /><path d="M5 4l3 3 5-6" />
+                                </svg>
+                              ) : message.delivered_at ? (
+                                <svg width="14" height="8" viewBox="0 0 14 8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400" aria-hidden="true">
+                                  <path d="M1 4l3 3L10 1" /><path d="M5 4l3 3 5-6" />
+                                </svg>
+                              ) : (
+                                <svg width="10" height="8" viewBox="0 0 10 8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300" aria-hidden="true">
+                                  <path d="M1 4l3 3 5-6" />
+                                </svg>
+                              )}
+                              <span>
+                                {formatDeliveryStatus(message).label}
+                                {formatDeliveryStatus(message).detail ? ` · ${formatDeliveryStatus(message).detail}` : ''}
+                              </span>
                             </p>
                           ) : null}
                         </div>
@@ -1678,15 +1773,24 @@ export default function ChatWindow({
             </p>
           ) : null}
 
-          {/* Typing indicator */}
+          {/* Typing indicator — ghost bubble */}
           {typingText ? (
-            <div className="mx-3 mt-1.5 flex items-center gap-2" role="status" aria-live="polite" aria-atomic="true">
-              <div className="ui-toolbar-surface flex items-center gap-1 rounded-full px-3 py-1.5">
-                <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-400" />
-                <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-400" />
-                <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-400" />
+            <div className="msg-enter mx-3 mt-1.5 flex items-end gap-2" role="status" aria-live="polite" aria-atomic="true">
+              <ProfileAvatar
+                screenname={buddyScreenname}
+                buddyIconPath={buddyIconPath}
+                presenceState={buddyPresenceState}
+                size="sm"
+                showStatusDot={false}
+              />
+              <div className="flex flex-col items-start gap-0.5">
+                <div className="ui-panel-card flex items-center gap-1 rounded-2xl rounded-bl-sm px-4 py-3">
+                  <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-400" />
+                  <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-400" />
+                  <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-400" />
+                </div>
+                <span className="px-1 text-[length:var(--ui-text-2xs)] text-slate-400">{typingText}</span>
               </div>
-              <span className="text-[length:var(--ui-text-2xs)] text-slate-400">{typingText}</span>
             </div>
           ) : null}
 
@@ -1772,6 +1876,19 @@ export default function ChatWindow({
                 title="Emoji coming soon"
               >
                 <AppIcon kind="smile" className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void hapticWarning();
+                  void playUiSound('/sounds/aim.mp3', { volume: 0.5 });
+                  void onSendMessage({ content: '', previewType: 'buzz' });
+                }}
+                className={`${xpTinyToolbarButtonClass()} text-amber-500`}
+                aria-label={`Buzz ${buddyScreenname}`}
+                title="Buzz!"
+              >
+                <AppIcon kind="bolt" className="h-3.5 w-3.5" />
               </button>
               <button
                 type="button"

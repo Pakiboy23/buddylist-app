@@ -2,7 +2,7 @@ import { getVersionedData, setVersionedData } from '@/lib/clientStorage';
 
 export type OutboxItemType = 'dm' | 'room';
 export type OutboxItemStatus = 'queued' | 'sending' | 'failed';
-export type OutboxPreviewType = 'text' | 'attachment' | 'forwarded' | 'voice_note';
+export type OutboxPreviewType = 'text' | 'attachment' | 'forwarded' | 'voice_note' | 'buzz';
 
 interface OutboxEnvelopeData {
   items: OutboxItem[];
@@ -91,7 +91,8 @@ function normalizeItem(value: unknown): OutboxItem | null {
   const previewType: OutboxPreviewType =
     candidate.previewType === 'attachment' ||
     candidate.previewType === 'forwarded' ||
-    candidate.previewType === 'voice_note'
+    candidate.previewType === 'voice_note' ||
+    candidate.previewType === 'buzz'
       ? candidate.previewType
       : 'text';
   const status =
@@ -212,7 +213,7 @@ export function createOutboxItem(input: NewOutboxItem): OutboxItem {
         ? input.forwardSourceSenderId.trim()
         : null,
     previewType:
-      input.previewType === 'attachment' || input.previewType === 'forwarded' || input.previewType === 'voice_note'
+      input.previewType === 'attachment' || input.previewType === 'forwarded' || input.previewType === 'voice_note' || input.previewType === 'buzz'
         ? input.previewType
         : 'text',
     createdAt,

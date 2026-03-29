@@ -1127,6 +1127,150 @@ button:not(:disabled):active,
   }
 }
 
+/* ── Bubble tails ────────────────────────────────────────────────── */
+.bubble-tail-out::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: -5px;
+  width: 10px;
+  height: 16px;
+  background: inherit;
+  clip-path: polygon(0 0, 0 100%, 100% 100%);
+  border-radius: 0 0 3px 0;
+}
+
+.bubble-tail-in::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: -5px;
+  width: 10px;
+  height: 16px;
+  background: inherit;
+  clip-path: polygon(100% 0, 0 100%, 100% 100%);
+  border-radius: 0 0 0 3px;
+}
+
+/* ── Conversation accent themes ──────────────────────────────────── */
+[data-chat-theme="rose"]    { --chat-accent: #f43f5e; --chat-accent-light: #ffe4e6; --chat-accent-bubble: #fda4af; }
+[data-chat-theme="violet"]  { --chat-accent: #7c3aed; --chat-accent-light: #ede9fe; --chat-accent-bubble: #c4b5fd; }
+[data-chat-theme="emerald"] { --chat-accent: #059669; --chat-accent-light: #d1fae5; --chat-accent-bubble: #6ee7b7; }
+[data-chat-theme="amber"]   { --chat-accent: #d97706; --chat-accent-light: #fef3c7; --chat-accent-bubble: #fcd34d; }
+[data-chat-theme="sky"]     { --chat-accent: #0284c7; --chat-accent-light: #e0f2fe; --chat-accent-bubble: #7dd3fc; }
+[data-chat-theme="slate"]   { --chat-accent: #475569; --chat-accent-light: #f1f5f9; --chat-accent-bubble: #cbd5e1; }
+
+.dark [data-chat-theme="rose"]    { --chat-accent-light: #4c0519; --chat-accent-bubble: #9f1239; }
+.dark [data-chat-theme="violet"]  { --chat-accent-light: #2e1065; --chat-accent-bubble: #6d28d9; }
+.dark [data-chat-theme="emerald"] { --chat-accent-light: #022c22; --chat-accent-bubble: #047857; }
+.dark [data-chat-theme="amber"]   { --chat-accent-light: #451a03; --chat-accent-bubble: #b45309; }
+.dark [data-chat-theme="sky"]     { --chat-accent-light: #082f49; --chat-accent-bubble: #0369a1; }
+.dark [data-chat-theme="slate"]   { --chat-accent-light: #1e293b; --chat-accent-bubble: #334155; }
+
+/* ── Chat wallpaper pattern ──────────────────────────────────────── */
+.ui-chat-wallpaper {
+  background-image: url("data:image/svg+xml,%3Csvg width='20' height='20' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='2' cy='2' r='1' fill='%2364748b' fill-opacity='0.06'/%3E%3C/svg%3E");
+  background-size: 20px 20px;
+}
+
+.dark .ui-chat-wallpaper {
+  background-image: url("data:image/svg+xml,%3Csvg width='20' height='20' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='2' cy='2' r='1' fill='%23e2e8f0' fill-opacity='0.04'/%3E%3C/svg%3E");
+}
+
+/* ── Chat slide-out (close animation) ────────────────────────────── */
+@keyframes ui-chat-slide-out {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+.chat-slide-out {
+  animation: ui-chat-slide-out 200ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+/* ── Reaction pop ────────────────────────────────────────────────── */
+@keyframes ui-reaction-pop {
+  0%   { transform: scale(0) rotate(-12deg); opacity: 0; }
+  60%  { transform: scale(1.25) rotate(4deg); opacity: 1; }
+  80%  { transform: scale(0.9) rotate(-2deg); }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+
+.reaction-pop {
+  animation: ui-reaction-pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ── Presence ring glow ──────────────────────────────────────────── */
+@keyframes ui-presence-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.5); }
+  50%       { box-shadow: 0 0 0 3px rgba(52, 211, 153, 0); }
+}
+
+.presence-ring-available {
+  animation: ui-presence-glow 2.4s ease-in-out infinite;
+}
+
+/* ── Buzz shake ──────────────────────────────────────────────────── */
+@keyframes ui-buzz-shake {
+  0%, 100% { transform: translateX(0); }
+  15%       { transform: translateX(-6px) rotate(-1deg); }
+  30%       { transform: translateX(6px)  rotate(1deg); }
+  45%       { transform: translateX(-4px); }
+  60%       { transform: translateX(4px); }
+  75%       { transform: translateX(-2px); }
+}
+
+.buzz-shake {
+  animation: ui-buzz-shake 500ms ease-in-out;
+}
+
+/* ── Buzz screen flash ───────────────────────────────────────────── */
+@keyframes ui-buzz-flash {
+  0%   { background-color: rgba(251, 191, 36, 0.15); }
+  100% { background-color: transparent; }
+}
+
+.buzz-flash::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  pointer-events: none;
+  animation: ui-buzz-flash 500ms ease-out forwards;
+}
+
+/* ── backdrop-filter fallback ────────────────────────────────────── */
+@supports not (backdrop-filter: blur(1px)) {
+  .ui-window-panel  { background: rgba(248, 250, 252, 0.97) !important; }
+  .ui-panel-card    { background: rgba(255, 255, 255, 0.99) !important; }
+  .ui-tabbar        { background: rgba(255, 255, 255, 0.98) !important; }
+  .ui-sheet-surface { background: rgba(255, 255, 255, 0.98) !important; }
+  .ui-window-header { background: rgba(255, 255, 255, 0.96) !important; }
+  .ui-chat-header-card,
+  .ui-search-surface,
+  .ui-chat-log,
+  .ui-toolbar-surface,
+  .ui-compose-surface { background: rgba(255, 255, 255, 0.97) !important; }
+  .ui-popover-menu  { background: rgba(255, 255, 255, 0.98) !important; }
+
+  .dark .ui-window-panel  { background: rgba(15, 23, 42, 0.98)  !important; }
+  .dark .ui-panel-card    { background: rgba(15, 23, 42, 0.99)  !important; }
+  .dark .ui-tabbar        { background: rgba(15, 23, 42, 0.99)  !important; }
+  .dark .ui-sheet-surface { background: rgba(15, 23, 42, 0.99)  !important; }
+  .dark .ui-window-header { background: rgba(15, 23, 42, 0.97)  !important; }
+  .dark .ui-chat-header-card,
+  .dark .ui-search-surface,
+  .dark .ui-chat-log,
+  .dark .ui-toolbar-surface,
+  .dark .ui-compose-surface { background: rgba(15, 23, 42, 0.97) !important; }
+  .dark .ui-popover-menu  { background: rgba(15, 23, 42, 0.98)  !important; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ui-unread-badge-pulse,
   .aim-unread-badge-pulse {
@@ -1147,8 +1291,25 @@ button:not(:disabled):active,
   }
 
   .chat-slide-in,
+  .chat-slide-out,
   .msg-enter,
   .typing-dot {
+    animation: none;
+  }
+
+  .reaction-pop {
+    animation: none;
+  }
+
+  .presence-ring-available {
+    animation: none;
+  }
+
+  .buzz-shake {
+    animation: none;
+  }
+
+  .buzz-flash::before {
     animation: none;
   }
 

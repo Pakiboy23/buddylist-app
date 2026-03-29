@@ -72,6 +72,7 @@ import {
   withProfileSchemaDefaults,
   withProfileSchemaDefaultsList,
 } from '@/lib/profileSchema';
+import { hapticLight } from '@/lib/haptics';
 import { initSoundSystem, playFallbackTone, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
 import { normalizeRoomKey, sameRoom } from '@/lib/roomName';
@@ -656,6 +657,7 @@ function BuddyListContent() {
   const [isActiveChatsOpen, setIsActiveChatsOpen] = useState(true);
   const [buddySortMode, setBuddySortMode] = useState<BuddySortMode>('online_then_alpha');
   const [buddyLastMessageAt, setBuddyLastMessageAt] = useState<Record<string, string>>({});
+  const [buddyLastMessagePreview, setBuddyLastMessagePreview] = useState<Record<string, string>>({});
   const [isUiCacheHydrated, setIsUiCacheHydrated] = useState(false);
   const [awayReplyCooldowns, setAwayReplyCooldowns] = useState<Record<string, number>>({});
   const [draftCache, setDraftCache] = useState<UiDraftState>({ dm: {}, rooms: {} });
@@ -1930,7 +1932,7 @@ function BuddyListContent() {
       replyToMessageId?: number | null;
       forwardSourceMessageId?: number | null;
       forwardSourceSenderId?: string | null;
-      previewType?: 'text' | 'attachment' | 'forwarded' | 'voice_note';
+      previewType?: 'text' | 'attachment' | 'forwarded' | 'voice_note' | 'buzz';
     }) => {
       if (!userId) {
         return null;
@@ -3182,6 +3184,17 @@ function BuddyListContent() {
           ...previous,
           [buddyId]: latestMessage.created_at,
         }));
+        const previewText =
+          latestMessage.preview_type === 'attachment' ? '📎 Attachment'
+            : latestMessage.preview_type === 'voice_note' ? '🎤 Voice note'
+            : latestMessage.preview_type === 'buzz' ? '⚡ Buzz!'
+            : htmlToPlainText(latestMessage.content).trim().slice(0, 80) || '';
+        if (previewText) {
+          setBuddyLastMessagePreview((previous) => ({
+            ...previous,
+            [buddyId]: previewText,
+          }));
+        }
       }
       setIsChatLoading(false);
     },
@@ -3219,12 +3232,14 @@ function BuddyListContent() {
 
   const openChatWindowForId = useCallback(
     (buddyId: string) => {
+      const hadUnread = (unreadDirectMessages[buddyId] ?? 0) > 0;
       setInitialUnreadForActiveChat(unreadDirectMessages[buddyId] ?? 0);
       setActiveDmTypingText(null);
       setSelectedBuddyId(buddyId);
       setActiveChatBuddyId(buddyId);
       activeChatBuddyIdRef.current = buddyId;
       clearUnreadDirectMessages(buddyId);
+      if (hadUnread) void hapticLight();
       replaceAppPathInPlace(`${BUDDY_LIST_PATH}?dm=${encodeURIComponent(buddyId)}`);
       void loadConversation(buddyId);
     },
@@ -3457,6 +3472,11 @@ function BuddyListContent() {
               ? previous
               : [...previous, incomingMessage],
           );
+
+          if (incomingMessage.preview_type === 'buzz') {
+            document.body.classList.add('buzz-flash');
+            setTimeout(() => document.body.classList.remove('buzz-flash'), 600);
+          }
           return;
         }
 
@@ -4302,23 +4322,26 @@ function BuddyListContent() {
       content: string;
       attachments?: File[];
       replyToMessageId?: number | null;
-      previewType?: 'text' | 'attachment' | 'forwarded' | 'voice_note';
+      previewType?: 'text' | 'attachment' | 'forwarded' | 'voice_note' | 'buzz';
     }) => {
       if (!userId || !activeChatBuddyId) {
         return;
       }
 
+      const isBuzz = previewType === 'buzz';
       const trimmedContent = content.trim();
       const normalizedAttachments = Array.isArray(attachments) ? attachments : [];
-      if (!trimmedContent && normalizedAttachments.length === 0) {
+      if (!isBuzz && !trimmedContent && normalizedAttachments.length === 0) {
         return;
       }
 
-      const messageContent = trimmedContent
-        ? content
-        : normalizedAttachments.length === 1
-          ? 'Sent an attachment.'
-          : 'Sent attachments.';
+      const messageContent = isBuzz
+        ? '⚡ Buzz!'
+        : trimmedContent
+          ? content
+          : normalizedAttachments.length === 1
+            ? 'Sent an attachment.'
+            : 'Sent attachments.';
       const clientMessageId = createClientMessageId();
       const expiresAt = getMessageExpiresAt(
         getDmPreference(dmPreferencesByBuddyId, activeChatBuddyId).disappearingTimerSeconds,
@@ -4518,6 +4541,19 @@ function BuddyListContent() {
       replaceAppPathInPlace(BUDDY_LIST_PATH);
     }
   }, [activeChatBuddyId, dmPreferencesByBuddyId, upsertConversationPreference]);
+
+  const handleChangeThemeForActiveChat = useCallback(
+    (newThemeKey: string | null) => {
+      if (!activeChatBuddyId) {
+        return;
+      }
+
+      void upsertConversationPreference(activeChatBuddyId, {
+        themeKey: newThemeKey,
+      });
+    },
+    [activeChatBuddyId, upsertConversationPreference],
+  );
 
   const handleSetDisappearingTimerForActiveChat = useCallback(
     (seconds: number | null) => {
@@ -5002,7 +5038,7 @@ function BuddyListContent() {
               {presenceSummary.presenceLabel}
             </p>
             <p className="truncate text-[11px] text-slate-400" title={presenceSummary.presenceDetail}>
-              {presenceSummary.presenceDetail}
+              {buddyLastMessagePreview[buddy.id] || presenceSummary.presenceDetail}
             </p>
           </div>
         </button>
@@ -5183,10 +5219,25 @@ function BuddyListContent() {
           >
             {(pullToRefresh.pullDistance > 0 || pullToRefresh.isRefreshing) ? (
               <div
-                className="flex items-center justify-center overflow-hidden text-[12px] font-medium text-slate-400 transition-all"
-                style={{ height: pullToRefresh.isRefreshing ? 36 : pullToRefresh.pullDistance * 0.5 }}
+                className="flex flex-col items-center justify-center gap-1 overflow-hidden text-slate-400 transition-all"
+                style={{ height: pullToRefresh.isRefreshing ? 44 : Math.min(pullToRefresh.pullDistance * 0.6, 44) }}
+                aria-hidden="true"
               >
-                {pullToRefresh.isRefreshing ? 'Refreshing…' : pullToRefresh.pullDistance >= 70 ? 'Release to refresh' : 'Pull to refresh'}
+                <svg className={`h-6 w-6 ${pullToRefresh.isRefreshing ? 'animate-spin' : ''}`} viewBox="0 0 24 24">
+                  <circle
+                    cx="12" cy="12" r="9"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeDasharray={`${pullToRefresh.isRefreshing ? 42 : Math.min(pullToRefresh.pullDistance / 70, 1) * 56.5} 56.5`}
+                    className="text-blue-400"
+                    style={{ transform: 'rotate(-90deg)', transformOrigin: '50% 50%' }}
+                  />
+                </svg>
+                <span className="text-[10px] font-semibold">
+                  {pullToRefresh.isRefreshing ? 'Refreshing…' : pullToRefresh.pullDistance >= 70 ? 'Release' : ''}
+                </span>
               </div>
             ) : null}
             <div className="px-3 pt-3 pb-2">
@@ -5331,6 +5382,49 @@ function BuddyListContent() {
                 </div>
               </div>
             ) : null}
+
+            {/* Pinned conversations strip */}
+            {(() => {
+              const pinnedBuddies = filteredDirectMessageBuddies.filter(
+                (buddy) => getDmPreference(dmPreferencesByBuddyId, buddy.id).isPinned,
+              );
+              if (pinnedBuddies.length === 0) return null;
+              return (
+                <div className="px-3 pb-1 pt-2">
+                  <p className="mb-2 px-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">Pinned</p>
+                  <div className="flex gap-3 overflow-x-auto pb-1">
+                    {pinnedBuddies.map((buddy) => {
+                      const unread = unreadDirectMessages[buddy.id] ?? 0;
+                      return (
+                        <button
+                          key={buddy.id}
+                          type="button"
+                          onClick={() => handleOpenChat(buddy.id)}
+                          className="ui-focus-ring flex flex-col items-center gap-1"
+                        >
+                          <div className="relative">
+                            <ProfileAvatar
+                              screenname={buddy.screenname}
+                              buddyIconPath={buddy.buddy_icon_path}
+                              presenceState={getBuddyPresenceSummary(buddy).presenceState}
+                              size="md"
+                            />
+                            {unread > 0 ? (
+                              <span className="ui-unread-badge-pulse absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">
+                                {unread}
+                              </span>
+                            ) : null}
+                          </div>
+                          <span className="max-w-[56px] truncate text-[10px] font-medium text-slate-600 dark:text-slate-400">
+                            {buddy.screenname}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="bg-transparent">
               <div className="select-none">
@@ -6867,6 +6961,8 @@ function BuddyListContent() {
             onOpenProfile={() => openBuddyProfile(activeChatBuddy.id)}
             isLoading={isChatLoading}
             isSending={isSendingMessage}
+            themeKey={activeChatPreference?.themeKey ?? null}
+            onChangeTheme={handleChangeThemeForActiveChat}
           />
           {chatError && (
             <p className="fixed bottom-3 left-3 right-3 z-50 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-800">

@@ -15,6 +15,7 @@ import {
   validateChatMediaFile,
 } from '@/lib/chatMedia';
 import { hapticLight, hapticSuccess } from '@/lib/haptics';
+import { playMessageSendSound } from '@/lib/sound';
 import { useKeyboardViewport } from '@/hooks/useKeyboardViewport';
 import { useSwipeBack } from '@/hooks/useSwipeBack';
 import { supabase } from '@/lib/supabase';
@@ -145,6 +146,17 @@ function loadStoredRichTextFormat() {
   );
 }
 
+function formatRelativeTime(isoString: string): string {
+  const diff = Date.now() - new Date(isoString).getTime();
+  const seconds = Math.floor(diff / 1000);
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
 export default function GroupChatWindow({
   roomId,
   roomName,
@@ -196,7 +208,16 @@ export default function GroupChatWindow({
   const [composerAreaHeight, setComposerAreaHeight] = useState(0);
   const [enableSupplementalRealtime, setEnableSupplementalRealtime] = useState(false);
 
-  const swipeBack = useSwipeBack({ onSwipeBack: onBack });
+  const [isClosing, setIsClosing] = useState(false);
+  const [relativeTimeTick, setRelativeTimeTick] = useState(0);
+  const seenReactionKeysRef = useRef(new Set<string>());
+
+  const handleBack = useCallback(() => {
+    setIsClosing(true);
+    setTimeout(() => onBack(), 190);
+  }, [onBack]);
+
+  const swipeBack = useSwipeBack({ onSwipeBack: handleBack });
   const [isSending, setIsSending] = useState(false);
   const [hasLiveMessageSinceOpen, setHasLiveMessageSinceOpen] = useState(false);
   const [typingMap, setTypingMap] = useState<Record<string, string>>({});
@@ -251,6 +272,13 @@ export default function GroupChatWindow({
 
   useEffect(() => {
     composerRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setRelativeTimeTick((previous) => previous + 1);
+    }, 60_000);
+    return () => clearInterval(intervalId);
   }, []);
 
   useEffect(() => {
@@ -1111,7 +1139,7 @@ export default function GroupChatWindow({
 
   return (
     <div
-      className="fixed inset-0 z-50 chat-slide-in"
+      className={`fixed inset-0 z-50 ${isClosing ? 'chat-slide-out' : 'chat-slide-in'}`}
       role="dialog"
       aria-modal="true"
       aria-label={`Room chat ${roomName}`}
@@ -1122,7 +1150,7 @@ export default function GroupChatWindow({
         variant="xp_shell"
         xpTitleText={`#${roomName}`}
         xpSubtitleText={`${participants.length} participant${participants.length === 1 ? '' : 's'}`}
-        onXpClose={onBack}
+        onXpClose={handleBack}
         onXpSignOff={onSignOff}
         style={chatShellStyle}
       >
@@ -1218,7 +1246,7 @@ export default function GroupChatWindow({
             aria-relevant="additions text"
             aria-busy={isLoadingMessages}
             aria-label={`Conversation in room ${roomName}`}
-            className="ui-chat-log mx-3 mt-1.5 min-h-0 flex-1 overflow-y-auto rounded-2xl px-3 py-3"
+            className="ui-chat-log ui-chat-wallpaper mx-3 mt-1.5 min-h-0 flex-1 overflow-y-auto rounded-2xl px-3 py-3"
             style={messagesAreaStyle}
           >
             {isLoadingMessages && (
@@ -1277,7 +1305,8 @@ export default function GroupChatWindow({
                   const currTime = timestampDate.getTime();
                   const isFirstInRun = !prevMessage || prevMessage.sender_id !== message.sender_id || currTime - prevTime > 5 * 60 * 1000;
                   const showTimeDivider = !prevMessage || currTime - prevTime > 5 * 60 * 1000;
-                  const timestamp = timestampDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                  void relativeTimeTick;
+                  const timestamp = formatRelativeTime(message.created_at);
                   const nextMessage = index < messages.length - 1 ? messages[index + 1] : null;
                   const isLastInRun = !nextMessage || nextMessage.sender_id !== message.sender_id;
 
@@ -1343,9 +1372,9 @@ export default function GroupChatWindow({
                             } ${
                               isMine
                                 ? hasCustomStyling
-                                  ? `rounded-2xl border border-blue-200/80 bg-white/96 text-slate-900 shadow-[0_10px_24px_rgba(37,99,235,0.16)] ${isLastInRun ? 'rounded-br-[8px]' : ''}`
-                                  : `rounded-2xl bg-blue-500 text-white shadow-[0_2px_8px_rgba(37,99,235,0.28)] ${isLastInRun ? 'rounded-br-[6px]' : ''}`
-                                : `rounded-2xl border border-white/70 bg-white/85 text-slate-800 shadow-sm backdrop-blur-sm ${isLastInRun ? 'rounded-bl-[6px]' : ''} ${isMentioningCurrentUser ? 'border-amber-300/70 bg-amber-50/80' : ''}`
+                                  ? `rounded-2xl border border-blue-200/80 bg-white/96 text-slate-900 shadow-[0_10px_24px_rgba(37,99,235,0.16)] ${isLastInRun ? 'rounded-br-[8px] bubble-tail-out' : ''}`
+                                  : `rounded-2xl bg-blue-500 text-white shadow-[0_2px_8px_rgba(37,99,235,0.28)] ${isLastInRun ? 'rounded-br-[6px] bubble-tail-out' : ''}`
+                                : `rounded-2xl border border-white/70 bg-white/85 text-slate-800 shadow-sm backdrop-blur-sm ${isLastInRun ? 'rounded-bl-[6px] bubble-tail-in' : ''} ${isMentioningCurrentUser ? 'border-amber-300/70 bg-amber-50/80' : ''}`
                             } ${isMatch ? 'ring-2 ring-amber-400' : ''} ${isMine && !isDeleted && !isEditing ? 'ui-focus-ring' : ''}`}
                           >
                             {isEditing ? (
@@ -1434,14 +1463,19 @@ export default function GroupChatWindow({
                           {/* Reactions */}
                           {!isDeleted && reactionEntries.length > 0 ? (
                             <div className={`-mt-1 mb-1 flex flex-wrap gap-0.5 ${isMine ? 'justify-end' : 'justify-start'}`}>
-                              {reactionEntries.map(([emoji, count]) => (
-                                <span
-                                  key={`${message.id}-${emoji}`}
-                                  className="rounded-full border border-white/70 bg-white/85 px-1.5 py-[2px] text-[length:var(--ui-text-2xs)] text-slate-600 shadow-sm backdrop-blur-sm"
-                                >
-                                  {emoji} {count}
-                                </span>
-                              ))}
+                              {reactionEntries.map(([emoji, count]) => {
+                                const reactionKey = `${message.id}-${emoji}`;
+                                const isNew = !seenReactionKeysRef.current.has(reactionKey);
+                                if (isNew) seenReactionKeysRef.current.add(reactionKey);
+                                return (
+                                  <span
+                                    key={reactionKey}
+                                    className={`rounded-full border border-white/70 bg-white/85 px-1.5 py-[2px] text-[length:var(--ui-text-2xs)] text-slate-600 shadow-sm backdrop-blur-sm ${isNew ? 'reaction-pop' : ''}`}
+                                  >
+                                    {emoji} {count}
+                                  </span>
+                                );
+                              })}
                             </div>
                           ) : null}
 
@@ -1569,15 +1603,17 @@ export default function GroupChatWindow({
             </p>
           ) : null}
 
-          {/* Typing indicator */}
+          {/* Typing indicator — ghost bubble */}
           {typingText ? (
-            <div className="mx-3 mt-1.5 flex items-center gap-2" role="status" aria-live="polite" aria-atomic="true">
-              <div className="ui-toolbar-surface flex items-center gap-1 rounded-full px-3 py-1.5">
-                <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-400" />
-                <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-400" />
-                <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-400" />
+            <div className="msg-enter mx-3 mt-1.5 flex items-end gap-2" role="status" aria-live="polite" aria-atomic="true">
+              <div className="flex flex-col items-start gap-0.5">
+                <div className="ui-panel-card flex items-center gap-1 rounded-2xl rounded-bl-sm px-4 py-3">
+                  <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-400" />
+                  <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-400" />
+                  <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-400" />
+                </div>
+                <span className="px-1 text-[length:var(--ui-text-2xs)] text-slate-400">{typingText}</span>
               </div>
-              <span className="text-[length:var(--ui-text-2xs)] text-slate-400">{typingText}</span>
             </div>
           ) : null}
 
