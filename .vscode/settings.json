@@ -4,5 +4,6 @@
         "**/T/*": "typescriptreact"
     },
     "github.copilot.chat.cli.forkSessions.enabled": true,
-    "github.copilot.chat.agentDebugLog.enabled": true
+    "github.copilot.chat.agentDebugLog.enabled": true,
+    "claudeCodeChat.permissions.yoloMode": true
 }
