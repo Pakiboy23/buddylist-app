@@ -551,13 +551,14 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
     private func embedBridgeViewController() {
         addChild(bridgeViewController)
         bridgeViewController.view.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(bridgeViewController.view)
+        view.insertSubview(bridgeViewController.view, at: 0)
 
+        // Edge-to-edge: web content extends behind translucent glass chrome
         NSLayoutConstraint.activate([
-            bridgeViewController.view.topAnchor.constraint(equalTo: topChromeView.bottomAnchor),
+            bridgeViewController.view.topAnchor.constraint(equalTo: view.topAnchor),
             bridgeViewController.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             bridgeViewController.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            bridgeViewController.view.bottomAnchor.constraint(equalTo: bottomChromeView.topAnchor)
+            bridgeViewController.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
 
         bridgeViewController.didMove(toParent: self)
@@ -619,19 +620,20 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
     }
 
     private func updateChromeAppearance(animated: Bool) {
-        let blurStyle: UIBlurEffect.Style = chromeState.isDark ? .systemChromeMaterialDark : .systemChromeMaterialLight
+        let blurStyle: UIBlurEffect.Style = chromeState.isDark
+            ? .systemUltraThinMaterialDark
+            : .systemUltraThinMaterialLight
         let tintColor = UIColor.systemBlue
         let titleColor = chromeState.isDark ? UIColor.white : UIColor.label
         let subtitleColor = chromeState.isDark
             ? UIColor.secondaryLabel.withAlphaComponent(0.92)
             : UIColor.secondaryLabel
-        let navBackground = (chromeState.isDark ? UIColor.black : UIColor.white).withAlphaComponent(0.16)
-        let tabBackground = (chromeState.isDark ? UIColor.black : UIColor.white).withAlphaComponent(0.18)
+
         let animationBlock = {
             self.topChromeView.effect = UIBlurEffect(style: blurStyle)
             self.bottomChromeView.effect = UIBlurEffect(style: blurStyle)
-            self.topChromeView.contentView.backgroundColor = navBackground
-            self.bottomChromeView.contentView.backgroundColor = tabBackground
+            self.topChromeView.contentView.backgroundColor = .clear
+            self.bottomChromeView.contentView.backgroundColor = .clear
             self.titleLabel.textColor = titleColor
             self.subtitleLabel.textColor = subtitleColor
             self.navigationBar.tintColor = tintColor
@@ -642,7 +644,7 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
         }
 
         if animated {
-            UIView.animate(withDuration: 0.22, delay: 0, options: [.curveEaseInOut, .beginFromCurrentState], animations: animationBlock)
+            UIView.animate(withDuration: 0.32, delay: 0, options: [.curveEaseInOut, .beginFromCurrentState], animations: animationBlock)
         } else {
             animationBlock()
         }
@@ -653,7 +655,7 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
         appearance.configureWithTransparentBackground()
         appearance.backgroundEffect = nil
         appearance.backgroundColor = .clear
-        appearance.shadowColor = UIColor.separator.withAlphaComponent(chromeState.isDark ? 0.18 : 0.12)
+        appearance.shadowColor = .clear
 
         navigationBar.standardAppearance = appearance
         navigationBar.compactAppearance = appearance
@@ -665,7 +667,7 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
         appearance.configureWithTransparentBackground()
         appearance.backgroundEffect = nil
         appearance.backgroundColor = .clear
-        appearance.shadowColor = UIColor.separator.withAlphaComponent(chromeState.isDark ? 0.16 : 0.1)
+        appearance.shadowColor = .clear
 
         let normalColor = chromeState.isDark
             ? UIColor.secondaryLabel.withAlphaComponent(0.92)

@@ -5675,12 +5675,15 @@ function BuddyListContent() {
         )}
         onXpSignOff={() => setIsHeaderMenuOpen((previous) => !previous)}
       >
-        <div className="ui-window-panel relative flex h-full min-h-0 flex-col overflow-hidden rounded-[1.6rem] text-[12px] text-slate-700">
+        <div
+          className={`relative flex h-full min-h-0 flex-col overflow-hidden text-[12px] text-slate-700 ${nativeShellActive ? 'bg-transparent' : 'ui-window-panel rounded-[1.6rem]'}`}
+          style={nativeShellActive ? { paddingTop: 'env(safe-area-inset-top)' } : undefined}
+        >
           {isHeaderMenuOpen ? (
             <div className="fixed inset-0 z-30" onClick={() => setIsHeaderMenuOpen(false)}>
               <div
                 className={`ui-popover-menu absolute right-2 w-56 rounded-2xl p-1.5 ${
-                  nativeShellActive ? 'top-3' : 'top-[calc(env(safe-area-inset-top)+3.2rem)]'
+                  nativeShellActive ? 'top-[calc(env(safe-area-inset-top)+3rem)]' : 'top-[calc(env(safe-area-inset-top)+3.2rem)]'
                 }`}
                 onClick={(event) => event.stopPropagation()}
               >
@@ -5712,7 +5715,8 @@ function BuddyListContent() {
           ) : null}
 
           <div
-            className={`min-h-0 flex-1 overflow-y-auto ${nativeShellActive ? 'pb-4' : 'pb-20'}`}
+            className="min-h-0 flex-1 overflow-y-auto"
+            style={{ paddingBottom: nativeShellActive ? 'calc(env(safe-area-inset-bottom) + 3.5rem)' : '5rem' }}
             onTouchStart={pullToRefresh.onTouchStart}
             onTouchMove={pullToRefresh.onTouchMove}
             onTouchEnd={pullToRefresh.onTouchEnd}
