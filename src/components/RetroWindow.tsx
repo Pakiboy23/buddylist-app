@@ -16,6 +16,7 @@ interface RetroWindowProps {
   xpSubtitleText?: string;
   onXpClose?: () => void;
   onXpSignOff?: () => void;
+  hideHeader?: boolean;
 }
 
 export default function RetroWindow({
@@ -33,6 +34,7 @@ export default function RetroWindow({
   xpSubtitleText,
   onXpClose,
   onXpSignOff,
+  hideHeader = false,
 }: RetroWindowProps) {
   if (variant === 'xp_shell' || variant === 'glass_shell') {
     return (
@@ -40,49 +42,51 @@ export default function RetroWindow({
         className={`flex h-[100dvh] w-full flex-col overflow-hidden bg-transparent font-["SF_Pro_Text","SF_Pro_Display","Segoe_UI",sans-serif] text-[12px] text-slate-700 ${className ?? ''}`}
         style={style}
       >
-        <div
-          className={`ui-window-header relative z-20 mx-3 mt-3 flex min-h-[60px] items-center rounded-[1.4rem] px-3 py-2 text-[13px] font-semibold ${titleBarClassName ?? ''}`}
-          style={{ paddingTop: 'env(safe-area-inset-top)' }}
-        >
-          <div className="z-10 flex min-w-0 flex-1 items-center gap-2.5 pr-3">
-            {onXpClose ? (
-              <button
-                type="button"
-                onClick={onXpClose}
-                className="ui-focus-ring ui-window-header-button px-1 text-[13px] font-semibold leading-none"
-                aria-label="Back"
-                title="Back"
-              >
-                ←
-              </button>
-            ) : null}
-            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-blue-600 dark:bg-blue-500/15 dark:text-blue-300">
-              <AppIcon kind="sparkle" className="h-3.5 w-3.5" />
-            </span>
-            <div className="min-w-0">
-              <p className="truncate tracking-[0.01em] text-slate-700 dark:text-slate-100">{xpTitleText ?? title}</p>
-              {xpSubtitleText ? (
-                <p className="truncate text-[11px] font-medium text-slate-400 dark:text-slate-400">{xpSubtitleText}</p>
+        {hideHeader ? null : (
+          <div
+            className={`ui-window-header relative z-20 mx-3 mt-3 flex min-h-[60px] items-center rounded-[1.4rem] px-3 py-2 text-[13px] font-semibold ${titleBarClassName ?? ''}`}
+            style={{ paddingTop: 'env(safe-area-inset-top)' }}
+          >
+            <div className="z-10 flex min-w-0 flex-1 items-center gap-2.5 pr-3">
+              {onXpClose ? (
+                <button
+                  type="button"
+                  onClick={onXpClose}
+                  className="ui-focus-ring ui-window-header-button px-1 text-[13px] font-semibold leading-none"
+                  aria-label="Back"
+                  title="Back"
+                >
+                  ←
+                </button>
+              ) : null}
+              <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-blue-600 dark:bg-blue-500/15 dark:text-blue-300">
+                <AppIcon kind="sparkle" className="h-3.5 w-3.5" />
+              </span>
+              <div className="min-w-0">
+                <p className="truncate tracking-[0.01em] text-slate-700 dark:text-slate-100">{xpTitleText ?? title}</p>
+                {xpSubtitleText ? (
+                  <p className="truncate text-[11px] font-medium text-slate-400 dark:text-slate-400">{xpSubtitleText}</p>
+                ) : null}
+              </div>
+            </div>
+            <div className="z-10 ml-auto flex shrink-0 items-center justify-end gap-2">
+              {headerActions}
+              {onXpSignOff ? (
+                <button
+                  type="button"
+                  onClick={onXpSignOff}
+                  className="ui-focus-ring ui-window-header-button px-1 text-[14px] font-semibold"
+                  aria-label="Settings"
+                  title="Settings"
+                >
+                  <AppIcon kind="menu" className="h-4 w-4" />
+                </button>
               ) : null}
             </div>
           </div>
-          <div className="z-10 ml-auto flex shrink-0 items-center justify-end gap-2">
-            {headerActions}
-            {onXpSignOff ? (
-              <button
-                type="button"
-                onClick={onXpSignOff}
-                className="ui-focus-ring ui-window-header-button px-1 text-[14px] font-semibold"
-                aria-label="Settings"
-                title="Settings"
-              >
-                <AppIcon kind="menu" className="h-4 w-4" />
-              </button>
-            ) : null}
-          </div>
-        </div>
+        )}
 
-        <div className="min-h-0 flex-1 overflow-hidden px-3 pb-3 pt-2">
+        <div className={`min-h-0 flex-1 overflow-hidden px-3 pb-3 ${hideHeader ? 'pt-0' : 'pt-2'}`}>
           {children}
         </div>
       </div>
@@ -94,34 +98,36 @@ export default function RetroWindow({
       className={`flex h-[100dvh] w-full flex-col overflow-hidden bg-transparent font-["SF_Pro_Text","SF_Pro_Display","Segoe_UI",sans-serif] ${className ?? ''}`}
       style={style}
     >
-      <div
-        className={`ui-window-header relative mx-3 mt-3 flex min-h-[56px] items-center rounded-[1.4rem] px-3 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] text-sm font-semibold ${titleBarClassName ?? ''}`}
-      >
-        <div className="z-10 flex min-w-[44px] items-center gap-2">
-          {showBackButton ? (
-            <button
-              type="button"
-              onClick={onBack}
-              className="ui-focus-ring ui-window-header-button min-h-[44px] min-w-[44px] px-2 text-xs font-semibold"
-            >
-              {backButtonLabel}
-            </button>
-          ) : null}
+      {hideHeader ? null : (
+        <div
+          className={`ui-window-header relative mx-3 mt-3 flex min-h-[56px] items-center rounded-[1.4rem] px-3 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] text-sm font-semibold ${titleBarClassName ?? ''}`}
+        >
+          <div className="z-10 flex min-w-[44px] items-center gap-2">
+            {showBackButton ? (
+              <button
+                type="button"
+                onClick={onBack}
+                className="ui-focus-ring ui-window-header-button min-h-[44px] min-w-[44px] px-2 text-xs font-semibold"
+              >
+                {backButtonLabel}
+              </button>
+            ) : null}
+          </div>
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-24">
+            <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-blue-600">
+              <AppIcon kind="sparkle" className="h-3.5 w-3.5" />
+            </span>
+            <span className="ml-2 truncate tracking-wide text-slate-700 dark:text-slate-100">
+              {title}
+            </span>
+          </div>
+          <div className="z-10 ml-auto flex min-w-[44px] items-center justify-end gap-2">
+            {headerActions}
+          </div>
         </div>
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-24">
-          <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-blue-600">
-            <AppIcon kind="sparkle" className="h-3.5 w-3.5" />
-          </span>
-          <span className="ml-2 truncate tracking-wide text-slate-700 dark:text-slate-100">
-            {title}
-          </span>
-        </div>
-        <div className="z-10 ml-auto flex min-w-[44px] items-center justify-end gap-2">
-          {headerActions}
-        </div>
-      </div>
+      )}
 
-      <div className="flex-1 overflow-y-auto px-3 pb-3 pt-2">
+      <div className={`flex-1 overflow-y-auto px-3 pb-3 ${hideHeader ? 'pt-0' : 'pt-2'}`}>
         {children}
       </div>
     </div>
