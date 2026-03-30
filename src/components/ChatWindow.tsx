@@ -95,9 +95,12 @@ interface ChatWindowProps {
   onSignOff?: () => void;
   onOpenProfile?: () => void;
   onChangeTheme?: (themeKey: string | null) => void;
+  onChangeWallpaper?: (wallpaperKey: string | null) => void;
   isSending?: boolean;
   isLoading?: boolean;
   themeKey?: string | null;
+  wallpaperKey?: string | null;
+  showReadReceipts?: boolean;
 }
 
 interface MessageReactionRow {
@@ -220,9 +223,12 @@ export default function ChatWindow({
   onSignOff,
   onOpenProfile,
   onChangeTheme,
+  onChangeWallpaper,
   isSending = false,
   isLoading = false,
   themeKey = null,
+  wallpaperKey = null,
+  showReadReceipts = true,
 }: ChatWindowProps) {
   const [isClosing, setIsClosing] = useState(false);
   const [relativeTimeTick, setRelativeTimeTick] = useState(0);
@@ -1247,6 +1253,34 @@ export default function ChatWindow({
             </div>
           ) : null}
 
+          {/* Wallpaper picker */}
+          {onChangeWallpaper ? (
+            <div className="mx-3 mt-1 flex items-center gap-2 px-1">
+              <span className="text-[10px] font-semibold tracking-wide text-slate-400 uppercase">Wall</span>
+              <div className="flex items-center gap-1.5">
+                {([
+                  { key: null, label: 'Dots', icon: '·' },
+                  { key: 'grid', label: 'Grid', icon: '▦' },
+                  { key: 'diamonds', label: 'Diamonds', icon: '◇' },
+                  { key: 'waves', label: 'Waves', icon: '∿' },
+                  { key: 'stars', label: 'Stars', icon: '✦' },
+                  { key: 'none', label: 'None', icon: '∅' },
+                ] as const).map((w) => (
+                  <button
+                    key={w.key ?? 'default'}
+                    type="button"
+                    onClick={() => onChangeWallpaper(w.key)}
+                    className={`ui-focus-ring flex h-5 w-5 items-center justify-center rounded-md border text-[11px] transition-transform hover:scale-110 ${wallpaperKey === w.key ? 'border-slate-400 bg-white/80 font-bold text-slate-700 scale-110 dark:bg-slate-800/80 dark:text-slate-200' : 'border-slate-200 text-slate-400 opacity-70 dark:border-slate-700'}`}
+                    title={w.label}
+                    aria-pressed={wallpaperKey === w.key}
+                  >
+                    {w.icon}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           {/* Search bar */}
           <div className="ui-search-surface mx-3 mt-1.5 rounded-2xl px-3 py-1.5">
             <label htmlFor={searchInputId} className="sr-only">
@@ -1345,7 +1379,7 @@ export default function ChatWindow({
             aria-relevant="additions text"
             aria-busy={isLoading}
             aria-label={`Conversation with ${buddyScreenname}`}
-            className="ui-chat-log ui-chat-wallpaper mx-3 mt-1.5 min-h-0 flex-1 overflow-y-auto rounded-2xl px-3 py-3"
+            className={`ui-chat-log mx-3 mt-1.5 min-h-0 flex-1 overflow-y-auto rounded-2xl px-3 py-3 ${wallpaperKey === 'grid' ? 'ui-chat-wallpaper-grid' : wallpaperKey === 'diamonds' ? 'ui-chat-wallpaper-diamonds' : wallpaperKey === 'waves' ? 'ui-chat-wallpaper-waves' : wallpaperKey === 'stars' ? 'ui-chat-wallpaper-stars' : wallpaperKey === 'none' ? 'ui-chat-wallpaper-none' : 'ui-chat-wallpaper'}`}
             style={messagesAreaStyle}
           >
             {isLoading && (
@@ -1657,11 +1691,11 @@ export default function ChatWindow({
                           ) : null}
                           {latestOutgoingMessageId === message.id && isMine && !isEditing && !isDeleted && message.preview_type !== 'buzz' ? (
                             <p className="mt-1 flex items-center justify-end gap-1 text-right text-[length:var(--ui-text-2xs)] text-slate-400">
-                              {message.read_at ? (
+                              {showReadReceipts && message.read_at ? (
                                 <svg width="14" height="8" viewBox="0 0 14 8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-blue-400" aria-hidden="true">
                                   <path d="M1 4l3 3L10 1" /><path d="M5 4l3 3 5-6" />
                                 </svg>
-                              ) : message.delivered_at ? (
+                              ) : showReadReceipts && message.delivered_at ? (
                                 <svg width="14" height="8" viewBox="0 0 14 8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400" aria-hidden="true">
                                   <path d="M1 4l3 3L10 1" /><path d="M5 4l3 3 5-6" />
                                 </svg>
@@ -1671,8 +1705,8 @@ export default function ChatWindow({
                                 </svg>
                               )}
                               <span>
-                                {formatDeliveryStatus(message).label}
-                                {formatDeliveryStatus(message).detail ? ` · ${formatDeliveryStatus(message).detail}` : ''}
+                                {showReadReceipts ? formatDeliveryStatus(message).label : 'Sent'}
+                                {showReadReceipts && formatDeliveryStatus(message).detail ? ` · ${formatDeliveryStatus(message).detail}` : ''}
                               </span>
                             </p>
                           ) : null}

@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
-import { FormEvent, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, Suspense, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppIcon from '@/components/AppIcon';
 import AppLockSheet from '@/components/AppLockSheet';
@@ -106,6 +106,19 @@ import {
   type DmStateEventType,
   type UserDmStateRowLite,
 } from '@/lib/unread-dm';
+import {
+  isNativeIosShell,
+  publishNativeShellChromeState,
+  registerNativeShellBridge,
+  subscribeNativeShellCommands,
+  type NativeShellAdminAuditItem,
+  type NativeShellAdminAuditResult,
+  type NativeShellAdminIssueResult,
+  type NativeShellCommand,
+  type NativeShellPrivacyResult,
+  type NativeShellPrivacySettings,
+  type NativeShellPrivacyState,
+} from '@/lib/nativeShell';
 import RetroWindow from '@/components/RetroWindow';
 import { useChatContext } from '@/context/ChatContext';
 import {
@@ -794,6 +807,7 @@ function BuddyListContent() {
   const { isDark, toggleDark } = useTheme();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const nativeShellActive = isNativeIosShell();
   const {
     activeRooms,
     unreadMessages,
@@ -1365,14 +1379,14 @@ function BuddyListContent() {
     return getAccessTokenOrNull();
   }, []);
 
-  const readApiError = async (response: Response) => {
+  const readApiError = useCallback(async (response: Response) => {
     try {
       const payload = (await response.json()) as { error?: string };
       return payload.error ?? 'Request failed.';
     } catch {
       return 'Request failed.';
     }
-  };
+  }, []);
 
   const pushBuddyActivity = useCallback(
     (buddyId: string, tone: BuddyActivityToast['tone'], message: string) => {
@@ -1487,7 +1501,11 @@ function BuddyListContent() {
 
       setPrivacySettings(nextSettings);
       if (!userId) {
-        return nextSettings;
+        return {
+          ok: true as const,
+          settings: nextSettings,
+          error: null,
+        };
       }
 
       const { error } = await supabase.from('user_privacy_settings').upsert(
@@ -1504,9 +1522,18 @@ function BuddyListContent() {
 
       if (error) {
         console.error('Failed saving privacy settings:', error.message);
+        return {
+          ok: false as const,
+          settings: nextSettings,
+          error: 'Updated on this device, but the cloud copy could not be saved.',
+        };
       }
 
-      return nextSettings;
+      return {
+        ok: true as const,
+        settings: nextSettings,
+        error: null,
+      };
     },
     [privacySettings, userId],
   );
@@ -2618,7 +2645,7 @@ function BuddyListContent() {
     return () => {
       subscription.unsubscribe();
     };
-  }, [loadBuddies, loadSingleUserProfile, markProfileSchemaUnavailable, router, syncUnreadDirectFromServer]);
+  }, [loadBuddies, loadSingleUserProfile, markProfileSchemaUnavailable, readApiError, router, syncUnreadDirectFromServer]);
 
   useEffect(() => {
     if (!userId) {
@@ -4124,20 +4151,18 @@ function BuddyListContent() {
     }
   };
 
-  const fetchAdminAuditEntries = async () => {
-    setIsLoadingAdminAudit(true);
-    setAdminAuditError(null);
-
+  const loadAdminResetAuditData = useCallback(async (limit = 12) => {
     const accessToken = await getAccessToken();
     if (!accessToken) {
-      setAdminAuditError('Session expired. Please sign on again.');
-      setIsLoadingAdminAudit(false);
-      return;
+      return {
+        ok: false as const,
+        error: 'Session expired. Please sign on again.',
+      };
     }
 
     let response: Response;
     try {
-      response = await fetch(getAppApiUrl('/api/admin/password-reset-audit?limit=12'), {
+      response = await fetch(getAppApiUrl(`/api/admin/password-reset-audit?limit=${limit}`), {
         headers: {
           authorization: `Bearer ${accessToken}`,
         },
@@ -4145,22 +4170,41 @@ function BuddyListContent() {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Load failed';
-      setAdminAuditError(message);
-      setIsLoadingAdminAudit(false);
-      return;
+      return {
+        ok: false as const,
+        error: message,
+      };
     }
 
     if (!response.ok) {
       const errorMessage = await readApiError(response);
-      setAdminAuditError(errorMessage);
+      return {
+        ok: false as const,
+        error: errorMessage,
+      };
+    }
+
+    const payload = (await response.json()) as AdminAuditResponse;
+    return {
+      ok: true as const,
+      entries: Array.isArray(payload.entries) ? payload.entries : [],
+    };
+  }, [getAccessToken, readApiError]);
+
+  const fetchAdminAuditEntries = useCallback(async () => {
+    setIsLoadingAdminAudit(true);
+    setAdminAuditError(null);
+
+    const result = await loadAdminResetAuditData(12);
+    if (!result.ok) {
+      setAdminAuditError(result.error);
       setIsLoadingAdminAudit(false);
       return;
     }
 
-    const payload = (await response.json()) as AdminAuditResponse;
-    setAdminAuditEntries(Array.isArray(payload.entries) ? payload.entries : []);
+    setAdminAuditEntries(result.entries);
     setIsLoadingAdminAudit(false);
-  };
+  }, [loadAdminResetAuditData]);
 
   const openAdminResetWindow = () => {
     setAdminResetScreenname('');
@@ -4173,6 +4217,123 @@ function BuddyListContent() {
     setIsAdminResetOpen(true);
     void fetchAdminAuditEntries();
   };
+
+  const openPrivacyControls = useCallback(() => {
+    setIsHeaderMenuOpen(false);
+    setShowPrivacySheet(true);
+  }, []);
+
+  const buildNativePrivacyState = useCallback(
+    (settings: UserPrivacySettings = privacySettings): NativeShellPrivacyState => ({
+      settings: {
+        shareReadReceipts: settings.shareReadReceipts,
+        notificationPreviewMode: settings.notificationPreviewMode,
+        screenShieldEnabled: settings.screenShieldEnabled,
+      },
+      appLockEnabled: appLockSettings.enabled,
+      appLockTimeoutLabel: formatAppLockTimeoutLabel(appLockSettings.autoLockSeconds),
+      biometricsEnabled:
+        appLockSettings.enabled && appLockSettings.biometricsEnabled && biometricAvailability.isAvailable,
+      biometricLabel: biometricAvailability.isAvailable ? biometricAvailability.label : null,
+      blockedBuddyCount: blockedUserIds.length,
+    }),
+    [
+      appLockSettings.autoLockSeconds,
+      appLockSettings.biometricsEnabled,
+      appLockSettings.enabled,
+      biometricAvailability.isAvailable,
+      biometricAvailability.label,
+      blockedUserIds.length,
+      privacySettings,
+    ],
+  );
+
+  const loadNativePrivacyState = useCallback(async (): Promise<NativeShellPrivacyResult> => {
+    return {
+      ok: true,
+      state: buildNativePrivacyState(),
+    };
+  }, [buildNativePrivacyState]);
+
+  const updateNativePrivacySettings = useCallback(
+    async (patch: Partial<NativeShellPrivacySettings>): Promise<NativeShellPrivacyResult> => {
+      const nextPatch: Partial<UserPrivacySettings> = {};
+
+      if (typeof patch.shareReadReceipts === 'boolean') {
+        nextPatch.shareReadReceipts = patch.shareReadReceipts;
+      }
+
+      if (
+        patch.notificationPreviewMode === 'full' ||
+        patch.notificationPreviewMode === 'name_only' ||
+        patch.notificationPreviewMode === 'hidden'
+      ) {
+        nextPatch.notificationPreviewMode = patch.notificationPreviewMode;
+      }
+
+      if (typeof patch.screenShieldEnabled === 'boolean') {
+        nextPatch.screenShieldEnabled = patch.screenShieldEnabled;
+      }
+
+      if (Object.keys(nextPatch).length === 0) {
+        return {
+          ok: false,
+          error: 'No privacy changes were provided.',
+        };
+      }
+
+      const result = await updatePrivacyPreferences(nextPatch);
+      return {
+        ok: true,
+        state: buildNativePrivacyState(result.settings),
+        warning: result.ok ? null : result.error,
+      };
+    },
+    [buildNativePrivacyState, updatePrivacyPreferences],
+  );
+
+  const issueAdminResetTicketData = useCallback(async (target: string) => {
+    const accessToken = await getAccessToken();
+    if (!accessToken) {
+      return {
+        ok: false as const,
+        error: 'Session expired. Please sign on again.',
+      };
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(getAppApiUrl('/api/admin/password-reset-ticket'), {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ screenname: target }),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Load failed';
+      return {
+        ok: false as const,
+        error: message,
+      };
+    }
+
+    if (!response.ok) {
+      const errorMessage = await readApiError(response);
+      return {
+        ok: false as const,
+        error: errorMessage,
+      };
+    }
+
+    const payload = (await response.json()) as AdminTicketResponse;
+    return {
+      ok: true as const,
+      ticket: payload.ticket,
+      expiresAt: payload.expiresAt,
+    };
+  }, [getAccessToken, readApiError]);
 
   const handleIssueAdminResetTicket = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -4193,46 +4354,88 @@ function BuddyListContent() {
     setAdminResetFeedback(null);
     setIssuedAdminTicket(null);
 
-    const accessToken = await getAccessToken();
-    if (!accessToken) {
-      setAdminResetError('Session expired. Please sign on again.');
+    const result = await issueAdminResetTicketData(target);
+    if (!result.ok) {
+      setAdminResetError(result.error);
       setIsIssuingAdminReset(false);
       return;
     }
 
-    let response: Response;
-    try {
-      response = await fetch(getAppApiUrl('/api/admin/password-reset-ticket'), {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ screenname: target }),
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Load failed';
-      setAdminResetError(message);
-      setIsIssuingAdminReset(false);
-      return;
-    }
-
-    if (!response.ok) {
-      const errorMessage = await readApiError(response);
-      setAdminResetError(errorMessage);
-      setIsIssuingAdminReset(false);
-      return;
-    }
-
-    const payload = (await response.json()) as AdminTicketResponse;
     setIssuedAdminTicket({
-      ticket: payload.ticket,
-      expiresAt: payload.expiresAt,
+      ticket: result.ticket,
+      expiresAt: result.expiresAt,
     });
     setAdminResetFeedback(`Secure handoff ready for ${target}.`);
     setIsIssuingAdminReset(false);
     void fetchAdminAuditEntries();
   };
+
+  const loadNativeAdminResetAudit = useCallback(async (limit = 12): Promise<NativeShellAdminAuditResult> => {
+    const result = await loadAdminResetAuditData(limit);
+    if (!result.ok) {
+      return result;
+    }
+
+    const entries: NativeShellAdminAuditItem[] = result.entries.map((entry) => {
+      const actorLabel = formatAuditUserLabel(entry.actorScreenname, entry.actorUserId);
+      const targetLabel = formatAuditUserLabel(entry.targetScreenname, entry.targetUserId);
+      const reason =
+        typeof entry.metadata.reason === 'string' && entry.metadata.reason.trim()
+          ? entry.metadata.reason.trim()
+          : null;
+
+      return {
+        id: entry.id,
+        title: formatAdminAuditEvent(entry.eventType),
+        timestamp: new Date(entry.createdAt).toLocaleString(),
+        actorLabel,
+        targetLabel,
+        reason,
+      };
+    });
+
+    return {
+      ok: true,
+      entries,
+    };
+  }, [loadAdminResetAuditData]);
+
+  const issueNativeAdminResetTicket = useCallback(async (screennameToReset: string): Promise<NativeShellAdminIssueResult> => {
+    const target = screennameToReset.trim();
+    if (!target) {
+      return {
+        ok: false,
+        error: 'Enter a screen name.',
+      };
+    }
+
+    const result = await issueAdminResetTicketData(target);
+    if (!result.ok) {
+      return result;
+    }
+
+    return {
+      ok: true,
+      screenname: target,
+      ticket: result.ticket,
+      expiresAt: result.expiresAt,
+      handoff: buildAdminResetHandoff(target, result.ticket, result.expiresAt),
+      feedback: `Secure handoff ready for ${target}.`,
+    };
+  }, [issueAdminResetTicketData]);
+
+  useEffect(() => {
+    registerNativeShellBridge({
+      loadPrivacyState: loadNativePrivacyState,
+      updatePrivacySettings: updateNativePrivacySettings,
+      loadAdminResetAudit: loadNativeAdminResetAudit,
+      issueAdminResetTicket: issueNativeAdminResetTicket,
+    });
+
+    return () => {
+      registerNativeShellBridge(null);
+    };
+  }, [issueNativeAdminResetTicket, loadAdminResetAuditData, loadNativeAdminResetAudit, loadNativePrivacyState, updateNativePrivacySettings]);
 
   const handleCopyAdminResetValue = async (mode: 'ticket' | 'handoff') => {
     if (!issuedAdminTicket) {
@@ -4659,6 +4862,19 @@ function BuddyListContent() {
     [activeChatBuddyId, upsertConversationPreference],
   );
 
+  const handleChangeWallpaperForActiveChat = useCallback(
+    (newWallpaperKey: string | null) => {
+      if (!activeChatBuddyId) {
+        return;
+      }
+
+      void upsertConversationPreference(activeChatBuddyId, {
+        wallpaperKey: newWallpaperKey,
+      });
+    },
+    [activeChatBuddyId, upsertConversationPreference],
+  );
+
   const handleSetDisappearingTimerForActiveChat = useCallback(
     (seconds: number | null) => {
       if (!activeChatBuddyId) {
@@ -5074,6 +5290,54 @@ function BuddyListContent() {
     headerSummaryParts.push(`${activeRooms.length} room${activeRooms.length === 1 ? '' : 's'}`);
   }
   const buddyListHeaderSummary = headerSummaryParts.join(' · ');
+  const totalUnreadDirectCount = Object.values(unreadDirectMessages).reduce((sum, count) => sum + count, 0);
+  const nativeShellTitle =
+    activeChatBuddy?.screenname ||
+    activeRoom?.name ||
+    (showSavedMessagesWindow
+      ? 'Saved Messages'
+      : showPrivacySheet
+        ? 'Privacy'
+        : showSystemStatusSheet
+          ? 'System Status'
+          : showAddWindow
+            ? 'Add Buddy'
+            : isAdminResetOpen
+              ? 'Reset Account Access'
+              : isRecoverySetupOpen
+                ? 'Finish Account Protection'
+                : 'Buddy List');
+  const nativeShellSubtitle =
+    activeChatBuddy
+      ? activeChatBuddyPresenceSummary?.presenceLabel || 'Direct message'
+      : activeRoom
+        ? 'Room chat'
+        : showSavedMessagesWindow
+          ? 'Private notes'
+          : showPrivacySheet
+            ? 'Control what BuddyList reveals'
+            : showSystemStatusSheet
+              ? chatSyncSummary
+              : showAddWindow
+                ? 'Find and add buddies'
+                : isAdminResetOpen
+                  ? 'Recovery concierge'
+                  : isRecoverySetupOpen
+                    ? 'Set your private recovery code'
+                    : buddyListHeaderSummary;
+  const nativeShellCanGoBack = Boolean(
+    activeChatBuddy ||
+      activeRoom ||
+      showSavedMessagesWindow ||
+      showAddWindow ||
+      showRoomsWindow ||
+      showPrivacySheet ||
+      showSystemStatusSheet ||
+      isAdminResetOpen ||
+      isRecoverySetupOpen ||
+      showAwayModal ||
+      isHeaderMenuOpen,
+  );
   const headerActionButtonClass =
     'ui-focus-ring ui-window-header-button min-h-[40px] px-3 text-[11px] font-semibold';
 
@@ -5144,7 +5408,11 @@ function BuddyListContent() {
               {presenceSummary.presenceLabel}
             </p>
             <p className="truncate text-[11px] text-slate-400" title={presenceSummary.presenceDetail}>
-              {buddyLastMessagePreview[buddy.id] || presenceSummary.presenceDetail}
+              {activeDmTypingText && activeChatBuddyId === buddy.id ? (
+                <span className="italic text-blue-500">typing...</span>
+              ) : (
+                buddyLastMessagePreview[buddy.id] || presenceSummary.presenceDetail
+              )}
             </p>
           </div>
         </button>
@@ -5234,6 +5502,130 @@ function BuddyListContent() {
     openAwayModal();
   };
 
+  const handleNativeShellCommand = useEffectEvent((command: NativeShellCommand) => {
+    if (command.type === 'selectTab') {
+      switch (command.tab) {
+        case 'im':
+          handleOpenImFromActionBar();
+          return;
+        case 'chat':
+          openRoomsWindow();
+          return;
+        case 'buddy':
+          openAddWindow();
+          return;
+        case 'profile':
+          handleSetupAction();
+          return;
+        default:
+          return;
+      }
+    }
+
+    switch (command.action) {
+      case 'toggleTheme':
+        toggleDark();
+        return;
+      case 'openSaved':
+        setSavedMessageError(null);
+        setShowSavedMessagesWindow(true);
+        return;
+      case 'openAdd':
+        openAddWindow();
+        return;
+      case 'openMenu':
+        setIsHeaderMenuOpen((previous) => !previous);
+        return;
+      case 'openPrivacy':
+        openPrivacyControls();
+        return;
+      case 'openAdminReset':
+        openAdminResetWindow();
+        return;
+      case 'signOff':
+        void handleSignOff();
+        return;
+      case 'goBack':
+        if (isHeaderMenuOpen) {
+          setIsHeaderMenuOpen(false);
+          return;
+        }
+        if (showSavedMessagesWindow) {
+          setShowSavedMessagesWindow(false);
+          return;
+        }
+        if (showSystemStatusSheet) {
+          setShowSystemStatusSheet(false);
+          return;
+        }
+        if (showPrivacySheet) {
+          setShowPrivacySheet(false);
+          return;
+        }
+        if (showAddWindow) {
+          setShowAddWindow(false);
+          return;
+        }
+        if (showRoomsWindow) {
+          setShowRoomsWindow(false);
+          return;
+        }
+        if (showAwayModal) {
+          setShowAwayModal(false);
+          return;
+        }
+        if (isAdminResetOpen) {
+          setIsAdminResetOpen(false);
+          return;
+        }
+        if (activeChatBuddy) {
+          closeChatWindow();
+          return;
+        }
+        if (activeRoom) {
+          handleBackFromRoom();
+        }
+        return;
+      default:
+        return;
+    }
+  });
+
+  useEffect(() => {
+    if (!nativeShellActive) {
+      return;
+    }
+
+    return subscribeNativeShellCommands(handleNativeShellCommand);
+  }, [nativeShellActive]);
+
+  useEffect(() => {
+    if (!nativeShellActive) {
+      return;
+    }
+
+    void publishNativeShellChromeState({
+      title: nativeShellTitle,
+      subtitle: nativeShellSubtitle,
+      activeTab,
+      canGoBack: nativeShellCanGoBack,
+      isDark,
+      isAdminUser,
+      unreadDirectCount: totalUnreadDirectCount,
+    });
+  }, [
+    activeTab,
+    buddyListHeaderSummary,
+    chatSyncSummary,
+    isAdminUser,
+    isDark,
+    nativeShellActive,
+    nativeShellCanGoBack,
+    nativeShellSubtitle,
+    nativeShellTitle,
+    totalUnreadDirectCount,
+  ]);
+
   const selectedAwayPreset = awayPresets.find((preset) => preset.id === selectedAwayPresetId) ?? null;
   const awayPreview = resolveAwayTemplate(
     awayText || selectedAwayPreset?.message || "I'm away right now.",
@@ -5246,6 +5638,7 @@ function BuddyListContent() {
       <RetroWindow
         title="Buddy List"
         variant="xp_shell"
+        hideHeader={nativeShellActive}
         xpTitleText="Buddy List"
         xpSubtitleText={buddyListHeaderSummary}
         headerActions={(
@@ -5286,15 +5679,14 @@ function BuddyListContent() {
           {isHeaderMenuOpen ? (
             <div className="fixed inset-0 z-30" onClick={() => setIsHeaderMenuOpen(false)}>
               <div
-                className="ui-popover-menu absolute right-2 top-[calc(env(safe-area-inset-top)+3.2rem)] w-56 rounded-2xl p-1.5"
+                className={`ui-popover-menu absolute right-2 w-56 rounded-2xl p-1.5 ${
+                  nativeShellActive ? 'top-3' : 'top-[calc(env(safe-area-inset-top)+3.2rem)]'
+                }`}
                 onClick={(event) => event.stopPropagation()}
               >
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsHeaderMenuOpen(false);
-                    setShowPrivacySheet(true);
-                  }}
+                  onClick={openPrivacyControls}
                   className="ui-focus-ring ui-popover-item mt-0.5"
                 >
                   Privacy
@@ -5320,7 +5712,7 @@ function BuddyListContent() {
           ) : null}
 
           <div
-            className="min-h-0 flex-1 overflow-y-auto pb-20"
+            className={`min-h-0 flex-1 overflow-y-auto ${nativeShellActive ? 'pb-4' : 'pb-20'}`}
             onTouchStart={pullToRefresh.onTouchStart}
             onTouchMove={pullToRefresh.onTouchMove}
             onTouchEnd={pullToRefresh.onTouchEnd}
@@ -5816,67 +6208,64 @@ function BuddyListContent() {
           </div>
 
           {/* iOS-style tab bar */}
-          <div
-            className="ui-tabbar fixed bottom-0 left-0 z-20 w-full"
-            style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
-          >
-            <div className="grid h-16 grid-cols-4 items-center">
-              <button
-                type="button"
-                onClick={handleOpenImFromActionBar}
-                className="ui-focus-ring ui-tabbar-button"
-                data-active={activeTab === 'im' ? 'true' : 'false'}
-              >
-                <span className="ui-tabbar-icon relative">
-                  <BuddyListTabIcon kind="im" className="h-5 w-5 text-current" />
-                  {(() => {
-                    const totalUnread = Object.values(unreadDirectMessages).reduce((sum, n) => sum + n, 0);
-                    if (totalUnread <= 0) return null;
-                    const label = totalUnread > 99 ? '99+' : String(totalUnread);
-                    return (
+          {nativeShellActive ? null : (
+            <div
+              className="ui-tabbar fixed bottom-0 left-0 z-20 w-full"
+              style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+            >
+              <div className="grid h-16 grid-cols-4 items-center">
+                <button
+                  type="button"
+                  onClick={handleOpenImFromActionBar}
+                  className="ui-focus-ring ui-tabbar-button"
+                  data-active={activeTab === 'im' ? 'true' : 'false'}
+                >
+                  <span className="ui-tabbar-icon relative">
+                    <BuddyListTabIcon kind="im" className="h-5 w-5 text-current" />
+                    {totalUnreadDirectCount > 0 ? (
                       <span className="absolute -right-2.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold leading-none text-white shadow-sm">
-                        {label}
+                        {totalUnreadDirectCount > 99 ? '99+' : totalUnreadDirectCount}
                       </span>
-                    );
-                  })()}
-                </span>
-                <span className="ui-tabbar-label">IM</span>
-              </button>
-              <button
-                type="button"
-                onClick={openRoomsWindow}
-                className="ui-focus-ring ui-tabbar-button"
-                data-active={activeTab === 'chat' ? 'true' : 'false'}
-              >
-                <span className="ui-tabbar-icon">
-                  <BuddyListTabIcon kind="chat" className="h-5 w-5 text-current" />
-                </span>
-                <span className="ui-tabbar-label">Chat</span>
-              </button>
-              <button
-                type="button"
-                onClick={openAddWindow}
-                className="ui-focus-ring ui-tabbar-button"
-                data-active={activeTab === 'buddy' ? 'true' : 'false'}
-              >
-                <span className="ui-tabbar-icon">
-                  <BuddyListTabIcon kind="buddy" className="h-5 w-5 text-current" />
-                </span>
-                <span className="ui-tabbar-label">Buddy</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleSetupAction}
-                className="ui-focus-ring ui-tabbar-button"
-                data-active={activeTab === 'profile' ? 'true' : 'false'}
-              >
-                <span className="ui-tabbar-icon">
-                  <BuddyListTabIcon kind="profile" className="h-5 w-5 text-current" />
-                </span>
-                <span className="ui-tabbar-label">Profile</span>
-              </button>
+                    ) : null}
+                  </span>
+                  <span className="ui-tabbar-label">IM</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={openRoomsWindow}
+                  className="ui-focus-ring ui-tabbar-button"
+                  data-active={activeTab === 'chat' ? 'true' : 'false'}
+                >
+                  <span className="ui-tabbar-icon">
+                    <BuddyListTabIcon kind="chat" className="h-5 w-5 text-current" />
+                  </span>
+                  <span className="ui-tabbar-label">Chat</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={openAddWindow}
+                  className="ui-focus-ring ui-tabbar-button"
+                  data-active={activeTab === 'buddy' ? 'true' : 'false'}
+                >
+                  <span className="ui-tabbar-icon">
+                    <BuddyListTabIcon kind="buddy" className="h-5 w-5 text-current" />
+                  </span>
+                  <span className="ui-tabbar-label">Buddy</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSetupAction}
+                  className="ui-focus-ring ui-tabbar-button"
+                  data-active={activeTab === 'profile' ? 'true' : 'false'}
+                >
+                  <span className="ui-tabbar-icon">
+                    <BuddyListTabIcon kind="profile" className="h-5 w-5 text-current" />
+                  </span>
+                  <span className="ui-tabbar-label">Profile</span>
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </RetroWindow>
 
@@ -7131,7 +7520,10 @@ function BuddyListContent() {
             isLoading={isChatLoading}
             isSending={isSendingMessage}
             themeKey={activeChatPreference?.themeKey ?? null}
+            wallpaperKey={activeChatPreference?.wallpaperKey ?? null}
             onChangeTheme={handleChangeThemeForActiveChat}
+            onChangeWallpaper={handleChangeWallpaperForActiveChat}
+            showReadReceipts={privacySettings.shareReadReceipts}
           />
           {chatError && (
             <p className="fixed bottom-3 left-3 right-3 z-50 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-800">
