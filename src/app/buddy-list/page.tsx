@@ -5716,7 +5716,7 @@ function BuddyListContent() {
 
           <div
             className="min-h-0 flex-1 overflow-y-auto"
-            style={{ paddingBottom: nativeShellActive ? 'calc(env(safe-area-inset-bottom) + 3.5rem)' : '5rem' }}
+            style={{ paddingBottom: nativeShellActive ? 'calc(env(safe-area-inset-bottom) + 3.75rem)' : 'calc(env(safe-area-inset-bottom) + 5.25rem)' }}
             onTouchStart={pullToRefresh.onTouchStart}
             onTouchMove={pullToRefresh.onTouchMove}
             onTouchEnd={pullToRefresh.onTouchEnd}

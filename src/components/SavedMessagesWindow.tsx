@@ -3,6 +3,7 @@
 import { FormEvent, useMemo, useState } from 'react';
 import AppIcon from '@/components/AppIcon';
 import RetroWindow from '@/components/RetroWindow';
+import { useKeyboardViewport } from '@/hooks/useKeyboardViewport';
 import type { SavedMessageRow } from '@/lib/privateChat';
 import { htmlToPlainText } from '@/lib/richText';
 
@@ -30,6 +31,7 @@ export default function SavedMessagesWindow({
   onClose,
 }: SavedMessagesWindowProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { isKeyboardOpen, viewportHeight } = useKeyboardViewport();
   const visibleEntries = useMemo(
     () =>
       [...entries].sort((left, right) => {
@@ -53,6 +55,8 @@ export default function SavedMessagesWindow({
       setIsSubmitting(false);
     }
   };
+  const savedWindowShellStyle = isKeyboardOpen && viewportHeight ? { height: `${viewportHeight}px` } : undefined;
+  const composerInset = isKeyboardOpen ? '0.75rem' : 'calc(env(safe-area-inset-bottom) + 0.75rem)';
 
   return (
     <div className="fixed inset-0 z-40 chat-slide-in" role="dialog" aria-modal="true" aria-label="Saved messages">
@@ -61,7 +65,19 @@ export default function SavedMessagesWindow({
         variant="xp_shell"
         xpTitleText="Saved Messages"
         xpSubtitleText="Notes, forwards, and keepsakes"
+        headerActions={(
+          <button
+            type="button"
+            onClick={onClose}
+            className="ui-focus-ring ui-window-header-button px-2.5 text-[11px] font-semibold"
+            aria-label="Close saved messages"
+            title="Close saved messages"
+          >
+            Done
+          </button>
+        )}
         onXpClose={onClose}
+        style={savedWindowShellStyle}
       >
         <div className="ui-window-panel flex h-full min-h-0 flex-col rounded-[1.4rem] text-[length:var(--ui-text-md)]">
           <div className="ui-chat-log mx-3 mt-3 min-h-0 flex-1 overflow-y-auto rounded-2xl px-3 py-3">
@@ -116,7 +132,7 @@ export default function SavedMessagesWindow({
             </p>
           ) : null}
 
-          <div className="mx-3 mt-2 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
+          <div className="mx-3 mt-2" style={{ paddingBottom: composerInset }}>
             <form onSubmit={handleSubmit} className="ui-compose-surface flex items-end gap-2 rounded-2xl px-3.5 py-2.5">
               <label htmlFor="saved-message-input" className="sr-only">
                 New saved note
