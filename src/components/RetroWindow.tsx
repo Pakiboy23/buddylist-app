@@ -52,11 +52,12 @@ export default function RetroWindow({
                 <button
                   type="button"
                   onClick={onXpClose}
-                  className="ui-focus-ring ui-window-header-button px-1 text-[13px] font-semibold leading-none"
+                  className="ui-focus-ring ui-window-header-button min-h-[40px] gap-1.5 px-3 text-[11px] font-semibold uppercase tracking-[0.16em]"
                   aria-label="Back"
                   title="Back"
                 >
-                  ←
+                  <span aria-hidden="true" className="text-[13px] leading-none">←</span>
+                  <span>Back</span>
                 </button>
               ) : null}
               <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-blue-600 dark:bg-blue-500/15 dark:text-blue-300">
