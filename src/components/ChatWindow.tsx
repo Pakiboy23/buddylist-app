@@ -1141,6 +1141,15 @@ export default function ChatWindow({
           <>
             <button
               type="button"
+              onClick={handleClose}
+              className="ui-focus-ring ui-window-header-button px-2.5 text-[11px] font-semibold"
+              aria-label={`Close chat with ${buddyScreenname}`}
+              title="Close chat"
+            >
+              Done
+            </button>
+            <button
+              type="button"
               onClick={onTogglePinned}
               className="ui-focus-ring ui-window-header-button px-2.5 text-[11px] font-semibold"
               aria-pressed={isPinned}

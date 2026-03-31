@@ -15,7 +15,6 @@ import {
   validateChatMediaFile,
 } from '@/lib/chatMedia';
 import { hapticLight, hapticSuccess } from '@/lib/haptics';
-import { playMessageSendSound } from '@/lib/sound';
 import { useKeyboardViewport } from '@/hooks/useKeyboardViewport';
 import { useSwipeBack } from '@/hooks/useSwipeBack';
 import { supabase } from '@/lib/supabase';
@@ -211,6 +210,7 @@ export default function GroupChatWindow({
   const [isClosing, setIsClosing] = useState(false);
   const [relativeTimeTick, setRelativeTimeTick] = useState(0);
   const seenReactionKeysRef = useRef(new Set<string>());
+  const [newReactionKeys, setNewReactionKeys] = useState<Set<string>>(() => new Set());
 
   const handleBack = useCallback(() => {
     setIsClosing(true);
@@ -1075,6 +1075,41 @@ export default function GroupChatWindow({
     return summary;
   }, [reactionRows]);
 
+  useEffect(() => {
+    const seenReactionKeys = seenReactionKeysRef.current;
+    const newlyDiscoveredKeys: string[] = [];
+
+    for (const [messageId, emojiSummary] of reactionSummaryByMessageId) {
+      for (const emoji of Object.keys(emojiSummary)) {
+        const reactionKey = `${messageId}-${emoji}`;
+        if (!seenReactionKeys.has(reactionKey)) {
+          seenReactionKeys.add(reactionKey);
+          newlyDiscoveredKeys.push(reactionKey);
+        }
+      }
+    }
+
+    if (newlyDiscoveredKeys.length === 0) {
+      return;
+    }
+
+    setNewReactionKeys((previous) => {
+      const next = new Set(previous);
+      newlyDiscoveredKeys.forEach((key) => next.add(key));
+      return next;
+    });
+
+    const clearTimer = setTimeout(() => {
+      setNewReactionKeys((previous) => {
+        const next = new Set(previous);
+        newlyDiscoveredKeys.forEach((key) => next.delete(key));
+        return next;
+      });
+    }, 950);
+
+    return () => clearTimeout(clearTimer);
+  }, [reactionSummaryByMessageId]);
+
   const attachmentsByMessageId = useMemo(() => {
     const grouped = new Map<string, RoomMessageAttachmentRow[]>();
     for (const attachment of attachmentRows) {
@@ -1150,6 +1185,17 @@ export default function GroupChatWindow({
         variant="xp_shell"
         xpTitleText={`#${roomName}`}
         xpSubtitleText={`${participants.length} participant${participants.length === 1 ? '' : 's'}`}
+        headerActions={(
+          <button
+            type="button"
+            onClick={handleBack}
+            className="ui-focus-ring ui-window-header-button px-2.5 text-[11px] font-semibold"
+            aria-label={`Close room ${roomName}`}
+            title="Close room"
+          >
+            Done
+          </button>
+        )}
         onXpClose={handleBack}
         onXpSignOff={onSignOff}
         style={chatShellStyle}
@@ -1465,8 +1511,7 @@ export default function GroupChatWindow({
                             <div className={`-mt-1 mb-1 flex flex-wrap gap-0.5 ${isMine ? 'justify-end' : 'justify-start'}`}>
                               {reactionEntries.map(([emoji, count]) => {
                                 const reactionKey = `${message.id}-${emoji}`;
-                                const isNew = !seenReactionKeysRef.current.has(reactionKey);
-                                if (isNew) seenReactionKeysRef.current.add(reactionKey);
+                                const isNew = newReactionKeys.has(reactionKey);
                                 return (
                                   <span
                                     key={reactionKey}
