@@ -566,7 +566,8 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
 
     private func updateNavigationItems() {
         topNavigationItem.leftBarButtonItem = chromeState.canGoBack
-            ? makeBarButtonItem(
+            ? makeLabeledBarButtonItem(
+                title: "Back",
                 systemName: "chevron.backward",
                 accessibilityLabel: "Back",
                 action: #selector(handleGoBack)
@@ -692,6 +693,24 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
         )
         buttonItem.accessibilityLabel = accessibilityLabel
         return buttonItem
+    }
+
+    private func makeLabeledBarButtonItem(
+        title: String,
+        systemName: String,
+        accessibilityLabel: String,
+        action: Selector
+    ) -> UIBarButtonItem {
+        let button = UIButton(type: .system)
+        var configuration = UIButton.Configuration.plain()
+        configuration.image = UIImage(systemName: systemName)
+        configuration.title = title
+        configuration.imagePadding = 5
+        configuration.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0)
+        button.configuration = configuration
+        button.accessibilityLabel = accessibilityLabel
+        button.addTarget(self, action: action, for: .touchUpInside)
+        return UIBarButtonItem(customView: button)
     }
 
     private func makeOverflowMenu() -> UIMenu {

@@ -171,6 +171,7 @@ interface Buddy {
 }
 
 type BuddySortMode = 'online_then_alpha' | 'alpha' | 'recent_activity';
+type ShellSection = 'profile' | 'im' | 'chat' | 'buddy';
 
 interface PendingRequest {
   senderId: string;
@@ -726,6 +727,7 @@ function BuddyListContent() {
   const [isRemovingBuddyId, setIsRemovingBuddyId] = useState<string | null>(null);
   const [isBlockingBuddyId, setIsBlockingBuddyId] = useState<string | null>(null);
   const [isReportingBuddyId, setIsReportingBuddyId] = useState<string | null>(null);
+  const [bodyShellSection, setBodyShellSection] = useState<ShellSection>('profile');
   const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(false);
   const [profileSheetBuddyId, setProfileSheetBuddyId] = useState<string | null>(null);
   const [profileSheetError, setProfileSheetError] = useState<string | null>(null);
@@ -778,6 +780,11 @@ function BuddyListContent() {
   const pendingRequestsRef = useRef<PendingRequest[]>([]);
   const temporaryChatAllowedIdsRef = useRef<Set<string>>(new Set());
   const temporaryChatProfilesRef = useRef<Record<string, TemporaryChatProfile>>({});
+  const mainShellScrollRef = useRef<HTMLDivElement | null>(null);
+  const profileSectionRef = useRef<HTMLDivElement | null>(null);
+  const directMessagesSectionRef = useRef<HTMLDivElement | null>(null);
+  const roomsSectionRef = useRef<HTMLDivElement | null>(null);
+  const buddyToolsSectionRef = useRef<HTMLDivElement | null>(null);
   const userStatusRef = useRef(userStatus);
   const statusMsgRef = useRef(statusMsg);
   const awayMessageRef = useRef(awayMessage);
@@ -5144,23 +5151,6 @@ function BuddyListContent() {
     };
   }, [loadSingleUserProfile, openChatWindowForId, requestedDirectMessageUserId, requestedRoomName, userId]);
 
-  const openAddWindow = () => {
-    void hapticSelection();
-    setSearchTerm('');
-    setSearchResults([]);
-    setSearchError(null);
-    setShowAddWindow(true);
-    setIsHeaderMenuOpen(false);
-  };
-
-  const openRoomsWindow = () => {
-    void hapticSelection();
-    setRoomNameDraft(activeRoom?.name ?? '');
-    setRoomJoinError(null);
-    setShowRoomsWindow(true);
-    setIsHeaderMenuOpen(false);
-  };
-
   const handleJoinRoom = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!userId) {
@@ -5193,7 +5183,7 @@ function BuddyListContent() {
     }
   };
 
-  const closeChatWindow = () => {
+  const closeChatWindow = useCallback(() => {
     setActiveChatBuddyId(null);
     activeChatBuddyIdRef.current = null;
     setInitialUnreadForActiveChat(0);
@@ -5210,7 +5200,92 @@ function BuddyListContent() {
     } else {
       replaceAppPathInPlace(BUDDY_LIST_PATH);
     }
-  };
+  }, [activeRoom]);
+
+  const scrollMainShellToSection = useCallback((section: ShellSection, behavior: ScrollBehavior = 'smooth') => {
+    const sectionElement =
+      section === 'profile'
+        ? profileSectionRef.current
+        : section === 'im'
+          ? directMessagesSectionRef.current
+          : section === 'chat'
+            ? roomsSectionRef.current
+            : buddyToolsSectionRef.current;
+
+    if (!sectionElement) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      sectionElement.scrollIntoView({ behavior, block: 'start' });
+    });
+  }, []);
+
+  const focusMainShellSection = useCallback((section: ShellSection, behavior: ScrollBehavior = 'smooth') => {
+    void hapticSelection();
+    setIsHeaderMenuOpen(false);
+    setShowSavedMessagesWindow(false);
+    setShowSystemStatusSheet(false);
+    setShowPrivacySheet(false);
+    setShowAwayModal(false);
+    setShowAddWindow(false);
+    setShowRoomsWindow(false);
+    setIsAdminResetOpen(false);
+    setIsRecoverySetupOpen(false);
+
+    if (activeChatBuddyIdRef.current) {
+      closeChatWindow();
+    }
+    if (activeRoom) {
+      handleBackFromRoom();
+    }
+
+    if (section === 'im') {
+      setIsBuddiesOpen(true);
+    }
+    if (section === 'chat') {
+      setIsActiveChatsOpen(true);
+    }
+
+    setBodyShellSection(section);
+    scrollMainShellToSection(section, behavior);
+  }, [activeRoom, closeChatWindow, handleBackFromRoom, scrollMainShellToSection]);
+
+  const openAddWindow = useCallback(() => {
+    setSearchError(null);
+    focusMainShellSection('buddy');
+  }, [focusMainShellSection]);
+
+  const openRoomsWindow = useCallback(() => {
+    setRoomJoinError(null);
+    if (!roomNameDraft && activeRoom?.name) {
+      setRoomNameDraft(activeRoom.name);
+    }
+    focusMainShellSection('chat');
+  }, [activeRoom?.name, focusMainShellSection, roomNameDraft]);
+
+  const handleMainShellScroll = useCallback(() => {
+    const container = mainShellScrollRef.current;
+    if (!container) {
+      return;
+    }
+
+    const nextSection = (
+      [
+        { section: 'profile', element: profileSectionRef.current },
+        { section: 'buddy', element: buddyToolsSectionRef.current },
+        { section: 'im', element: directMessagesSectionRef.current },
+        { section: 'chat', element: roomsSectionRef.current },
+      ] as Array<{ section: ShellSection; element: HTMLDivElement | null }>
+    ).reduce<ShellSection>('profile', (currentSection, candidate) => {
+      if (!candidate.element || candidate.element.offsetTop - container.scrollTop > 120) {
+        return currentSection;
+      }
+      return candidate.section;
+    });
+
+    setBodyShellSection((currentSection) => (currentSection === nextSection ? currentSection : nextSection));
+  }, []);
 
   const isCurrentUserAway = currentUserPresenceState === 'away';
   const isCurrentUserIdle = currentUserPresenceState === 'idle';
@@ -5272,11 +5347,11 @@ function BuddyListContent() {
   const activeTab =
     showAwayModal || showPrivacySheet
       ? 'profile'
-      : showAddWindow || Boolean(activePendingRequest)
+      : Boolean(activePendingRequest)
         ? 'buddy'
-        : showRoomsWindow || Boolean(activeRoom)
+        : Boolean(activeRoom)
           ? 'chat'
-          : 'im';
+          : bodyShellSection;
   const headerSummaryParts = acceptedBuddies.length === 0
     ? ['Add your first buddy to get started']
     : [
@@ -5291,6 +5366,22 @@ function BuddyListContent() {
   }
   const buddyListHeaderSummary = headerSummaryParts.join(' · ');
   const totalUnreadDirectCount = Object.values(unreadDirectMessages).reduce((sum, count) => sum + count, 0);
+  const mainShellTitle =
+    bodyShellSection === 'im'
+      ? 'Direct Messages'
+      : bodyShellSection === 'chat'
+        ? 'Group Rooms'
+        : bodyShellSection === 'buddy'
+          ? 'Find Buddies'
+          : 'Buddy List';
+  const mainShellSubtitle =
+    bodyShellSection === 'im'
+      ? `${filteredDirectMessageBuddies.length} conversation${filteredDirectMessageBuddies.length === 1 ? '' : 's'}`
+      : bodyShellSection === 'chat'
+        ? `${activeRooms.length} room${activeRooms.length === 1 ? '' : 's'} ready`
+        : bodyShellSection === 'buddy'
+          ? 'Search people, accept requests, and jump into rooms'
+          : buddyListHeaderSummary;
   const nativeShellTitle =
     activeChatBuddy?.screenname ||
     activeRoom?.name ||
@@ -5300,13 +5391,11 @@ function BuddyListContent() {
         ? 'Privacy'
         : showSystemStatusSheet
           ? 'System Status'
-          : showAddWindow
-            ? 'Add Buddy'
-            : isAdminResetOpen
-              ? 'Reset Account Access'
-              : isRecoverySetupOpen
-                ? 'Finish Account Protection'
-                : 'Buddy List');
+          : isAdminResetOpen
+            ? 'Reset Account Access'
+            : isRecoverySetupOpen
+              ? 'Finish Account Protection'
+              : mainShellTitle);
   const nativeShellSubtitle =
     activeChatBuddy
       ? activeChatBuddyPresenceSummary?.presenceLabel || 'Direct message'
@@ -5318,25 +5407,22 @@ function BuddyListContent() {
             ? 'Control what BuddyList reveals'
             : showSystemStatusSheet
               ? chatSyncSummary
-              : showAddWindow
-                ? 'Find and add buddies'
-                : isAdminResetOpen
-                  ? 'Recovery concierge'
-                  : isRecoverySetupOpen
-                    ? 'Set your private recovery code'
-                    : buddyListHeaderSummary;
+              : isAdminResetOpen
+                ? 'Recovery concierge'
+                : isRecoverySetupOpen
+                  ? 'Set your private recovery code'
+                  : mainShellSubtitle;
   const nativeShellCanGoBack = Boolean(
     activeChatBuddy ||
       activeRoom ||
       showSavedMessagesWindow ||
-      showAddWindow ||
-      showRoomsWindow ||
       showPrivacySheet ||
       showSystemStatusSheet ||
       isAdminResetOpen ||
       isRecoverySetupOpen ||
       showAwayModal ||
-      isHeaderMenuOpen,
+      isHeaderMenuOpen ||
+      bodyShellSection !== 'profile',
   );
   const headerActionButtonClass =
     'ui-focus-ring ui-window-header-button min-h-[40px] px-3 text-[11px] font-semibold';
@@ -5480,27 +5566,13 @@ function BuddyListContent() {
   const xpModalPrimaryButtonClass =
     'ui-focus-ring ui-button-primary ui-button-compact disabled:opacity-60';
 
-  const handleOpenImFromActionBar = () => {
-    void hapticSelection();
-    const fallbackBuddyId =
-      (selectedBuddyId && acceptedBuddies.some((buddy) => buddy.id === selectedBuddyId)
-        ? selectedBuddyId
-        : null) ??
-      sortedDirectMessageBuddies[0]?.id ??
-      null;
+  const handleOpenImFromActionBar = useCallback(() => {
+    focusMainShellSection('im');
+  }, [focusMainShellSection]);
 
-    if (!fallbackBuddyId) {
-      return;
-    }
-
-    handleOpenChat(fallbackBuddyId);
-  };
-
-  const handleSetupAction = () => {
-    void hapticSelection();
-    setIsHeaderMenuOpen(false);
-    openAwayModal();
-  };
+  const handleSetupAction = useCallback(() => {
+    focusMainShellSection('profile');
+  }, [focusMainShellSection]);
 
   const handleNativeShellCommand = useEffectEvent((command: NativeShellCommand) => {
     if (command.type === 'selectTab') {
@@ -5584,6 +5656,10 @@ function BuddyListContent() {
         }
         if (activeRoom) {
           handleBackFromRoom();
+          return;
+        }
+        if (bodyShellSection !== 'profile') {
+          focusMainShellSection('profile');
         }
         return;
       default:
@@ -5639,8 +5715,8 @@ function BuddyListContent() {
         title="Buddy List"
         variant="xp_shell"
         hideHeader={nativeShellActive}
-        xpTitleText="Buddy List"
-        xpSubtitleText={buddyListHeaderSummary}
+        xpTitleText={mainShellTitle}
+        xpSubtitleText={mainShellSubtitle}
         headerActions={(
           <>
             <button
@@ -5667,12 +5743,13 @@ function BuddyListContent() {
               type="button"
               onClick={openAddWindow}
               className={headerActionButtonClass}
-              aria-label="Add a buddy"
+              aria-label="Find buddies"
             >
-              Add
+              Find
             </button>
           </>
         )}
+        onXpClose={bodyShellSection !== 'profile' ? () => focusMainShellSection('profile') : undefined}
         onXpSignOff={() => setIsHeaderMenuOpen((previous) => !previous)}
       >
         <div
@@ -5714,13 +5791,16 @@ function BuddyListContent() {
             </div>
           ) : null}
 
-          <div
-            className="min-h-0 flex-1 overflow-y-auto"
-            style={{ paddingBottom: nativeShellActive ? 'calc(env(safe-area-inset-bottom) + 3.75rem)' : 'calc(env(safe-area-inset-bottom) + 5.25rem)' }}
-            onTouchStart={pullToRefresh.onTouchStart}
-            onTouchMove={pullToRefresh.onTouchMove}
-            onTouchEnd={pullToRefresh.onTouchEnd}
-          >
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div
+              ref={mainShellScrollRef}
+              className="min-h-0 flex-1 overflow-y-auto"
+              style={{ paddingBottom: nativeShellActive ? 'calc(env(safe-area-inset-bottom) + 1rem)' : '1rem' }}
+              onScroll={handleMainShellScroll}
+              onTouchStart={pullToRefresh.onTouchStart}
+              onTouchMove={pullToRefresh.onTouchMove}
+              onTouchEnd={pullToRefresh.onTouchEnd}
+            >
             {(pullToRefresh.pullDistance > 0 || pullToRefresh.isRefreshing) ? (
               <div
                 className="flex flex-col items-center justify-center gap-1 overflow-hidden text-slate-400 transition-all"
@@ -5744,7 +5824,7 @@ function BuddyListContent() {
                 </span>
               </div>
             ) : null}
-            <div className="px-3 pt-3 pb-2">
+              <div ref={profileSectionRef} className="px-3 pt-3 pb-2">
               <div className="ui-panel-card rounded-[1.45rem] px-4 py-4">
                 <input
                   ref={quickPhotoInputRef}
@@ -5842,6 +5922,148 @@ function BuddyListContent() {
               ) : null}
             </div>
 
+              <div className="sticky top-0 z-10 px-3 pb-2 pt-1">
+                <div className="rounded-[1.35rem] border border-white/65 bg-white/82 p-1.5 shadow-[0_16px_36px_rgba(15,23,42,0.08)] backdrop-blur-2xl dark:border-slate-700/70 dark:bg-slate-950/72">
+                  <div className="grid grid-cols-4 gap-1">
+                    {([
+                      { id: 'profile', label: 'You', count: null },
+                      { id: 'im', label: 'Messages', count: filteredDirectMessageBuddies.length },
+                      { id: 'chat', label: 'Rooms', count: activeRooms.length },
+                      { id: 'buddy', label: 'Find', count: pendingRequests.length > 0 ? pendingRequests.length : null },
+                    ] as Array<{ id: ShellSection; label: string; count: number | null }>).map((sectionOption) => (
+                      <button
+                        key={sectionOption.id}
+                        type="button"
+                        onClick={() => focusMainShellSection(sectionOption.id)}
+                        className={`ui-focus-ring rounded-[1rem] px-2 py-2 text-left transition ${
+                          bodyShellSection === sectionOption.id
+                            ? 'bg-blue-600 text-white shadow-[0_14px_28px_rgba(37,99,235,0.22)]'
+                            : 'text-slate-600 hover:bg-white/80 dark:text-slate-300 dark:hover:bg-slate-900/70'
+                        }`}
+                      >
+                        <span className="block text-[9px] font-semibold uppercase tracking-[0.18em] opacity-75">
+                          {sectionOption.label}
+                        </span>
+                        <span className="mt-1 block truncate text-[12px] font-semibold">
+                          {sectionOption.count === null ? 'Open' : sectionOption.count}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <section ref={buddyToolsSectionRef} className="px-3 pb-2">
+                <div className="ui-panel-card rounded-[1.45rem] px-4 py-4">
+                  <div className="flex flex-col gap-4 lg:flex-row">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Find People</p>
+                          <p className="mt-1 text-[14px] font-semibold text-slate-800 dark:text-slate-100">Search and add buddies without leaving the page.</p>
+                        </div>
+                        {pendingRequests.length > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setConversationFilter('requests');
+                              setIsBuddiesOpen(true);
+                              focusMainShellSection('im');
+                            }}
+                            className="ui-focus-ring ui-button-secondary ui-button-compact shrink-0"
+                          >
+                            {pendingRequests.length} request{pendingRequests.length === 1 ? '' : 's'}
+                          </button>
+                        ) : null}
+                      </div>
+                      <form onSubmit={handleSearch} className="mt-3 flex gap-2">
+                        <input
+                          value={searchTerm}
+                          onChange={(event) => setSearchTerm(event.target.value)}
+                          className={xpModalInputClass}
+                          placeholder="Search screen names..."
+                        />
+                        <button
+                          type="submit"
+                          className={`${xpModalPrimaryButtonClass} shrink-0`}
+                        >
+                          Search
+                        </button>
+                      </form>
+
+                      {searchError ? <p className="ui-note-error mt-2">{searchError}</p> : null}
+
+                      {(isSearching || searchTerm.trim() !== '' || searchResults.length > 0) ? (
+                        <div className="mt-3 max-h-56 overflow-y-auto rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-[inset_0_1px_1px_rgba(15,23,42,0.05)] dark:border-slate-700 dark:bg-slate-950/50">
+                          {isSearching ? (
+                            <p className="p-2 text-sm italic text-slate-500">Searching screen names...</p>
+                          ) : null}
+                          {!isSearching && searchTerm.trim() !== '' && searchResults.length === 0 ? (
+                            <p className="p-2 text-sm italic text-slate-500">No screen names found.</p>
+                          ) : null}
+                          {!isSearching &&
+                            searchResults.map((profile) => {
+                              const resolvedProfileStatus = resolveStatusFields({
+                                status: profile.status,
+                                awayMessage: profile.away_message,
+                                statusMessage: profile.status_msg,
+                              });
+                              const isProfileAway = normalizeStatusLabel(resolvedProfileStatus.status) === AWAY_STATUS;
+
+                              return (
+                                <div
+                                  key={profile.id}
+                                  className="ui-panel-muted mb-2 flex items-center justify-between gap-2 rounded-2xl p-3 last:mb-0"
+                                >
+                                  <div className="min-w-0">
+                                    <p className="truncate font-bold">{profile.screenname || 'Unknown User'}</p>
+                                    <p className="truncate text-[11px] italic text-slate-500">
+                                      {isProfileAway
+                                        ? `Away: ${resolvedProfileStatus.awayMessage || 'Away'}`
+                                        : resolvedProfileStatus.statusMessage}
+                                    </p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAddBuddy(profile)}
+                                    disabled={isAddingBuddyId === profile.id}
+                                    className={xpModalPrimaryButtonClass}
+                                  >
+                                    {isAddingBuddyId === profile.id ? 'Adding...' : 'Add'}
+                                  </button>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <div className="min-w-0 lg:w-[15rem]">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Rooms</p>
+                      <p className="mt-1 text-[14px] font-semibold text-slate-800 dark:text-slate-100">Jump into an existing room or create a new one from here.</p>
+                      <form onSubmit={handleJoinRoom} className="mt-3 space-y-2">
+                        <input
+                          id="room-name-input-inline"
+                          value={roomNameDraft}
+                          onChange={(event) => setRoomNameDraft(event.target.value)}
+                          className={xpModalInputClass}
+                          placeholder="cool_kids_club"
+                          maxLength={80}
+                        />
+                        <button
+                          type="submit"
+                          disabled={isJoiningRoom}
+                          className={`${xpModalPrimaryButtonClass} w-full justify-center`}
+                        >
+                          {isJoiningRoom ? 'Joining...' : 'Join Room'}
+                        </button>
+                      </form>
+                      <p className="mt-2 text-[11px] text-slate-500">The room will be created automatically if it does not exist yet.</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
             {isCurrentUserAway ? (
               <div className="ui-note-warning mx-3 mt-2">
                 <div className="flex items-start gap-2">
@@ -5930,7 +6152,7 @@ function BuddyListContent() {
               );
             })()}
 
-            <div className="bg-transparent">
+            <section ref={directMessagesSectionRef} className="bg-transparent">
               <div className="select-none">
                 <button
                   type="button"
@@ -6134,7 +6356,7 @@ function BuddyListContent() {
               </div>
               ) : null}
 
-              <div className="select-none">
+              <div ref={roomsSectionRef} className="select-none">
                 <button
                   type="button"
                   onClick={() => setIsActiveChatsOpen((previous) => !previous)}
@@ -6208,68 +6430,69 @@ function BuddyListContent() {
                   <p className="px-3 pb-2 text-[11px] font-semibold text-red-600">{roomJoinError}</p>
                 ) : null}
               </div>
-            </div>
+            </section>
           </div>
 
-          {/* iOS-style tab bar */}
-          {nativeShellActive ? null : (
-            <div
-              className="ui-tabbar fixed bottom-0 left-0 z-20 w-full"
-              style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
-            >
-              <div className="grid h-16 grid-cols-4 items-center">
-                <button
-                  type="button"
-                  onClick={handleOpenImFromActionBar}
-                  className="ui-focus-ring ui-tabbar-button"
-                  data-active={activeTab === 'im' ? 'true' : 'false'}
-                >
-                  <span className="ui-tabbar-icon relative">
-                    <BuddyListTabIcon kind="im" className="h-5 w-5 text-current" />
-                    {totalUnreadDirectCount > 0 ? (
-                      <span className="absolute -right-2.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold leading-none text-white shadow-sm">
-                        {totalUnreadDirectCount > 99 ? '99+' : totalUnreadDirectCount}
-                      </span>
-                    ) : null}
-                  </span>
-                  <span className="ui-tabbar-label">IM</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={openRoomsWindow}
-                  className="ui-focus-ring ui-tabbar-button"
-                  data-active={activeTab === 'chat' ? 'true' : 'false'}
-                >
-                  <span className="ui-tabbar-icon">
-                    <BuddyListTabIcon kind="chat" className="h-5 w-5 text-current" />
-                  </span>
-                  <span className="ui-tabbar-label">Chat</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={openAddWindow}
-                  className="ui-focus-ring ui-tabbar-button"
-                  data-active={activeTab === 'buddy' ? 'true' : 'false'}
-                >
-                  <span className="ui-tabbar-icon">
-                    <BuddyListTabIcon kind="buddy" className="h-5 w-5 text-current" />
-                  </span>
-                  <span className="ui-tabbar-label">Buddy</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSetupAction}
-                  className="ui-focus-ring ui-tabbar-button"
-                  data-active={activeTab === 'profile' ? 'true' : 'false'}
-                >
-                  <span className="ui-tabbar-icon">
-                    <BuddyListTabIcon kind="profile" className="h-5 w-5 text-current" />
-                  </span>
-                  <span className="ui-tabbar-label">Profile</span>
-                </button>
+            {/* iOS-style tab bar */}
+            {nativeShellActive ? null : (
+              <div
+                className="ui-tabbar shrink-0"
+                style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+              >
+                <div className="grid h-16 grid-cols-4 items-center">
+                  <button
+                    type="button"
+                    onClick={handleOpenImFromActionBar}
+                    className="ui-focus-ring ui-tabbar-button"
+                    data-active={activeTab === 'im' ? 'true' : 'false'}
+                  >
+                    <span className="ui-tabbar-icon relative">
+                      <BuddyListTabIcon kind="im" className="h-5 w-5 text-current" />
+                      {totalUnreadDirectCount > 0 ? (
+                        <span className="absolute -right-2.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold leading-none text-white shadow-sm">
+                          {totalUnreadDirectCount > 99 ? '99+' : totalUnreadDirectCount}
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="ui-tabbar-label">IM</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openRoomsWindow}
+                    className="ui-focus-ring ui-tabbar-button"
+                    data-active={activeTab === 'chat' ? 'true' : 'false'}
+                  >
+                    <span className="ui-tabbar-icon">
+                      <BuddyListTabIcon kind="chat" className="h-5 w-5 text-current" />
+                    </span>
+                    <span className="ui-tabbar-label">Chat</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openAddWindow}
+                    className="ui-focus-ring ui-tabbar-button"
+                    data-active={activeTab === 'buddy' ? 'true' : 'false'}
+                  >
+                    <span className="ui-tabbar-icon">
+                      <BuddyListTabIcon kind="buddy" className="h-5 w-5 text-current" />
+                    </span>
+                    <span className="ui-tabbar-label">Buddy</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSetupAction}
+                    className="ui-focus-ring ui-tabbar-button"
+                    data-active={activeTab === 'profile' ? 'true' : 'false'}
+                  >
+                    <span className="ui-tabbar-icon">
+                      <BuddyListTabIcon kind="profile" className="h-5 w-5 text-current" />
+                    </span>
+                    <span className="ui-tabbar-label">Profile</span>
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </RetroWindow>
 
