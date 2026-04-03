@@ -4,10 +4,10 @@ This repository is set up for Xcode Cloud builds of the `App` scheme.
 
 ## What the scripts do
 
-- `scripts/ci_post_clone.sh` fails early if the checked-in web bundle is missing.
-- `scripts/ci_pre_xcodebuild.sh` repeats that validation immediately before the Xcode build starts.
+- `ci_post_clone.sh` validates the checked-in web bundle exists and runs `npm ci`.
+- `ci_pre_xcodebuild.sh` verifies required Capacitor native packages were installed before the Xcode build starts.
 
-These checks are intentional. The current iOS project builds successfully from the committed assets in `App/App/public`, and there is no Node lockfile or web build pipeline in this directory for Xcode Cloud to run.
+These scripts live in `ios/App/ci_scripts/` — Xcode Cloud discovers them automatically next to the `.xcodeproj`.
 
 ## Recommended workflows
 
