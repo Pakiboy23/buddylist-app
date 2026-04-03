@@ -5277,12 +5277,12 @@ function BuddyListContent() {
         { section: 'im', element: directMessagesSectionRef.current },
         { section: 'chat', element: roomsSectionRef.current },
       ] as Array<{ section: ShellSection; element: HTMLDivElement | null }>
-    ).reduce<ShellSection>('profile', (currentSection, candidate) => {
+    ).reduce<ShellSection>((currentSection, candidate) => {
       if (!candidate.element || candidate.element.offsetTop - container.scrollTop > 120) {
         return currentSection;
       }
       return candidate.section;
-    });
+    }, 'profile' as ShellSection);
 
     setBodyShellSection((currentSection) => (currentSection === nextSection ? currentSection : nextSection));
   }, []);

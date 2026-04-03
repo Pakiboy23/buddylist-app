@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunk_N_E=self.webpackChunk_N_E||[]).push([[186],{5186:(e,n,a)=>{a.d(n,{Badge:()=>b});let b=(0,a(4062).F3)("Badge",{web:()=>a.e(672).then(a.bind(a,8672)).then(e=>new e.BadgeWeb)})}}]);
