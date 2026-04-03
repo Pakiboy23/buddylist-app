@@ -4,7 +4,7 @@ set -eu
 
 REPOSITORY_ROOT="${CI_PRIMARY_REPOSITORY_PATH:-$PWD}"
 IOS_PROJECT_ROOT="$REPOSITORY_ROOT/ios/App"
-WEB_BUNDLE_DIR="$IOS_PROJECT_ROOT/App/App/public"
+WEB_BUNDLE_DIR="$IOS_PROJECT_ROOT/App/public"
 REQUIRED_PACKAGES="
 $REPOSITORY_ROOT/node_modules/@aparajita/capacitor-biometric-auth
 $REPOSITORY_ROOT/node_modules/@capacitor/haptics
