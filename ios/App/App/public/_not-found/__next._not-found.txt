@@ -1,4 +1,4 @@
 1:"$Sreact.fragment"
 2:I[9656,[],""]
 3:I[7950,[],""]
-0:{"buildId":"UxBVXQKolWMAaUo6l7_kv","rsc":["$","$1","c",{"children":[null,["$","$L2",null,{"parallelRouterKey":"children","template":["$","$L3",null,{}]}]]}],"loading":null,"isPartial":false}
+0:{"buildId":"mfPC1cmA1iOuSK0RxauSs","rsc":["$","$1","c",{"children":[null,["$","$L2",null,{"parallelRouterKey":"children","template":["$","$L3",null,{}]}]]}],"loading":null,"isPartial":false}

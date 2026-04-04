@@ -28,6 +28,8 @@ fileprivate struct BuddyListShellChromeState: Decodable, Equatable {
     let isDark: Bool
     let isAdminUser: Bool
     let unreadDirectCount: Int
+    let showsTopChrome: Bool
+    let showsBottomChrome: Bool
 
     init(
         title: String = "Buddy List",
@@ -36,7 +38,9 @@ fileprivate struct BuddyListShellChromeState: Decodable, Equatable {
         canGoBack: Bool = false,
         isDark: Bool = false,
         isAdminUser: Bool = false,
-        unreadDirectCount: Int = 0
+        unreadDirectCount: Int = 0,
+        showsTopChrome: Bool = true,
+        showsBottomChrome: Bool = true
     ) {
         self.title = title
         self.subtitle = subtitle
@@ -45,6 +49,8 @@ fileprivate struct BuddyListShellChromeState: Decodable, Equatable {
         self.isDark = isDark
         self.isAdminUser = isAdminUser
         self.unreadDirectCount = unreadDirectCount
+        self.showsTopChrome = showsTopChrome
+        self.showsBottomChrome = showsBottomChrome
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -55,6 +61,8 @@ fileprivate struct BuddyListShellChromeState: Decodable, Equatable {
         case isDark
         case isAdminUser
         case unreadDirectCount
+        case showsTopChrome
+        case showsBottomChrome
     }
 
     init(from decoder: Decoder) throws {
@@ -71,6 +79,8 @@ fileprivate struct BuddyListShellChromeState: Decodable, Equatable {
         isDark = try container.decodeIfPresent(Bool.self, forKey: .isDark) ?? false
         isAdminUser = try container.decodeIfPresent(Bool.self, forKey: .isAdminUser) ?? false
         unreadDirectCount = max(0, try container.decodeIfPresent(Int.self, forKey: .unreadDirectCount) ?? 0)
+        showsTopChrome = try container.decodeIfPresent(Bool.self, forKey: .showsTopChrome) ?? true
+        showsBottomChrome = try container.decodeIfPresent(Bool.self, forKey: .showsBottomChrome) ?? true
     }
 }
 
@@ -258,6 +268,10 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
     private let topNavigationItem = UINavigationItem(title: "")
     private let titleLabel = UILabel()
     private let subtitleLabel = UILabel()
+    private var bridgeTopWithChromeConstraint: NSLayoutConstraint?
+    private var bridgeTopFullscreenConstraint: NSLayoutConstraint?
+    private var bridgeBottomWithChromeConstraint: NSLayoutConstraint?
+    private var bridgeBottomFullscreenConstraint: NSLayoutConstraint?
     private lazy var titleStackView: UIStackView = {
         let stackView = UIStackView(arrangedSubviews: [titleLabel, subtitleLabel])
         stackView.axis = .vertical
@@ -314,6 +328,7 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
 
         updateNavigationItems()
         updateTabSelection()
+        updateChromeLayout(animated: animated)
         updateChromeAppearance(animated: animated)
         setNeedsStatusBarAppearanceUpdate()
     }
@@ -553,15 +568,47 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
         bridgeViewController.view.translatesAutoresizingMaskIntoConstraints = false
         view.insertSubview(bridgeViewController.view, at: 0)
 
-        // Edge-to-edge: web content extends behind translucent glass chrome
+        bridgeTopWithChromeConstraint = bridgeViewController.view.topAnchor.constraint(equalTo: topChromeView.bottomAnchor)
+        bridgeTopFullscreenConstraint = bridgeViewController.view.topAnchor.constraint(equalTo: view.topAnchor)
+        bridgeBottomWithChromeConstraint = bridgeViewController.view.bottomAnchor.constraint(equalTo: bottomChromeView.topAnchor)
+        bridgeBottomFullscreenConstraint = bridgeViewController.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+
         NSLayoutConstraint.activate([
-            bridgeViewController.view.topAnchor.constraint(equalTo: view.topAnchor),
             bridgeViewController.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            bridgeViewController.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            bridgeViewController.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+            bridgeViewController.view.trailingAnchor.constraint(equalTo: view.trailingAnchor)
         ])
 
+        updateBridgeChromeConstraints()
+
         bridgeViewController.didMove(toParent: self)
+    }
+
+    private func updateChromeLayout(animated: Bool) {
+        let shouldShowTopChrome = chromeState.showsTopChrome
+        let shouldShowBottomChrome = chromeState.showsBottomChrome
+        topChromeView.isUserInteractionEnabled = shouldShowTopChrome
+        bottomChromeView.isUserInteractionEnabled = shouldShowBottomChrome
+        tabBar.isUserInteractionEnabled = shouldShowBottomChrome
+        updateBridgeChromeConstraints()
+
+        let updates = {
+            self.topChromeView.alpha = shouldShowTopChrome ? 1 : 0
+            self.bottomChromeView.alpha = shouldShowBottomChrome ? 1 : 0
+            self.view.layoutIfNeeded()
+        }
+
+        if animated {
+            UIView.animate(withDuration: 0.24, delay: 0, options: [.curveEaseInOut, .beginFromCurrentState], animations: updates)
+        } else {
+            updates()
+        }
+    }
+
+    private func updateBridgeChromeConstraints() {
+        bridgeTopWithChromeConstraint?.isActive = chromeState.showsTopChrome
+        bridgeTopFullscreenConstraint?.isActive = !chromeState.showsTopChrome
+        bridgeBottomWithChromeConstraint?.isActive = chromeState.showsBottomChrome
+        bridgeBottomFullscreenConstraint?.isActive = !chromeState.showsBottomChrome
     }
 
     private func updateNavigationItems() {

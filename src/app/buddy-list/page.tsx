@@ -5429,6 +5429,7 @@ function BuddyListContent() {
       isHeaderMenuOpen ||
       bodyShellSection !== 'profile',
   );
+  const nativeShellShowsBottomChrome = !isConversationOverlayOpen;
   const headerActionButtonClass =
     'ui-focus-ring ui-window-header-button min-h-[40px] px-3 text-[11px] font-semibold';
 
@@ -5693,6 +5694,7 @@ function BuddyListContent() {
       isDark,
       isAdminUser,
       unreadDirectCount: totalUnreadDirectCount,
+      showsBottomChrome: nativeShellShowsBottomChrome,
     });
   }, [
     activeTab,
@@ -5702,6 +5704,7 @@ function BuddyListContent() {
     isDark,
     nativeShellActive,
     nativeShellCanGoBack,
+    nativeShellShowsBottomChrome,
     nativeShellSubtitle,
     nativeShellTitle,
     totalUnreadDirectCount,
@@ -5759,13 +5762,12 @@ function BuddyListContent() {
       >
         <div
           className={`relative flex h-full min-h-0 flex-col overflow-hidden text-[12px] text-slate-700 ${nativeShellActive ? 'bg-transparent' : 'ui-window-panel rounded-[1.6rem]'}`}
-          style={nativeShellActive ? { paddingTop: 'env(safe-area-inset-top)' } : undefined}
         >
           {isHeaderMenuOpen ? (
             <div className="fixed inset-0 z-30" onClick={() => setIsHeaderMenuOpen(false)}>
               <div
                 className={`ui-popover-menu absolute right-2 w-56 rounded-2xl p-1.5 ${
-                  nativeShellActive ? 'top-[calc(env(safe-area-inset-top)+3rem)]' : 'top-[calc(env(safe-area-inset-top)+3.2rem)]'
+                  nativeShellActive ? 'top-3' : 'top-[calc(env(safe-area-inset-top)+3.2rem)]'
                 }`}
                 onClick={(event) => event.stopPropagation()}
               >
@@ -5800,7 +5802,7 @@ function BuddyListContent() {
             <div
               ref={mainShellScrollRef}
               className="min-h-0 flex-1 overflow-y-auto"
-              style={{ paddingBottom: nativeShellActive ? 'calc(env(safe-area-inset-bottom) + 1rem)' : '1rem' }}
+              style={{ paddingBottom: '1rem' }}
               onTouchStart={pullToRefresh.onTouchStart}
               onTouchMove={pullToRefresh.onTouchMove}
               onTouchEnd={pullToRefresh.onTouchEnd}
@@ -7705,7 +7707,11 @@ function BuddyListContent() {
       />
 
       {buddyActivityToasts.length > 0 ? (
-        <div className="pointer-events-none fixed right-3 top-[calc(env(safe-area-inset-top)+4.25rem)] z-40 flex w-[min(22rem,calc(100vw-1.5rem))] flex-col gap-2">
+        <div
+          className={`pointer-events-none fixed right-3 z-40 flex w-[min(22rem,calc(100vw-1.5rem))] flex-col gap-2 ${
+            nativeShellActive ? 'top-3' : 'top-[calc(env(safe-area-inset-top)+4.25rem)]'
+          }`}
+        >
           {buddyActivityToasts.map((item) => (
             <div
               key={item.id}

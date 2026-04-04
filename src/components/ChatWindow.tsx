@@ -287,6 +287,14 @@ export default function ChatWindow({
   const scrollToLatestMessage = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: getChatScrollBehavior(), block: 'end' });
   }, []);
+  const focusComposer = useCallback(() => {
+    composerRef.current?.focus();
+    if (typeof window !== 'undefined') {
+      window.requestAnimationFrame(() => {
+        scrollToLatestMessage();
+      });
+    }
+  }, [scrollToLatestMessage]);
 
   useEffect(() => {
     scrollToLatestMessage();
@@ -297,8 +305,8 @@ export default function ChatWindow({
   }, [initialDraft]);
 
   useEffect(() => {
-    composerRef.current?.focus();
-  }, []);
+    focusComposer();
+  }, [focusComposer]);
 
   useEffect(() => {
     const intervalId = setInterval(() => {
@@ -852,8 +860,7 @@ export default function ChatWindow({
       setVoiceNoteError(null);
       if (typeof window !== 'undefined') {
         window.requestAnimationFrame(() => {
-          composerRef.current?.focus();
-          scrollToLatestMessage();
+          focusComposer();
         });
       }
       void hapticSuccess();
@@ -995,8 +1002,7 @@ export default function ChatWindow({
     setLongPressMessageId(null);
     void hapticLight();
     window.requestAnimationFrame(() => {
-      composerRef.current?.focus();
-      scrollToLatestMessage();
+      focusComposer();
     });
   };
 
@@ -1872,11 +1878,12 @@ export default function ChatWindow({
               {!isKeyboardOpen ? (
                 <button
                   type="button"
-                  onClick={() => composerRef.current?.focus()}
+                  onClick={focusComposer}
                   className={`${xpTinyToolbarButtonClass()} px-2.5`}
-                  aria-label={`Reply to ${buddyScreenname}`}
+                  aria-label={`Reopen the keyboard for ${buddyScreenname}`}
+                  title="Keyboard"
                 >
-                  Reply
+                  Keyboard
                 </button>
               ) : null}
               <button
@@ -2078,13 +2085,7 @@ export default function ChatWindow({
                 onChange={(event) => handleDraftChange(event.target.value)}
                 onKeyDown={handleDraftKeyDown}
                 onFocus={() => {
-                  if (typeof window === 'undefined') {
-                    return;
-                  }
-
-                  window.requestAnimationFrame(() => {
-                    scrollToLatestMessage();
-                  });
+                  focusComposer();
                 }}
                 placeholder="Message…"
                 rows={1}

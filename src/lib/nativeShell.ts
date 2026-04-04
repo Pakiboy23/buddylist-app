@@ -23,6 +23,8 @@ export interface NativeShellChromeState {
   isDark?: boolean;
   isAdminUser?: boolean;
   unreadDirectCount?: number;
+  showsTopChrome?: boolean;
+  showsBottomChrome?: boolean;
 }
 
 export interface NativeShellPrivacySettings {
