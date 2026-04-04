@@ -14,6 +14,15 @@ $VENDOR_ROOT/CapacitorLocalNotifications
 $VENDOR_ROOT/CapacitorPushNotifications
 $VENDOR_ROOT/CapawesomeCapacitorBadge
 "
+XCODEBUILD_ACTION="${CI_XCODEBUILD_ACTION:-}"
+
+# Xcode Cloud's test-without-building runners only receive the ci_scripts folder,
+# not the full repository checkout. Source validation must therefore be limited
+# to build/archive environments that actually have the checked-in assets.
+if [ "$XCODEBUILD_ACTION" = "test-without-building" ]; then
+    echo "Skipping source validation for Xcode Cloud test-without-building runner"
+    exit 0
+fi
 
 if [ ! -f "$WEB_BUNDLE_DIR/index.html" ]; then
     echo "error: Xcode Cloud build aborted because App/App/public/index.html is missing."

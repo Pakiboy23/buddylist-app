@@ -5,7 +5,7 @@ This repository is set up for Xcode Cloud builds of the `App` scheme.
 ## What the scripts do
 
 - `ci_post_clone.sh` fails early if the checked-in web bundle or committed vendored Swift packages are missing.
-- `ci_pre_xcodebuild.sh` repeats that validation immediately before the Xcode build starts and disables Debug code signing for Xcode Cloud's unsigned generic-device build step.
+- `ci_pre_xcodebuild.sh` repeats that validation immediately before build and archive actions, disables Debug code signing for Xcode Cloud's unsigned generic-device build step, and skips source checks in `test-without-building` runners where Xcode Cloud only provides the `ci_scripts` folder.
 
 These scripts live in `ios/App/ci_scripts/` — Xcode Cloud discovers them automatically next to the `.xcodeproj`.
 
