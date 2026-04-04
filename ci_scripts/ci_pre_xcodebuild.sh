@@ -5,12 +5,13 @@ set -eu
 REPOSITORY_ROOT="${CI_PRIMARY_REPOSITORY_PATH:-$PWD}"
 IOS_PROJECT_ROOT="$REPOSITORY_ROOT/ios/App"
 WEB_BUNDLE_DIR="$IOS_PROJECT_ROOT/App/public"
+VENDOR_ROOT="$IOS_PROJECT_ROOT/CapacitorVendor"
 REQUIRED_PACKAGES="
-$REPOSITORY_ROOT/node_modules/@aparajita/capacitor-biometric-auth
-$REPOSITORY_ROOT/node_modules/@capacitor/haptics
-$REPOSITORY_ROOT/node_modules/@capacitor/local-notifications
-$REPOSITORY_ROOT/node_modules/@capacitor/push-notifications
-$REPOSITORY_ROOT/node_modules/@capawesome/capacitor-badge
+$VENDOR_ROOT/AparajitaCapacitorBiometricAuth
+$VENDOR_ROOT/CapacitorHaptics
+$VENDOR_ROOT/CapacitorLocalNotifications
+$VENDOR_ROOT/CapacitorPushNotifications
+$VENDOR_ROOT/CapawesomeCapacitorBadge
 "
 
 if [ ! -f "$WEB_BUNDLE_DIR/index.html" ]; then
@@ -20,8 +21,8 @@ fi
 
 for package_dir in $REQUIRED_PACKAGES; do
     if [ ! -d "$package_dir" ]; then
-        echo "error: Missing required Capacitor package directory: $package_dir"
-        echo "error: npm ci did not complete successfully before xcodebuild."
+        echo "error: Missing required vendored Swift package directory: $package_dir"
+        echo "error: Run npm run ios:sync locally so CapacitorVendor stays in sync with iOS plugins."
         exit 1
     fi
 done
