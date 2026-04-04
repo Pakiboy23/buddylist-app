@@ -4,6 +4,7 @@ set -eu
 
 REPOSITORY_ROOT="${CI_PRIMARY_REPOSITORY_PATH:-$PWD}"
 IOS_PROJECT_ROOT="$REPOSITORY_ROOT/ios/App"
+DEBUG_XCCONFIG="$REPOSITORY_ROOT/ios/debug.xcconfig"
 WEB_BUNDLE_DIR="$IOS_PROJECT_ROOT/App/public"
 VENDOR_ROOT="$IOS_PROJECT_ROOT/CapacitorVendor"
 REQUIRED_PACKAGES="
@@ -26,5 +27,18 @@ for package_dir in $REQUIRED_PACKAGES; do
         exit 1
     fi
 done
+
+if [ ! -f "$DEBUG_XCCONFIG" ]; then
+    echo "error: Missing expected debug xcconfig file: $DEBUG_XCCONFIG"
+    exit 1
+fi
+
+if ! grep -q '^CODE_SIGNING_ALLOWED = NO$' "$DEBUG_XCCONFIG"; then
+    cat <<'EOF' >> "$DEBUG_XCCONFIG"
+
+// Xcode Cloud runs an unsigned generic iOS Debug build before archive.
+CODE_SIGNING_ALLOWED = NO
+EOF
+fi
 
 echo "Xcode Cloud pre-build validation passed"
