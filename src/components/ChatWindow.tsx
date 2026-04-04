@@ -850,6 +850,12 @@ export default function ChatWindow({
       clearPendingAttachments();
       setAttachmentError(null);
       setVoiceNoteError(null);
+      if (typeof window !== 'undefined') {
+        window.requestAnimationFrame(() => {
+          composerRef.current?.focus();
+          scrollToLatestMessage();
+        });
+      }
       void hapticSuccess();
       playMessageSendSound();
     } catch {
@@ -1863,6 +1869,16 @@ export default function ChatWindow({
             ) : null}
             {/* Formatting toolbar */}
             <div className="flex items-center gap-1">
+              {!isKeyboardOpen ? (
+                <button
+                  type="button"
+                  onClick={() => composerRef.current?.focus()}
+                  className={`${xpTinyToolbarButtonClass()} px-2.5`}
+                  aria-label={`Reply to ${buddyScreenname}`}
+                >
+                  Reply
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={() => setShowFormatting((previous) => !previous)}

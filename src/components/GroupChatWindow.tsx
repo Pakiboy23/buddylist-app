@@ -881,6 +881,12 @@ export default function GroupChatWindow({
     onDraftChange?.('');
     clearPendingAttachments();
     setAttachmentError(null);
+    if (typeof window !== 'undefined') {
+      window.requestAnimationFrame(() => {
+        composerRef.current?.focus();
+        scrollToLatestMessage();
+      });
+    }
     void hapticSuccess();
   };
 
@@ -1666,6 +1672,16 @@ export default function GroupChatWindow({
           <div ref={composerAreaRef} className="mx-3 mt-2 space-y-1.5" style={composerAreaStyle}>
             {/* Formatting toolbar */}
             <div className="flex items-center gap-1">
+              {!isKeyboardOpen ? (
+                <button
+                  type="button"
+                  onClick={() => composerRef.current?.focus()}
+                  className={`${xpTinyToolbarButtonClass()} px-2.5`}
+                  aria-label={`Reply in room ${roomName}`}
+                >
+                  Reply
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={() => setShowFormatting((previous) => !previous)}

@@ -272,6 +272,7 @@ const BUDDY_GOING_AWAY_SOUND = '/sounds/door_slam.mp3';
 const INCOMING_MESSAGE_SOUND = '/sounds/im_receive.mp3';
 const NEW_MESSAGE_SOUND = '/sounds/aim-instant-message.mp3';
 const BUDDY_LIST_PATH = '/buddy-list';
+const SHELL_SECTION_QUERY_KEY = 'tab';
 const AVAILABLE_STATUS = 'Available';
 const AWAY_STATUS = 'Away';
 const KNOWN_STATUSES = ['Available', 'Away', 'Invisible', 'Busy', 'Be Right Back'] as const;
@@ -303,6 +304,32 @@ const DEFAULT_AWAY_PRESETS: AwayPreset[] = [
   { id: 'lunch', label: 'Lunch', message: 'Out for lunch (%d %t). Leave me a message.', builtIn: true },
   { id: 'afk', label: 'AFK', message: "AFK for a bit. I'll get back to you soon.", builtIn: true },
 ];
+
+function normalizeShellSection(value: string | null | undefined): ShellSection {
+  return value === 'im' || value === 'chat' || value === 'buddy' || value === 'profile' ? value : 'profile';
+}
+
+function buildBuddyListPath(options: {
+  section?: ShellSection;
+  roomName?: string | null;
+  dmBuddyId?: string | null;
+} = {}) {
+  const params = new URLSearchParams();
+  const section = options.section ?? 'profile';
+
+  if (section !== 'profile') {
+    params.set(SHELL_SECTION_QUERY_KEY, section);
+  }
+  if (options.roomName) {
+    params.set('room', options.roomName);
+  }
+  if (options.dmBuddyId) {
+    params.set('dm', options.dmBuddyId);
+  }
+
+  const query = params.toString();
+  return query ? `${BUDDY_LIST_PATH}?${query}` : BUDDY_LIST_PATH;
+}
 
 interface UiDraftState {
   dm: Record<string, string>;
@@ -3321,7 +3348,7 @@ function BuddyListContent() {
       activeChatBuddyIdRef.current = buddyId;
       clearUnreadDirectMessages(buddyId);
       if (hadUnread) void hapticLight();
-      replaceAppPathInPlace(`${BUDDY_LIST_PATH}?dm=${encodeURIComponent(buddyId)}`);
+      replaceAppPathInPlace(buildBuddyListPath({ section: 'im', dmBuddyId: buddyId }));
       void loadConversation(buddyId);
     },
     [clearUnreadDirectMessages, loadConversation, unreadDirectMessages],
@@ -4894,6 +4921,11 @@ function BuddyListContent() {
 
   const requestedRoomName = searchParams.get('room')?.trim() ?? '';
   const requestedDirectMessageUserId = searchParams.get('dm')?.trim() ?? '';
+  const requestedShellSection = requestedRoomName
+    ? 'chat'
+    : requestedDirectMessageUserId
+      ? 'im'
+      : normalizeShellSection(searchParams.get(SHELL_SECTION_QUERY_KEY));
 
   const getUnreadCountForRoom = useCallback(
     (roomName: string) => {
@@ -4989,7 +5021,7 @@ function BuddyListContent() {
       await joinRoom(room.name);
       await clearUnreads(room.name);
       setActiveRoom(room);
-      replaceAppPathInPlace(`${BUDDY_LIST_PATH}?room=${encodeURIComponent(room.name)}`);
+      replaceAppPathInPlace(buildBuddyListPath({ section: 'chat', roomName: room.name }));
     },
     [clearUnreads, getUnreadCountForRoom, joinRoom],
   );
@@ -5025,7 +5057,7 @@ function BuddyListContent() {
   const handleBackFromRoom = useCallback(() => {
     setInitialUnreadForActiveRoom(0);
     setActiveRoom(null);
-    replaceAppPathInPlace(BUDDY_LIST_PATH);
+    replaceAppPathInPlace(buildBuddyListPath({ section: 'chat' }));
   }, []);
 
   const handleLeaveRoom = useCallback(
@@ -5040,7 +5072,7 @@ function BuddyListContent() {
       if (activeRoom && sameRoom(activeRoom.name, normalizedRoomName)) {
         setInitialUnreadForActiveRoom(0);
         setActiveRoom(null);
-        replaceAppPathInPlace(BUDDY_LIST_PATH);
+        replaceAppPathInPlace(buildBuddyListPath({ section: 'chat' }));
       }
     },
     [activeRoom, leaveRoom],
@@ -5053,6 +5085,12 @@ function BuddyListContent() {
 
     void handleLeaveRoom(activeRoom.name);
   }, [activeRoom, handleLeaveRoom]);
+
+  useEffect(() => {
+    setBodyShellSection((currentSection) =>
+      currentSection === requestedShellSection ? currentSection : requestedShellSection,
+    );
+  }, [requestedShellSection]);
 
   useEffect(() => {
     if (!userId || !requestedRoomName) {
@@ -5096,7 +5134,7 @@ function BuddyListContent() {
     }
 
     if (requestedDirectMessageUserId === userId) {
-      replaceAppPathInPlace(BUDDY_LIST_PATH);
+      replaceAppPathInPlace(buildBuddyListPath({ section: 'profile' }));
       return;
     }
 
@@ -5194,11 +5232,11 @@ function BuddyListContent() {
     setChatError(null);
     setIsChatLoading(false);
     if (activeRoom) {
-      replaceAppPathInPlace(`${BUDDY_LIST_PATH}?room=${encodeURIComponent(activeRoom.name)}`);
+      replaceAppPathInPlace(buildBuddyListPath({ section: 'chat', roomName: activeRoom.name }));
     } else {
-      replaceAppPathInPlace(BUDDY_LIST_PATH);
+      replaceAppPathInPlace(buildBuddyListPath({ section: bodyShellSection === 'profile' ? 'im' : bodyShellSection }));
     }
-  }, [activeRoom]);
+  }, [activeRoom, bodyShellSection]);
 
   const scrollMainShellToTop = useCallback((behavior: ScrollBehavior = 'auto') => {
     const container = mainShellScrollRef.current;
@@ -5238,6 +5276,7 @@ function BuddyListContent() {
     }
 
     setBodyShellSection(section);
+    replaceAppPathInPlace(buildBuddyListPath({ section }));
     scrollMainShellToTop(behavior);
   }, [activeRoom, closeChatWindow, handleBackFromRoom, scrollMainShellToTop]);
 
@@ -5315,11 +5354,9 @@ function BuddyListContent() {
   const activeTab =
     showAwayModal || showPrivacySheet
       ? 'profile'
-      : Boolean(activePendingRequest)
-        ? 'buddy'
-        : Boolean(activeRoom)
-          ? 'chat'
-          : bodyShellSection;
+      : Boolean(activeRoom)
+        ? 'chat'
+        : bodyShellSection;
   const headerSummaryParts = acceptedBuddies.length === 0
     ? ['Add your first buddy to get started']
     : [
@@ -5891,36 +5928,32 @@ function BuddyListContent() {
                 </div>
               ) : null}
 
-              <div className="sticky top-0 z-10 px-3 pb-2 pt-1">
-                <div className="rounded-[1.35rem] border border-white/65 bg-white/82 p-1.5 shadow-[0_16px_36px_rgba(15,23,42,0.08)] backdrop-blur-2xl dark:border-slate-700/70 dark:bg-slate-950/72">
-                  <div className="grid grid-cols-4 gap-1">
-                    {([
-                      { id: 'profile', label: 'You', count: null },
-                      { id: 'im', label: 'Messages', count: filteredDirectMessageBuddies.length },
-                      { id: 'chat', label: 'Rooms', count: activeRooms.length },
-                      { id: 'buddy', label: 'Find', count: pendingRequests.length > 0 ? pendingRequests.length : null },
-                    ] as Array<{ id: ShellSection; label: string; count: number | null }>).map((sectionOption) => (
-                      <button
-                        key={sectionOption.id}
-                        type="button"
-                        onClick={() => focusMainShellSection(sectionOption.id)}
-                        className={`ui-focus-ring rounded-[1rem] px-2 py-2 text-left transition ${
-                          bodyShellSection === sectionOption.id
-                            ? 'bg-blue-600 text-white shadow-[0_14px_28px_rgba(37,99,235,0.22)]'
-                            : 'text-slate-600 hover:bg-white/80 dark:text-slate-300 dark:hover:bg-slate-900/70'
-                        }`}
-                      >
-                        <span className="block text-[9px] font-semibold uppercase tracking-[0.18em] opacity-75">
-                          {sectionOption.label}
-                        </span>
-                        <span className="mt-1 block truncate text-[12px] font-semibold">
-                          {sectionOption.count === null ? 'Open' : sectionOption.count}
-                        </span>
-                      </button>
-                    ))}
+              {bodyShellSection !== 'profile' ? (
+                <section className="px-3 pb-2 pt-3">
+                  <div className="ui-panel-card rounded-[1.45rem] px-4 py-3.5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                          {bodyShellSection === 'im' ? 'Messages' : bodyShellSection === 'chat' ? 'Rooms' : 'Find'}
+                        </p>
+                        <h2 className="mt-1 text-[18px] font-semibold text-slate-800 dark:text-slate-100">
+                          {mainShellTitle}
+                        </h2>
+                        <p className="mt-1 text-[12px] leading-relaxed text-slate-500 dark:text-slate-400">
+                          {mainShellSubtitle}
+                        </p>
+                      </div>
+                      <span className="shrink-0 rounded-full border border-white/70 bg-white/85 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-300">
+                        {bodyShellSection === 'im'
+                          ? `${totalUnreadDirectCount} unread`
+                          : bodyShellSection === 'chat'
+                            ? `${activeRooms.length} rooms`
+                            : `${pendingRequests.length} requests`}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              </div>
+                </section>
+              ) : null}
 
               {bodyShellSection === 'buddy' ? (
                 <section className="px-3 pb-2">
