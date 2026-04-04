@@ -12,11 +12,11 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.1.0"),
-        .package(name: "AparajitaCapacitorBiometricAuth", path: "../CapacitorVendor/AparajitaCapacitorBiometricAuth"),
-        .package(name: "CapacitorHaptics", path: "../CapacitorVendor/CapacitorHaptics"),
-        .package(name: "CapacitorLocalNotifications", path: "../CapacitorVendor/CapacitorLocalNotifications"),
-        .package(name: "CapacitorPushNotifications", path: "../CapacitorVendor/CapacitorPushNotifications"),
-        .package(name: "CapawesomeCapacitorBadge", path: "../CapacitorVendor/CapawesomeCapacitorBadge")
+        .package(name: "AparajitaCapacitorBiometricAuth", path: "../../../node_modules/@aparajita/capacitor-biometric-auth"),
+        .package(name: "CapacitorHaptics", path: "../../../node_modules/@capacitor/haptics"),
+        .package(name: "CapacitorLocalNotifications", path: "../../../node_modules/@capacitor/local-notifications"),
+        .package(name: "CapacitorPushNotifications", path: "../../../node_modules/@capacitor/push-notifications"),
+        .package(name: "CapawesomeCapacitorBadge", path: "../../../node_modules/@capawesome/capacitor-badge")
     ],
     targets: [
         .target(
