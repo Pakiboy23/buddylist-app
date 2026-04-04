@@ -3,6 +3,9 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 
 export type NativeShellTab = 'im' | 'chat' | 'buddy' | 'profile';
+export type NativeShellMode = 'standard' | 'conversation' | 'sheet';
+export type NativeShellTabBarVisibility = 'visible' | 'hidden';
+export type NativeShellAccentTone = 'blue' | 'violet' | 'emerald' | 'amber' | 'slate';
 export type NativeShellAction =
   | 'toggleTheme'
   | 'openSaved'
@@ -18,7 +21,12 @@ export type NativeShellNotificationPreviewMode = 'full' | 'name_only' | 'hidden'
 export interface NativeShellChromeState {
   title: string;
   subtitle?: string | null;
+  mode?: NativeShellMode;
   activeTab: NativeShellTab;
+  tabBarVisibility?: NativeShellTabBarVisibility;
+  leadingAction?: NativeShellAction | null;
+  trailingActions?: NativeShellAction[];
+  accentTone?: NativeShellAccentTone;
   canGoBack?: boolean;
   isDark?: boolean;
   isAdminUser?: boolean;

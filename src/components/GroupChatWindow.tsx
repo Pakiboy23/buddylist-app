@@ -2,7 +2,6 @@
 
 import { FormEvent, KeyboardEvent, type CSSProperties, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import AppIcon from '@/components/AppIcon';
-import ProfileAvatar from '@/components/ProfileAvatar';
 import RetroWindow from '@/components/RetroWindow';
 import RichTextToolbar from '@/components/RichTextToolbar';
 import type { OutboxItem } from '@/lib/outbox';
@@ -17,6 +16,7 @@ import {
 import { hapticLight, hapticSuccess } from '@/lib/haptics';
 import { useKeyboardViewport } from '@/hooks/useKeyboardViewport';
 import { useSwipeBack } from '@/hooks/useSwipeBack';
+import { isNativeIosShell } from '@/lib/nativeShell';
 import { supabase } from '@/lib/supabase';
 import {
   DEFAULT_RICH_TEXT_FORMAT,
@@ -192,6 +192,8 @@ export default function GroupChatWindow({
   const [format, setFormat] = useState<RichTextFormat>(() => loadStoredRichTextFormat());
   const [showFormatting, setShowFormatting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showConversationMenu, setShowConversationMenu] = useState(false);
+  const [showComposerTools, setShowComposerTools] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
@@ -234,6 +236,7 @@ export default function GroupChatWindow({
   const lastTypingSentAtRef = useRef(0);
   const typingTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const { isKeyboardOpen, viewportHeight } = useKeyboardViewport();
+  const nativeShellActive = isNativeIosShell();
   const hasCustomFormatting = !isDefaultRichTextFormat(format);
   const composerTextStyle: CSSProperties = {
     maxHeight: '88px',
@@ -1198,102 +1201,145 @@ export default function GroupChatWindow({
         variant="xp_shell"
         xpTitleText={`#${roomName}`}
         xpSubtitleText={`${participants.length} participant${participants.length === 1 ? '' : 's'}`}
-        headerActions={(
-          <button
-            type="button"
-            onClick={handleBack}
-            className="ui-focus-ring ui-window-header-button px-2.5 text-[11px] font-semibold"
-            aria-label={`Close room ${roomName}`}
-            title="Close room"
-          >
-            Done
-          </button>
-        )}
+        headerActions={
+          nativeShellActive ? undefined : (
+            <>
+              <button
+                type="button"
+                onClick={handleBack}
+                className="ui-focus-ring ui-window-header-button px-2.5 text-[11px] font-semibold"
+                aria-label={`Close room ${roomName}`}
+                title="Close room"
+              >
+                Done
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowConversationMenu((previous) => !previous)}
+                className="ui-focus-ring ui-window-header-button px-2.5 text-[11px] font-semibold"
+                aria-expanded={showConversationMenu}
+                aria-label={`Open room controls for ${roomName}`}
+              >
+                <AppIcon kind="menu" className="h-4 w-4" />
+              </button>
+            </>
+          )
+        }
         onXpClose={handleBack}
         onXpSignOff={onSignOff}
         style={chatShellStyle}
+        hideHeader={nativeShellActive}
       >
         <div className="ui-window-panel flex h-full min-h-0 flex-col rounded-[1.4rem] text-[length:var(--ui-text-md)]">
-
-          {/* Room header: name + participants */}
-          <div
-            className="ui-chat-header-card mx-3 mt-2.5 rounded-2xl px-3 py-2 text-[length:var(--ui-text-xs)]"
-            role="region"
-            aria-label={`${roomName} room header`}
-          >
-            <p className="font-semibold text-slate-700">#{roomName}</p>
-            <div className="mt-2 flex items-center gap-2">
-              <div className="flex -space-x-2">
-                {participants.slice(0, 4).map((participant) => (
-                  <ProfileAvatar
-                    key={participant.userId}
-                    screenname={participant.screenname}
-                    buddyIconPath={buddyIconMap[participant.userId] ?? null}
-                    size="sm"
-                    showStatusDot={false}
-                    tone="violet"
-                    className="ring-2 ring-white dark:ring-slate-950"
-                  />
-                ))}
-              </div>
-              {participants.length > 4 ? (
-                <span className="text-[length:var(--ui-text-2xs)] font-semibold text-slate-400">
-                  +{participants.length - 4}
-                </span>
-              ) : null}
-            </div>
-            <p className="mt-0.5 truncate text-slate-500">
-              {participants.length === 0
-                ? 'No one else here yet.'
-                : participants
-                    .map((p) => (p.userId === currentUserId ? `${p.screenname} (You)` : p.screenname))
-                    .join(', ')}
-            </p>
-          </div>
-
-          {/* Search bar */}
-          <div className="ui-search-surface mx-3 mt-1.5 rounded-2xl px-3 py-1.5">
-            <label htmlFor={searchInputId} className="sr-only">
-              Search room {roomName}
-            </label>
-            <div className="flex items-center gap-2">
-              <svg
-                className="h-3.5 w-3.5 shrink-0 text-slate-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              <input
-                id={searchInputId}
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder={`Search #${roomName}`}
-                aria-describedby={normalizedSearchQuery ? searchResultsId : undefined}
-                className="ui-focus-ring h-6 min-w-0 flex-1 rounded-lg bg-transparent text-[length:var(--ui-text-xs)] text-slate-700 placeholder-slate-400"
-              />
-              {searchQuery ? (
+          <div className="mx-3 mt-3 space-y-2.5">
+            <div
+              className="ui-conversation-header rounded-[1.25rem] px-3.5 py-3"
+              role="region"
+              aria-label={`${roomName} room header`}
+            >
+              <div className="flex items-start gap-3">
+                <div className="min-w-0 flex flex-1 items-center gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-violet-100 text-[15px] font-bold text-violet-700">
+                    #
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-[15px] font-semibold text-slate-800 dark:text-slate-100">
+                        #{roomName}
+                      </span>
+                      <span className="text-[11px] font-semibold text-violet-500">
+                        {participants.length} online
+                      </span>
+                    </div>
+                    <p className="mt-0.5 truncate text-[12px] text-slate-500 dark:text-slate-400">
+                      {participants.length === 0
+                        ? 'No one else here yet.'
+                        : participants
+                            .map((participant) =>
+                              participant.userId === currentUserId ? `${participant.screenname} (You)` : participant.screenname,
+                            )
+                            .join(', ')}
+                    </p>
+                  </div>
+                </div>
                 <button
                   type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="ui-focus-ring shrink-0 rounded-full text-[length:var(--ui-text-2xs)] font-semibold text-slate-400 hover:text-slate-600"
-                  aria-label="Clear room search"
+                  onClick={() => setShowConversationMenu((previous) => !previous)}
+                  className="ui-focus-ring ui-conversation-action shrink-0"
+                  aria-expanded={showConversationMenu}
+                  aria-label={`Open room controls for ${roomName}`}
                 >
-                  <AppIcon kind="close" className="h-3.5 w-3.5" />
+                  <AppIcon kind="menu" className="h-4 w-4" />
                 </button>
-              ) : null}
+              </div>
             </div>
-            {normalizedSearchQuery ? (
-              <p
-                id={searchResultsId}
-                role="status"
-                aria-live="polite"
-                className="mt-0.5 text-[length:var(--ui-text-2xs)] text-slate-400"
-              >
-                {searchMatchCount} {searchMatchCount === 1 ? 'match' : 'matches'}
-              </p>
+
+            {showConversationMenu ? (
+              <div className="ui-conversation-menu rounded-[1.25rem] px-3.5 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="ui-section-kicker">Room controls</p>
+                    <p className="mt-1 text-[13px] font-semibold text-slate-800 dark:text-slate-100">
+                      Search the room and manage participation.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowConversationMenu(false)}
+                    className="ui-focus-ring ui-conversation-action"
+                    aria-label="Close room controls"
+                  >
+                    <AppIcon kind="close" className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+
+                <div className="mt-3 space-y-3">
+                  <div className="rounded-[1rem] border border-white/60 bg-white/70 px-3 py-2 dark:border-slate-700 dark:bg-slate-950/55">
+                    <label htmlFor={searchInputId} className="ui-section-kicker">Search</label>
+                    <div className="mt-2 flex items-center gap-2">
+                      <AppIcon kind="search" className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                      <input
+                        id={searchInputId}
+                        value={searchQuery}
+                        onChange={(event) => setSearchQuery(event.target.value)}
+                        placeholder={`Search #${roomName}`}
+                        aria-describedby={normalizedSearchQuery ? searchResultsId : undefined}
+                        className="ui-focus-ring min-w-0 flex-1 rounded-xl bg-transparent py-1 text-[12px] text-slate-700 placeholder-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
+                      />
+                      {searchQuery ? (
+                        <button
+                          type="button"
+                          onClick={() => setSearchQuery('')}
+                          className="ui-focus-ring ui-conversation-action"
+                          aria-label="Clear room search"
+                        >
+                          <AppIcon kind="close" className="h-3.5 w-3.5" />
+                        </button>
+                      ) : null}
+                    </div>
+                    {normalizedSearchQuery ? (
+                      <p
+                        id={searchResultsId}
+                        role="status"
+                        aria-live="polite"
+                        className="mt-2 text-[11px] text-slate-400 dark:text-slate-500"
+                      >
+                        {searchMatchCount} {searchMatchCount === 1 ? 'match' : 'matches'}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={onLeave}
+                    className="ui-focus-ring ui-button-danger ui-button-compact"
+                    aria-label={`Leave room ${roomName}`}
+                    title="Leave room"
+                  >
+                    Leave room
+                  </button>
+                </div>
+              </div>
             ) : null}
           </div>
 
@@ -1331,7 +1377,13 @@ export default function GroupChatWindow({
               </div>
             )}
             {!isLoadingMessages && (
-              <div className="flex flex-col gap-0.5" onClick={() => setLongPressMessageId(null)}>
+              <div
+                className="flex flex-col gap-0.5"
+                onClick={() => {
+                  setLongPressMessageId(null);
+                  setShowConversationMenu(false);
+                }}
+              >
                 {messages.map((message, index) => {
                   const senderName = screennameMap[message.sender_id] || 'Unknown User';
                   const isMine = message.sender_id === currentUserId;
@@ -1676,124 +1728,133 @@ export default function GroupChatWindow({
           ) : null}
 
           {/* Input area */}
-          <div ref={composerAreaRef} className="mx-3 mt-2 space-y-1.5" style={composerAreaStyle}>
-            {/* Formatting toolbar */}
-            <div className="flex items-center gap-1">
-              {!isKeyboardOpen ? (
+          <div ref={composerAreaRef} className="mx-3 mt-2 space-y-2" style={composerAreaStyle}>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                {!isKeyboardOpen ? (
+                  <button
+                    type="button"
+                    onClick={focusComposer}
+                    className={`${xpTinyToolbarButtonClass()} px-2.5`}
+                    aria-label={`Reopen the keyboard in room ${roomName}`}
+                    title="Keyboard"
+                  >
+                    Keyboard
+                  </button>
+                ) : null}
                 <button
                   type="button"
-                  onClick={focusComposer}
-                  className={`${xpTinyToolbarButtonClass()} px-2.5`}
-                  aria-label={`Reopen the keyboard in room ${roomName}`}
-                  title="Keyboard"
+                  onClick={() => setShowComposerTools((previous) => !previous)}
+                  className={`${xpTinyToolbarButtonClass(showComposerTools || pendingAttachments.length > 0)} px-2.5`}
+                  aria-expanded={showComposerTools}
+                  aria-label={showComposerTools ? 'Hide message tools' : 'Show message tools'}
                 >
-                  Keyboard
+                  Tools
                 </button>
-              ) : null}
-              <button
-                type="button"
-                onClick={() => setShowFormatting((previous) => !previous)}
-                className={`${xpTinyToolbarButtonClass(showFormatting || hasCustomFormatting)} px-2.5`}
-                aria-label={showFormatting ? 'Hide formatting toolbar' : 'Show formatting toolbar'}
-                aria-expanded={showFormatting}
-                title="Text style"
-              >
-                <span className="inline-flex items-center gap-1">
-                  <span>Style</span>
-                  {hasCustomFormatting ? <span className="h-1.5 w-1.5 rounded-full bg-current" /> : null}
+                <button
+                  type="button"
+                  onClick={() => setShowFormatting((previous) => !previous)}
+                  className={`${xpTinyToolbarButtonClass(showFormatting || hasCustomFormatting)} px-2.5`}
+                  aria-label={showFormatting ? 'Hide formatting toolbar' : 'Show formatting toolbar'}
+                  aria-expanded={showFormatting}
+                >
+                  <span className="inline-flex items-center gap-1">
+                    <span>Style</span>
+                    {hasCustomFormatting ? <span className="h-1.5 w-1.5 rounded-full bg-current" /> : null}
+                  </span>
+                </button>
+              </div>
+              {normalizedSearchQuery ? (
+                <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500">
+                  {searchMatchCount} result{searchMatchCount === 1 ? '' : 's'}
                 </span>
-              </button>
-              <button
-                type="button"
-                onClick={toggleBold}
-                className={xpTinyToolbarButtonClass(format.bold)}
-                aria-label="Toggle bold"
-                aria-pressed={format.bold}
-              >
-                <span className="font-bold">B</span>
-              </button>
-              <button
-                type="button"
-                onClick={toggleItalic}
-                className={xpTinyToolbarButtonClass(format.italic)}
-                aria-label="Toggle italic"
-                aria-pressed={format.italic}
-              >
-                <span className="italic">I</span>
-              </button>
-              <button
-                type="button"
-                onClick={toggleUnderline}
-                className={xpTinyToolbarButtonClass(format.underline)}
-                aria-label="Toggle underline"
-                aria-pressed={format.underline}
-              >
-                <span className="underline">U</span>
-              </button>
-              <button
-                type="button"
-                disabled
-                className={`${xpTinyToolbarButtonClass()} opacity-50`}
-                aria-label="Insert link coming soon"
-              >
-                <AppIcon kind="link" className="h-3.5 w-3.5" />
-              </button>
-              <button type="button" className={xpTinyToolbarButtonClass()} aria-label="Emoji picker coming soon">
-                <AppIcon kind="smile" className="h-3.5 w-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => attachmentInputRef.current?.click()}
-                className={xpTinyToolbarButtonClass(pendingAttachments.length > 0)}
-                aria-label={`Attach files to your message in room ${roomName}`}
-              >
-                <AppIcon kind="attachment" className="h-3.5 w-3.5" />
-              </button>
-              <input
-                ref={attachmentInputRef}
-                type="file"
-                multiple
-                onChange={(event) => handleSelectAttachments(event.target.files)}
-                className="hidden"
-                aria-label={`Choose attachments for room ${roomName}`}
-              />
-              {/* Leave room button, pushed to trailing edge */}
-              <button
-                type="button"
-                onClick={onLeave}
-                className="ui-focus-ring ui-button-danger ui-button-compact ml-auto inline-flex h-8 min-w-8 items-center justify-center px-2 text-[length:var(--ui-text-xs)]"
-                aria-label={`Leave room ${roomName}`}
-                title="Leave room"
-              >
-                Leave
-              </button>
+              ) : null}
             </div>
 
-            {showFormatting ? <RichTextToolbar value={format} onChange={setFormat} /> : null}
+            {(showComposerTools || showFormatting || pendingAttachments.length > 0) ? (
+              <div className="ui-toolbar-surface space-y-3 rounded-2xl px-3 py-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => attachmentInputRef.current?.click()}
+                    className={xpTinyToolbarButtonClass(pendingAttachments.length > 0)}
+                    aria-label={`Attach files to your message in room ${roomName}`}
+                  >
+                    <AppIcon kind="attachment" className="h-3.5 w-3.5" />
+                  </button>
+                  <input
+                    ref={attachmentInputRef}
+                    type="file"
+                    multiple
+                    onChange={(event) => handleSelectAttachments(event.target.files)}
+                    className="hidden"
+                    aria-label={`Choose attachments for room ${roomName}`}
+                  />
+                </div>
 
-            {/* Pending attachments */}
-            {pendingAttachments.length > 0 ? (
-              <div className="ui-toolbar-surface space-y-1 rounded-2xl p-2">
-                {pendingAttachments.map((file, index) => (
-                  <div key={`${file.name}-${file.size}-${file.lastModified}`} className="flex items-center gap-2">
-                    <span className="min-w-0 flex flex-1 items-center gap-1 truncate text-[length:var(--ui-text-2xs)] text-slate-600">
-                      <AppIcon kind="attachment" className="h-3 w-3 shrink-0" />
-                      <span className="truncate">{file.name} ({formatFileSize(file.size)})</span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => removePendingAttachment(index)}
-                      className="ui-focus-ring ui-button-danger ui-button-compact shrink-0 px-1.5 text-[length:var(--ui-text-2xs)]"
-                      aria-label={`Remove attachment ${file.name}`}
-                    >
-                      <AppIcon kind="close" className="h-3 w-3" />
-                    </button>
+                {showFormatting ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={toggleBold}
+                        className={xpTinyToolbarButtonClass(format.bold)}
+                        aria-label="Toggle bold"
+                        aria-pressed={format.bold}
+                      >
+                        <span className="font-bold">B</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={toggleItalic}
+                        className={xpTinyToolbarButtonClass(format.italic)}
+                        aria-label="Toggle italic"
+                        aria-pressed={format.italic}
+                      >
+                        <span className="italic">I</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={toggleUnderline}
+                        className={xpTinyToolbarButtonClass(format.underline)}
+                        aria-label="Toggle underline"
+                        aria-pressed={format.underline}
+                      >
+                        <span className="underline">U</span>
+                      </button>
+                    </div>
+                    <RichTextToolbar value={format} onChange={setFormat} />
                   </div>
-                ))}
-              </div>
-            ) : null}
+                ) : null}
 
-            {attachmentError ? (
+                {pendingAttachments.length > 0 ? (
+                  <div className="space-y-1">
+                    {pendingAttachments.map((file, index) => (
+                      <div key={`${file.name}-${file.size}-${file.lastModified}`} className="flex items-center gap-2 rounded-2xl border border-white/60 bg-white/65 px-3 py-2 dark:border-slate-700 dark:bg-slate-950/55">
+                        <span className="min-w-0 flex flex-1 items-center gap-1 truncate text-[length:var(--ui-text-2xs)] text-slate-600 dark:text-slate-300">
+                          <AppIcon kind="attachment" className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{file.name} ({formatFileSize(file.size)})</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removePendingAttachment(index)}
+                          className="ui-focus-ring ui-button-danger ui-button-compact shrink-0 px-1.5 text-[length:var(--ui-text-2xs)]"
+                          aria-label={`Remove attachment ${file.name}`}
+                        >
+                          <AppIcon kind="close" className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                {attachmentError ? (
+                  <p role="alert" className="text-[length:var(--ui-text-2xs)] text-red-600">
+                    {attachmentError}
+                  </p>
+                ) : null}
+              </div>
+            ) : attachmentError ? (
               <p role="alert" className="text-[length:var(--ui-text-2xs)] text-red-600">
                 {attachmentError}
               </p>

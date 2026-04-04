@@ -9,7 +9,26 @@ fileprivate enum BuddyListShellTab: String, Decodable {
     case profile
 }
 
-fileprivate enum BuddyListShellAction: String {
+fileprivate enum BuddyListShellMode: String, Decodable {
+    case standard
+    case conversation
+    case sheet
+}
+
+fileprivate enum BuddyListShellTabBarVisibility: String, Decodable {
+    case visible
+    case hidden
+}
+
+fileprivate enum BuddyListShellAccentTone: String, Decodable {
+    case blue
+    case violet
+    case emerald
+    case amber
+    case slate
+}
+
+fileprivate enum BuddyListShellAction: String, Decodable {
     case toggleTheme
     case openSaved
     case openAdd
@@ -23,7 +42,12 @@ fileprivate enum BuddyListShellAction: String {
 fileprivate struct BuddyListShellChromeState: Decodable, Equatable {
     let title: String
     let subtitle: String?
+    let mode: BuddyListShellMode
     let activeTab: BuddyListShellTab
+    let tabBarVisibility: BuddyListShellTabBarVisibility
+    let leadingAction: BuddyListShellAction?
+    let trailingActions: [BuddyListShellAction]
+    let accentTone: BuddyListShellAccentTone
     let canGoBack: Bool
     let isDark: Bool
     let isAdminUser: Bool
@@ -34,7 +58,12 @@ fileprivate struct BuddyListShellChromeState: Decodable, Equatable {
     init(
         title: String = "Buddy List",
         subtitle: String? = "Private messaging for buddies",
+        mode: BuddyListShellMode = .standard,
         activeTab: BuddyListShellTab = .im,
+        tabBarVisibility: BuddyListShellTabBarVisibility = .visible,
+        leadingAction: BuddyListShellAction? = nil,
+        trailingActions: [BuddyListShellAction] = [.toggleTheme, .openSaved, .openAdd, .openMenu],
+        accentTone: BuddyListShellAccentTone = .blue,
         canGoBack: Bool = false,
         isDark: Bool = false,
         isAdminUser: Bool = false,
@@ -44,7 +73,12 @@ fileprivate struct BuddyListShellChromeState: Decodable, Equatable {
     ) {
         self.title = title
         self.subtitle = subtitle
+        self.mode = mode
         self.activeTab = activeTab
+        self.tabBarVisibility = tabBarVisibility
+        self.leadingAction = leadingAction
+        self.trailingActions = trailingActions
+        self.accentTone = accentTone
         self.canGoBack = canGoBack
         self.isDark = isDark
         self.isAdminUser = isAdminUser
@@ -56,7 +90,12 @@ fileprivate struct BuddyListShellChromeState: Decodable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case title
         case subtitle
+        case mode
         case activeTab
+        case tabBarVisibility
+        case leadingAction
+        case trailingActions
+        case accentTone
         case canGoBack
         case isDark
         case isAdminUser
@@ -73,14 +112,47 @@ fileprivate struct BuddyListShellChromeState: Decodable, Equatable {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         subtitle = subtitleValue?.isEmpty == true ? nil : subtitleValue
 
+        mode = try container.decodeIfPresent(BuddyListShellMode.self, forKey: .mode) ?? .standard
         let activeTabValue = try container.decodeIfPresent(String.self, forKey: .activeTab) ?? BuddyListShellTab.im.rawValue
         activeTab = BuddyListShellTab(rawValue: activeTabValue) ?? .im
+        tabBarVisibility = try container.decodeIfPresent(BuddyListShellTabBarVisibility.self, forKey: .tabBarVisibility)
+            ?? .visible
+        leadingAction = try container.decodeIfPresent(BuddyListShellAction.self, forKey: .leadingAction)
+        trailingActions = try container.decodeIfPresent([BuddyListShellAction].self, forKey: .trailingActions)
+            ?? [.toggleTheme, .openSaved, .openAdd, .openMenu]
+        accentTone = try container.decodeIfPresent(BuddyListShellAccentTone.self, forKey: .accentTone) ?? .blue
         canGoBack = try container.decodeIfPresent(Bool.self, forKey: .canGoBack) ?? false
         isDark = try container.decodeIfPresent(Bool.self, forKey: .isDark) ?? false
         isAdminUser = try container.decodeIfPresent(Bool.self, forKey: .isAdminUser) ?? false
         unreadDirectCount = max(0, try container.decodeIfPresent(Int.self, forKey: .unreadDirectCount) ?? 0)
         showsTopChrome = try container.decodeIfPresent(Bool.self, forKey: .showsTopChrome) ?? true
         showsBottomChrome = try container.decodeIfPresent(Bool.self, forKey: .showsBottomChrome) ?? true
+    }
+
+    var resolvedLeadingAction: BuddyListShellAction? {
+        leadingAction ?? (canGoBack ? .goBack : nil)
+    }
+
+    var resolvedTrailingActions: [BuddyListShellAction] {
+        if trailingActions.isEmpty {
+            switch mode {
+            case .conversation:
+                return [.openMenu]
+            case .sheet:
+                return []
+            case .standard:
+                return [.toggleTheme, .openSaved, .openAdd, .openMenu]
+            }
+        }
+
+        return trailingActions
+    }
+
+    var resolvedShowsBottomChrome: Bool {
+        if tabBarVisibility == .hidden {
+            return false
+        }
+        return showsBottomChrome
     }
 }
 
@@ -585,7 +657,7 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
 
     private func updateChromeLayout(animated: Bool) {
         let shouldShowTopChrome = chromeState.showsTopChrome
-        let shouldShowBottomChrome = chromeState.showsBottomChrome
+        let shouldShowBottomChrome = chromeState.resolvedShowsBottomChrome
         topChromeView.isUserInteractionEnabled = shouldShowTopChrome
         bottomChromeView.isUserInteractionEnabled = shouldShowBottomChrome
         tabBar.isUserInteractionEnabled = shouldShowBottomChrome
@@ -607,46 +679,26 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
     private func updateBridgeChromeConstraints() {
         bridgeTopWithChromeConstraint?.isActive = chromeState.showsTopChrome
         bridgeTopFullscreenConstraint?.isActive = !chromeState.showsTopChrome
-        bridgeBottomWithChromeConstraint?.isActive = chromeState.showsBottomChrome
-        bridgeBottomFullscreenConstraint?.isActive = !chromeState.showsBottomChrome
+        bridgeBottomWithChromeConstraint?.isActive = chromeState.resolvedShowsBottomChrome
+        bridgeBottomFullscreenConstraint?.isActive = !chromeState.resolvedShowsBottomChrome
     }
 
     private func updateNavigationItems() {
-        topNavigationItem.leftBarButtonItem = chromeState.canGoBack
-            ? makeLabeledBarButtonItem(
-                title: "Back",
+        switch chromeState.resolvedLeadingAction {
+        case .goBack:
+            topNavigationItem.leftBarButtonItem = makeLabeledBarButtonItem(
+                title: chromeState.mode == .conversation ? "Inbox" : "Back",
                 systemName: "chevron.backward",
                 accessibilityLabel: "Back",
                 action: #selector(handleGoBack)
             )
-            : nil
+        default:
+            topNavigationItem.leftBarButtonItem = nil
+        }
 
-        let themeIcon = chromeState.isDark ? "sun.max.fill" : "moon.fill"
-        let themeLabel = chromeState.isDark ? "Switch to light mode" : "Switch to dark mode"
-
-        let themeItem = makeBarButtonItem(
-            systemName: themeIcon,
-            accessibilityLabel: themeLabel,
-            action: #selector(handleToggleTheme)
-        )
-        let savedItem = makeBarButtonItem(
-            systemName: "bookmark.fill",
-            accessibilityLabel: "Open saved messages",
-            action: #selector(handleOpenSaved)
-        )
-        let addItem = makeBarButtonItem(
-            systemName: "person.badge.plus",
-            accessibilityLabel: "Add a buddy",
-            action: #selector(handleOpenAdd)
-        )
-        let menuItem = UIBarButtonItem(
-            image: UIImage(systemName: "ellipsis.circle"),
-            primaryAction: nil,
-            menu: makeOverflowMenu()
-        )
-        menuItem.accessibilityLabel = "More options"
-
-        topNavigationItem.rightBarButtonItems = [menuItem, addItem, savedItem, themeItem]
+        topNavigationItem.rightBarButtonItems = chromeState.resolvedTrailingActions.compactMap { action in
+            makeBarButtonItem(for: action)
+        }
     }
 
     private func updateTabSelection() {
@@ -671,7 +723,19 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
         let blurStyle: UIBlurEffect.Style = chromeState.isDark
             ? .systemUltraThinMaterialDark
             : .systemUltraThinMaterialLight
-        let tintColor = UIColor.systemBlue
+        let tintColor: UIColor
+        switch chromeState.accentTone {
+        case .violet:
+            tintColor = .systemIndigo
+        case .emerald:
+            tintColor = .systemGreen
+        case .amber:
+            tintColor = .systemOrange
+        case .slate:
+            tintColor = chromeState.isDark ? UIColor.systemGray2 : UIColor.systemGray
+        case .blue:
+            tintColor = .systemBlue
+        }
         let titleColor = chromeState.isDark ? UIColor.white : UIColor.label
         let subtitleColor = chromeState.isDark
             ? UIColor.secondaryLabel.withAlphaComponent(0.92)
@@ -729,6 +793,41 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
 
         tabBar.standardAppearance = appearance
         tabBar.scrollEdgeAppearance = appearance
+    }
+
+    private func makeBarButtonItem(for action: BuddyListShellAction) -> UIBarButtonItem? {
+        switch action {
+        case .toggleTheme:
+            let themeIcon = chromeState.isDark ? "sun.max.fill" : "moon.fill"
+            let themeLabel = chromeState.isDark ? "Switch to light mode" : "Switch to dark mode"
+            return makeBarButtonItem(
+                systemName: themeIcon,
+                accessibilityLabel: themeLabel,
+                action: #selector(handleToggleTheme)
+            )
+        case .openSaved:
+            return makeBarButtonItem(
+                systemName: "bookmark.fill",
+                accessibilityLabel: "Open saved messages",
+                action: #selector(handleOpenSaved)
+            )
+        case .openAdd:
+            return makeBarButtonItem(
+                systemName: "person.badge.plus",
+                accessibilityLabel: "Add a buddy",
+                action: #selector(handleOpenAdd)
+            )
+        case .openMenu:
+            let menuItem = UIBarButtonItem(
+                image: UIImage(systemName: "ellipsis.circle"),
+                primaryAction: nil,
+                menu: makeOverflowMenu()
+            )
+            menuItem.accessibilityLabel = "More options"
+            return menuItem
+        case .openPrivacy, .openAdminReset, .signOff, .goBack:
+            return nil
+        }
     }
 
     private func makeBarButtonItem(systemName: String, accessibilityLabel: String, action: Selector) -> UIBarButtonItem {

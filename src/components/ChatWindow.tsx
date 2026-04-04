@@ -29,6 +29,7 @@ import { hapticLight, hapticSuccess, hapticWarning } from '@/lib/haptics';
 import { playMessageSendSound, playUiSound } from '@/lib/sound';
 import { useKeyboardViewport } from '@/hooks/useKeyboardViewport';
 import { useSwipeBack } from '@/hooks/useSwipeBack';
+import { isNativeIosShell } from '@/lib/nativeShell';
 import type { ResolvedPresenceState } from '@/lib/presence';
 import { supabase } from '@/lib/supabase';
 import {
@@ -255,6 +256,8 @@ export default function ChatWindow({
   const [showMediaGallery, setShowMediaGallery] = useState(false);
   const [mediaGalleryFilter, setMediaGalleryFilter] = useState<MediaGalleryFilter>('all');
   const [showDisappearingMenu, setShowDisappearingMenu] = useState(false);
+  const [showConversationMenu, setShowConversationMenu] = useState(false);
+  const [showComposerTools, setShowComposerTools] = useState(false);
   const [isRequestingMicrophone, setIsRequestingMicrophone] = useState(false);
   const [isRecordingVoiceNote, setIsRecordingVoiceNote] = useState(false);
   const [voiceNoteElapsedSeconds, setVoiceNoteElapsedSeconds] = useState(0);
@@ -274,6 +277,7 @@ export default function ChatWindow({
   const composerInputId = useId();
   const composerHelpId = useId();
   const { isKeyboardOpen, viewportHeight } = useKeyboardViewport();
+  const nativeShellActive = isNativeIosShell();
   const hasCustomFormatting = !isDefaultRichTextFormat(format);
   const composerTextStyle: CSSProperties = {
     maxHeight: '88px',
@@ -307,6 +311,14 @@ export default function ChatWindow({
   useEffect(() => {
     focusComposer();
   }, [focusComposer]);
+
+  useEffect(() => {
+    if (showConversationMenu) {
+      return;
+    }
+
+    setShowDisappearingMenu(false);
+  }, [showConversationMenu]);
 
   useEffect(() => {
     const intervalId = setInterval(() => {
@@ -1150,245 +1162,284 @@ export default function ChatWindow({
         xpTitleText={`Instant Message — ${buddyScreenname}`}
         xpSubtitleText={buddyPresenceDetail}
         headerActions={
-          <>
-            <button
-              type="button"
-              onClick={handleClose}
-              className="ui-focus-ring ui-window-header-button px-2.5 text-[11px] font-semibold"
-              aria-label={`Close chat with ${buddyScreenname}`}
-              title="Close chat"
-            >
-              Done
-            </button>
-            <button
-              type="button"
-              onClick={onTogglePinned}
-              className="ui-focus-ring ui-window-header-button px-2.5 text-[11px] font-semibold"
-              aria-pressed={isPinned}
-              title={isPinned ? 'Pinned chat' : 'Pin chat'}
-            >
-              {isPinned ? 'Pinned' : 'Pin'}
-            </button>
-            <button
-              type="button"
-              onClick={onToggleMuted}
-              className="ui-focus-ring ui-window-header-button px-2.5 text-[11px] font-semibold"
-              aria-pressed={isMuted}
-              title={isMuted ? 'Muted chat' : 'Mute chat'}
-            >
-              {isMuted ? 'Muted' : 'Mute'}
-            </button>
-            <button
-              type="button"
-              onClick={onToggleArchived}
-              className="ui-focus-ring ui-window-header-button px-2.5 text-[11px] font-semibold"
-              aria-pressed={isArchived}
-              title={isArchived ? 'Return chat to inbox' : 'Archive chat'}
-            >
-              {isArchived ? 'Inbox' : 'Archive'}
-            </button>
-          </>
+          nativeShellActive ? undefined : (
+            <>
+              <button
+                type="button"
+                onClick={handleClose}
+                className="ui-focus-ring ui-window-header-button px-2.5 text-[11px] font-semibold"
+                aria-label={`Close chat with ${buddyScreenname}`}
+                title="Close chat"
+              >
+                Done
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowConversationMenu((previous) => !previous)}
+                className="ui-focus-ring ui-window-header-button px-2.5 text-[11px] font-semibold"
+                aria-expanded={showConversationMenu}
+                aria-label={`Open conversation controls for ${buddyScreenname}`}
+                title="Conversation controls"
+              >
+                <AppIcon kind="menu" className="h-4 w-4" />
+              </button>
+            </>
+          )
         }
         onXpClose={handleClose}
         onXpSignOff={onSignOff}
         style={chatShellStyle}
+        hideHeader={nativeShellActive}
       >
         <div className="ui-window-panel flex h-full min-h-0 flex-col rounded-[1.4rem] text-[length:var(--ui-text-md)]">
-
-          <button
-            type="button"
-            onClick={onOpenProfile}
-            className="ui-focus-ring ui-chat-header-card mx-3 mt-2.5 rounded-2xl px-3 py-2.5 text-left text-[length:var(--ui-text-xs)] text-slate-600 transition hover:bg-white/95 disabled:cursor-default disabled:hover:bg-white/88 dark:hover:bg-slate-900"
-            disabled={!onOpenProfile}
-            aria-label={
-              onOpenProfile ? `Open profile for ${buddyScreenname}` : `${buddyScreenname} profile is unavailable`
-            }
-          >
-            <div className="flex items-center gap-3">
-              <ProfileAvatar
-                screenname={buddyScreenname}
-                buddyIconPath={buddyIconPath}
-                presenceState={buddyPresenceState}
-                size="md"
-              />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="truncate text-[length:var(--ui-text-md)] font-semibold text-slate-800">
-                    {buddyScreenname}
-                  </span>
-                  <span className={`text-[length:var(--ui-text-xs)] font-semibold ${presenceToneClass}`}>
-                    {buddyPresenceDetail}
-                  </span>
-                </div>
-                {buddyStatusLine ? (
-                  <p className="mt-0.5 truncate text-[length:var(--ui-text-xs)] text-slate-500">{buddyStatusLine}</p>
-                ) : null}
-                {buddyStatusMessage ? (
-                  <p
-                    className="aim-rich-html mt-0.5 truncate italic text-[length:var(--ui-text-xs)] text-slate-400"
-                    dangerouslySetInnerHTML={{
-                      __html: sanitizeRichTextHtml(buddyStatusMessage),
-                    }}
-                  />
-                ) : null}
-                {buddyBio ? (
-                  <p className="mt-1 truncate text-[length:var(--ui-text-xs)] text-slate-400">{buddyBio}</p>
-                ) : null}
-              </div>
-            </div>
-          </button>
-
-          {/* Away message strip */}
-          {buddyPresenceState === 'away' && buddyStatusLine ? (
-            <div className="mx-3 mt-1.5 flex items-center gap-2 rounded-xl border border-amber-200/70 bg-amber-50/90 px-3 py-1.5 dark:border-amber-800/40 dark:bg-amber-950/30">
-              <AppIcon kind="moon" className="h-3.5 w-3.5 shrink-0 text-amber-500" />
-              <p className="truncate text-[length:var(--ui-text-xs)] font-medium text-amber-800 dark:text-amber-300">
-                {buddyStatusLine}
-              </p>
-            </div>
-          ) : null}
-
-          {/* Theme picker */}
-          {onChangeTheme ? (
-            <div className="mx-3 mt-1.5 flex items-center gap-2 px-1">
-              <span className="text-[10px] font-semibold tracking-wide text-slate-400 uppercase">Theme</span>
-              <div className="flex items-center gap-1.5">
-                {([
-                  { key: null, color: 'bg-blue-500' },
-                  { key: 'rose', color: 'bg-rose-500' },
-                  { key: 'violet', color: 'bg-violet-500' },
-                  { key: 'emerald', color: 'bg-emerald-500' },
-                  { key: 'amber', color: 'bg-amber-500' },
-                  { key: 'sky', color: 'bg-sky-500' },
-                ] as const).map((t) => (
-                  <button
-                    key={t.key ?? 'default'}
-                    type="button"
-                    onClick={() => onChangeTheme(t.key)}
-                    className={`ui-focus-ring h-5 w-5 rounded-full ${t.color} transition-transform hover:scale-110 ${themeKey === t.key ? 'ring-2 ring-white ring-offset-1 ring-offset-slate-300 scale-110' : 'opacity-70'}`}
-                    title={t.key ?? 'Default'}
-                    aria-pressed={themeKey === t.key}
-                  />
-                ))}
-              </div>
-            </div>
-          ) : null}
-
-          {/* Wallpaper picker */}
-          {onChangeWallpaper ? (
-            <div className="mx-3 mt-1 flex items-center gap-2 px-1">
-              <span className="text-[10px] font-semibold tracking-wide text-slate-400 uppercase">Wall</span>
-              <div className="flex items-center gap-1.5">
-                {([
-                  { key: null, label: 'Dots', icon: '·' },
-                  { key: 'grid', label: 'Grid', icon: '▦' },
-                  { key: 'diamonds', label: 'Diamonds', icon: '◇' },
-                  { key: 'waves', label: 'Waves', icon: '∿' },
-                  { key: 'stars', label: 'Stars', icon: '✦' },
-                  { key: 'none', label: 'None', icon: '∅' },
-                ] as const).map((w) => (
-                  <button
-                    key={w.key ?? 'default'}
-                    type="button"
-                    onClick={() => onChangeWallpaper(w.key)}
-                    className={`ui-focus-ring flex h-5 w-5 items-center justify-center rounded-md border text-[11px] transition-transform hover:scale-110 ${wallpaperKey === w.key ? 'border-slate-400 bg-white/80 font-bold text-slate-700 scale-110 dark:bg-slate-800/80 dark:text-slate-200' : 'border-slate-200 text-slate-400 opacity-70 dark:border-slate-700'}`}
-                    title={w.label}
-                    aria-pressed={wallpaperKey === w.key}
-                  >
-                    {w.icon}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : null}
-
-          {/* Search bar */}
-          <div className="ui-search-surface mx-3 mt-1.5 rounded-2xl px-3 py-1.5">
-            <label htmlFor={searchInputId} className="sr-only">
-              Search conversation with {buddyScreenname}
-            </label>
-            <div className="flex items-center gap-2">
-              <svg
-                className="h-3.5 w-3.5 shrink-0 text-slate-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              <input
-                id={searchInputId}
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search conversation"
-                aria-describedby={normalizedSearchQuery ? searchResultsId : undefined}
-                className="ui-focus-ring h-6 min-w-0 flex-1 rounded-lg bg-transparent text-[length:var(--ui-text-xs)] text-slate-700 placeholder-slate-400"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  setMediaGalleryFilter('all');
-                  setShowMediaGallery(true);
-                }}
-                className="ui-focus-ring shrink-0 rounded-full bg-white/80 px-2.5 py-1 text-[length:var(--ui-text-2xs)] font-semibold text-slate-500 hover:bg-white dark:bg-slate-950/70 dark:text-slate-300 dark:hover:bg-slate-900"
-                aria-label={`Open shared media with ${buddyScreenname}`}
-              >
-                Media
-              </button>
-              <div className="relative shrink-0">
+          <div className="mx-3 mt-3 space-y-2.5">
+            <div className="ui-conversation-header rounded-[1.25rem] px-3.5 py-3">
+              <div className="flex items-start gap-3">
                 <button
                   type="button"
-                  onClick={() => setShowDisappearingMenu((previous) => !previous)}
-                  className="ui-focus-ring rounded-full bg-white/80 px-2.5 py-1 text-[length:var(--ui-text-2xs)] font-semibold text-slate-500 hover:bg-white dark:bg-slate-950/70 dark:text-slate-300 dark:hover:bg-slate-900"
-                  aria-expanded={showDisappearingMenu}
-                  aria-label={`Disappearing messages timer: ${formatDisappearingTimerLabel(disappearingTimerSeconds)}`}
+                  onClick={onOpenProfile}
+                  className="ui-focus-ring flex min-w-0 flex-1 items-center gap-3 text-left"
+                  disabled={!onOpenProfile}
+                  aria-label={
+                    onOpenProfile ? `Open profile for ${buddyScreenname}` : `${buddyScreenname} profile is unavailable`
+                  }
                 >
-                  {disappearingTimerShortLabel}
-                </button>
-                {showDisappearingMenu ? (
-                  <div className="absolute right-0 top-[calc(100%+0.35rem)] z-10 min-w-[10rem] rounded-[1.1rem] border border-white/70 bg-white/95 p-1.5 shadow-[0_16px_36px_rgba(15,23,42,0.18)] backdrop-blur-md dark:border-slate-800 dark:bg-slate-950/95">
-                    {DISAPPEARING_TIMER_OPTIONS.map((option) => (
-                      <button
-                        key={option ?? 'off'}
-                        type="button"
-                        onClick={() => {
-                          onSetDisappearingTimer?.(option);
-                          setShowDisappearingMenu(false);
-                        }}
-                        className={`ui-focus-ring flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-[length:var(--ui-text-xs)] font-semibold ${
-                          disappearingTimerSeconds === option
-                            ? 'bg-blue-500 text-white'
-                            : 'text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900'
-                        }`}
-                      >
-                        <span>{option ? formatDisappearingTimerLabel(option) : 'Off'}</span>
-                        {disappearingTimerSeconds === option ? <span>•</span> : null}
-                      </button>
-                    ))}
+                  <ProfileAvatar
+                    screenname={buddyScreenname}
+                    buddyIconPath={buddyIconPath}
+                    presenceState={buddyPresenceState}
+                    size="md"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-[15px] font-semibold text-slate-800 dark:text-slate-100">
+                        {buddyScreenname}
+                      </span>
+                      <span className={`text-[11px] font-semibold ${presenceToneClass}`}>
+                        {buddyPresenceDetail}
+                      </span>
+                    </div>
+                    {buddyStatusLine ? (
+                      <p className="mt-0.5 truncate text-[12px] text-slate-500 dark:text-slate-400">{buddyStatusLine}</p>
+                    ) : null}
+                    {buddyStatusMessage ? (
+                      <p
+                        className="aim-rich-html mt-0.5 truncate italic text-[11px] text-slate-400 dark:text-slate-500"
+                        dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(buddyStatusMessage) }}
+                      />
+                    ) : buddyBio ? (
+                      <p className="mt-0.5 truncate text-[11px] text-slate-400 dark:text-slate-500">{buddyBio}</p>
+                    ) : null}
                   </div>
-                ) : null}
-              </div>
-              {searchQuery ? (
+                </button>
                 <button
                   type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="ui-focus-ring shrink-0 rounded-full text-[length:var(--ui-text-2xs)] font-semibold text-slate-400 hover:text-slate-600"
-                  aria-label="Clear conversation search"
+                  onClick={() => setShowConversationMenu((previous) => !previous)}
+                  className="ui-focus-ring ui-conversation-action shrink-0"
+                  aria-expanded={showConversationMenu}
+                  aria-label={`Open conversation controls for ${buddyScreenname}`}
                 >
-                  <AppIcon kind="close" className="h-3.5 w-3.5" />
+                  <AppIcon kind="menu" className="h-4 w-4" />
                 </button>
+              </div>
+              {buddyPresenceState === 'away' && buddyStatusLine ? (
+                <div className="mt-3 rounded-2xl bg-amber-50/90 px-3 py-2 text-[11px] font-medium text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+                  {buddyStatusLine}
+                </div>
               ) : null}
             </div>
-            {normalizedSearchQuery ? (
-              <p
-                id={searchResultsId}
-                role="status"
-                aria-live="polite"
-                className="mt-0.5 text-[length:var(--ui-text-2xs)] text-slate-400"
-              >
-                {searchMatchCount} {searchMatchCount === 1 ? 'match' : 'matches'}
-              </p>
+
+            {showConversationMenu ? (
+              <div className="ui-conversation-menu rounded-[1.25rem] px-3.5 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="ui-section-kicker">Conversation controls</p>
+                    <p className="mt-1 text-[13px] font-semibold text-slate-800 dark:text-slate-100">
+                      Search, appearance, and message behavior.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowConversationMenu(false)}
+                    className="ui-focus-ring ui-conversation-action"
+                    aria-label="Close conversation controls"
+                  >
+                    <AppIcon kind="close" className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+
+                <div className="mt-3 space-y-3">
+                  <div className="rounded-[1rem] border border-white/60 bg-white/70 px-3 py-2 dark:border-slate-700 dark:bg-slate-950/55">
+                    <label htmlFor={searchInputId} className="ui-section-kicker">Search</label>
+                    <div className="mt-2 flex items-center gap-2">
+                      <AppIcon kind="search" className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                      <input
+                        id={searchInputId}
+                        value={searchQuery}
+                        onChange={(event) => setSearchQuery(event.target.value)}
+                        placeholder="Search this conversation"
+                        aria-describedby={normalizedSearchQuery ? searchResultsId : undefined}
+                        className="ui-focus-ring min-w-0 flex-1 rounded-xl bg-transparent py-1 text-[12px] text-slate-700 placeholder-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
+                      />
+                      {searchQuery ? (
+                        <button
+                          type="button"
+                          onClick={() => setSearchQuery('')}
+                          className="ui-focus-ring ui-conversation-action"
+                          aria-label="Clear conversation search"
+                        >
+                          <AppIcon kind="close" className="h-3.5 w-3.5" />
+                        </button>
+                      ) : null}
+                    </div>
+                    {normalizedSearchQuery ? (
+                      <p
+                        id={searchResultsId}
+                        role="status"
+                        aria-live="polite"
+                        className="mt-2 text-[11px] text-slate-400 dark:text-slate-500"
+                      >
+                        {searchMatchCount} {searchMatchCount === 1 ? 'match' : 'matches'}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMediaGalleryFilter('all');
+                        setShowMediaGallery(true);
+                        setShowConversationMenu(false);
+                      }}
+                      className="ui-focus-ring ui-button-secondary ui-button-compact"
+                    >
+                      Media
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onTogglePinned}
+                      className="ui-focus-ring ui-button-secondary ui-button-compact"
+                      aria-pressed={isPinned}
+                    >
+                      {isPinned ? 'Pinned' : 'Pin'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onToggleMuted}
+                      className="ui-focus-ring ui-button-secondary ui-button-compact"
+                      aria-pressed={isMuted}
+                    >
+                      {isMuted ? 'Muted' : 'Mute'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onToggleArchived}
+                      className="ui-focus-ring ui-button-secondary ui-button-compact"
+                      aria-pressed={isArchived}
+                    >
+                      {isArchived ? 'Move to inbox' : 'Archive'}
+                    </button>
+                  </div>
+
+                  <div className="rounded-[1rem] border border-white/60 bg-white/70 px-3 py-2 dark:border-slate-700 dark:bg-slate-950/55">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="ui-section-kicker">Disappearing messages</span>
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setShowDisappearingMenu((previous) => !previous)}
+                          className="ui-focus-ring ui-conversation-action"
+                          aria-expanded={showDisappearingMenu}
+                          aria-label={`Disappearing messages timer: ${formatDisappearingTimerLabel(disappearingTimerSeconds)}`}
+                        >
+                          {disappearingTimerShortLabel}
+                        </button>
+                        {showDisappearingMenu ? (
+                          <div className="absolute right-0 top-[calc(100%+0.35rem)] z-10 min-w-[10rem] rounded-[1.1rem] border border-white/70 bg-white/95 p-1.5 shadow-[0_16px_36px_rgba(15,23,42,0.18)] backdrop-blur-md dark:border-slate-800 dark:bg-slate-950/95">
+                            {DISAPPEARING_TIMER_OPTIONS.map((option) => (
+                              <button
+                                key={option ?? 'off'}
+                                type="button"
+                                onClick={() => {
+                                  onSetDisappearingTimer?.(option);
+                                  setShowDisappearingMenu(false);
+                                }}
+                                className={`ui-focus-ring flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-[length:var(--ui-text-xs)] font-semibold ${
+                                  disappearingTimerSeconds === option
+                                    ? 'bg-blue-500 text-white'
+                                    : 'text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900'
+                                }`}
+                              >
+                                <span>{option ? formatDisappearingTimerLabel(option) : 'Off'}</span>
+                                {disappearingTimerSeconds === option ? <span>•</span> : null}
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+
+                  {onChangeTheme ? (
+                    <div className="rounded-[1rem] border border-white/60 bg-white/70 px-3 py-2 dark:border-slate-700 dark:bg-slate-950/55">
+                      <span className="ui-section-kicker">Theme</span>
+                      <div className="mt-2 flex items-center gap-1.5">
+                        {([
+                          { key: null, color: 'bg-blue-500' },
+                          { key: 'rose', color: 'bg-rose-500' },
+                          { key: 'violet', color: 'bg-violet-500' },
+                          { key: 'emerald', color: 'bg-emerald-500' },
+                          { key: 'amber', color: 'bg-amber-500' },
+                          { key: 'sky', color: 'bg-sky-500' },
+                        ] as const).map((themeOption) => (
+                          <button
+                            key={themeOption.key ?? 'default'}
+                            type="button"
+                            onClick={() => onChangeTheme(themeOption.key)}
+                            className={`ui-focus-ring h-6 w-6 rounded-full ${themeOption.color} transition-transform hover:scale-110 ${
+                              themeKey === themeOption.key ? 'ring-2 ring-white ring-offset-1 ring-offset-slate-300 scale-110' : 'opacity-70'
+                            }`}
+                            title={themeOption.key ?? 'Default'}
+                            aria-pressed={themeKey === themeOption.key}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {onChangeWallpaper ? (
+                    <div className="rounded-[1rem] border border-white/60 bg-white/70 px-3 py-2 dark:border-slate-700 dark:bg-slate-950/55">
+                      <span className="ui-section-kicker">Wallpaper</span>
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                        {([
+                          { key: null, label: 'Dots', icon: '·' },
+                          { key: 'grid', label: 'Grid', icon: '▦' },
+                          { key: 'diamonds', label: 'Diamonds', icon: '◇' },
+                          { key: 'waves', label: 'Waves', icon: '∿' },
+                          { key: 'stars', label: 'Stars', icon: '✦' },
+                          { key: 'none', label: 'None', icon: '∅' },
+                        ] as const).map((wallpaperOption) => (
+                          <button
+                            key={wallpaperOption.key ?? 'default'}
+                            type="button"
+                            onClick={() => onChangeWallpaper(wallpaperOption.key)}
+                            className={`ui-focus-ring flex h-7 min-w-7 items-center justify-center rounded-xl border px-2 text-[11px] transition-transform hover:scale-105 ${
+                              wallpaperKey === wallpaperOption.key
+                                ? 'border-slate-400 bg-white/85 font-bold text-slate-700 dark:bg-slate-800/80 dark:text-slate-200'
+                                : 'border-slate-200 text-slate-400 dark:border-slate-700'
+                            }`}
+                            title={wallpaperOption.label}
+                            aria-pressed={wallpaperKey === wallpaperOption.key}
+                          >
+                            {wallpaperOption.icon}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
             ) : null}
           </div>
 
@@ -1431,6 +1482,7 @@ export default function ChatWindow({
                 onClick={() => {
                   setLongPressMessageId(null);
                   setShowDisappearingMenu(false);
+                  setShowConversationMenu(false);
                 }}
               >
                 {visibleMessages.map((message, index) => {
@@ -1850,7 +1902,7 @@ export default function ChatWindow({
           ) : null}
 
           {/* Input area */}
-          <div ref={composerAreaRef} className="mx-3 mt-2 space-y-1.5" style={composerAreaStyle}>
+          <div ref={composerAreaRef} className="mx-3 mt-2 space-y-2" style={composerAreaStyle}>
             {replyingToMessage ? (
               <div className="ui-toolbar-surface flex items-start justify-between gap-3 rounded-2xl px-3 py-2">
                 <div className="min-w-0">
@@ -1873,195 +1925,208 @@ export default function ChatWindow({
                 </button>
               </div>
             ) : null}
-            {/* Formatting toolbar */}
-            <div className="flex items-center gap-1">
-              {!isKeyboardOpen ? (
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                {!isKeyboardOpen ? (
+                  <button
+                    type="button"
+                    onClick={focusComposer}
+                    className={`${xpTinyToolbarButtonClass()} px-2.5`}
+                    aria-label={`Reopen the keyboard for ${buddyScreenname}`}
+                    title="Keyboard"
+                  >
+                    Keyboard
+                  </button>
+                ) : null}
                 <button
                   type="button"
-                  onClick={focusComposer}
-                  className={`${xpTinyToolbarButtonClass()} px-2.5`}
-                  aria-label={`Reopen the keyboard for ${buddyScreenname}`}
-                  title="Keyboard"
+                  onClick={() => setShowComposerTools((previous) => !previous)}
+                  className={`${xpTinyToolbarButtonClass(showComposerTools || pendingAttachments.length > 0 || isRecordingVoiceNote)} px-2.5`}
+                  aria-expanded={showComposerTools}
+                  aria-label={showComposerTools ? 'Hide message tools' : 'Show message tools'}
                 >
-                  Keyboard
+                  Tools
                 </button>
-              ) : null}
-              <button
-                type="button"
-                onClick={() => setShowFormatting((previous) => !previous)}
-                className={`${xpTinyToolbarButtonClass(showFormatting || hasCustomFormatting)} px-2.5`}
-                aria-label={showFormatting ? 'Hide formatting toolbar' : 'Show formatting toolbar'}
-                aria-expanded={showFormatting}
-                title="Text style"
-              >
-                <span className="inline-flex items-center gap-1">
-                  <span>Style</span>
-                  {hasCustomFormatting ? <span className="h-1.5 w-1.5 rounded-full bg-current" /> : null}
+                <button
+                  type="button"
+                  onClick={() => setShowFormatting((previous) => !previous)}
+                  className={`${xpTinyToolbarButtonClass(showFormatting || hasCustomFormatting)} px-2.5`}
+                  aria-label={showFormatting ? 'Hide formatting toolbar' : 'Show formatting toolbar'}
+                  aria-expanded={showFormatting}
+                >
+                  <span className="inline-flex items-center gap-1">
+                    <span>Style</span>
+                    {hasCustomFormatting ? <span className="h-1.5 w-1.5 rounded-full bg-current" /> : null}
+                  </span>
+                </button>
+              </div>
+              {normalizedSearchQuery ? (
+                <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500">
+                  {searchMatchCount} result{searchMatchCount === 1 ? '' : 's'}
                 </span>
-              </button>
-              <button
-                type="button"
-                onClick={toggleBold}
-                className={xpTinyToolbarButtonClass(format.bold)}
-                aria-label="Toggle bold"
-                aria-pressed={format.bold}
-              >
-                <span className="font-bold">B</span>
-              </button>
-              <button
-                type="button"
-                onClick={toggleItalic}
-                className={xpTinyToolbarButtonClass(format.italic)}
-                aria-label="Toggle italic"
-                aria-pressed={format.italic}
-              >
-                <span className="italic">I</span>
-              </button>
-              <button
-                type="button"
-                onClick={toggleUnderline}
-                className={xpTinyToolbarButtonClass(format.underline)}
-                aria-label="Toggle underline"
-                aria-pressed={format.underline}
-              >
-                <span className="underline">U</span>
-              </button>
-              <button
-                type="button"
-                disabled
-                className={`${xpTinyToolbarButtonClass()} opacity-50`}
-                aria-label="Insert link coming soon"
-                title="Link coming soon"
-              >
-                <AppIcon kind="link" className="h-3.5 w-3.5" />
-              </button>
-              <button
-                type="button"
-                className={xpTinyToolbarButtonClass()}
-                aria-label="Emoji picker coming soon"
-                title="Emoji coming soon"
-              >
-                <AppIcon kind="smile" className="h-3.5 w-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  void hapticWarning();
-                  void playUiSound('/sounds/aim.mp3', { volume: 0.5 });
-                  void onSendMessage({ content: '', previewType: 'buzz' });
-                }}
-                className={`${xpTinyToolbarButtonClass()} text-amber-500`}
-                aria-label={`Buzz ${buddyScreenname}`}
-                title="Buzz!"
-              >
-                <AppIcon kind="bolt" className="h-3.5 w-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setMediaGalleryFilter('all');
-                  setShowMediaGallery(true);
-                }}
-                className={xpTinyToolbarButtonClass(showMediaGallery)}
-                aria-label={`Open media gallery for ${buddyScreenname}`}
-                title="Media gallery"
-              >
-                <AppIcon kind="media" className="h-3.5 w-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => attachmentInputRef.current?.click()}
-                className={xpTinyToolbarButtonClass(pendingAttachments.length > 0)}
-                aria-label={`Attach files to your message to ${buddyScreenname}`}
-                title="Attach files"
-              >
-                <AppIcon kind="attachment" className="h-3.5 w-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (isRecordingVoiceNote) {
-                    void stopVoiceNoteRecording('save');
-                    return;
-                  }
-                  void startVoiceNoteRecording();
-                }}
-                disabled={isRequestingMicrophone}
-                className={`${xpTinyToolbarButtonClass(isRecordingVoiceNote)} ${isRequestingMicrophone ? 'opacity-60' : ''}`}
-                aria-label={isRecordingVoiceNote ? 'Stop voice note recording' : `Record a voice note for ${buddyScreenname}`}
-                title={isRecordingVoiceNote ? 'Stop recording' : 'Record voice note'}
-              >
-                <AppIcon kind="mic" className="h-3.5 w-3.5" />
-              </button>
-              <input
-                ref={attachmentInputRef}
-                type="file"
-                multiple
-                onChange={(event) => handleSelectAttachments(event.target.files)}
-                className="hidden"
-                aria-label={`Choose attachments for your message to ${buddyScreenname}`}
-              />
+              ) : null}
             </div>
 
-            {showFormatting ? <RichTextToolbar value={format} onChange={setFormat} /> : null}
-
-            {isRecordingVoiceNote ? (
-              <div className="ui-toolbar-surface flex items-center justify-between gap-3 rounded-2xl px-3 py-2">
-                <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-                  <div>
-                    <p className="text-[length:var(--ui-text-xs)] font-semibold text-slate-700 dark:text-slate-100">
-                      Recording voice note
-                    </p>
-                    <p className="text-[length:var(--ui-text-2xs)] text-slate-400">
-                      {formatRecordingDuration(voiceNoteElapsedSeconds)}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
+            {(showComposerTools || showFormatting || pendingAttachments.length > 0 || isRecordingVoiceNote) ? (
+              <div className="ui-toolbar-surface space-y-3 rounded-2xl px-3 py-3">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => void stopVoiceNoteRecording('discard')}
-                    className="ui-focus-ring ui-button-secondary ui-button-compact rounded-full px-3"
+                    onClick={() => attachmentInputRef.current?.click()}
+                    className={xpTinyToolbarButtonClass(pendingAttachments.length > 0)}
+                    aria-label={`Attach files to your message to ${buddyScreenname}`}
+                    title="Attach files"
                   >
-                    Cancel
+                    <AppIcon kind="attachment" className="h-3.5 w-3.5" />
                   </button>
                   <button
                     type="button"
-                    onClick={() => void stopVoiceNoteRecording('save')}
-                    className="ui-focus-ring ui-button-primary ui-button-compact rounded-full px-3"
+                    onClick={() => {
+                      if (isRecordingVoiceNote) {
+                        void stopVoiceNoteRecording('save');
+                        return;
+                      }
+                      void startVoiceNoteRecording();
+                    }}
+                    disabled={isRequestingMicrophone}
+                    className={`${xpTinyToolbarButtonClass(isRecordingVoiceNote)} ${isRequestingMicrophone ? 'opacity-60' : ''}`}
+                    aria-label={isRecordingVoiceNote ? 'Stop voice note recording' : `Record a voice note for ${buddyScreenname}`}
+                    title={isRecordingVoiceNote ? 'Stop recording' : 'Record voice note'}
                   >
-                    Save
+                    <AppIcon kind="mic" className="h-3.5 w-3.5" />
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMediaGalleryFilter('all');
+                      setShowMediaGallery(true);
+                    }}
+                    className={xpTinyToolbarButtonClass(showMediaGallery)}
+                    aria-label={`Open media gallery for ${buddyScreenname}`}
+                    title="Media gallery"
+                  >
+                    <AppIcon kind="media" className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void hapticWarning();
+                      void playUiSound('/sounds/aim.mp3', { volume: 0.5 });
+                      void onSendMessage({ content: '', previewType: 'buzz' });
+                    }}
+                    className={`${xpTinyToolbarButtonClass()} text-amber-500`}
+                    aria-label={`Buzz ${buddyScreenname}`}
+                    title="Buzz!"
+                  >
+                    <AppIcon kind="bolt" className="h-3.5 w-3.5" />
+                  </button>
+                  <input
+                    ref={attachmentInputRef}
+                    type="file"
+                    multiple
+                    onChange={(event) => handleSelectAttachments(event.target.files)}
+                    className="hidden"
+                    aria-label={`Choose attachments for your message to ${buddyScreenname}`}
+                  />
                 </div>
-              </div>
-            ) : null}
 
-            {/* Pending attachments */}
-            {pendingAttachments.length > 0 ? (
-              <div className="ui-toolbar-surface space-y-1 rounded-2xl p-2">
-                {pendingAttachments.map((file, index) => (
-                  <div key={`${file.name}-${file.size}-${file.lastModified}`} className="flex items-center gap-2">
-                    <span className="min-w-0 flex flex-1 items-center gap-1 truncate text-[length:var(--ui-text-2xs)] text-slate-600">
-                      <AppIcon kind={getAttachmentKind(file.type) === 'audio' ? 'mic' : 'attachment'} className="h-3 w-3 shrink-0" />
-                      <span className="truncate">
-                        {getAttachmentKind(file.type) === 'audio' ? 'Voice note' : file.name} ({formatFileSize(file.size)})
-                      </span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => removePendingAttachment(index)}
-                      className="ui-focus-ring ui-button-danger ui-button-compact shrink-0 px-1.5 text-[length:var(--ui-text-2xs)]"
-                      aria-label={`Remove attachment ${file.name}`}
-                    >
-                      <AppIcon kind="close" className="h-3 w-3" />
-                    </button>
+                {showFormatting ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={toggleBold}
+                        className={xpTinyToolbarButtonClass(format.bold)}
+                        aria-label="Toggle bold"
+                        aria-pressed={format.bold}
+                      >
+                        <span className="font-bold">B</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={toggleItalic}
+                        className={xpTinyToolbarButtonClass(format.italic)}
+                        aria-label="Toggle italic"
+                        aria-pressed={format.italic}
+                      >
+                        <span className="italic">I</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={toggleUnderline}
+                        className={xpTinyToolbarButtonClass(format.underline)}
+                        aria-label="Toggle underline"
+                        aria-pressed={format.underline}
+                      >
+                        <span className="underline">U</span>
+                      </button>
+                    </div>
+                    <RichTextToolbar value={format} onChange={setFormat} />
                   </div>
-                ))}
-              </div>
-            ) : null}
+                ) : null}
 
-            {attachmentError ? (
+                {isRecordingVoiceNote ? (
+                  <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/60 bg-white/65 px-3 py-2 dark:border-slate-700 dark:bg-slate-950/55">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                      <div>
+                        <p className="text-[length:var(--ui-text-xs)] font-semibold text-slate-700 dark:text-slate-100">
+                          Recording voice note
+                        </p>
+                        <p className="text-[length:var(--ui-text-2xs)] text-slate-400">
+                          {formatRecordingDuration(voiceNoteElapsedSeconds)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void stopVoiceNoteRecording('discard')}
+                        className="ui-focus-ring ui-button-secondary ui-button-compact rounded-full px-3"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void stopVoiceNoteRecording('save')}
+                        className="ui-focus-ring ui-button-primary ui-button-compact rounded-full px-3"
+                      >
+                        Save
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
+                {pendingAttachments.length > 0 ? (
+                  <div className="space-y-1">
+                    {pendingAttachments.map((file, index) => (
+                      <div key={`${file.name}-${file.size}-${file.lastModified}`} className="flex items-center gap-2 rounded-2xl border border-white/60 bg-white/65 px-3 py-2 dark:border-slate-700 dark:bg-slate-950/55">
+                        <span className="min-w-0 flex flex-1 items-center gap-1 truncate text-[length:var(--ui-text-2xs)] text-slate-600 dark:text-slate-300">
+                          <AppIcon kind={getAttachmentKind(file.type) === 'audio' ? 'mic' : 'attachment'} className="h-3 w-3 shrink-0" />
+                          <span className="truncate">
+                            {getAttachmentKind(file.type) === 'audio' ? 'Voice note' : file.name} ({formatFileSize(file.size)})
+                          </span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removePendingAttachment(index)}
+                          className="ui-focus-ring ui-button-danger ui-button-compact shrink-0 px-1.5 text-[length:var(--ui-text-2xs)]"
+                          aria-label={`Remove attachment ${file.name}`}
+                        >
+                          <AppIcon kind="close" className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                {attachmentError ? (
+                  <p role="alert" className="text-[length:var(--ui-text-2xs)] text-red-600">
+                    {attachmentError}
+                  </p>
+                ) : null}
+              </div>
+            ) : attachmentError ? (
               <p role="alert" className="text-[length:var(--ui-text-2xs)] text-red-600">
                 {attachmentError}
               </p>
