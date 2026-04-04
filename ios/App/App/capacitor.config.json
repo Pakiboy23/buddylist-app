@@ -1,0 +1,26 @@
+{
+	"appId": "com.buddylist.app",
+	"appName": "BuddyList",
+	"webDir": "native-web",
+	"plugins": {
+		"StatusBar": {
+			"overlaysWebView": false,
+			"style": "LIGHT",
+			"backgroundColor": "#1D4ED8"
+		},
+		"PushNotifications": {
+			"presentationOptions": [
+				"badge",
+				"sound",
+				"alert"
+			]
+		}
+	},
+	"packageClassList": [
+		"BiometricAuthNative",
+		"HapticsPlugin",
+		"LocalNotificationsPlugin",
+		"PushNotificationsPlugin",
+		"BadgePlugin"
+	]
+}
