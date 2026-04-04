@@ -781,10 +781,6 @@ function BuddyListContent() {
   const temporaryChatAllowedIdsRef = useRef<Set<string>>(new Set());
   const temporaryChatProfilesRef = useRef<Record<string, TemporaryChatProfile>>({});
   const mainShellScrollRef = useRef<HTMLDivElement | null>(null);
-  const profileSectionRef = useRef<HTMLDivElement | null>(null);
-  const directMessagesSectionRef = useRef<HTMLDivElement | null>(null);
-  const roomsSectionRef = useRef<HTMLDivElement | null>(null);
-  const buddyToolsSectionRef = useRef<HTMLDivElement | null>(null);
   const userStatusRef = useRef(userStatus);
   const statusMsgRef = useRef(statusMsg);
   const awayMessageRef = useRef(awayMessage);
@@ -3319,6 +3315,7 @@ function BuddyListContent() {
       const hadUnread = (unreadDirectMessages[buddyId] ?? 0) > 0;
       setInitialUnreadForActiveChat(unreadDirectMessages[buddyId] ?? 0);
       setActiveDmTypingText(null);
+      setBodyShellSection('im');
       setSelectedBuddyId(buddyId);
       setActiveChatBuddyId(buddyId);
       activeChatBuddyIdRef.current = buddyId;
@@ -4988,6 +4985,7 @@ function BuddyListContent() {
   const openRoomView = useCallback(
     async (room: ChatRoom) => {
       setInitialUnreadForActiveRoom(getUnreadCountForRoom(room.name));
+      setBodyShellSection('chat');
       await joinRoom(room.name);
       await clearUnreads(room.name);
       setActiveRoom(room);
@@ -5202,22 +5200,14 @@ function BuddyListContent() {
     }
   }, [activeRoom]);
 
-  const scrollMainShellToSection = useCallback((section: ShellSection, behavior: ScrollBehavior = 'smooth') => {
-    const sectionElement =
-      section === 'profile'
-        ? profileSectionRef.current
-        : section === 'im'
-          ? directMessagesSectionRef.current
-          : section === 'chat'
-            ? roomsSectionRef.current
-            : buddyToolsSectionRef.current;
-
-    if (!sectionElement) {
+  const scrollMainShellToTop = useCallback((behavior: ScrollBehavior = 'auto') => {
+    const container = mainShellScrollRef.current;
+    if (!container) {
       return;
     }
 
     requestAnimationFrame(() => {
-      sectionElement.scrollIntoView({ behavior, block: 'start' });
+      container.scrollTo({ top: 0, behavior });
     });
   }, []);
 
@@ -5248,8 +5238,8 @@ function BuddyListContent() {
     }
 
     setBodyShellSection(section);
-    scrollMainShellToSection(section, behavior);
-  }, [activeRoom, closeChatWindow, handleBackFromRoom, scrollMainShellToSection]);
+    scrollMainShellToTop(behavior);
+  }, [activeRoom, closeChatWindow, handleBackFromRoom, scrollMainShellToTop]);
 
   const openAddWindow = useCallback(() => {
     setSearchError(null);
@@ -5263,29 +5253,6 @@ function BuddyListContent() {
     }
     focusMainShellSection('chat');
   }, [activeRoom?.name, focusMainShellSection, roomNameDraft]);
-
-  const handleMainShellScroll = useCallback(() => {
-    const container = mainShellScrollRef.current;
-    if (!container) {
-      return;
-    }
-
-    const nextSection = (
-      [
-        { section: 'profile', element: profileSectionRef.current },
-        { section: 'buddy', element: buddyToolsSectionRef.current },
-        { section: 'im', element: directMessagesSectionRef.current },
-        { section: 'chat', element: roomsSectionRef.current },
-      ] as Array<{ section: ShellSection; element: HTMLDivElement | null }>
-    ).reduce<ShellSection>((currentSection, candidate) => {
-      if (!candidate.element || candidate.element.offsetTop - container.scrollTop > 120) {
-        return currentSection;
-      }
-      return candidate.section;
-    }, 'profile' as ShellSection);
-
-    setBodyShellSection((currentSection) => (currentSection === nextSection ? currentSection : nextSection));
-  }, []);
 
   const isCurrentUserAway = currentUserPresenceState === 'away';
   const isCurrentUserIdle = currentUserPresenceState === 'idle';
@@ -5344,6 +5311,7 @@ function BuddyListContent() {
   }, [activeRoom?.id, outboxItems]);
   const shouldShowSystemStatusChip =
     syncState === 'hydrating' || syncState === 'syncing' || syncState === 'error' || pendingOutboxCount > 0;
+  const isConversationOverlayOpen = Boolean(activeChatBuddy || activeRoom);
   const activeTab =
     showAwayModal || showPrivacySheet
       ? 'profile'
@@ -5378,9 +5346,9 @@ function BuddyListContent() {
     bodyShellSection === 'im'
       ? `${filteredDirectMessageBuddies.length} conversation${filteredDirectMessageBuddies.length === 1 ? '' : 's'}`
       : bodyShellSection === 'chat'
-        ? `${activeRooms.length} room${activeRooms.length === 1 ? '' : 's'} ready`
+      ? `${activeRooms.length} room${activeRooms.length === 1 ? '' : 's'} ready`
         : bodyShellSection === 'buddy'
-          ? 'Search people, accept requests, and jump into rooms'
+          ? 'Search people and handle buddy requests'
           : buddyListHeaderSummary;
   const nativeShellTitle =
     activeChatBuddy?.screenname ||
@@ -5796,7 +5764,6 @@ function BuddyListContent() {
               ref={mainShellScrollRef}
               className="min-h-0 flex-1 overflow-y-auto"
               style={{ paddingBottom: nativeShellActive ? 'calc(env(safe-area-inset-bottom) + 1rem)' : '1rem' }}
-              onScroll={handleMainShellScroll}
               onTouchStart={pullToRefresh.onTouchStart}
               onTouchMove={pullToRefresh.onTouchMove}
               onTouchEnd={pullToRefresh.onTouchEnd}
@@ -5824,103 +5791,105 @@ function BuddyListContent() {
                 </span>
               </div>
             ) : null}
-              <div ref={profileSectionRef} className="px-3 pt-3 pb-2">
-              <div className="ui-panel-card rounded-[1.45rem] px-4 py-4">
-                <input
-                  ref={quickPhotoInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  disabled={isProfileSchemaUnavailable}
-                  onChange={(event) => {
-                    handleQuickPhotoSelection(event.target.files);
-                    event.currentTarget.value = '';
-                  }}
-                />
-                <div className="flex items-start gap-3">
-                  <button
-                    type="button"
-                    onClick={handleQuickPhotoPickerOpen}
-                    className="group relative shrink-0 rounded-full text-left transition active:scale-95"
-                    aria-label="Change profile photo"
-                  >
-                    <ProfileAvatar
-                      screenname={screenname}
-                      buddyIconPath={buddyIconPath}
-                      presenceState={currentUserPresenceState}
-                      size="md"
+              {bodyShellSection === 'profile' ? (
+                <div className="px-3 pt-3 pb-2">
+                  <div className="ui-panel-card rounded-[1.45rem] px-4 py-4">
+                    <input
+                      ref={quickPhotoInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={isProfileSchemaUnavailable}
+                      onChange={(event) => {
+                        handleQuickPhotoSelection(event.target.files);
+                        event.currentTarget.value = '';
+                      }}
                     />
-                    <span className="absolute -bottom-1 -right-1 rounded-full border border-white/80 bg-slate-900/90 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white shadow-sm">
-                      Photo
-                    </span>
-                  </button>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">You</p>
-                    <p className="truncate text-[14px] font-semibold text-slate-800 dark:text-slate-100">{screenname}</p>
-                    <p className={`truncate text-[11px] font-semibold ${
-                      currentUserPresenceState === 'away'
-                        ? 'text-amber-500'
-                        : currentUserPresenceState === 'idle'
-                          ? 'text-sky-500'
-                          : 'text-emerald-500'
-                    }`}>
-                      {getPresenceLabel(currentUserPresenceState)}
-                    </p>
-                    <p className="truncate text-[11px] text-slate-400 dark:text-slate-400">{currentUserPresenceDetail}</p>
-                    {profileBio ? <p className="mt-1 truncate text-[11px] text-slate-400 dark:text-slate-400">{profileBio}</p> : null}
-                    <p className="mt-1 truncate text-[10px] font-semibold text-slate-400 dark:text-slate-500">
-                      {buddyIconPath ? 'Tap your avatar to change your photo.' : 'Tap your avatar to add a profile photo.'}
-                    </p>
+                    <div className="flex items-start gap-3">
+                      <button
+                        type="button"
+                        onClick={handleQuickPhotoPickerOpen}
+                        className="group relative shrink-0 rounded-full text-left transition active:scale-95"
+                        aria-label="Change profile photo"
+                      >
+                        <ProfileAvatar
+                          screenname={screenname}
+                          buddyIconPath={buddyIconPath}
+                          presenceState={currentUserPresenceState}
+                          size="md"
+                        />
+                        <span className="absolute -bottom-1 -right-1 rounded-full border border-white/80 bg-slate-900/90 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white shadow-sm">
+                          Photo
+                        </span>
+                      </button>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">You</p>
+                        <p className="truncate text-[14px] font-semibold text-slate-800 dark:text-slate-100">{screenname}</p>
+                        <p className={`truncate text-[11px] font-semibold ${
+                          currentUserPresenceState === 'away'
+                            ? 'text-amber-500'
+                            : currentUserPresenceState === 'idle'
+                              ? 'text-sky-500'
+                              : 'text-emerald-500'
+                        }`}>
+                          {getPresenceLabel(currentUserPresenceState)}
+                        </p>
+                        <p className="truncate text-[11px] text-slate-400 dark:text-slate-400">{currentUserPresenceDetail}</p>
+                        {profileBio ? <p className="mt-1 truncate text-[11px] text-slate-400 dark:text-slate-400">{profileBio}</p> : null}
+                        <p className="mt-1 truncate text-[10px] font-semibold text-slate-400 dark:text-slate-500">
+                          {buddyIconPath ? 'Tap your avatar to change your photo.' : 'Tap your avatar to add a profile photo.'}
+                        </p>
+                      </div>
+                      <div className="shrink-0 space-y-2">
+                        <button
+                          type="button"
+                          onClick={() => openAwayModal('away')}
+                          className="ui-focus-ring ui-button-primary ui-button-compact block w-full"
+                        >
+                          {currentUserPresenceState === 'away' ? 'Update away' : 'Away message'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openAwayModal('profile')}
+                          className="ui-focus-ring ui-button-secondary ui-button-compact block w-full"
+                        >
+                          Profile
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                  <div className="shrink-0 space-y-2">
-                    <button
-                      type="button"
-                      onClick={() => openAwayModal('away')}
-                      className="ui-focus-ring ui-button-primary ui-button-compact block w-full"
-                    >
-                      {currentUserPresenceState === 'away' ? 'Update away' : 'Away message'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openAwayModal('profile')}
-                      className="ui-focus-ring ui-button-secondary ui-button-compact block w-full"
-                    >
-                      Profile
-                    </button>
-                  </div>
-                </div>
-              </div>
-              {awayModalError ? <p className="ui-note-error mt-2">{awayModalError}</p> : null}
+                  {awayModalError ? <p className="ui-note-error mt-2">{awayModalError}</p> : null}
 
-              {shouldShowSystemStatusChip ? (
-                <button
-                  type="button"
-                  onClick={() => setShowSystemStatusSheet(true)}
-                  className="ui-focus-ring ui-status-chip mt-2"
-                >
-                  <div className="flex min-w-0 items-center gap-1.5">
-                    <span className={`h-1.5 w-1.5 rounded-full ${
-                      syncState === 'error' ? 'bg-red-400' :
-                      isChatSyncBusy ? 'bg-amber-400 animate-pulse' :
-                      pendingOutboxCount > 0 ? 'bg-sky-400' :
-                      'bg-emerald-400'
-                    }`} />
-                    <span className="truncate">
-                      {syncState === 'error'
-                        ? 'Sync issue'
-                        : isChatSyncBusy
-                          ? chatSyncSummary
-                          : pendingOutboxCount > 0
-                            ? outboxSummary
-                            : 'System status'}
-                    </span>
-                  </div>
-                  <span className="shrink-0 rounded-full border border-white/70 bg-white/80 px-2 py-0.5 text-[10px] font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-300">
-                    Details
-                  </span>
-                </button>
+                  {shouldShowSystemStatusChip ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowSystemStatusSheet(true)}
+                      className="ui-focus-ring ui-status-chip mt-2"
+                    >
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <span className={`h-1.5 w-1.5 rounded-full ${
+                          syncState === 'error' ? 'bg-red-400' :
+                          isChatSyncBusy ? 'bg-amber-400 animate-pulse' :
+                          pendingOutboxCount > 0 ? 'bg-sky-400' :
+                          'bg-emerald-400'
+                        }`} />
+                        <span className="truncate">
+                          {syncState === 'error'
+                            ? 'Sync issue'
+                            : isChatSyncBusy
+                              ? chatSyncSummary
+                              : pendingOutboxCount > 0
+                                ? outboxSummary
+                                : 'System status'}
+                        </span>
+                      </div>
+                      <span className="shrink-0 rounded-full border border-white/70 bg-white/80 px-2 py-0.5 text-[10px] font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-300">
+                        Details
+                      </span>
+                    </button>
+                  ) : null}
+                </div>
               ) : null}
-            </div>
 
               <div className="sticky top-0 z-10 px-3 pb-2 pt-1">
                 <div className="rounded-[1.35rem] border border-white/65 bg-white/82 p-1.5 shadow-[0_16px_36px_rgba(15,23,42,0.08)] backdrop-blur-2xl dark:border-slate-700/70 dark:bg-slate-950/72">
@@ -5953,10 +5922,10 @@ function BuddyListContent() {
                 </div>
               </div>
 
-              <section ref={buddyToolsSectionRef} className="px-3 pb-2">
-                <div className="ui-panel-card rounded-[1.45rem] px-4 py-4">
-                  <div className="flex flex-col gap-4 lg:flex-row">
-                    <div className="min-w-0 flex-1">
+              {bodyShellSection === 'buddy' ? (
+                <section className="px-3 pb-2">
+                  <div className="ui-panel-card rounded-[1.45rem] px-4 py-4">
+                    <div className="min-w-0">
                       <div className="flex items-center justify-between gap-3">
                         <div>
                           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Find People</p>
@@ -6037,10 +6006,320 @@ function BuddyListContent() {
                         </div>
                       ) : null}
                     </div>
+                  </div>
+                </section>
+              ) : null}
 
-                    <div className="min-w-0 lg:w-[15rem]">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Rooms</p>
-                      <p className="mt-1 text-[14px] font-semibold text-slate-800 dark:text-slate-100">Jump into an existing room or create a new one from here.</p>
+              {bodyShellSection === 'im' ? (
+                <>
+                  {isCurrentUserAway ? (
+                    <div className="ui-note-warning mx-3 mt-2">
+                      <div className="flex items-start gap-2">
+                        <AppIcon kind="moon" className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[12px] font-semibold text-amber-800">Away</p>
+                          <p className="mt-0.5 break-words text-[11px] italic text-amber-700">
+                            {resolveAwayTemplate(awayMessage || 'Away from keyboard.', screenname, screenname)}
+                          </p>
+                          {awaySinceAt ? (
+                            <p className="mt-0.5 text-[10px] text-amber-600">
+                              Since {new Date(awaySinceAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          ) : null}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleImBack}
+                          className="ui-focus-ring ui-button-secondary ui-button-compact shrink-0"
+                        >
+                          Back
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {isCurrentUserIdle ? (
+                    <div className="ui-note-info mx-3 mt-2">
+                      <div className="flex items-start gap-2">
+                        <AppIcon kind="clock" className="mt-0.5 h-4 w-4 shrink-0 text-sky-500" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[12px] font-semibold text-sky-800">Idle</p>
+                          <p className="mt-0.5 text-[11px] text-sky-700">{formatPresenceSince(idleSinceAt, 'Idle since')}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleClearIdle}
+                          className="ui-focus-ring ui-button-secondary ui-button-compact shrink-0"
+                        >
+                          I&apos;m Here
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {/* Pinned conversations strip */}
+                  {(() => {
+                    const pinnedBuddies = filteredDirectMessageBuddies.filter(
+                      (buddy) => getDmPreference(dmPreferencesByBuddyId, buddy.id).isPinned,
+                    );
+                    if (pinnedBuddies.length === 0) return null;
+                    return (
+                      <div className="px-3 pb-1 pt-2">
+                        <p className="mb-2 px-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">Pinned</p>
+                        <div className="flex gap-3 overflow-x-auto pb-1">
+                          {pinnedBuddies.map((buddy) => {
+                            const unread = unreadDirectMessages[buddy.id] ?? 0;
+                            return (
+                              <button
+                                key={buddy.id}
+                                type="button"
+                                onClick={() => handleOpenChat(buddy.id)}
+                                className="ui-focus-ring flex flex-col items-center gap-1"
+                              >
+                                <div className="relative">
+                                  <ProfileAvatar
+                                    screenname={buddy.screenname}
+                                    buddyIconPath={buddy.buddy_icon_path}
+                                    presenceState={getBuddyPresenceSummary(buddy).presenceState}
+                                    size="md"
+                                  />
+                                  {unread > 0 ? (
+                                    <span className="ui-unread-badge-pulse absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">
+                                      {unread}
+                                    </span>
+                                  ) : null}
+                                </div>
+                                <span className="max-w-[56px] truncate text-[10px] font-medium text-slate-600 dark:text-slate-400">
+                                  {buddy.screenname}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  <section className="bg-transparent">
+                    <div className="select-none">
+                      <button
+                        type="button"
+                        onClick={() => setIsBuddiesOpen((previous) => !previous)}
+                        className={xpGroupHeaderClass}
+                      >
+                        <AppIcon kind="chevron" className={`h-3 w-3 transition-transform ${isBuddiesOpen ? 'rotate-90' : ''}`} />
+                        <span className="flex-1">
+                          {conversationFilter === 'requests'
+                            ? 'Message requests'
+                            : showSplitPresenceSections
+                              ? 'Online'
+                              : conversationFilter === 'archived'
+                                ? 'Archived chats'
+                                : 'Direct messages'}
+                        </span>
+                        <span className="ui-section-count">
+                          {conversationFilter === 'requests'
+                            ? pendingRequests.length
+                            : showSplitPresenceSections
+                              ? `${onlineBuddiesSorted.length}/${filteredDirectMessageBuddies.length}`
+                              : filteredDirectMessageBuddies.length}
+                        </span>
+                      </button>
+
+                      {isBuddiesOpen ? (
+                        <div>
+                          <div className="flex items-center justify-between px-3 py-1.5">
+                            <label htmlFor="buddy-sort-mode" className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                              Sort
+                            </label>
+                            <select
+                              id="buddy-sort-mode"
+                              title="Buddy Sort Mode"
+                              value={buddySortMode}
+                              onChange={(event) => setBuddySortMode(event.target.value as BuddySortMode)}
+                              className={`${xpModalSelectClass} min-h-[32px] w-auto py-1 pl-3 pr-8 text-[11px]`}
+                            >
+                              <option value="online_then_alpha">Online first</option>
+                              <option value="alpha">A – Z</option>
+                              <option value="recent_activity">Recent activity</option>
+                            </select>
+                          </div>
+
+                          <div className="px-3 pb-2">
+                            <div className="flex gap-1 overflow-x-auto pb-1">
+                              {([
+                                { id: 'all', label: 'All', count: unarchivedDirectMessageBuddies.length },
+                                {
+                                  id: 'unread',
+                                  label: 'Unread',
+                                  count: unarchivedDirectMessageBuddies.filter((buddy) => (unreadDirectMessages[buddy.id] ?? 0) > 0).length,
+                                },
+                                {
+                                  id: 'pinned',
+                                  label: 'Pinned',
+                                  count: unarchivedDirectMessageBuddies.filter((buddy) => getDmPreference(dmPreferencesByBuddyId, buddy.id).isPinned).length,
+                                },
+                                { id: 'requests', label: 'Requests', count: pendingRequests.length },
+                                { id: 'archived', label: 'Archived', count: archivedDirectMessageBuddies.length },
+                              ] as Array<{ id: ConversationFilter; label: string; count: number }>).map((filterOption) => (
+                                <button
+                                  key={filterOption.id}
+                                  type="button"
+                                  onClick={() => setConversationFilter(filterOption.id)}
+                                  className={`ui-focus-ring rounded-full border px-3 py-1 text-[11px] font-semibold transition ${
+                                    conversationFilter === filterOption.id
+                                      ? 'border-blue-400/70 bg-blue-500 text-white'
+                                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-200 dark:hover:bg-slate-900'
+                                  }`}
+                                >
+                                  {filterOption.label} {filterOption.count > 0 ? `(${filterOption.count})` : ''}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {isBootstrapping || (!isBootstrapping && isLoadingBuddies) ? (
+                            <div className="space-y-2 px-3 py-2 ui-fade-in">
+                              {Array.from({ length: 5 }).map((_, idx) => (
+                                <div key={idx} className="flex items-center gap-3 rounded-2xl px-2 py-2">
+                                  <div className="ui-skeleton-circle h-10 w-10 shrink-0" />
+                                  <div className="flex-1 space-y-2">
+                                    <div className="ui-skeleton h-3.5 w-28" />
+                                    <div className="ui-skeleton h-2.5 w-20" />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
+                          {!isBootstrapping && !isLoadingBuddies && acceptedBuddies.length === 0 && conversationFilter !== 'requests' ? (
+                            <div className="ui-empty-state px-6 py-10 ui-fade-in">
+                              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-50">
+                                <AppIcon kind="smile" className="h-8 w-8 text-blue-400" />
+                              </div>
+                              <div className="text-center">
+                                <p className="text-[14px] font-semibold text-slate-500">No buddies yet</p>
+                                <p className="mt-1 text-[12px] leading-relaxed text-slate-400">
+                                  Add your first buddy to start messaging
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={openAddWindow}
+                                className="ui-focus-ring ui-button-secondary ui-button-compact mt-1"
+                              >
+                                Add buddy
+                              </button>
+                            </div>
+                          ) : null}
+                          {!isBootstrapping && conversationFilter !== 'requests' ? renderSavedMessagesRow() : null}
+                          {!isBootstrapping && conversationFilter === 'requests' ? (
+                            pendingRequests.length === 0 ? (
+                              <div className="ui-empty-state px-6 py-10 ui-fade-in">
+                                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-50">
+                                  <AppIcon kind="mail" className="h-8 w-8 text-blue-400" />
+                                </div>
+                                <div className="text-center">
+                                  <p className="text-[14px] font-semibold text-slate-500">No message requests</p>
+                                  <p className="mt-1 text-[12px] leading-relaxed text-slate-400">
+                                    New people who message you will show up here first.
+                                  </p>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="space-y-2 px-3 pb-2">
+                                {pendingRequests.map((request) => (
+                                  <div key={request.senderId} className="ui-panel-card rounded-2xl px-3 py-3">
+                                    <div className="flex items-center justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <p className="truncate text-[13px] font-semibold text-slate-800">{request.screenname}</p>
+                                        <p className="text-[11px] text-slate-400">Wants to start a chat</p>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleAcceptPendingRequest(request.senderId)}
+                                          className="ui-focus-ring ui-button-primary ui-button-compact"
+                                        >
+                                          Accept
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDeclinePendingRequest(request.senderId)}
+                                          className="ui-focus-ring ui-button-secondary ui-button-compact"
+                                        >
+                                          Decline
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )
+                          ) : null}
+                          {!isBootstrapping && conversationFilter !== 'requests' && filteredDirectMessageBuddies.length === 0 && acceptedBuddies.length > 0 ? (
+                            <div className="ui-empty-state px-6 py-10 ui-fade-in">
+                              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-50">
+                                <AppIcon kind="chat" className="h-6 w-6 text-blue-400" />
+                              </div>
+                              <div className="text-center">
+                                <p className="text-[14px] font-semibold text-slate-500">No chats in this view</p>
+                                <p className="mt-1 text-[12px] leading-relaxed text-slate-400">
+                                  Try another filter or start a new conversation.
+                                </p>
+                              </div>
+                            </div>
+                          ) : null}
+                          {!isBootstrapping && conversationFilter !== 'requests' &&
+                            (showSplitPresenceSections ? onlineBuddiesSorted : filteredDirectMessageBuddies).map((buddy) =>
+                              renderDirectMessageRow(buddy),
+                            )}
+
+                          {pendingBuddies.length > 0 ? (
+                            <div className="ui-note-warning mx-3 mb-2">
+                              <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600 dark:text-amber-200">Pending ({pendingBuddies.length})</p>
+                              {pendingBuddies.map((buddy) => (
+                                <p key={buddy.id} className="mt-0.5 truncate text-[12px] italic text-amber-700">
+                                  {buddy.screenname}
+                                </p>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {showSplitPresenceSections ? (
+                      <div className="select-none">
+                        <button
+                          type="button"
+                          onClick={() => setIsOfflineOpen((previous) => !previous)}
+                          className={xpGroupHeaderClass}
+                        >
+                          <AppIcon kind="chevron" className={`h-3 w-3 transition-transform ${isOfflineOpen ? 'rotate-90' : ''}`} />
+                          <span className="flex-1">Offline</span>
+                          <span className="ui-section-count">{offlineBuddiesSorted.length}</span>
+                        </button>
+
+                        {isOfflineOpen ? offlineBuddiesSorted.map((buddy) => renderDirectMessageRow(buddy)) : null}
+                      </div>
+                    ) : null}
+                  </section>
+                </>
+              ) : null}
+
+              {bodyShellSection === 'chat' ? (
+                <>
+                  <section className="px-3 pt-3 pb-2">
+                    <div className="ui-panel-card rounded-[1.45rem] px-4 py-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Rooms</p>
+                          <p className="mt-1 text-[14px] font-semibold text-slate-800 dark:text-slate-100">Jump into an existing room or create a new one from here.</p>
+                        </div>
+                        <span className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-violet-600">
+                          {activeRooms.length} active
+                        </span>
+                      </div>
                       <form onSubmit={handleJoinRoom} className="mt-3 space-y-2">
                         <input
                           id="room-name-input-inline"
@@ -6059,382 +6338,89 @@ function BuddyListContent() {
                         </button>
                       </form>
                       <p className="mt-2 text-[11px] text-slate-500">The room will be created automatically if it does not exist yet.</p>
+                      {roomJoinError ? (
+                        <p className="mt-2 text-[11px] font-semibold text-red-600">{roomJoinError}</p>
+                      ) : null}
                     </div>
-                  </div>
-                </div>
-              </section>
+                  </section>
 
-            {isCurrentUserAway ? (
-              <div className="ui-note-warning mx-3 mt-2">
-                <div className="flex items-start gap-2">
-                  <AppIcon kind="moon" className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[12px] font-semibold text-amber-800">Away</p>
-                    <p className="mt-0.5 break-words text-[11px] italic text-amber-700">
-                      {resolveAwayTemplate(awayMessage || 'Away from keyboard.', screenname, screenname)}
-                    </p>
-                    {awaySinceAt ? (
-                      <p className="mt-0.5 text-[10px] text-amber-600">
-                        Since {new Date(awaySinceAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    ) : null}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleImBack}
-                    className="ui-focus-ring ui-button-secondary ui-button-compact shrink-0"
-                  >
-                    Back
-                  </button>
-                </div>
-              </div>
-            ) : null}
+                  <div className="select-none">
+                    <button
+                      type="button"
+                      onClick={() => setIsActiveChatsOpen((previous) => !previous)}
+                      className={xpGroupHeaderClass}
+                    >
+                      <AppIcon kind="chevron" className={`h-3 w-3 transition-transform ${isActiveChatsOpen ? 'rotate-90' : ''}`} />
+                      <span className="flex-1">Group rooms</span>
+                      <span className="ui-section-count">{activeRooms.length}</span>
+                    </button>
 
-            {isCurrentUserIdle ? (
-              <div className="ui-note-info mx-3 mt-2">
-                <div className="flex items-start gap-2">
-                  <AppIcon kind="clock" className="mt-0.5 h-4 w-4 shrink-0 text-sky-500" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[12px] font-semibold text-sky-800">Idle</p>
-                    <p className="mt-0.5 text-[11px] text-sky-700">{formatPresenceSince(idleSinceAt, 'Idle since')}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleClearIdle}
-                    className="ui-focus-ring ui-button-secondary ui-button-compact shrink-0"
-                  >
-                    I&apos;m Here
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
-            {/* Pinned conversations strip */}
-            {(() => {
-              const pinnedBuddies = filteredDirectMessageBuddies.filter(
-                (buddy) => getDmPreference(dmPreferencesByBuddyId, buddy.id).isPinned,
-              );
-              if (pinnedBuddies.length === 0) return null;
-              return (
-                <div className="px-3 pb-1 pt-2">
-                  <p className="mb-2 px-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">Pinned</p>
-                  <div className="flex gap-3 overflow-x-auto pb-1">
-                    {pinnedBuddies.map((buddy) => {
-                      const unread = unreadDirectMessages[buddy.id] ?? 0;
-                      return (
-                        <button
-                          key={buddy.id}
-                          type="button"
-                          onClick={() => handleOpenChat(buddy.id)}
-                          className="ui-focus-ring flex flex-col items-center gap-1"
-                        >
-                          <div className="relative">
-                            <ProfileAvatar
-                              screenname={buddy.screenname}
-                              buddyIconPath={buddy.buddy_icon_path}
-                              presenceState={getBuddyPresenceSummary(buddy).presenceState}
-                              size="md"
-                            />
-                            {unread > 0 ? (
-                              <span className="ui-unread-badge-pulse absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">
-                                {unread}
-                              </span>
-                            ) : null}
+                    {isActiveChatsOpen ? (
+                      activeRooms.length === 0 ? (
+                        <div className="ui-empty-state px-4 py-6 ui-fade-in">
+                          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-violet-50">
+                            <AppIcon kind="chat" className="h-5 w-5 text-violet-400" />
                           </div>
-                          <span className="max-w-[56px] truncate text-[10px] font-medium text-slate-600 dark:text-slate-400">
-                            {buddy.screenname}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })()}
-
-            <section ref={directMessagesSectionRef} className="bg-transparent">
-              <div className="select-none">
-                <button
-                  type="button"
-                  onClick={() => setIsBuddiesOpen((previous) => !previous)}
-                  className={xpGroupHeaderClass}
-                >
-                  <AppIcon kind="chevron" className={`h-3 w-3 transition-transform ${isBuddiesOpen ? 'rotate-90' : ''}`} />
-                  <span className="flex-1">
-                    {conversationFilter === 'requests'
-                      ? 'Message requests'
-                      : showSplitPresenceSections
-                        ? 'Online'
-                        : conversationFilter === 'archived'
-                          ? 'Archived chats'
-                          : 'Direct messages'}
-                  </span>
-                  <span className="ui-section-count">
-                    {conversationFilter === 'requests'
-                      ? pendingRequests.length
-                      : showSplitPresenceSections
-                        ? `${onlineBuddiesSorted.length}/${filteredDirectMessageBuddies.length}`
-                        : filteredDirectMessageBuddies.length}
-                  </span>
-                </button>
-
-                {isBuddiesOpen ? (
-                  <div>
-                    <div className="flex items-center justify-between px-3 py-1.5">
-                      <label htmlFor="buddy-sort-mode" className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">
-                        Sort
-                      </label>
-                      <select
-                        id="buddy-sort-mode"
-                        title="Buddy Sort Mode"
-                        value={buddySortMode}
-                        onChange={(event) => setBuddySortMode(event.target.value as BuddySortMode)}
-                        className={`${xpModalSelectClass} min-h-[32px] w-auto py-1 pl-3 pr-8 text-[11px]`}
-                      >
-                        <option value="online_then_alpha">Online first</option>
-                        <option value="alpha">A – Z</option>
-                        <option value="recent_activity">Recent activity</option>
-                      </select>
-                    </div>
-
-                    <div className="px-3 pb-2">
-                      <div className="flex gap-1 overflow-x-auto pb-1">
-                        {([
-                          { id: 'all', label: 'All', count: unarchivedDirectMessageBuddies.length },
-                          {
-                            id: 'unread',
-                            label: 'Unread',
-                            count: unarchivedDirectMessageBuddies.filter((buddy) => (unreadDirectMessages[buddy.id] ?? 0) > 0).length,
-                          },
-                          {
-                            id: 'pinned',
-                            label: 'Pinned',
-                            count: unarchivedDirectMessageBuddies.filter((buddy) => getDmPreference(dmPreferencesByBuddyId, buddy.id).isPinned).length,
-                          },
-                          { id: 'requests', label: 'Requests', count: pendingRequests.length },
-                          { id: 'archived', label: 'Archived', count: archivedDirectMessageBuddies.length },
-                        ] as Array<{ id: ConversationFilter; label: string; count: number }>).map((filterOption) => (
-                          <button
-                            key={filterOption.id}
-                            type="button"
-                            onClick={() => setConversationFilter(filterOption.id)}
-                            className={`ui-focus-ring rounded-full border px-3 py-1 text-[11px] font-semibold transition ${
-                              conversationFilter === filterOption.id
-                                ? 'border-blue-400/70 bg-blue-500 text-white'
-                                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-200 dark:hover:bg-slate-900'
-                            }`}
-                          >
-                            {filterOption.label} {filterOption.count > 0 ? `(${filterOption.count})` : ''}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {isBootstrapping || (!isBootstrapping && isLoadingBuddies) ? (
-                      <div className="space-y-2 px-3 py-2 ui-fade-in">
-                        {Array.from({ length: 5 }).map((_, idx) => (
-                          <div key={idx} className="flex items-center gap-3 rounded-2xl px-2 py-2">
-                            <div className="ui-skeleton-circle h-10 w-10 shrink-0" />
-                            <div className="flex-1 space-y-2">
-                              <div className="ui-skeleton h-3.5 w-28" />
-                              <div className="ui-skeleton h-2.5 w-20" />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                    {!isBootstrapping && !isLoadingBuddies && acceptedBuddies.length === 0 && conversationFilter !== 'requests' ? (
-                      <div className="ui-empty-state px-6 py-10 ui-fade-in">
-                        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-50">
-                          <AppIcon kind="smile" className="h-8 w-8 text-blue-400" />
-                        </div>
-                        <div className="text-center">
-                          <p className="text-[14px] font-semibold text-slate-500">No buddies yet</p>
-                          <p className="mt-1 text-[12px] leading-relaxed text-slate-400">
-                            Add your first buddy to start messaging
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={openAddWindow}
-                          className="ui-focus-ring ui-button-secondary ui-button-compact mt-1"
-                        >
-                          Add buddy
-                        </button>
-                      </div>
-                    ) : null}
-                    {!isBootstrapping && conversationFilter !== 'requests' ? renderSavedMessagesRow() : null}
-                    {!isBootstrapping && conversationFilter === 'requests' ? (
-                      pendingRequests.length === 0 ? (
-                        <div className="ui-empty-state px-6 py-10 ui-fade-in">
-                          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-50">
-                            <AppIcon kind="mail" className="h-8 w-8 text-blue-400" />
-                          </div>
-                          <div className="text-center">
-                            <p className="text-[14px] font-semibold text-slate-500">No message requests</p>
-                            <p className="mt-1 text-[12px] leading-relaxed text-slate-400">
-                              New people who message you will show up here first.
-                            </p>
-                          </div>
+                          <p className="text-[12px] text-slate-400">Join a room to start chatting</p>
                         </div>
                       ) : (
-                        <div className="space-y-2 px-3 pb-2">
-                          {pendingRequests.map((request) => (
-                            <div key={request.senderId} className="ui-panel-card rounded-2xl px-3 py-3">
-                              <div className="flex items-center justify-between gap-3">
-                                <div className="min-w-0">
-                                  <p className="truncate text-[13px] font-semibold text-slate-800">{request.screenname}</p>
-                                  <p className="text-[11px] text-slate-400">Wants to start a chat</p>
+                        activeRooms.map((roomName) => {
+                          const unreadCount = getUnreadCountForRoom(roomName);
+                          const isRoomSelected = Boolean(activeRoom && sameRoom(activeRoom.name, roomName));
+                          const normalizedRoomKey = normalizeRoomKey(roomName);
+
+                          return (
+                            <div key={roomName} className="flex items-center gap-2 px-3 py-2">
+                              <button
+                                type="button"
+                                onClick={() => void handleOpenActiveRoom(roomName)}
+                                data-testid={`room-row-${normalizedRoomKey}`}
+                                data-room-name={roomName}
+                                data-room-unread={unreadCount}
+                                data-active={isRoomSelected ? 'true' : 'false'}
+                                className="ui-list-row flex-1 text-left"
+                              >
+                                {/* Room avatar */}
+                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet-100 text-[13px] font-bold text-violet-700">
+                                  #
                                 </div>
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleAcceptPendingRequest(request.senderId)}
-                                    className="ui-focus-ring ui-button-primary ui-button-compact"
-                                  >
-                                    Accept
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeclinePendingRequest(request.senderId)}
-                                    className="ui-focus-ring ui-button-secondary ui-button-compact"
-                                  >
-                                    Decline
-                                  </button>
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate text-[13px] font-semibold text-slate-800">{roomName}</p>
+                                  <p className="text-[11px] text-slate-400">Group chat</p>
                                 </div>
-                              </div>
+                                {unreadCount > 0 ? (
+                                  <span
+                                    data-testid={`room-unread-${normalizedRoomKey}`}
+                                    aria-label={`Unread in ${roomName}: ${unreadCount}`}
+                                    className={`flex min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white ${
+                                      isRoomSelected ? '' : 'aim-unread-badge-pulse'
+                                    }`}
+                                  >
+                                    {unreadCount}
+                                  </span>
+                                ) : null}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void handleLeaveRoom(roomName)}
+                                className="ui-focus-ring ui-button-danger ui-button-compact flex h-8 w-8 shrink-0 p-0"
+                                aria-label={`Leave ${roomName}`}
+                                title="Leave room"
+                              >
+                                <AppIcon kind="close" className="h-3.5 w-3.5" />
+                              </button>
                             </div>
-                          ))}
-                        </div>
+                          );
+                        })
                       )
                     ) : null}
-                    {!isBootstrapping && conversationFilter !== 'requests' && filteredDirectMessageBuddies.length === 0 && acceptedBuddies.length > 0 ? (
-                      <div className="ui-empty-state px-6 py-10 ui-fade-in">
-                        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-50">
-                          <AppIcon kind="chat" className="h-6 w-6 text-blue-400" />
-                        </div>
-                        <div className="text-center">
-                          <p className="text-[14px] font-semibold text-slate-500">No chats in this view</p>
-                          <p className="mt-1 text-[12px] leading-relaxed text-slate-400">
-                            Try another filter or start a new conversation.
-                          </p>
-                        </div>
-                      </div>
-                    ) : null}
-                    {!isBootstrapping && conversationFilter !== 'requests' &&
-                      (showSplitPresenceSections ? onlineBuddiesSorted : filteredDirectMessageBuddies).map((buddy) =>
-                        renderDirectMessageRow(buddy),
-                      )}
-
-                    {pendingBuddies.length > 0 ? (
-                      <div className="ui-note-warning mx-3 mb-2">
-                        <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600 dark:text-amber-200">Pending ({pendingBuddies.length})</p>
-                        {pendingBuddies.map((buddy) => (
-                          <p key={buddy.id} className="mt-0.5 truncate text-[12px] italic text-amber-700">
-                            {buddy.screenname}
-                          </p>
-                        ))}
-                      </div>
-                    ) : null}
                   </div>
-                ) : null}
-              </div>
-
-              {showSplitPresenceSections ? (
-                <div className="select-none">
-                <button
-                  type="button"
-                  onClick={() => setIsOfflineOpen((previous) => !previous)}
-                  className={xpGroupHeaderClass}
-                >
-                  <AppIcon kind="chevron" className={`h-3 w-3 transition-transform ${isOfflineOpen ? 'rotate-90' : ''}`} />
-                  <span className="flex-1">Offline</span>
-                  <span className="ui-section-count">{offlineBuddiesSorted.length}</span>
-                </button>
-
-                {isOfflineOpen ? offlineBuddiesSorted.map((buddy) => renderDirectMessageRow(buddy)) : null}
-              </div>
+                </>
               ) : null}
-
-              <div ref={roomsSectionRef} className="select-none">
-                <button
-                  type="button"
-                  onClick={() => setIsActiveChatsOpen((previous) => !previous)}
-                  className={xpGroupHeaderClass}
-                >
-                  <AppIcon kind="chevron" className={`h-3 w-3 transition-transform ${isActiveChatsOpen ? 'rotate-90' : ''}`} />
-                  <span className="flex-1">Group rooms</span>
-                  <span className="ui-section-count">{activeRooms.length}</span>
-                </button>
-
-                {isActiveChatsOpen ? (
-                  activeRooms.length === 0 ? (
-                    <div className="ui-empty-state px-4 py-6 ui-fade-in">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-violet-50">
-                        <AppIcon kind="chat" className="h-5 w-5 text-violet-400" />
-                      </div>
-                      <p className="text-[12px] text-slate-400">Join a room to start chatting</p>
-                    </div>
-                  ) : (
-                    activeRooms.map((roomName) => {
-                      const unreadCount = getUnreadCountForRoom(roomName);
-                      const isRoomSelected = Boolean(activeRoom && sameRoom(activeRoom.name, roomName));
-                      const normalizedRoomKey = normalizeRoomKey(roomName);
-
-                      return (
-                        <div key={roomName} className="flex items-center gap-2 px-3 py-2">
-                          <button
-                            type="button"
-                            onClick={() => void handleOpenActiveRoom(roomName)}
-                            data-testid={`room-row-${normalizedRoomKey}`}
-                            data-room-name={roomName}
-                            data-room-unread={unreadCount}
-                            data-active={isRoomSelected ? 'true' : 'false'}
-                            className="ui-list-row flex-1 text-left"
-                          >
-                            {/* Room avatar */}
-                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet-100 text-[13px] font-bold text-violet-700">
-                              #
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-[13px] font-semibold text-slate-800">{roomName}</p>
-                              <p className="text-[11px] text-slate-400">Group chat</p>
-                            </div>
-                            {unreadCount > 0 ? (
-                              <span
-                                data-testid={`room-unread-${normalizedRoomKey}`}
-                                aria-label={`Unread in ${roomName}: ${unreadCount}`}
-                                className={`flex min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white ${
-                                  isRoomSelected ? '' : 'aim-unread-badge-pulse'
-                                }`}
-                              >
-                                {unreadCount}
-                              </span>
-                            ) : null}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void handleLeaveRoom(roomName)}
-                            className="ui-focus-ring ui-button-danger ui-button-compact flex h-8 w-8 shrink-0 p-0"
-                            aria-label={`Leave ${roomName}`}
-                            title="Leave room"
-                          >
-                            <AppIcon kind="close" className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      );
-                    })
-                  )
-                ) : null}
-                {roomJoinError ? (
-                  <p className="px-3 pb-2 text-[11px] font-semibold text-red-600">{roomJoinError}</p>
-                ) : null}
-              </div>
-            </section>
           </div>
 
             {/* iOS-style tab bar */}
-            {nativeShellActive ? null : (
+            {nativeShellActive || isConversationOverlayOpen ? null : (
               <div
                 className="ui-tabbar shrink-0"
                 style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
