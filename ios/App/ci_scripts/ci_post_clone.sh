@@ -6,8 +6,14 @@ REPOSITORY_ROOT="${CI_PRIMARY_REPOSITORY_PATH:-$PWD}"
 IOS_PROJECT_ROOT="$REPOSITORY_ROOT/ios/App"
 WEB_BUNDLE_DIR="$IOS_PROJECT_ROOT/App/public"
 ENTRYPOINT_FILE="$WEB_BUNDLE_DIR/index.html"
-PACKAGE_JSON="$REPOSITORY_ROOT/package.json"
-PACKAGE_LOCK="$REPOSITORY_ROOT/package-lock.json"
+VENDOR_ROOT="$IOS_PROJECT_ROOT/CapacitorVendor"
+REQUIRED_VENDOR_PACKAGES="
+$VENDOR_ROOT/AparajitaCapacitorBiometricAuth
+$VENDOR_ROOT/CapacitorHaptics
+$VENDOR_ROOT/CapacitorLocalNotifications
+$VENDOR_ROOT/CapacitorPushNotifications
+$VENDOR_ROOT/CapawesomeCapacitorBadge
+"
 
 echo "Validating Xcode Cloud checkout for BuddyList"
 
@@ -23,13 +29,13 @@ if [ ! -f "$ENTRYPOINT_FILE" ]; then
     exit 1
 fi
 
-if [ ! -f "$PACKAGE_JSON" ] || [ ! -f "$PACKAGE_LOCK" ]; then
-    echo "error: Expected package.json and package-lock.json at the repository root."
-    exit 1
-fi
-
-echo "Installing JavaScript dependencies with npm ci"
-cd "$REPOSITORY_ROOT"
-npm ci
+for package_dir in $REQUIRED_VENDOR_PACKAGES; do
+    if [ ! -d "$package_dir" ]; then
+        echo "error: Missing committed Swift package directory: $package_dir"
+        echo "error: Run npm run ios:sync locally so CapacitorVendor stays in sync with iOS plugins."
+        exit 1
+    fi
+done
 
 echo "Found checked-in web bundle at $WEB_BUNDLE_DIR"
+echo "Found committed Swift packages at $VENDOR_ROOT"

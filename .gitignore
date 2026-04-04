@@ -27,6 +27,7 @@
 .DS_Store
 *.pem
 .tools/
+/.claude/worktrees/
 
 # debug
 npm-debug.log*
