@@ -141,7 +141,7 @@ fileprivate struct BuddyListShellChromeState: Decodable, Equatable {
             case .sheet:
                 return []
             case .standard:
-                return [.toggleTheme, .openSaved, .openAdd, .openMenu]
+                return activeTab == .im ? [.openSaved, .toggleTheme, .openMenu] : [.toggleTheme, .openMenu]
             }
         }
 
@@ -335,6 +335,8 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
     private let bridgeViewController = BuddyListBridgeViewController()
     private let topChromeView = UIVisualEffectView(effect: nil)
     private let bottomChromeView = UIVisualEffectView(effect: nil)
+    private let topDockView = UIVisualEffectView(effect: nil)
+    private let bottomDockView = UIVisualEffectView(effect: nil)
     private let navigationBar = UINavigationBar(frame: .zero)
     private let tabBar = UITabBar(frame: .zero)
     private let topNavigationItem = UINavigationItem(title: "")
@@ -383,6 +385,13 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
         configureTabBar()
         embedBridgeViewController()
         applyChromeState(chromeState, animated: false)
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        topDockView.layer.cornerRadius = max(22, topDockView.bounds.height / 2)
+        bottomDockView.layer.cornerRadius = max(24, bottomDockView.bounds.height / 2)
+        updateTabSelectionIndicator()
     }
 
     override var preferredStatusBarStyle: UIStatusBarStyle {
@@ -583,55 +592,78 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
         titleLabel.adjustsFontForContentSizeCategory = true
         titleLabel.textAlignment = .center
         titleLabel.numberOfLines = 1
+        titleLabel.adjustsFontSizeToFitWidth = true
+        titleLabel.minimumScaleFactor = 0.9
 
         subtitleLabel.font = UIFont.preferredFont(forTextStyle: .caption1)
         subtitleLabel.adjustsFontForContentSizeCategory = true
         subtitleLabel.textAlignment = .center
         subtitleLabel.numberOfLines = 1
+        subtitleLabel.adjustsFontSizeToFitWidth = true
+        subtitleLabel.minimumScaleFactor = 0.82
 
         topNavigationItem.titleView = titleStackView
     }
 
     private func configureNavigationBar() {
         topChromeView.translatesAutoresizingMaskIntoConstraints = false
+        topDockView.translatesAutoresizingMaskIntoConstraints = false
         navigationBar.translatesAutoresizingMaskIntoConstraints = false
         navigationBar.prefersLargeTitles = false
         navigationBar.setItems([topNavigationItem], animated: false)
+        topDockView.clipsToBounds = true
+        topDockView.layer.cornerCurve = .continuous
 
         view.addSubview(topChromeView)
-        topChromeView.contentView.addSubview(navigationBar)
+        topChromeView.contentView.addSubview(topDockView)
+        topDockView.contentView.addSubview(navigationBar)
 
         NSLayoutConstraint.activate([
             topChromeView.topAnchor.constraint(equalTo: view.topAnchor),
             topChromeView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             topChromeView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
 
-            navigationBar.topAnchor.constraint(equalTo: topChromeView.safeAreaLayoutGuide.topAnchor),
-            navigationBar.leadingAnchor.constraint(equalTo: topChromeView.contentView.leadingAnchor),
-            navigationBar.trailingAnchor.constraint(equalTo: topChromeView.contentView.trailingAnchor),
-            navigationBar.bottomAnchor.constraint(equalTo: topChromeView.contentView.bottomAnchor)
+            topDockView.topAnchor.constraint(equalTo: topChromeView.safeAreaLayoutGuide.topAnchor, constant: 8),
+            topDockView.leadingAnchor.constraint(equalTo: topChromeView.contentView.leadingAnchor, constant: 12),
+            topDockView.trailingAnchor.constraint(equalTo: topChromeView.contentView.trailingAnchor, constant: -12),
+            topDockView.bottomAnchor.constraint(equalTo: topChromeView.contentView.bottomAnchor, constant: -6),
+
+            navigationBar.topAnchor.constraint(equalTo: topDockView.contentView.topAnchor, constant: 2),
+            navigationBar.leadingAnchor.constraint(equalTo: topDockView.contentView.leadingAnchor, constant: 8),
+            navigationBar.trailingAnchor.constraint(equalTo: topDockView.contentView.trailingAnchor, constant: -8),
+            navigationBar.bottomAnchor.constraint(equalTo: topDockView.contentView.bottomAnchor, constant: -2)
         ])
     }
 
     private func configureTabBar() {
         bottomChromeView.translatesAutoresizingMaskIntoConstraints = false
+        bottomDockView.translatesAutoresizingMaskIntoConstraints = false
         tabBar.translatesAutoresizingMaskIntoConstraints = false
         tabBar.delegate = self
         tabBar.items = [imTabItem, chatTabItem, buddyTabItem, profileTabItem]
         tabBar.selectedItem = imTabItem
+        tabBar.itemPositioning = .automatic
+        bottomDockView.clipsToBounds = true
+        bottomDockView.layer.cornerCurve = .continuous
 
         view.addSubview(bottomChromeView)
-        bottomChromeView.contentView.addSubview(tabBar)
+        bottomChromeView.contentView.addSubview(bottomDockView)
+        bottomDockView.contentView.addSubview(tabBar)
 
         NSLayoutConstraint.activate([
             bottomChromeView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             bottomChromeView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             bottomChromeView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
 
-            tabBar.topAnchor.constraint(equalTo: bottomChromeView.contentView.topAnchor),
-            tabBar.leadingAnchor.constraint(equalTo: bottomChromeView.contentView.leadingAnchor),
-            tabBar.trailingAnchor.constraint(equalTo: bottomChromeView.contentView.trailingAnchor),
-            tabBar.bottomAnchor.constraint(equalTo: bottomChromeView.safeAreaLayoutGuide.bottomAnchor)
+            bottomDockView.topAnchor.constraint(equalTo: bottomChromeView.contentView.topAnchor, constant: 6),
+            bottomDockView.leadingAnchor.constraint(equalTo: bottomChromeView.contentView.leadingAnchor, constant: 12),
+            bottomDockView.trailingAnchor.constraint(equalTo: bottomChromeView.contentView.trailingAnchor, constant: -12),
+            bottomDockView.bottomAnchor.constraint(equalTo: bottomChromeView.safeAreaLayoutGuide.bottomAnchor, constant: -6),
+
+            tabBar.topAnchor.constraint(equalTo: bottomDockView.contentView.topAnchor, constant: 2),
+            tabBar.leadingAnchor.constraint(equalTo: bottomDockView.contentView.leadingAnchor, constant: 8),
+            tabBar.trailingAnchor.constraint(equalTo: bottomDockView.contentView.trailingAnchor, constant: -8),
+            tabBar.bottomAnchor.constraint(equalTo: bottomDockView.contentView.bottomAnchor, constant: -2)
         ])
     }
 
@@ -723,29 +755,31 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
         let blurStyle: UIBlurEffect.Style = chromeState.isDark
             ? .systemUltraThinMaterialDark
             : .systemUltraThinMaterialLight
-        let tintColor: UIColor
-        switch chromeState.accentTone {
-        case .violet:
-            tintColor = .systemIndigo
-        case .emerald:
-            tintColor = .systemGreen
-        case .amber:
-            tintColor = .systemOrange
-        case .slate:
-            tintColor = chromeState.isDark ? UIColor.systemGray2 : UIColor.systemGray
-        case .blue:
-            tintColor = .systemBlue
-        }
+        let tintColor = resolvedAccentColor()
         let titleColor = chromeState.isDark ? UIColor.white : UIColor.label
         let subtitleColor = chromeState.isDark
             ? UIColor.secondaryLabel.withAlphaComponent(0.92)
             : UIColor.secondaryLabel
+        let dockOverlayColor = resolvedDockOverlayColor()
+        let dockBorderColor = resolvedDockBorderColor()
 
         let animationBlock = {
-            self.topChromeView.effect = UIBlurEffect(style: blurStyle)
-            self.bottomChromeView.effect = UIBlurEffect(style: blurStyle)
+            self.topChromeView.effect = nil
+            self.bottomChromeView.effect = nil
             self.topChromeView.contentView.backgroundColor = .clear
             self.bottomChromeView.contentView.backgroundColor = .clear
+            self.applyDockAppearance(
+                to: self.topDockView,
+                blurStyle: blurStyle,
+                overlayColor: dockOverlayColor,
+                borderColor: dockBorderColor
+            )
+            self.applyDockAppearance(
+                to: self.bottomDockView,
+                blurStyle: blurStyle,
+                overlayColor: dockOverlayColor,
+                borderColor: dockBorderColor
+            )
             self.titleLabel.textColor = titleColor
             self.subtitleLabel.textColor = subtitleColor
             self.navigationBar.tintColor = tintColor
@@ -753,6 +787,7 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
             self.tabBar.unselectedItemTintColor = subtitleColor
             self.applyNavigationAppearance()
             self.applyTabBarAppearance()
+            self.updateTabSelectionIndicator()
         }
 
         if animated {
@@ -784,7 +819,7 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
         let normalColor = chromeState.isDark
             ? UIColor.secondaryLabel.withAlphaComponent(0.92)
             : UIColor.secondaryLabel
-        let selectedColor = UIColor.systemBlue
+        let selectedColor = resolvedAccentColor()
 
         appearance.stackedLayoutAppearance.normal.iconColor = normalColor
         appearance.stackedLayoutAppearance.normal.titleTextAttributes = [.foregroundColor: normalColor]
@@ -793,6 +828,88 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
 
         tabBar.standardAppearance = appearance
         tabBar.scrollEdgeAppearance = appearance
+    }
+
+    private func resolvedAccentColor() -> UIColor {
+        switch chromeState.accentTone {
+        case .violet:
+            return .systemIndigo
+        case .emerald:
+            return .systemGreen
+        case .amber:
+            return .systemOrange
+        case .slate:
+            return chromeState.isDark ? UIColor.systemGray2 : UIColor.systemGray
+        case .blue:
+            return .systemBlue
+        }
+    }
+
+    private func resolvedDockOverlayColor() -> UIColor {
+        if chromeState.isDark {
+            return UIColor(red: 9 / 255, green: 15 / 255, blue: 28 / 255, alpha: 0.66)
+        }
+
+        return UIColor(white: 1, alpha: 0.72)
+    }
+
+    private func resolvedDockBorderColor() -> UIColor {
+        if chromeState.isDark {
+            return UIColor.white.withAlphaComponent(0.08)
+        }
+
+        return UIColor.white.withAlphaComponent(0.72)
+    }
+
+    private func applyDockAppearance(
+        to dockView: UIVisualEffectView,
+        blurStyle: UIBlurEffect.Style,
+        overlayColor: UIColor,
+        borderColor: UIColor
+    ) {
+        dockView.effect = UIBlurEffect(style: blurStyle)
+        dockView.contentView.backgroundColor = overlayColor
+        dockView.layer.borderWidth = 0.75
+        dockView.layer.borderColor = borderColor.cgColor
+    }
+
+    private func updateTabSelectionIndicator() {
+        guard let items = tabBar.items, !items.isEmpty, tabBar.bounds.width > 0, tabBar.bounds.height > 0 else {
+            tabBar.selectionIndicatorImage = nil
+            return
+        }
+
+        let itemWidth = tabBar.bounds.width / CGFloat(items.count)
+        let indicatorInsetX: CGFloat = 7
+        let indicatorInsetY: CGFloat = 6
+        let indicatorRect = CGRect(
+            x: indicatorInsetX,
+            y: indicatorInsetY,
+            width: itemWidth - (indicatorInsetX * 2),
+            height: max(30, tabBar.bounds.height - (indicatorInsetY * 2))
+        )
+        let fillColor = resolvedAccentColor().withAlphaComponent(chromeState.isDark ? 0.2 : 0.12)
+        let strokeColor = resolvedAccentColor().withAlphaComponent(chromeState.isDark ? 0.32 : 0.18)
+        let imageSize = CGSize(width: itemWidth, height: tabBar.bounds.height)
+
+        let image = UIGraphicsImageRenderer(size: imageSize).image { context in
+            let path = UIBezierPath(roundedRect: indicatorRect, cornerRadius: indicatorRect.height / 2)
+            fillColor.setFill()
+            path.fill()
+            strokeColor.setStroke()
+            path.lineWidth = 1
+            path.stroke()
+        }
+
+        tabBar.selectionIndicatorImage = image.resizableImage(
+            withCapInsets: UIEdgeInsets(
+                top: indicatorRect.height / 2,
+                left: indicatorRect.width / 2,
+                bottom: indicatorRect.height / 2,
+                right: indicatorRect.width / 2
+            ),
+            resizingMode: .stretch
+        )
     }
 
     private func makeBarButtonItem(for action: BuddyListShellAction) -> UIBarButtonItem? {
@@ -818,27 +935,27 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
                 action: #selector(handleOpenAdd)
             )
         case .openMenu:
-            let menuItem = UIBarButtonItem(
-                image: UIImage(systemName: "ellipsis.circle"),
-                primaryAction: nil,
+            return makeMenuBarButtonItem(
+                systemName: "ellipsis.circle",
+                accessibilityLabel: "More options",
                 menu: makeOverflowMenu()
             )
-            menuItem.accessibilityLabel = "More options"
-            return menuItem
         case .openPrivacy, .openAdminReset, .signOff, .goBack:
             return nil
         }
     }
 
     private func makeBarButtonItem(systemName: String, accessibilityLabel: String, action: Selector) -> UIBarButtonItem {
-        let buttonItem = UIBarButtonItem(
-            image: UIImage(systemName: systemName),
-            style: .plain,
-            target: self,
-            action: action
-        )
-        buttonItem.accessibilityLabel = accessibilityLabel
-        return buttonItem
+        let button = makeChromeButton(systemName: systemName, accessibilityLabel: accessibilityLabel)
+        button.addTarget(self, action: action, for: .touchUpInside)
+        return UIBarButtonItem(customView: button)
+    }
+
+    private func makeMenuBarButtonItem(systemName: String, accessibilityLabel: String, menu: UIMenu) -> UIBarButtonItem {
+        let button = makeChromeButton(systemName: systemName, accessibilityLabel: accessibilityLabel)
+        button.menu = menu
+        button.showsMenuAsPrimaryAction = true
+        return UIBarButtonItem(customView: button)
     }
 
     private func makeLabeledBarButtonItem(
@@ -848,15 +965,33 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
         action: Selector
     ) -> UIBarButtonItem {
         let button = UIButton(type: .system)
-        var configuration = UIButton.Configuration.plain()
+        var configuration = UIButton.Configuration.tinted()
         configuration.image = UIImage(systemName: systemName)
         configuration.title = title
         configuration.imagePadding = 5
-        configuration.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0)
+        configuration.baseForegroundColor = resolvedAccentColor()
+        configuration.baseBackgroundColor = resolvedAccentColor().withAlphaComponent(chromeState.isDark ? 0.16 : 0.09)
+        configuration.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12)
+        configuration.cornerStyle = .capsule
         button.configuration = configuration
         button.accessibilityLabel = accessibilityLabel
         button.addTarget(self, action: action, for: .touchUpInside)
         return UIBarButtonItem(customView: button)
+    }
+
+    private func makeChromeButton(systemName: String, accessibilityLabel: String) -> UIButton {
+        let button = UIButton(type: .system)
+        var configuration = UIButton.Configuration.plain()
+        configuration.image = UIImage(systemName: systemName)
+        configuration.baseForegroundColor = resolvedAccentColor()
+        configuration.background.backgroundColor = chromeState.isDark
+            ? UIColor.white.withAlphaComponent(0.05)
+            : UIColor.black.withAlphaComponent(0.035)
+        configuration.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8)
+        configuration.cornerStyle = .capsule
+        button.configuration = configuration
+        button.accessibilityLabel = accessibilityLabel
+        return button
     }
 
     private func makeOverflowMenu() -> UIMenu {

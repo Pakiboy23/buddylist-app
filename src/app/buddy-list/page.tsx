@@ -5432,15 +5432,18 @@ function BuddyListContent() {
       bodyShellSection !== 'profile',
   );
   const nativeShellShowsBottomChrome = !isConversationOverlayOpen;
+  const shellIsDark = isDark || (typeof document !== 'undefined' && document.documentElement.classList.contains('dark'));
   const nativeShellTrailingActions = useMemo(
     () =>
       nativeShellMode === 'conversation'
         ? ([] as const)
         : nativeShellMode === 'sheet'
           ? (['openMenu'] as const)
-          : bodyShellSection === 'profile'
+          : bodyShellSection === 'im'
+            ? (['openSaved', 'toggleTheme', 'openMenu'] as const)
+            : bodyShellSection === 'profile'
             ? (['toggleTheme', 'openMenu'] as const)
-            : (['toggleTheme', 'openSaved', 'openAdd', 'openMenu'] as const),
+            : (['toggleTheme', 'openMenu'] as const),
     [bodyShellSection, nativeShellMode],
   );
   const nativeShellAccentTone =
@@ -5738,7 +5741,7 @@ function BuddyListContent() {
       trailingActions: [...nativeShellTrailingActions],
       accentTone: nativeShellAccentTone,
       canGoBack: nativeShellCanGoBack,
-      isDark,
+      isDark: shellIsDark,
       isAdminUser,
       unreadDirectCount: totalUnreadDirectCount,
       showsBottomChrome: nativeShellShowsBottomChrome,
@@ -5748,12 +5751,12 @@ function BuddyListContent() {
     buddyListHeaderSummary,
     chatSyncSummary,
     isAdminUser,
-    isDark,
     nativeShellActive,
     nativeShellCanGoBack,
     nativeShellAccentTone,
     nativeShellMode,
     nativeShellShowsBottomChrome,
+    shellIsDark,
     nativeShellSubtitle,
     nativeShellTrailingActions,
     nativeShellTitle,
