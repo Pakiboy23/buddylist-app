@@ -63,9 +63,10 @@ ensure_node_toolchain
 
 echo "Using node $(node -v)"
 echo "Using npm $(npm -v)"
+echo "NODE_ENV=${NODE_ENV:-<unset>}"
 
-echo "Installing JavaScript dependencies with npm ci"
+echo "Installing JavaScript dependencies with npm ci --include=dev"
 cd "$REPOSITORY_ROOT"
-npm ci
+npm ci --include=dev
 
 echo "Found checked-in web bundle at $WEB_BUNDLE_DIR"
