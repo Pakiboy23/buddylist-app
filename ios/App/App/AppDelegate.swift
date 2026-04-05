@@ -274,6 +274,15 @@ fileprivate func makeShellError(_ message: String) -> NSError {
     NSError(domain: "BuddyListShell", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
 }
 
+fileprivate func resolveSignedPushEnvironment() -> String? {
+    if let debugValue = Bundle.main.object(forInfoDictionaryKey: "CAPACITOR_DEBUG") as? String,
+       ["1", "true", "yes"].contains(debugValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()) {
+        return "sandbox"
+    }
+
+    return "production"
+}
+
 @objc(BuddyListBridgeViewController)
 class BuddyListBridgeViewController: CAPBridgeViewController {
     weak var shellController: BuddyListShellViewController?
@@ -298,7 +307,8 @@ class BuddyListShellPlugin: CAPPlugin, CAPBridgedPlugin {
     public let jsName = "BuddyListShell"
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "isAvailable", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "setChromeState", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "setChromeState", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getPushEnvironment", returnType: CAPPluginReturnPromise)
     ]
 
     private var shellController: BuddyListShellViewController? {
@@ -327,6 +337,12 @@ class BuddyListShellPlugin: CAPPlugin, CAPBridgedPlugin {
         } catch {
             call.reject("Invalid native shell state.", nil, error)
         }
+    }
+
+    @objc func getPushEnvironment(_ call: CAPPluginCall) {
+        var payload: JSObject = [:]
+        payload["environment"] = resolveSignedPushEnvironment() ?? NSNull()
+        call.resolve(payload)
     }
 }
 

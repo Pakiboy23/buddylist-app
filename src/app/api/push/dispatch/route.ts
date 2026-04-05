@@ -7,6 +7,7 @@ import {
   normalizeUserPrivacySettings,
   type NotificationPreviewMode,
 } from '@/lib/privateChat';
+import { isPushEnvironmentSchemaMissingError } from '@/lib/pushEnvironmentSchema';
 import { htmlToPlainText } from '@/lib/richText';
 import { normalizeRoomKey } from '@/lib/roomName';
 import { createSupabaseAdminClient, getRequestUser } from '@/lib/supabaseServer';
@@ -22,6 +23,7 @@ interface DispatchBody {
 interface PushTokenRow {
   token: string;
   user_id: string;
+  push_environment?: 'sandbox' | 'production' | null;
 }
 
 interface PrivacySettingsRow {
@@ -55,7 +57,10 @@ interface ChatRoomRow {
   room_key?: string | null;
 }
 
-const APNS_HOST = 'https://api.push.apple.com';
+type ApnsEnvironment = 'sandbox' | 'production';
+
+const APNS_PRODUCTION_HOST = 'https://api.push.apple.com';
+const APNS_SANDBOX_HOST = 'https://api.sandbox.push.apple.com';
 const PUSH_SOUND = 'default';
 const MAX_PREVIEW_LENGTH = 140;
 
@@ -159,12 +164,16 @@ function buildApnsPayload(input: {
   };
 }
 
-async function sendApnsNotification(deviceToken: string, payload: ReturnType<typeof buildApnsPayload>) {
+async function sendApnsNotificationViaHost(
+  host: string,
+  deviceToken: string,
+  payload: ReturnType<typeof buildApnsPayload>,
+) {
   const jwt = getApnsJwt();
   const { topic } = getApnsConfig();
 
   return await new Promise<{ status: number; body: string }>((resolve, reject) => {
-    const client = http2.connect(APNS_HOST);
+    const client = http2.connect(host);
     client.on('error', (error) => {
       client.close();
       reject(error);
@@ -221,6 +230,29 @@ function readApnsFailureReason(body: string) {
   }
 }
 
+function normalizePushEnvironment(value?: string | null): ApnsEnvironment | null {
+  if (value === 'sandbox' || value === 'production') {
+    return value;
+  }
+  return null;
+}
+
+function resolveApnsHosts(pushEnvironment: ApnsEnvironment | null) {
+  if (pushEnvironment === 'sandbox') {
+    return [APNS_SANDBOX_HOST];
+  }
+
+  if (pushEnvironment === 'production') {
+    return [APNS_PRODUCTION_HOST];
+  }
+
+  return [APNS_PRODUCTION_HOST, APNS_SANDBOX_HOST];
+}
+
+function shouldPruneTokenForReason(reason: string) {
+  return ['BadDeviceToken', 'Unregistered', 'DeviceTokenNotForTopic'].includes(reason);
+}
+
 async function dispatchToRecipients(input: {
   recipientIds: string[];
   senderName: string;
@@ -233,20 +265,35 @@ async function dispatchToRecipients(input: {
   }
 
   const admin = createSupabaseAdminClient();
-  const [tokenResponse, privacyResponse] = await Promise.all([
-    admin
+  const privacyPromise = admin
+    .from('user_privacy_settings')
+    .select('user_id,notification_preview_mode')
+    .in('user_id', input.recipientIds);
+
+  const initialTokenResponse = await admin
+    .from('user_push_tokens')
+    .select('token,user_id,push_environment')
+    .eq('platform', 'ios')
+    .in('user_id', input.recipientIds);
+
+  let tokenRows = initialTokenResponse.data as PushTokenRow[] | null;
+  let tokenError = initialTokenResponse.error;
+
+  if (isPushEnvironmentSchemaMissingError(tokenError)) {
+    const legacyTokenResponse = await admin
       .from('user_push_tokens')
       .select('token,user_id')
       .eq('platform', 'ios')
-      .in('user_id', input.recipientIds),
-    admin
-      .from('user_privacy_settings')
-      .select('user_id,notification_preview_mode')
-      .in('user_id', input.recipientIds),
-  ]);
+      .in('user_id', input.recipientIds);
 
-  if (tokenResponse.error) {
-    throw new Error(tokenResponse.error.message);
+    tokenRows = legacyTokenResponse.data as PushTokenRow[] | null;
+    tokenError = legacyTokenResponse.error;
+  }
+
+  const privacyResponse = await privacyPromise;
+
+  if (tokenError) {
+    throw new Error(tokenError.message);
   }
 
   if (privacyResponse.error) {
@@ -263,11 +310,14 @@ async function dispatchToRecipients(input: {
     ]),
   );
 
-  const tokensByUserId = new Map<string, string[]>();
-  for (const row of (tokenResponse.data ?? []) as PushTokenRow[]) {
+  const tokensByUserId = new Map<string, Array<{ token: string; pushEnvironment: ApnsEnvironment | null }>>();
+  for (const row of tokenRows ?? []) {
     const existing = tokensByUserId.get(row.user_id) ?? [];
-    if (!existing.includes(row.token)) {
-      existing.push(row.token);
+    if (!existing.some((entry) => entry.token === row.token)) {
+      existing.push({
+        token: row.token,
+        pushEnvironment: normalizePushEnvironment(row.push_environment),
+      });
       tokensByUserId.set(row.user_id, existing);
     }
   }
@@ -296,21 +346,36 @@ async function dispatchToRecipients(input: {
       variant: input.variant,
     });
 
-    for (const token of tokens) {
+    for (const tokenEntry of tokens) {
       attempted += 1;
-      try {
-        const response = await sendApnsNotification(token, payload);
-        if (response.status >= 200 && response.status < 300) {
-          delivered += 1;
-          continue;
-        }
+      const hosts = resolveApnsHosts(tokenEntry.pushEnvironment);
+      let deliveredForToken = false;
+      let allResponsesPrunable = true;
+      let sawResponse = false;
 
-        const reason = readApnsFailureReason(response.body);
-        if (['BadDeviceToken', 'Unregistered', 'DeviceTokenNotForTopic'].includes(reason)) {
-          await pruneInvalidToken(admin, token);
+      for (const host of hosts) {
+        try {
+          const response = await sendApnsNotificationViaHost(host, tokenEntry.token, payload);
+          sawResponse = true;
+
+          if (response.status >= 200 && response.status < 300) {
+            delivered += 1;
+            deliveredForToken = true;
+            break;
+          }
+
+          const reason = readApnsFailureReason(response.body);
+          if (!shouldPruneTokenForReason(reason)) {
+            allResponsesPrunable = false;
+          }
+        } catch (error) {
+          allResponsesPrunable = false;
+          console.error('APNs delivery failed:', error);
         }
-      } catch (error) {
-        console.error('APNs delivery failed:', error);
+      }
+
+      if (!deliveredForToken && sawResponse && allResponsesPrunable) {
+        await pruneInvalidToken(admin, tokenEntry.token);
       }
     }
   }

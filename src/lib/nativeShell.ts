@@ -17,6 +17,7 @@ export type NativeShellAction =
   | 'goBack';
 
 export type NativeShellNotificationPreviewMode = 'full' | 'name_only' | 'hidden';
+export type NativePushEnvironment = 'sandbox' | 'production';
 
 export interface NativeShellChromeState {
   title: string;
@@ -114,10 +115,13 @@ export type NativeShellCommand =
 interface BuddyListShellPlugin {
   isAvailable(): Promise<{ available: boolean; platform?: string }>;
   setChromeState(state: NativeShellChromeState): Promise<void>;
+  getPushEnvironment(): Promise<{ environment?: NativePushEnvironment | null }>;
 }
 
 const BuddyListShell = registerPlugin<BuddyListShellPlugin>('BuddyListShell');
 const NATIVE_SHELL_COMMAND_EVENT = 'buddylist:native-shell-command';
+let cachedPushEnvironment: NativePushEnvironment | null | undefined;
+let pendingPushEnvironmentLookup: Promise<NativePushEnvironment | null> | null = null;
 
 declare global {
   interface Window {
@@ -127,6 +131,43 @@ declare global {
 
 export function isNativeIosShell() {
   return typeof window !== 'undefined' && Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
+}
+
+export async function getNativePushEnvironment(): Promise<NativePushEnvironment | null> {
+  if (!isNativeIosShell()) {
+    return null;
+  }
+
+  if (cachedPushEnvironment !== undefined) {
+    return cachedPushEnvironment;
+  }
+
+  if (!pendingPushEnvironmentLookup) {
+    pendingPushEnvironmentLookup = (async () => {
+      try {
+        const availability = await BuddyListShell.isAvailable();
+        if (!availability.available) {
+          return null;
+        }
+
+        const result = await BuddyListShell.getPushEnvironment();
+        return result.environment === 'sandbox' || result.environment === 'production'
+          ? result.environment
+          : null;
+      } catch (error) {
+        console.warn('Native push environment lookup failed:', error);
+        return null;
+      }
+    })().finally(() => {
+      pendingPushEnvironmentLookup = null;
+    });
+  }
+
+  const environment = await pendingPushEnvironmentLookup;
+  if (environment !== null) {
+    cachedPushEnvironment = environment;
+  }
+  return environment;
 }
 
 export async function publishNativeShellChromeState(state: NativeShellChromeState) {

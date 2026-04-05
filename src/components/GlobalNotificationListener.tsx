@@ -15,6 +15,8 @@ import { useChatContext } from '@/context/ChatContext';
 import { navigateAppPath, normalizeAppPath } from '@/lib/appNavigation';
 import { waitForSessionOrNull } from '@/lib/authClient';
 import { subscribeToStorageKey } from '@/lib/clientStorage';
+import { getNativePushEnvironment } from '@/lib/nativeShell';
+import { isPushEnvironmentSchemaMissingError } from '@/lib/pushEnvironmentSchema';
 import {
   applyNotificationPreview,
   DEFAULT_USER_PRIVACY_SETTINGS,
@@ -350,17 +352,29 @@ export default function GlobalNotificationListener() {
       return;
     }
 
-    const { error } = await supabase.from('user_push_tokens').upsert(
+    const platform = Capacitor.getPlatform();
+    const pushEnvironment = platform === 'ios' ? await getNativePushEnvironment() : null;
+    const tokenPayload = {
+      user_id: userId,
+      token: tokenValue.trim(),
+      platform,
+      last_registered_at: new Date().toISOString(),
+    };
+    let { error } = await supabase.from('user_push_tokens').upsert(
       {
-        user_id: userId,
-        token: tokenValue.trim(),
-        platform: Capacitor.getPlatform(),
-        last_registered_at: new Date().toISOString(),
+        ...tokenPayload,
+        push_environment: pushEnvironment,
       },
       {
         onConflict: 'user_id,token',
       },
     );
+
+    if (isPushEnvironmentSchemaMissingError(error)) {
+      ({ error } = await supabase.from('user_push_tokens').upsert(tokenPayload, {
+        onConflict: 'user_id,token',
+      }));
+    }
 
     if (error) {
       console.error('Failed saving push notification token:', error.message);

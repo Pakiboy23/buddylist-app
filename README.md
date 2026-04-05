@@ -136,6 +136,7 @@ supabase/migrations/20260328000013_private_chat_foundation.sql
 supabase/migrations/20260328000014_trust_safety_slice.sql
 supabase/migrations/20260328000015_send_push_trigger.sql
 supabase/migrations/20260405034615_room_key_foreign_keys.sql
+supabase/migrations/20260405220000_push_token_environments.sql
 ```
 
 The legacy readable SQL snapshots still live in `supabase/*.sql`, but `supabase/migrations/` is the canonical CLI-managed history.

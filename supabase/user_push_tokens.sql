@@ -7,6 +7,7 @@ create table if not exists public.user_push_tokens (
   user_id uuid not null references public.users(id) on delete cascade,
   token text not null,
   platform text not null check (platform in ('ios', 'android', 'web')),
+  push_environment text null check (push_environment in ('sandbox', 'production')),
   last_registered_at timestamptz not null default timezone('utc', now()),
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now()),
@@ -18,6 +19,10 @@ create index if not exists user_push_tokens_user_idx
 
 create index if not exists user_push_tokens_last_registered_idx
   on public.user_push_tokens (last_registered_at desc);
+
+create index if not exists user_push_tokens_ios_environment_idx
+  on public.user_push_tokens (platform, push_environment, last_registered_at desc)
+  where platform = 'ios';
 
 drop trigger if exists user_push_tokens_set_updated_at on public.user_push_tokens;
 create trigger user_push_tokens_set_updated_at
