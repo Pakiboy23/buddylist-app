@@ -1004,6 +1004,46 @@ html.dark body {
   background: rgba(15, 23, 42, 0.56);
 }
 
+.ui-message-divider {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.75rem;
+  border: 0.5px solid rgba(255, 255, 255, 0.42);
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.58);
+  padding: 0 0.8rem;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+  backdrop-filter: blur(24px) saturate(1.4);
+}
+
+.dark .ui-message-divider {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(15, 23, 42, 0.7);
+  color: #94a3b8;
+  box-shadow: 0 10px 24px rgba(2, 6, 23, 0.26);
+}
+
+.ui-compose-context-chip,
+.ui-compose-summary-pill {
+  border: 0.5px solid var(--ui-shell-border-subtle);
+  background: color-mix(in srgb, var(--ui-shell-card) 82%, white);
+  box-shadow: var(--ui-shell-shadow-soft);
+  backdrop-filter: blur(28px) saturate(1.5);
+}
+
+.dark .ui-compose-context-chip,
+.dark .ui-compose-summary-pill {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(15, 23, 42, 0.64);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22), inset 0 0.5px 0 rgba(255, 255, 255, 0.04);
+}
+
 .ui-empty-state {
   display: flex;
   flex-direction: column;

@@ -6,6 +6,7 @@ import ChatMediaGallerySheet, { type ChatMediaGalleryItem } from '@/components/C
 import ProfileAvatar from '@/components/ProfileAvatar';
 import RetroWindow from '@/components/RetroWindow';
 import RichTextToolbar from '@/components/RichTextToolbar';
+import SwipeActionFrame from '@/components/SwipeActionFrame';
 import type { OutboxItem } from '@/lib/outbox';
 import { getJSON, setJSON } from '@/lib/clientStorage';
 import {
@@ -29,6 +30,11 @@ import { hapticLight, hapticSuccess, hapticWarning } from '@/lib/haptics';
 import { playMessageSendSound, playUiSound } from '@/lib/sound';
 import { useKeyboardViewport } from '@/hooks/useKeyboardViewport';
 import { useSwipeBack } from '@/hooks/useSwipeBack';
+import {
+  formatConversationDividerLabel,
+  formatConversationMetaTime,
+  getConversationClusterMeta,
+} from '@/lib/conversationPresentation';
 import { isNativeIosShell } from '@/lib/nativeShell';
 import type { ResolvedPresenceState } from '@/lib/presence';
 import { supabase } from '@/lib/supabase';
@@ -145,17 +151,6 @@ function getSupportedVoiceNoteMimeType() {
   }
 
   return VOICE_NOTE_MIME_CANDIDATES.find((mimeType) => MediaRecorder.isTypeSupported(mimeType)) ?? '';
-}
-
-function formatRelativeTime(isoString: string): string {
-  const diff = Date.now() - new Date(isoString).getTime();
-  const seconds = Math.floor(diff / 1000);
-  if (seconds < 60) return 'just now';
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
 function getVoiceNoteExtension(mimeType: string) {
@@ -718,6 +713,7 @@ export default function ChatWindow({
 
     setAttachmentError(null);
     setVoiceNoteError(null);
+    setShowComposerTools(true);
     setPendingAttachments((previous) => {
       const existingKeys = new Set(previous.map((file) => `${file.name}:${file.size}:${file.lastModified}`));
       const combined = [...previous];
@@ -1005,6 +1001,26 @@ export default function ChatWindow({
     setFormat((previous) => ({ ...previous, underline: !previous.underline }));
   };
 
+  const toggleComposerTools = () => {
+    setShowComposerTools((previous) => {
+      const next = !previous;
+      if (next) {
+        setShowFormatting(false);
+      }
+      return next;
+    });
+  };
+
+  const toggleComposerFormatting = () => {
+    setShowFormatting((previous) => {
+      const next = !previous;
+      if (next && pendingAttachments.length === 0 && !isRecordingVoiceNote) {
+        setShowComposerTools(false);
+      }
+      return next;
+    });
+  };
+
   const startReplyingToMessage = (message: ChatMessage) => {
     if (message.deleted_at) {
       return;
@@ -1146,6 +1162,11 @@ export default function ChatWindow({
   const composerAreaStyle = {
     paddingBottom: isKeyboardOpen ? '0.75rem' : 'calc(env(safe-area-inset-bottom) + 0.75rem)',
   } satisfies CSSProperties;
+  const composerToolsExpanded = showComposerTools || pendingAttachments.length > 0 || isRecordingVoiceNote;
+  const attachmentSummaryLabel =
+    pendingAttachments.length > 0
+      ? `${pendingAttachments.length} file${pendingAttachments.length === 1 ? '' : 's'} ready`
+      : null;
 
   return (
     <div
@@ -1505,284 +1526,329 @@ export default function ChatWindow({
                   };
                   const hasCustomStyling = richTextPresentation.hasCustomStyling;
                   const isEdited = Boolean(message.edited_at && !message.deleted_at);
-
-                  // Group logic: show timestamp if first, >5 min gap, or new-message separator
-                  const prevMessage = index > 0 ? visibleMessages[index - 1] : null;
-                  const prevTime = prevMessage ? new Date(prevMessage.created_at).getTime() : 0;
-                  const currTime = timestampDate.getTime();
-                  const showTimeDivider = !prevMessage || currTime - prevTime > 5 * 60 * 1000;
                   void relativeTimeTick;
-                  const timestamp = formatRelativeTime(message.created_at);
-                  // Tail rounding: last in a run from same sender gets the pointed corner
-                  const nextMessage = index < visibleMessages.length - 1 ? visibleMessages[index + 1] : null;
-                  const isLastInRun = !nextMessage || nextMessage.sender_id !== message.sender_id;
+                  const clusterMeta = getConversationClusterMeta(visibleMessages, index);
+                  const dividerLabel = formatConversationDividerLabel(message.created_at);
+                  const metaTimeLabel = formatConversationMetaTime(message.created_at);
+                  const replySourceMessage = message.reply_to_message_id
+                    ? messagesById.get(message.reply_to_message_id) ?? null
+                    : null;
+                  const incomingAvatar = !isMine ? (
+                    clusterMeta.isFirstInRun ? (
+                      <ProfileAvatar
+                        screenname={buddyScreenname}
+                        buddyIconPath={buddyIconPath}
+                        presenceState={buddyPresenceState}
+                        size="sm"
+                        className="mb-1"
+                      />
+                    ) : (
+                      <div className="h-9 w-9" />
+                    )
+                  ) : null;
+                  const swipeLabel = isMine ? 'Reply' : 'Reply';
 
                   return (
                     <div key={message.id} className="flex flex-col">
                       {separatorIndex === index ? (
                         <p className="aim-new-messages-separator my-2">New messages</p>
-                      ) : showTimeDivider ? (
-                        <p
-                          className="my-2 text-center text-[length:var(--ui-text-2xs)] text-slate-400"
-                          title={fullTimestamp}
-                        >
-                          {timestamp}
-                        </p>
+                      ) : clusterMeta.showTimeDivider ? (
+                        <div className="my-3 flex items-center justify-center">
+                          <p className="ui-message-divider" title={fullTimestamp}>
+                            {dividerLabel}
+                          </p>
+                        </div>
                       ) : null}
 
-                      <div className={`flex ${isMine ? 'justify-end' : 'justify-start'} ${
-                        normalizedSearchQuery && !isMatch ? 'opacity-35' : ''
-                      }`}>
-                        <div
-                          className="group relative max-w-[78%] focus:outline-none"
-                          tabIndex={!isDeleted && !isEditing ? 0 : undefined}
-                          onTouchStart={() => {
-                            if (isDeleted) return;
-                            longPressTimerRef.current = setTimeout(() => {
-                              void hapticLight();
-                              setLongPressMessageId(message.id);
-                            }, 500);
-                          }}
-                          onTouchEnd={() => {
-                            if (longPressTimerRef.current) {
-                              clearTimeout(longPressTimerRef.current);
-                              longPressTimerRef.current = null;
-                            }
-                          }}
-                          onTouchMove={() => {
-                            if (longPressTimerRef.current) {
-                              clearTimeout(longPressTimerRef.current);
-                              longPressTimerRef.current = null;
-                            }
-                          }}
-                        >
-                          {/* Buzz message — special render */}
-                          {message.preview_type === 'buzz' && !isDeleted ? (
-                            <div className="buzz-shake my-2 flex items-center justify-center gap-2 rounded-2xl border border-amber-300/60 bg-amber-50/80 px-4 py-2.5 text-[length:var(--ui-text-sm)] font-semibold text-amber-700 dark:border-amber-700/40 dark:bg-amber-950/30 dark:text-amber-400">
-                              <AppIcon kind="bolt" className="h-4 w-4" />
-                              <span>{isMine ? 'You buzzed' : `${buddyScreenname} buzzed you`}<span className="ml-1 font-normal text-amber-500">!</span></span>
-                            </div>
-                          ) : null}
-                          {/* Bubble */}
-                          {message.preview_type !== 'buzz' ? (
-                          <div
-                            className={`relative msg-enter px-3 py-2 ${
-                              hasCustomStyling
-                                ? 'text-[length:var(--ui-text-lg)] leading-[1.48]'
-                                : 'text-[length:var(--ui-text-md)] leading-[1.42]'
-                            } ${
-                              isLastInRun ? 'mb-2' : 'mb-0.5'
-                            } ${
-                              isMine
-                                ? hasCustomStyling
-                                  ? `rounded-2xl border border-blue-200/80 bg-white/96 text-slate-900 shadow-[0_10px_24px_rgba(37,99,235,0.16)] ${isLastInRun ? 'rounded-br-[8px] bubble-tail-out' : ''}`
-                                  : `rounded-2xl text-white shadow-[0_2px_8px_rgba(37,99,235,0.28)] ${isLastInRun ? 'rounded-br-[6px] bubble-tail-out' : ''}`
-                                : `rounded-2xl border border-white/70 bg-white/85 text-slate-800 shadow-sm backdrop-blur-sm ${isLastInRun ? 'rounded-bl-[6px] bubble-tail-in' : ''}`
-                            } ${isMatch ? 'ring-2 ring-amber-400' : ''} ${!isDeleted && !isEditing ? 'ui-focus-ring' : ''}`}
-                            style={isMine && !hasCustomStyling ? { background: 'var(--chat-accent, #3b82f6)' } : undefined}
+                      <div
+                        className={`flex ${isMine ? 'justify-end' : 'justify-start'} ${
+                          normalizedSearchQuery && !isMatch ? 'opacity-35' : ''
+                        }`}
+                      >
+                        <div className={`flex w-full items-end gap-2 ${isMine ? 'justify-end' : 'justify-start'}`}>
+                          {incomingAvatar}
+                          <SwipeActionFrame
+                            align={isMine ? 'end' : 'start'}
+                            enabled={!isDeleted && !isEditing && message.preview_type !== 'buzz'}
+                            label={swipeLabel}
+                            onTrigger={() => startReplyingToMessage(message)}
+                            className="max-w-[82%]"
                           >
-                            {isEditing ? (
-                              <div className="flex min-w-[200px] flex-col gap-2">
-                                <input
-                                  value={editDraft}
-                                  onChange={(event) => setEditDraft(event.target.value)}
-                                  aria-label="Edit message"
-                                  className={`ui-focus-ring w-full rounded-xl border bg-white/20 px-2.5 py-1.5 text-[length:var(--ui-text-sm)] ${
-                                    isMine
-                                      ? 'border-white/30 text-white placeholder-white/50'
-                                      : 'border-slate-200 text-slate-800'
-                                  }`}
-                                  maxLength={1000}
-                                  autoFocus
-                                />
-                                <div className="flex justify-end gap-1.5">
-                                  <button
-                                    type="button"
-                                    onClick={cancelEditingMessage}
-                                    className={`ui-focus-ring rounded-xl px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold ${
-                                      isMine ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                                    }`}
-                                  >
-                                    Cancel
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => void saveEditedMessage(message.id)}
-                                    disabled={isSavingEdit || !editDraft.trim()}
-                                    className={`ui-focus-ring rounded-xl px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold disabled:opacity-60 ${
-                                      isMine ? 'bg-white/30 text-white hover:bg-white/40' : 'bg-blue-500 text-white hover:bg-blue-600'
-                                    }`}
-                                  >
-                                    Save
-                                  </button>
+                            <div
+                              className="group relative focus:outline-none"
+                              tabIndex={!isDeleted && !isEditing ? 0 : undefined}
+                              onTouchStart={() => {
+                                if (isDeleted) return;
+                                longPressTimerRef.current = setTimeout(() => {
+                                  void hapticLight();
+                                  setLongPressMessageId(message.id);
+                                }, 500);
+                              }}
+                              onTouchEnd={() => {
+                                if (longPressTimerRef.current) {
+                                  clearTimeout(longPressTimerRef.current);
+                                  longPressTimerRef.current = null;
+                                }
+                              }}
+                              onTouchMove={() => {
+                                if (longPressTimerRef.current) {
+                                  clearTimeout(longPressTimerRef.current);
+                                  longPressTimerRef.current = null;
+                                }
+                              }}
+                            >
+                              {!isMine && clusterMeta.isFirstInRun ? (
+                                <div className="mb-1 flex items-center gap-2 px-1">
+                                  <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-200">
+                                    {buddyScreenname}
+                                  </span>
+                                  <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">
+                                    {metaTimeLabel}
+                                  </span>
                                 </div>
-                              </div>
-                            ) : isDeleted ? (
-                              <span className="italic opacity-50">Message deleted</span>
-                            ) : (
-                              <div className="space-y-1">
-                                {message.forward_source_message_id ? (
-                                  <p className={`text-[length:var(--ui-text-2xs)] font-semibold uppercase tracking-[0.14em] ${
-                                    isMine ? (hasCustomStyling ? 'text-slate-400' : 'text-blue-200') : 'text-slate-400'
-                                  }`}>
-                                    Forwarded
-                                  </p>
-                                ) : null}
-                                {message.reply_to_message_id ? (
-                                  <div className={`rounded-xl border px-2 py-1 text-[length:var(--ui-text-2xs)] ${
+                              ) : null}
+
+                              {message.preview_type === 'buzz' && !isDeleted ? (
+                                <div className="buzz-shake my-2 flex items-center justify-center gap-2 rounded-2xl border border-amber-300/60 bg-amber-50/80 px-4 py-2.5 text-[length:var(--ui-text-sm)] font-semibold text-amber-700 dark:border-amber-700/40 dark:bg-amber-950/30 dark:text-amber-400">
+                                  <AppIcon kind="bolt" className="h-4 w-4" />
+                                  <span>
+                                    {isMine ? 'You buzzed' : `${buddyScreenname} buzzed you`}
+                                    <span className="ml-1 font-normal text-amber-500">!</span>
+                                  </span>
+                                </div>
+                              ) : null}
+
+                              {message.preview_type !== 'buzz' ? (
+                                <div
+                                  className={`relative msg-enter px-3 py-2 ${
+                                    hasCustomStyling
+                                      ? 'text-[length:var(--ui-text-lg)] leading-[1.48]'
+                                      : 'text-[length:var(--ui-text-md)] leading-[1.42]'
+                                  } ${
+                                    clusterMeta.isLastInRun ? 'mb-2' : 'mb-0.5'
+                                  } ${
                                     isMine
                                       ? hasCustomStyling
-                                        ? 'border-slate-200 bg-slate-100/80 text-slate-500'
-                                        : 'border-white/20 bg-white/15 text-blue-100'
-                                      : 'border-slate-200 bg-slate-100/80 text-slate-500'
-                                  }`}>
-                                    <p className="font-semibold">
-                                      {messagesById.get(message.reply_to_message_id)?.sender_id === currentUserId ? 'You' : buddyScreenname}
-                                    </p>
-                                    <p className="truncate">
-                                      {messagesById.get(message.reply_to_message_id)?.deleted_at
-                                        ? 'Message deleted'
-                                        : htmlToPlainText(messagesById.get(message.reply_to_message_id)?.content ?? '') || 'Original message'}
-                                    </p>
-                                  </div>
-                                ) : null}
-                                <span
-                                  className={`aim-rich-html ${hasCustomStyling ? 'aim-rich-html--styled' : ''}`}
-                                  dangerouslySetInnerHTML={{ __html: richTextPresentation.html }}
-                                />
-                              </div>
-                            )}
-                            {isEdited && !isEditing ? (
-                              <span className={`ml-1.5 text-[length:var(--ui-text-2xs)] ${
-                                isMine ? (hasCustomStyling ? 'text-slate-400' : 'text-blue-200') : 'text-slate-400'
-                              }`}>(edited)</span>
-                            ) : null}
-                          </div>
-                          ) : null}
+                                        ? `rounded-[1.35rem] border border-blue-200/80 bg-white/96 text-slate-900 shadow-[0_10px_24px_rgba(37,99,235,0.16)] ${
+                                            clusterMeta.isLastInRun ? 'rounded-br-[8px] bubble-tail-out' : ''
+                                          }`
+                                        : `rounded-[1.35rem] text-white shadow-[0_8px_22px_rgba(37,99,235,0.26)] ${
+                                            clusterMeta.isLastInRun ? 'rounded-br-[7px] bubble-tail-out' : ''
+                                          }`
+                                      : `rounded-[1.35rem] border border-white/70 bg-white/85 text-slate-800 shadow-sm backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-950/70 dark:text-slate-100 ${
+                                          clusterMeta.isLastInRun ? 'rounded-bl-[7px] bubble-tail-in' : ''
+                                        }`
+                                  } ${isMatch ? 'ring-2 ring-amber-400' : ''} ${!isDeleted && !isEditing ? 'ui-focus-ring' : ''}`}
+                                  style={isMine && !hasCustomStyling ? { background: 'var(--chat-accent, #3b82f6)' } : undefined}
+                                >
+                                  {isEditing ? (
+                                    <div className="flex min-w-[200px] flex-col gap-2">
+                                      <input
+                                        value={editDraft}
+                                        onChange={(event) => setEditDraft(event.target.value)}
+                                        aria-label="Edit message"
+                                        className={`ui-focus-ring w-full rounded-xl border bg-white/20 px-2.5 py-1.5 text-[length:var(--ui-text-sm)] ${
+                                          isMine
+                                            ? 'border-white/30 text-white placeholder-white/50'
+                                            : 'border-slate-200 text-slate-800'
+                                        }`}
+                                        maxLength={1000}
+                                        autoFocus
+                                      />
+                                      <div className="flex justify-end gap-1.5">
+                                        <button
+                                          type="button"
+                                          onClick={cancelEditingMessage}
+                                          className={`ui-focus-ring rounded-xl px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold ${
+                                            isMine ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                          }`}
+                                        >
+                                          Cancel
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => void saveEditedMessage(message.id)}
+                                          disabled={isSavingEdit || !editDraft.trim()}
+                                          className={`ui-focus-ring rounded-xl px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold disabled:opacity-60 ${
+                                            isMine ? 'bg-white/30 text-white hover:bg-white/40' : 'bg-blue-500 text-white hover:bg-blue-600'
+                                          }`}
+                                        >
+                                          Save
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : isDeleted ? (
+                                    <span className="italic opacity-50">Message deleted</span>
+                                  ) : (
+                                    <div className="space-y-1.5">
+                                      {message.forward_source_message_id ? (
+                                        <p className={`text-[length:var(--ui-text-2xs)] font-semibold uppercase tracking-[0.14em] ${
+                                          isMine ? (hasCustomStyling ? 'text-slate-400' : 'text-blue-200') : 'text-slate-400'
+                                        }`}>
+                                          Forwarded
+                                        </p>
+                                      ) : null}
+                                      {replySourceMessage ? (
+                                        <div
+                                          className={`rounded-xl border px-2.5 py-1.5 text-[length:var(--ui-text-2xs)] ${
+                                            isMine
+                                              ? hasCustomStyling
+                                                ? 'border-slate-200 bg-slate-100/80 text-slate-500'
+                                                : 'border-white/20 bg-white/15 text-blue-100'
+                                              : 'border-slate-200 bg-slate-100/80 text-slate-500 dark:border-slate-700 dark:bg-slate-900/65 dark:text-slate-300'
+                                          }`}
+                                        >
+                                          <p className="font-semibold">
+                                            {replySourceMessage.sender_id === currentUserId ? 'You' : buddyScreenname}
+                                          </p>
+                                          <p className="truncate">
+                                            {replySourceMessage.deleted_at
+                                              ? 'Message deleted'
+                                              : htmlToPlainText(replySourceMessage.content) || 'Original message'}
+                                          </p>
+                                        </div>
+                                      ) : null}
+                                      <span
+                                        className={`aim-rich-html ${hasCustomStyling ? 'aim-rich-html--styled' : ''}`}
+                                        dangerouslySetInnerHTML={{ __html: richTextPresentation.html }}
+                                      />
+                                    </div>
+                                  )}
+                                  {isEdited && !isEditing ? (
+                                    <span className={`ml-1.5 text-[length:var(--ui-text-2xs)] ${
+                                      isMine ? (hasCustomStyling ? 'text-slate-400' : 'text-blue-200') : 'text-slate-400'
+                                    }`}>
+                                      (edited)
+                                    </span>
+                                  ) : null}
+                                </div>
+                              ) : null}
 
-                          {/* Action bar — hover (desktop) + long-press (mobile) */}
-                          {!isDeleted && !isEditing ? (
-                            <div className={`absolute -top-8 right-0 items-center gap-0.5 rounded-full border border-white/70 bg-white/90 px-2 py-1 shadow-lg backdrop-blur-md ui-fade-in ${
-                              longPressMessageId === message.id ? 'flex' : 'hidden group-hover:flex group-focus-within:flex'
-                            }`}>
-                              <button
-                                type="button"
-                                onClick={() => startReplyingToMessage(message)}
-                                className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100"
-                                aria-label={`Reply to message sent at ${timestamp}`}
-                              >
-                                Reply
-                              </button>
-                              {onForwardMessage ? (
-                                <>
-                                  <span className="text-slate-300">·</span>
+                              {!isDeleted && !isEditing ? (
+                                <div
+                                  data-swipe-ignore="true"
+                                  className={`absolute -top-8 right-0 items-center gap-0.5 rounded-full border border-white/70 bg-white/90 px-2 py-1 shadow-lg backdrop-blur-md ui-fade-in dark:border-slate-700/70 dark:bg-slate-950/88 ${
+                                    longPressMessageId === message.id ? 'flex' : 'hidden group-hover:flex group-focus-within:flex'
+                                  }`}
+                                >
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      onForwardMessage(message);
-                                      setLongPressMessageId(null);
-                                    }}
-                                    className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100"
-                                    aria-label={`Forward message sent at ${timestamp}`}
+                                    onClick={() => startReplyingToMessage(message)}
+                                    className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900"
+                                    aria-label={`Reply to message sent at ${metaTimeLabel}`}
                                   >
-                                    Forward
+                                    Reply
                                   </button>
-                                </>
+                                  {onForwardMessage ? (
+                                    <>
+                                      <span className="text-slate-300">·</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          onForwardMessage(message);
+                                          setLongPressMessageId(null);
+                                        }}
+                                        className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900"
+                                        aria-label={`Forward message sent at ${metaTimeLabel}`}
+                                      >
+                                        Forward
+                                      </button>
+                                    </>
+                                  ) : null}
+                                  {onSaveMessage ? (
+                                    <>
+                                      <span className="text-slate-300">·</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          onSaveMessage(message);
+                                          setLongPressMessageId(null);
+                                        }}
+                                        className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900"
+                                        aria-label={`Save message sent at ${metaTimeLabel}`}
+                                      >
+                                        Save
+                                      </button>
+                                    </>
+                                  ) : null}
+                                  {isMine ? (
+                                    <>
+                                      <span className="text-slate-300">·</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          startEditingMessage(message);
+                                          setLongPressMessageId(null);
+                                        }}
+                                        className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900"
+                                        aria-label={`Edit message sent at ${metaTimeLabel}`}
+                                      >
+                                        Edit
+                                      </button>
+                                      <span className="text-slate-300">·</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          void softDeleteMessage(message.id);
+                                          setLongPressMessageId(null);
+                                        }}
+                                        disabled={isDeletingMessageId === message.id}
+                                        className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-red-500 hover:bg-red-50 disabled:opacity-60"
+                                        aria-label={`Delete message sent at ${metaTimeLabel}`}
+                                      >
+                                        {isDeletingMessageId === message.id ? '…' : 'Delete'}
+                                      </button>
+                                    </>
+                                  ) : null}
+                                </div>
                               ) : null}
-                              {onSaveMessage ? (
-                                <>
-                                  <span className="text-slate-300">·</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      onSaveMessage(message);
-                                      setLongPressMessageId(null);
-                                    }}
-                                    className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100"
-                                    aria-label={`Save message sent at ${timestamp}`}
-                                  >
-                                    Save
-                                  </button>
-                                </>
-                              ) : null}
-                              {isMine ? (
-                                <>
-                                  <span className="text-slate-300">·</span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  startEditingMessage(message);
-                                  setLongPressMessageId(null);
-                                }}
-                                className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100"
-                                aria-label={`Edit message sent at ${timestamp}`}
-                                >
-                                  Edit
-                                </button>
-                                  <span className="text-slate-300">·</span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  void softDeleteMessage(message.id);
-                                  setLongPressMessageId(null);
-                                }}
-                                disabled={isDeletingMessageId === message.id}
-                                className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-red-500 hover:bg-red-50 disabled:opacity-60"
-                                aria-label={`Delete message sent at ${timestamp}`}
-                              >
-                                {isDeletingMessageId === message.id ? '…' : 'Delete'}
-                              </button>
-                                </>
-                              ) : null}
-                            </div>
-                          ) : null}
 
-                          {/* Reactions */}
-                          {!isDeleted && reactionEntries.length > 0 ? (
-                            <div className={`-mt-1 mb-1 flex flex-wrap gap-0.5 ${isMine ? 'justify-end' : 'justify-start'}`}>
-                              {reactionEntries.map(([emoji, count]) => (
-                                <span
-                                  key={`${message.id}-${emoji}`}
-                                  className="rounded-full border border-white/70 bg-white/85 px-1.5 py-[2px] text-[length:var(--ui-text-2xs)] text-slate-600 shadow-sm backdrop-blur-sm"
-                                >
-                                  {emoji} {count}
-                                </span>
-                              ))}
-                            </div>
-                          ) : null}
+                              {!isDeleted && reactionEntries.length > 0 ? (
+                                <div className={`-mt-1 mb-1 flex flex-wrap gap-0.5 ${isMine ? 'justify-end' : 'justify-start'}`}>
+                                  {reactionEntries.map(([emoji, count]) => (
+                                    <span
+                                      key={`${message.id}-${emoji}`}
+                                      className="rounded-full border border-white/70 bg-white/85 px-1.5 py-[2px] text-[length:var(--ui-text-2xs)] text-slate-600 shadow-sm backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-950/85 dark:text-slate-200"
+                                    >
+                                      {emoji} {count}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : null}
 
-                          {/* Attachments */}
-                          {!isDeleted && messageAttachments.length > 0 ? (
-                            <div className={`-mt-1 mb-1 space-y-0.5 ${isMine ? 'text-right' : ''}`}>
-                              {messageAttachments.map((attachment) =>
-                                renderAttachmentPreview(attachment, {
-                                  isMine,
-                                  previewType: message.preview_type,
-                                }),
-                              )}
+                              {!isDeleted && messageAttachments.length > 0 ? (
+                                <div className={`-mt-1 mb-1 space-y-1 ${isMine ? 'text-right' : ''}`}>
+                                  {messageAttachments.map((attachment) =>
+                                    renderAttachmentPreview(attachment, {
+                                      isMine,
+                                      previewType: message.preview_type,
+                                    }),
+                                  )}
+                                </div>
+                              ) : null}
+                              {latestOutgoingMessageId === message.id && isMine && !isEditing && !isDeleted && message.preview_type !== 'buzz' ? (
+                                <p className="mt-1 flex items-center justify-end gap-1 text-right text-[length:var(--ui-text-2xs)] text-slate-400">
+                                  {showReadReceipts && message.read_at ? (
+                                    <svg width="14" height="8" viewBox="0 0 14 8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-blue-400" aria-hidden="true">
+                                      <path d="M1 4l3 3L10 1" /><path d="M5 4l3 3 5-6" />
+                                    </svg>
+                                  ) : showReadReceipts && message.delivered_at ? (
+                                    <svg width="14" height="8" viewBox="0 0 14 8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400" aria-hidden="true">
+                                      <path d="M1 4l3 3L10 1" /><path d="M5 4l3 3 5-6" />
+                                    </svg>
+                                  ) : (
+                                    <svg width="10" height="8" viewBox="0 0 10 8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300" aria-hidden="true">
+                                      <path d="M1 4l3 3 5-6" />
+                                    </svg>
+                                  )}
+                                  <span>
+                                    {showReadReceipts ? formatDeliveryStatus(message).label : 'Sent'}
+                                    {showReadReceipts && formatDeliveryStatus(message).detail ? ` · ${formatDeliveryStatus(message).detail}` : ''}
+                                  </span>
+                                </p>
+                              ) : null}
                             </div>
-                          ) : null}
-                          {latestOutgoingMessageId === message.id && isMine && !isEditing && !isDeleted && message.preview_type !== 'buzz' ? (
-                            <p className="mt-1 flex items-center justify-end gap-1 text-right text-[length:var(--ui-text-2xs)] text-slate-400">
-                              {showReadReceipts && message.read_at ? (
-                                <svg width="14" height="8" viewBox="0 0 14 8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-blue-400" aria-hidden="true">
-                                  <path d="M1 4l3 3L10 1" /><path d="M5 4l3 3 5-6" />
-                                </svg>
-                              ) : showReadReceipts && message.delivered_at ? (
-                                <svg width="14" height="8" viewBox="0 0 14 8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400" aria-hidden="true">
-                                  <path d="M1 4l3 3L10 1" /><path d="M5 4l3 3 5-6" />
-                                </svg>
-                              ) : (
-                                <svg width="10" height="8" viewBox="0 0 10 8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300" aria-hidden="true">
-                                  <path d="M1 4l3 3 5-6" />
-                                </svg>
-                              )}
-                              <span>
-                                {showReadReceipts ? formatDeliveryStatus(message).label : 'Sent'}
-                                {showReadReceipts && formatDeliveryStatus(message).detail ? ` · ${formatDeliveryStatus(message).detail}` : ''}
-                              </span>
-                            </p>
-                          ) : null}
+                          </SwipeActionFrame>
                         </div>
                       </div>
                     </div>
@@ -1902,14 +1968,14 @@ export default function ChatWindow({
           ) : null}
 
           {/* Input area */}
-          <div ref={composerAreaRef} className="mx-3 mt-2 space-y-2" style={composerAreaStyle}>
+          <div ref={composerAreaRef} className="mx-3 mt-2 space-y-2.5" style={composerAreaStyle}>
             {replyingToMessage ? (
-              <div className="ui-toolbar-surface flex items-start justify-between gap-3 rounded-2xl px-3 py-2">
+              <div className="ui-compose-context-chip flex items-start justify-between gap-3 rounded-2xl px-3 py-2.5">
                 <div className="min-w-0">
                   <p className="text-[length:var(--ui-text-2xs)] font-semibold uppercase tracking-[0.12em] text-slate-400">
                     Replying to {replyingToMessage.sender_id === currentUserId ? 'You' : buddyScreenname}
                   </p>
-                  <p className="truncate text-[length:var(--ui-text-xs)] text-slate-600">
+                  <p className="truncate text-[length:var(--ui-text-xs)] text-slate-600 dark:text-slate-200">
                     {replyingToMessage.deleted_at
                       ? 'Message deleted'
                       : htmlToPlainText(replyingToMessage.content).trim() || 'Original message'}
@@ -1925,8 +1991,8 @@ export default function ChatWindow({
                 </button>
               </div>
             ) : null}
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
                 {!isKeyboardOpen ? (
                   <button
                     type="button"
@@ -1940,16 +2006,16 @@ export default function ChatWindow({
                 ) : null}
                 <button
                   type="button"
-                  onClick={() => setShowComposerTools((previous) => !previous)}
-                  className={`${xpTinyToolbarButtonClass(showComposerTools || pendingAttachments.length > 0 || isRecordingVoiceNote)} px-2.5`}
-                  aria-expanded={showComposerTools}
-                  aria-label={showComposerTools ? 'Hide message tools' : 'Show message tools'}
+                  onClick={toggleComposerTools}
+                  className={`${xpTinyToolbarButtonClass(composerToolsExpanded)} px-2.5`}
+                  aria-expanded={composerToolsExpanded}
+                  aria-label={composerToolsExpanded ? 'Hide message tools' : 'Show message tools'}
                 >
-                  Tools
+                  Add
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowFormatting((previous) => !previous)}
+                  onClick={toggleComposerFormatting}
                   className={`${xpTinyToolbarButtonClass(showFormatting || hasCustomFormatting)} px-2.5`}
                   aria-label={showFormatting ? 'Hide formatting toolbar' : 'Show formatting toolbar'}
                   aria-expanded={showFormatting}
@@ -1960,105 +2026,122 @@ export default function ChatWindow({
                   </span>
                 </button>
               </div>
-              {normalizedSearchQuery ? (
-                <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500">
-                  {searchMatchCount} result{searchMatchCount === 1 ? '' : 's'}
-                </span>
-              ) : null}
+              <div className="flex items-center gap-2">
+                {attachmentSummaryLabel ? (
+                  <span className="ui-compose-summary-pill">{attachmentSummaryLabel}</span>
+                ) : null}
+                {normalizedSearchQuery ? (
+                  <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500">
+                    {searchMatchCount} result{searchMatchCount === 1 ? '' : 's'}
+                  </span>
+                ) : null}
+              </div>
             </div>
 
-            {(showComposerTools || showFormatting || pendingAttachments.length > 0 || isRecordingVoiceNote) ? (
+            {(composerToolsExpanded || showFormatting) ? (
               <div className="ui-toolbar-surface space-y-3 rounded-2xl px-3 py-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => attachmentInputRef.current?.click()}
-                    className={xpTinyToolbarButtonClass(pendingAttachments.length > 0)}
-                    aria-label={`Attach files to your message to ${buddyScreenname}`}
-                    title="Attach files"
-                  >
-                    <AppIcon kind="attachment" className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (isRecordingVoiceNote) {
-                        void stopVoiceNoteRecording('save');
-                        return;
-                      }
-                      void startVoiceNoteRecording();
-                    }}
-                    disabled={isRequestingMicrophone}
-                    className={`${xpTinyToolbarButtonClass(isRecordingVoiceNote)} ${isRequestingMicrophone ? 'opacity-60' : ''}`}
-                    aria-label={isRecordingVoiceNote ? 'Stop voice note recording' : `Record a voice note for ${buddyScreenname}`}
-                    title={isRecordingVoiceNote ? 'Stop recording' : 'Record voice note'}
-                  >
-                    <AppIcon kind="mic" className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMediaGalleryFilter('all');
-                      setShowMediaGallery(true);
-                    }}
-                    className={xpTinyToolbarButtonClass(showMediaGallery)}
-                    aria-label={`Open media gallery for ${buddyScreenname}`}
-                    title="Media gallery"
-                  >
-                    <AppIcon kind="media" className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void hapticWarning();
-                      void playUiSound('/sounds/aim.mp3', { volume: 0.5 });
-                      void onSendMessage({ content: '', previewType: 'buzz' });
-                    }}
-                    className={`${xpTinyToolbarButtonClass()} text-amber-500`}
-                    aria-label={`Buzz ${buddyScreenname}`}
-                    title="Buzz!"
-                  >
-                    <AppIcon kind="bolt" className="h-3.5 w-3.5" />
-                  </button>
-                  <input
-                    ref={attachmentInputRef}
-                    type="file"
-                    multiple
-                    onChange={(event) => handleSelectAttachments(event.target.files)}
-                    className="hidden"
-                    aria-label={`Choose attachments for your message to ${buddyScreenname}`}
-                  />
-                </div>
+                {composerToolsExpanded ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => attachmentInputRef.current?.click()}
+                      className={`${xpTinyToolbarButtonClass(pendingAttachments.length > 0)} h-8 gap-1.5 px-3`}
+                      aria-label={`Attach files to your message to ${buddyScreenname}`}
+                      title="Attach files"
+                    >
+                      <AppIcon kind="attachment" className="h-3.5 w-3.5" />
+                      <span>Attachment</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (isRecordingVoiceNote) {
+                          void stopVoiceNoteRecording('save');
+                          return;
+                        }
+                        void startVoiceNoteRecording();
+                      }}
+                      disabled={isRequestingMicrophone}
+                      className={`${xpTinyToolbarButtonClass(isRecordingVoiceNote)} h-8 gap-1.5 px-3 ${isRequestingMicrophone ? 'opacity-60' : ''}`}
+                      aria-label={isRecordingVoiceNote ? 'Stop voice note recording' : `Record a voice note for ${buddyScreenname}`}
+                      title={isRecordingVoiceNote ? 'Stop recording' : 'Record voice note'}
+                    >
+                      <AppIcon kind="mic" className="h-3.5 w-3.5" />
+                      <span>{isRecordingVoiceNote ? 'Save voice' : 'Voice'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMediaGalleryFilter('all');
+                        setShowMediaGallery(true);
+                      }}
+                      className={`${xpTinyToolbarButtonClass(showMediaGallery)} h-8 gap-1.5 px-3`}
+                      aria-label={`Open media gallery for ${buddyScreenname}`}
+                      title="Media gallery"
+                    >
+                      <AppIcon kind="media" className="h-3.5 w-3.5" />
+                      <span>Media</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void hapticWarning();
+                        void playUiSound('/sounds/aim.mp3', { volume: 0.5 });
+                        void onSendMessage({ content: '', previewType: 'buzz' });
+                      }}
+                      className={`${xpTinyToolbarButtonClass()} h-8 gap-1.5 px-3 text-amber-500`}
+                      aria-label={`Buzz ${buddyScreenname}`}
+                      title="Buzz!"
+                    >
+                      <AppIcon kind="bolt" className="h-3.5 w-3.5" />
+                      <span>Buzz</span>
+                    </button>
+                    <input
+                      ref={attachmentInputRef}
+                      type="file"
+                      multiple
+                      onChange={(event) => handleSelectAttachments(event.target.files)}
+                      className="hidden"
+                      aria-label={`Choose attachments for your message to ${buddyScreenname}`}
+                    />
+                  </div>
+                ) : null}
 
                 {showFormatting ? (
                   <div className="space-y-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                      Text style
+                    </p>
                     <div className="flex items-center gap-1">
                       <button
                         type="button"
                         onClick={toggleBold}
-                        className={xpTinyToolbarButtonClass(format.bold)}
+                        className={`${xpTinyToolbarButtonClass(format.bold)} h-8 gap-1 px-3`}
                         aria-label="Toggle bold"
                         aria-pressed={format.bold}
                       >
                         <span className="font-bold">B</span>
+                        <span>Bold</span>
                       </button>
                       <button
                         type="button"
                         onClick={toggleItalic}
-                        className={xpTinyToolbarButtonClass(format.italic)}
+                        className={`${xpTinyToolbarButtonClass(format.italic)} h-8 gap-1 px-3`}
                         aria-label="Toggle italic"
                         aria-pressed={format.italic}
                       >
                         <span className="italic">I</span>
+                        <span>Italic</span>
                       </button>
                       <button
                         type="button"
                         onClick={toggleUnderline}
-                        className={xpTinyToolbarButtonClass(format.underline)}
+                        className={`${xpTinyToolbarButtonClass(format.underline)} h-8 gap-1 px-3`}
                         aria-label="Toggle underline"
                         aria-pressed={format.underline}
                       >
                         <span className="underline">U</span>
+                        <span>Underline</span>
                       </button>
                     </div>
                     <RichTextToolbar value={format} onChange={setFormat} />
@@ -2068,7 +2151,7 @@ export default function ChatWindow({
                 {isRecordingVoiceNote ? (
                   <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/60 bg-white/65 px-3 py-2 dark:border-slate-700 dark:bg-slate-950/55">
                     <div className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                      <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
                       <div>
                         <p className="text-[length:var(--ui-text-xs)] font-semibold text-slate-700 dark:text-slate-100">
                           Recording voice note
@@ -2098,19 +2181,21 @@ export default function ChatWindow({
                 ) : null}
 
                 {pendingAttachments.length > 0 ? (
-                  <div className="space-y-1">
+                  <div className="flex flex-wrap gap-2">
                     {pendingAttachments.map((file, index) => (
-                      <div key={`${file.name}-${file.size}-${file.lastModified}`} className="flex items-center gap-2 rounded-2xl border border-white/60 bg-white/65 px-3 py-2 dark:border-slate-700 dark:bg-slate-950/55">
-                        <span className="min-w-0 flex flex-1 items-center gap-1 truncate text-[length:var(--ui-text-2xs)] text-slate-600 dark:text-slate-300">
-                          <AppIcon kind={getAttachmentKind(file.type) === 'audio' ? 'mic' : 'attachment'} className="h-3 w-3 shrink-0" />
-                          <span className="truncate">
-                            {getAttachmentKind(file.type) === 'audio' ? 'Voice note' : file.name} ({formatFileSize(file.size)})
-                          </span>
+                      <div
+                        key={`${file.name}-${file.size}-${file.lastModified}`}
+                        className="ui-compose-summary-pill inline-flex max-w-full items-center gap-2 rounded-full px-3 py-1.5"
+                      >
+                        <AppIcon kind={getAttachmentKind(file.type) === 'audio' ? 'mic' : 'attachment'} className="h-3 w-3 shrink-0" />
+                        <span className="truncate text-[length:var(--ui-text-2xs)]">
+                          {getAttachmentKind(file.type) === 'audio' ? 'Voice note' : file.name}
+                          {` · ${formatFileSize(file.size)}`}
                         </span>
                         <button
                           type="button"
                           onClick={() => removePendingAttachment(index)}
-                          className="ui-focus-ring ui-button-danger ui-button-compact shrink-0 px-1.5 text-[length:var(--ui-text-2xs)]"
+                          className="ui-focus-ring shrink-0 rounded-full p-0.5 text-slate-400 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-200"
                           aria-label={`Remove attachment ${file.name}`}
                         >
                           <AppIcon kind="close" className="h-3 w-3" />
@@ -2152,7 +2237,7 @@ export default function ChatWindow({
                 onFocus={() => {
                   focusComposer();
                 }}
-                placeholder="Message…"
+                placeholder={replyingToMessage ? `Reply to ${buddyScreenname}…` : 'Message…'}
                 rows={1}
                 maxLength={1000}
                 aria-describedby={composerHelpId}

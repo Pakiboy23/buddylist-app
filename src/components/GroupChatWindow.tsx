@@ -2,8 +2,10 @@
 
 import { FormEvent, KeyboardEvent, type CSSProperties, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import AppIcon from '@/components/AppIcon';
+import ProfileAvatar from '@/components/ProfileAvatar';
 import RetroWindow from '@/components/RetroWindow';
 import RichTextToolbar from '@/components/RichTextToolbar';
+import SwipeActionFrame from '@/components/SwipeActionFrame';
 import type { OutboxItem } from '@/lib/outbox';
 import { getJSON, setJSON } from '@/lib/clientStorage';
 import {
@@ -16,6 +18,11 @@ import {
 import { hapticLight, hapticSuccess } from '@/lib/haptics';
 import { useKeyboardViewport } from '@/hooks/useKeyboardViewport';
 import { useSwipeBack } from '@/hooks/useSwipeBack';
+import {
+  formatConversationDividerLabel,
+  formatConversationMetaTime,
+  getConversationClusterMeta,
+} from '@/lib/conversationPresentation';
 import { isNativeIosShell } from '@/lib/nativeShell';
 import { supabase } from '@/lib/supabase';
 import {
@@ -145,17 +152,6 @@ function loadStoredRichTextFormat() {
   );
 }
 
-function formatRelativeTime(isoString: string): string {
-  const diff = Date.now() - new Date(isoString).getTime();
-  const seconds = Math.floor(diff / 1000);
-  if (seconds < 60) return 'just now';
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-}
-
 export default function GroupChatWindow({
   roomId,
   roomName,
@@ -194,6 +190,7 @@ export default function GroupChatWindow({
   const [searchQuery, setSearchQuery] = useState('');
   const [showConversationMenu, setShowConversationMenu] = useState(false);
   const [showComposerTools, setShowComposerTools] = useState(false);
+  const [mentioningMessageId, setMentioningMessageId] = useState<string | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
@@ -777,6 +774,7 @@ export default function GroupChatWindow({
     }
 
     setAttachmentError(null);
+    setShowComposerTools(true);
     setPendingAttachments((previous) => {
       const existingKeys = new Set(previous.map((file) => `${file.name}:${file.size}:${file.lastModified}`));
       const combined = [...previous];
@@ -888,6 +886,7 @@ export default function GroupChatWindow({
         : [...previous, insertedMessage],
     );
     setHasLiveMessageSinceOpen(true);
+    setMentioningMessageId(null);
     setDraft('');
     onDraftChange?.('');
     clearPendingAttachments();
@@ -1044,6 +1043,56 @@ export default function GroupChatWindow({
     setFormat((previous) => ({ ...previous, underline: !previous.underline }));
   };
 
+  const toggleComposerTools = () => {
+    setShowComposerTools((previous) => {
+      const next = !previous;
+      if (next) {
+        setShowFormatting(false);
+      }
+      return next;
+    });
+  };
+
+  const toggleComposerFormatting = () => {
+    setShowFormatting((previous) => {
+      const next = !previous;
+      if (next && pendingAttachments.length === 0) {
+        setShowComposerTools(false);
+      }
+      return next;
+    });
+  };
+
+  const startMentioningMessage = (message: RoomMessage) => {
+    if (message.deleted_at) {
+      return;
+    }
+
+    const senderName = screennameMap[message.sender_id] || 'Unknown User';
+    const mentionPrefix = message.sender_id === currentUserId ? '' : `@${senderName} `;
+
+    setMentioningMessageId(message.id);
+    setLongPressMessageId(null);
+    if (mentionPrefix) {
+      setDraft((previous) => {
+        if (previous.trimStart().toLowerCase().startsWith(mentionPrefix.trim().toLowerCase())) {
+          return previous;
+        }
+        const next = previous ? `${mentionPrefix}${previous}` : mentionPrefix;
+        onDraftChange?.(next);
+        return next;
+      });
+    }
+    void hapticLight();
+    window.requestAnimationFrame(() => {
+      focusComposer();
+    });
+  };
+
+  const cancelMentionComposerContext = () => {
+    setMentioningMessageId(null);
+  };
+
   const xpTinyToolbarButtonClass = (active = false) =>
     `ui-focus-ring inline-flex h-7 min-w-7 items-center justify-center rounded-lg border px-1.5 text-[length:var(--ui-text-xs)] font-semibold text-slate-700 transition ${
       active
@@ -1142,6 +1191,10 @@ export default function GroupChatWindow({
     }
     return presentation;
   }, [messages]);
+  const messagesById = useMemo(() => {
+    return new Map(messages.map((message) => [message.id, message] as const));
+  }, [messages]);
+  const mentioningMessage = mentioningMessageId ? messagesById.get(mentioningMessageId) ?? null : null;
   const visibleOutboxItems = useMemo(() => {
     const deliveredClientIds = new Set(
       messages
@@ -1187,6 +1240,11 @@ export default function GroupChatWindow({
   const composerAreaStyle = {
     paddingBottom: isKeyboardOpen ? '0.75rem' : 'calc(env(safe-area-inset-bottom) + 0.75rem)',
   } satisfies CSSProperties;
+  const composerToolsExpanded = showComposerTools || pendingAttachments.length > 0;
+  const attachmentSummaryLabel =
+    pendingAttachments.length > 0
+      ? `${pendingAttachments.length} file${pendingAttachments.length === 1 ? '' : 's'} ready`
+      : null;
 
   return (
     <div
@@ -1409,213 +1467,246 @@ export default function GroupChatWindow({
                   };
                   const hasCustomStyling = richTextPresentation.hasCustomStyling;
                   const isEdited = Boolean(message.edited_at && !message.deleted_at);
-
-                  // Group logic
-                  const prevMessage = index > 0 ? messages[index - 1] : null;
-                  const prevTime = prevMessage ? new Date(prevMessage.created_at).getTime() : 0;
-                  const currTime = timestampDate.getTime();
-                  const isFirstInRun = !prevMessage || prevMessage.sender_id !== message.sender_id || currTime - prevTime > 5 * 60 * 1000;
-                  const showTimeDivider = !prevMessage || currTime - prevTime > 5 * 60 * 1000;
                   void relativeTimeTick;
-                  const timestamp = formatRelativeTime(message.created_at);
-                  const nextMessage = index < messages.length - 1 ? messages[index + 1] : null;
-                  const isLastInRun = !nextMessage || nextMessage.sender_id !== message.sender_id;
+                  const clusterMeta = getConversationClusterMeta(messages, index);
+                  const dividerLabel = formatConversationDividerLabel(message.created_at);
+                  const metaTimeLabel = formatConversationMetaTime(message.created_at);
+                  const senderAvatar = !isMine ? (
+                    clusterMeta.isFirstInRun ? (
+                      <ProfileAvatar
+                        screenname={senderName}
+                        buddyIconPath={buddyIconMap[message.sender_id] ?? null}
+                        tone="slate"
+                        size="sm"
+                        className="mb-1"
+                        showStatusDot={false}
+                      />
+                    ) : (
+                      <div className="h-9 w-9" />
+                    )
+                  ) : null;
 
                   return (
                     <div key={message.id} className="flex flex-col">
                       {separatorIndex === index ? (
                         <p className="aim-new-messages-separator my-2">New messages</p>
-                      ) : showTimeDivider ? (
-                        <p
-                          className="my-2 text-center text-[length:var(--ui-text-2xs)] text-slate-400"
-                          title={fullTimestamp}
-                        >
-                          {timestamp}
-                        </p>
+                      ) : clusterMeta.showTimeDivider ? (
+                        <div className="my-3 flex items-center justify-center">
+                          <p className="ui-message-divider" title={fullTimestamp}>
+                            {dividerLabel}
+                          </p>
+                        </div>
                       ) : null}
 
                       <div className={`flex ${isMine ? 'justify-end' : 'justify-start'} ${
                         normalizedSearchQuery && !isMatch ? 'opacity-35' : ''
                       } ${isMentioningCurrentUser && !normalizedSearchQuery ? 'opacity-100' : ''}`}>
-                        <div
-                          className="group relative max-w-[78%] focus:outline-none"
-                          tabIndex={isMine && !isDeleted && !isEditing ? 0 : undefined}
-                          onTouchStart={() => {
-                            if (!isMine || isDeleted) return;
-                            longPressTimerRef.current = setTimeout(() => {
-                              void hapticLight();
-                              setLongPressMessageId(message.id);
-                            }, 500);
-                          }}
-                          onTouchEnd={() => {
-                            if (longPressTimerRef.current) {
-                              clearTimeout(longPressTimerRef.current);
-                              longPressTimerRef.current = null;
-                            }
-                          }}
-                          onTouchMove={() => {
-                            if (longPressTimerRef.current) {
-                              clearTimeout(longPressTimerRef.current);
-                              longPressTimerRef.current = null;
-                            }
-                          }}
-                        >
-                          {/* Sender name label — only for first in a run from others */}
-                          {!isMine && isFirstInRun ? (
-                            <p className={`mb-0.5 ml-1 text-[length:var(--ui-text-2xs)] font-semibold ${senderColorClass}`}>
-                              {senderName}
-                            </p>
-                          ) : null}
-
-                          {/* Mention highlight pill */}
-                          {isMentioningCurrentUser ? (
-                            <div className="absolute -left-1 top-0 h-full w-0.5 rounded-full bg-amber-400" />
-                          ) : null}
-
-                          {/* Bubble */}
-                          <div
-                            className={`relative msg-enter px-3 py-2 ${
-                              hasCustomStyling
-                                ? 'text-[length:var(--ui-text-lg)] leading-[1.48]'
-                                : 'text-[length:var(--ui-text-md)] leading-[1.42]'
-                            } ${
-                              isLastInRun ? 'mb-2' : 'mb-0.5'
-                            } ${
-                              isMine
-                                ? hasCustomStyling
-                                  ? `rounded-2xl border border-blue-200/80 bg-white/96 text-slate-900 shadow-[0_10px_24px_rgba(37,99,235,0.16)] ${isLastInRun ? 'rounded-br-[8px] bubble-tail-out' : ''}`
-                                  : `rounded-2xl bg-blue-500 text-white shadow-[0_2px_8px_rgba(37,99,235,0.28)] ${isLastInRun ? 'rounded-br-[6px] bubble-tail-out' : ''}`
-                                : `rounded-2xl border border-white/70 bg-white/85 text-slate-800 shadow-sm backdrop-blur-sm ${isLastInRun ? 'rounded-bl-[6px] bubble-tail-in' : ''} ${isMentioningCurrentUser ? 'border-amber-300/70 bg-amber-50/80' : ''}`
-                            } ${isMatch ? 'ring-2 ring-amber-400' : ''} ${isMine && !isDeleted && !isEditing ? 'ui-focus-ring' : ''}`}
+                        <div className={`flex w-full items-end gap-2 ${isMine ? 'justify-end' : 'justify-start'}`}>
+                          {senderAvatar}
+                          <SwipeActionFrame
+                            align="start"
+                            enabled={!isMine && !isDeleted && !isEditing}
+                            label="Mention"
+                            onTrigger={() => startMentioningMessage(message)}
+                            className="max-w-[82%]"
                           >
-                            {isEditing ? (
-                              <div className="flex min-w-[200px] flex-col gap-2">
-                                <input
-                                  value={editDraft}
-                                  onChange={(event) => setEditDraft(event.target.value)}
-                                  aria-label="Edit message"
-                                  className={`ui-focus-ring w-full rounded-xl border bg-white/20 px-2.5 py-1.5 text-[length:var(--ui-text-sm)] ${
-                                    isMine
-                                      ? 'border-white/30 text-white placeholder-white/50'
-                                      : 'border-slate-200 text-slate-800'
-                                  }`}
-                                  maxLength={1500}
-                                  autoFocus
-                                />
-                                <div className="flex justify-end gap-1.5">
-                                  <button
-                                    type="button"
-                                    onClick={cancelEditingMessage}
-                                    className={`ui-focus-ring rounded-xl px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold ${
-                                      isMine ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                                    }`}
-                                  >
-                                    Cancel
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => void saveEditedMessage(message.id)}
-                                    disabled={isSavingEdit || !editDraft.trim()}
-                                    className={`ui-focus-ring rounded-xl px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold disabled:opacity-60 ${
-                                      isMine ? 'bg-white/30 text-white hover:bg-white/40' : 'bg-blue-500 text-white hover:bg-blue-600'
-                                    }`}
-                                  >
-                                    Save
-                                  </button>
-                                </div>
-                              </div>
-                            ) : isDeleted ? (
-                              <span className="italic opacity-50">Message deleted</span>
-                            ) : (
-                              <span
-                                className={`aim-rich-html ${hasCustomStyling ? 'aim-rich-html--styled' : ''}`}
-                                dangerouslySetInnerHTML={{ __html: richTextPresentation.html }}
-                              />
-                            )}
-                            {isEdited && !isEditing ? (
-                              <span className={`ml-1.5 text-[length:var(--ui-text-2xs)] ${
-                                isMine ? (hasCustomStyling ? 'text-slate-400' : 'text-blue-200') : 'text-slate-400'
-                              }`}>(edited)</span>
-                            ) : null}
-                          </div>
-
-                          {/* Action bar — hover (desktop) + long-press (mobile) */}
-                          {isMine && !isDeleted && !isEditing ? (
-                            <div className={`absolute -top-8 right-0 items-center gap-0.5 rounded-full border border-white/70 bg-white/90 px-2 py-1 shadow-lg backdrop-blur-md ui-fade-in ${
-                              longPressMessageId === message.id ? 'flex' : 'hidden group-hover:flex group-focus-within:flex'
-                            }`}>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  startEditingMessage(message);
-                                  setLongPressMessageId(null);
-                                }}
-                                className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100"
-                                aria-label={`Edit message sent at ${timestamp}`}
-                              >
-                                Edit
-                              </button>
-                              <span className="text-slate-300">·</span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  void softDeleteMessage(message.id);
-                                  setLongPressMessageId(null);
-                                }}
-                                disabled={isDeletingMessageId === message.id}
-                                className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-red-500 hover:bg-red-50 disabled:opacity-60"
-                                aria-label={`Delete message sent at ${timestamp}`}
-                              >
-                                {isDeletingMessageId === message.id ? '…' : 'Delete'}
-                              </button>
-                            </div>
-                          ) : null}
-
-                          {/* Reactions */}
-                          {!isDeleted && reactionEntries.length > 0 ? (
-                            <div className={`-mt-1 mb-1 flex flex-wrap gap-0.5 ${isMine ? 'justify-end' : 'justify-start'}`}>
-                              {reactionEntries.map(([emoji, count]) => {
-                                const reactionKey = `${message.id}-${emoji}`;
-                                const isNew = newReactionKeys.has(reactionKey);
-                                return (
-                                  <span
-                                    key={reactionKey}
-                                    className={`rounded-full border border-white/70 bg-white/85 px-1.5 py-[2px] text-[length:var(--ui-text-2xs)] text-slate-600 shadow-sm backdrop-blur-sm ${isNew ? 'reaction-pop' : ''}`}
-                                  >
-                                    {emoji} {count}
+                            <div
+                              className="group relative focus:outline-none"
+                              tabIndex={!isDeleted && !isEditing ? 0 : undefined}
+                              onTouchStart={() => {
+                                if (isDeleted) return;
+                                longPressTimerRef.current = setTimeout(() => {
+                                  void hapticLight();
+                                  setLongPressMessageId(message.id);
+                                }, 500);
+                              }}
+                              onTouchEnd={() => {
+                                if (longPressTimerRef.current) {
+                                  clearTimeout(longPressTimerRef.current);
+                                  longPressTimerRef.current = null;
+                                }
+                              }}
+                              onTouchMove={() => {
+                                if (longPressTimerRef.current) {
+                                  clearTimeout(longPressTimerRef.current);
+                                  longPressTimerRef.current = null;
+                                }
+                              }}
+                            >
+                              {!isMine && clusterMeta.isFirstInRun ? (
+                                <div className="mb-1 flex items-center gap-2 px-1">
+                                  <span className={`text-[11px] font-semibold ${senderColorClass}`}>
+                                    {senderName}
                                   </span>
-                                );
-                              })}
-                            </div>
-                          ) : null}
+                                  <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">
+                                    {metaTimeLabel}
+                                  </span>
+                                </div>
+                              ) : null}
 
-                          {/* Attachments */}
-                          {!isDeleted && messageAttachments.length > 0 ? (
-                            <div className={`-mt-1 mb-1 space-y-0.5 ${isMine ? 'text-right' : ''}`}>
-                              {messageAttachments.map((attachment) => {
-                                const { data } = supabase.storage
-                                  .from(attachment.bucket)
-                                  .getPublicUrl(attachment.storage_path);
-                                return (
-                                  <a
-                                    key={attachment.id}
-                                    href={data.publicUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className={`ui-focus-ring block rounded-lg text-[length:var(--ui-text-2xs)] underline ${isMine ? 'text-blue-200' : 'text-blue-600'}`}
-                                    title={attachment.storage_path}
-                                    aria-label={`Open attachment ${attachment.file_name}${attachment.size_bytes ? `, ${formatFileSize(attachment.size_bytes)}` : ''}`}
-                                  >
-                                    <span className="inline-flex items-center gap-1">
-                                      <AppIcon kind="attachment" className="h-3 w-3" />
-                                      <span>{attachment.file_name}</span>
-                                    </span>
-                                    {attachment.size_bytes ? ` (${formatFileSize(attachment.size_bytes)})` : ''}
-                                  </a>
-                                );
-                              })}
+                              {isMentioningCurrentUser ? (
+                                <div className="absolute -left-1 top-0 h-full w-0.5 rounded-full bg-amber-400" />
+                              ) : null}
+
+                              <div
+                                className={`relative msg-enter px-3 py-2 ${
+                                  hasCustomStyling
+                                    ? 'text-[length:var(--ui-text-lg)] leading-[1.48]'
+                                    : 'text-[length:var(--ui-text-md)] leading-[1.42]'
+                                } ${
+                                  clusterMeta.isLastInRun ? 'mb-2' : 'mb-0.5'
+                                } ${
+                                  isMine
+                                    ? hasCustomStyling
+                                      ? `rounded-[1.35rem] border border-blue-200/80 bg-white/96 text-slate-900 shadow-[0_10px_24px_rgba(37,99,235,0.16)] ${clusterMeta.isLastInRun ? 'rounded-br-[8px] bubble-tail-out' : ''}`
+                                      : `rounded-[1.35rem] bg-blue-500 text-white shadow-[0_8px_22px_rgba(37,99,235,0.26)] ${clusterMeta.isLastInRun ? 'rounded-br-[7px] bubble-tail-out' : ''}`
+                                    : `rounded-[1.35rem] border border-white/70 bg-white/85 text-slate-800 shadow-sm backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-950/70 dark:text-slate-100 ${clusterMeta.isLastInRun ? 'rounded-bl-[7px] bubble-tail-in' : ''} ${isMentioningCurrentUser ? 'border-amber-300/70 bg-amber-50/80 dark:border-amber-400/35 dark:bg-amber-950/25' : ''}`
+                                } ${isMatch ? 'ring-2 ring-amber-400' : ''} ${!isDeleted && !isEditing ? 'ui-focus-ring' : ''}`}
+                              >
+                                {isEditing ? (
+                                  <div className="flex min-w-[200px] flex-col gap-2">
+                                    <input
+                                      value={editDraft}
+                                      onChange={(event) => setEditDraft(event.target.value)}
+                                      aria-label="Edit message"
+                                      className={`ui-focus-ring w-full rounded-xl border bg-white/20 px-2.5 py-1.5 text-[length:var(--ui-text-sm)] ${
+                                        isMine
+                                          ? 'border-white/30 text-white placeholder-white/50'
+                                          : 'border-slate-200 text-slate-800'
+                                      }`}
+                                      maxLength={1500}
+                                      autoFocus
+                                    />
+                                    <div className="flex justify-end gap-1.5">
+                                      <button
+                                        type="button"
+                                        onClick={cancelEditingMessage}
+                                        className={`ui-focus-ring rounded-xl px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold ${
+                                          isMine ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                        }`}
+                                      >
+                                        Cancel
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => void saveEditedMessage(message.id)}
+                                        disabled={isSavingEdit || !editDraft.trim()}
+                                        className={`ui-focus-ring rounded-xl px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold disabled:opacity-60 ${
+                                          isMine ? 'bg-white/30 text-white hover:bg-white/40' : 'bg-blue-500 text-white hover:bg-blue-600'
+                                        }`}
+                                      >
+                                        Save
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : isDeleted ? (
+                                  <span className="italic opacity-50">Message deleted</span>
+                                ) : (
+                                  <span
+                                    className={`aim-rich-html ${hasCustomStyling ? 'aim-rich-html--styled' : ''}`}
+                                    dangerouslySetInnerHTML={{ __html: richTextPresentation.html }}
+                                  />
+                                )}
+                                {isEdited && !isEditing ? (
+                                  <span className={`ml-1.5 text-[length:var(--ui-text-2xs)] ${
+                                    isMine ? (hasCustomStyling ? 'text-slate-400' : 'text-blue-200') : 'text-slate-400'
+                                  }`}>(edited)</span>
+                                ) : null}
+                              </div>
+
+                              {!isDeleted && !isEditing ? (
+                                <div
+                                  data-swipe-ignore="true"
+                                  className={`absolute -top-8 right-0 items-center gap-0.5 rounded-full border border-white/70 bg-white/90 px-2 py-1 shadow-lg backdrop-blur-md ui-fade-in dark:border-slate-700/70 dark:bg-slate-950/88 ${
+                                    longPressMessageId === message.id ? 'flex' : 'hidden group-hover:flex group-focus-within:flex'
+                                  }`}
+                                >
+                                  {!isMine ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => startMentioningMessage(message)}
+                                      className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900"
+                                      aria-label={`Mention ${senderName} from message sent at ${metaTimeLabel}`}
+                                    >
+                                      Mention
+                                    </button>
+                                  ) : null}
+                                  {isMine ? (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          startEditingMessage(message);
+                                          setLongPressMessageId(null);
+                                        }}
+                                        className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900"
+                                        aria-label={`Edit message sent at ${metaTimeLabel}`}
+                                      >
+                                        Edit
+                                      </button>
+                                      <span className="text-slate-300">·</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          void softDeleteMessage(message.id);
+                                          setLongPressMessageId(null);
+                                        }}
+                                        disabled={isDeletingMessageId === message.id}
+                                        className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-red-500 hover:bg-red-50 disabled:opacity-60"
+                                        aria-label={`Delete message sent at ${metaTimeLabel}`}
+                                      >
+                                        {isDeletingMessageId === message.id ? '…' : 'Delete'}
+                                      </button>
+                                    </>
+                                  ) : null}
+                                </div>
+                              ) : null}
+
+                              {!isDeleted && reactionEntries.length > 0 ? (
+                                <div className={`-mt-1 mb-1 flex flex-wrap gap-0.5 ${isMine ? 'justify-end' : 'justify-start'}`}>
+                                  {reactionEntries.map(([emoji, count]) => {
+                                    const reactionKey = `${message.id}-${emoji}`;
+                                    const isNew = newReactionKeys.has(reactionKey);
+                                    return (
+                                      <span
+                                        key={reactionKey}
+                                        className={`rounded-full border border-white/70 bg-white/85 px-1.5 py-[2px] text-[length:var(--ui-text-2xs)] text-slate-600 shadow-sm backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-950/85 dark:text-slate-200 ${isNew ? 'reaction-pop' : ''}`}
+                                      >
+                                        {emoji} {count}
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              ) : null}
+
+                              {!isDeleted && messageAttachments.length > 0 ? (
+                                <div className={`-mt-1 mb-1 space-y-1 ${isMine ? 'text-right' : ''}`}>
+                                  {messageAttachments.map((attachment) => {
+                                    const { data } = supabase.storage
+                                      .from(attachment.bucket)
+                                      .getPublicUrl(attachment.storage_path);
+                                    return (
+                                      <a
+                                        key={attachment.id}
+                                        href={data.publicUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className={`ui-focus-ring block rounded-lg text-[length:var(--ui-text-2xs)] underline ${isMine ? 'text-blue-200' : 'text-blue-600'}`}
+                                        title={attachment.storage_path}
+                                        aria-label={`Open attachment ${attachment.file_name}${attachment.size_bytes ? `, ${formatFileSize(attachment.size_bytes)}` : ''}`}
+                                      >
+                                        <span className="inline-flex items-center gap-1">
+                                          <AppIcon kind="attachment" className="h-3 w-3" />
+                                          <span>{attachment.file_name}</span>
+                                        </span>
+                                        {attachment.size_bytes ? ` (${formatFileSize(attachment.size_bytes)})` : ''}
+                                      </a>
+                                    );
+                                  })}
+                                </div>
+                              ) : null}
                             </div>
-                          ) : null}
+                          </SwipeActionFrame>
                         </div>
                       </div>
                     </div>
@@ -1728,9 +1819,31 @@ export default function GroupChatWindow({
           ) : null}
 
           {/* Input area */}
-          <div ref={composerAreaRef} className="mx-3 mt-2 space-y-2" style={composerAreaStyle}>
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
+          <div ref={composerAreaRef} className="mx-3 mt-2 space-y-2.5" style={composerAreaStyle}>
+            {mentioningMessage ? (
+              <div className="ui-compose-context-chip flex items-start justify-between gap-3 rounded-2xl px-3 py-2.5">
+                <div className="min-w-0">
+                  <p className="text-[length:var(--ui-text-2xs)] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                    Mentioning {screennameMap[mentioningMessage.sender_id] || 'Unknown User'}
+                  </p>
+                  <p className="truncate text-[length:var(--ui-text-xs)] text-slate-600 dark:text-slate-200">
+                    {mentioningMessage.deleted_at
+                      ? 'Message deleted'
+                      : htmlToPlainText(mentioningMessage.content).trim() || 'Original message'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={cancelMentionComposerContext}
+                  className="ui-focus-ring rounded-full p-1 text-slate-400 hover:text-slate-600"
+                  aria-label="Cancel mention context"
+                >
+                  <AppIcon kind="close" className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ) : null}
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
                 {!isKeyboardOpen ? (
                   <button
                     type="button"
@@ -1744,16 +1857,16 @@ export default function GroupChatWindow({
                 ) : null}
                 <button
                   type="button"
-                  onClick={() => setShowComposerTools((previous) => !previous)}
-                  className={`${xpTinyToolbarButtonClass(showComposerTools || pendingAttachments.length > 0)} px-2.5`}
-                  aria-expanded={showComposerTools}
-                  aria-label={showComposerTools ? 'Hide message tools' : 'Show message tools'}
+                  onClick={toggleComposerTools}
+                  className={`${xpTinyToolbarButtonClass(composerToolsExpanded)} px-2.5`}
+                  aria-expanded={composerToolsExpanded}
+                  aria-label={composerToolsExpanded ? 'Hide message tools' : 'Show message tools'}
                 >
-                  Tools
+                  Add
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowFormatting((previous) => !previous)}
+                  onClick={toggleComposerFormatting}
                   className={`${xpTinyToolbarButtonClass(showFormatting || hasCustomFormatting)} px-2.5`}
                   aria-label={showFormatting ? 'Hide formatting toolbar' : 'Show formatting toolbar'}
                   aria-expanded={showFormatting}
@@ -1764,63 +1877,77 @@ export default function GroupChatWindow({
                   </span>
                 </button>
               </div>
-              {normalizedSearchQuery ? (
-                <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500">
-                  {searchMatchCount} result{searchMatchCount === 1 ? '' : 's'}
-                </span>
-              ) : null}
+              <div className="flex items-center gap-2">
+                {attachmentSummaryLabel ? (
+                  <span className="ui-compose-summary-pill">{attachmentSummaryLabel}</span>
+                ) : null}
+                {normalizedSearchQuery ? (
+                  <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500">
+                    {searchMatchCount} result{searchMatchCount === 1 ? '' : 's'}
+                  </span>
+                ) : null}
+              </div>
             </div>
 
-            {(showComposerTools || showFormatting || pendingAttachments.length > 0) ? (
+            {(composerToolsExpanded || showFormatting) ? (
               <div className="ui-toolbar-surface space-y-3 rounded-2xl px-3 py-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => attachmentInputRef.current?.click()}
-                    className={xpTinyToolbarButtonClass(pendingAttachments.length > 0)}
-                    aria-label={`Attach files to your message in room ${roomName}`}
-                  >
-                    <AppIcon kind="attachment" className="h-3.5 w-3.5" />
-                  </button>
-                  <input
-                    ref={attachmentInputRef}
-                    type="file"
-                    multiple
-                    onChange={(event) => handleSelectAttachments(event.target.files)}
-                    className="hidden"
-                    aria-label={`Choose attachments for room ${roomName}`}
-                  />
-                </div>
+                {composerToolsExpanded ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => attachmentInputRef.current?.click()}
+                      className={`${xpTinyToolbarButtonClass(pendingAttachments.length > 0)} h-8 gap-1.5 px-3`}
+                      aria-label={`Attach files to your message in room ${roomName}`}
+                    >
+                      <AppIcon kind="attachment" className="h-3.5 w-3.5" />
+                      <span>Attachment</span>
+                    </button>
+                    <input
+                      ref={attachmentInputRef}
+                      type="file"
+                      multiple
+                      onChange={(event) => handleSelectAttachments(event.target.files)}
+                      className="hidden"
+                      aria-label={`Choose attachments for room ${roomName}`}
+                    />
+                  </div>
+                ) : null}
 
                 {showFormatting ? (
                   <div className="space-y-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                      Text style
+                    </p>
                     <div className="flex items-center gap-1">
                       <button
                         type="button"
                         onClick={toggleBold}
-                        className={xpTinyToolbarButtonClass(format.bold)}
+                        className={`${xpTinyToolbarButtonClass(format.bold)} h-8 gap-1 px-3`}
                         aria-label="Toggle bold"
                         aria-pressed={format.bold}
                       >
                         <span className="font-bold">B</span>
+                        <span>Bold</span>
                       </button>
                       <button
                         type="button"
                         onClick={toggleItalic}
-                        className={xpTinyToolbarButtonClass(format.italic)}
+                        className={`${xpTinyToolbarButtonClass(format.italic)} h-8 gap-1 px-3`}
                         aria-label="Toggle italic"
                         aria-pressed={format.italic}
                       >
                         <span className="italic">I</span>
+                        <span>Italic</span>
                       </button>
                       <button
                         type="button"
                         onClick={toggleUnderline}
-                        className={xpTinyToolbarButtonClass(format.underline)}
+                        className={`${xpTinyToolbarButtonClass(format.underline)} h-8 gap-1 px-3`}
                         aria-label="Toggle underline"
                         aria-pressed={format.underline}
                       >
                         <span className="underline">U</span>
+                        <span>Underline</span>
                       </button>
                     </div>
                     <RichTextToolbar value={format} onChange={setFormat} />
@@ -1828,17 +1955,21 @@ export default function GroupChatWindow({
                 ) : null}
 
                 {pendingAttachments.length > 0 ? (
-                  <div className="space-y-1">
+                  <div className="flex flex-wrap gap-2">
                     {pendingAttachments.map((file, index) => (
-                      <div key={`${file.name}-${file.size}-${file.lastModified}`} className="flex items-center gap-2 rounded-2xl border border-white/60 bg-white/65 px-3 py-2 dark:border-slate-700 dark:bg-slate-950/55">
-                        <span className="min-w-0 flex flex-1 items-center gap-1 truncate text-[length:var(--ui-text-2xs)] text-slate-600 dark:text-slate-300">
-                          <AppIcon kind="attachment" className="h-3 w-3 shrink-0" />
-                          <span className="truncate">{file.name} ({formatFileSize(file.size)})</span>
+                      <div
+                        key={`${file.name}-${file.size}-${file.lastModified}`}
+                        className="ui-compose-summary-pill inline-flex max-w-full items-center gap-2 rounded-full px-3 py-1.5"
+                      >
+                        <AppIcon kind="attachment" className="h-3 w-3 shrink-0" />
+                        <span className="truncate text-[length:var(--ui-text-2xs)]">
+                          {file.name}
+                          {` · ${formatFileSize(file.size)}`}
                         </span>
                         <button
                           type="button"
                           onClick={() => removePendingAttachment(index)}
-                          className="ui-focus-ring ui-button-danger ui-button-compact shrink-0 px-1.5 text-[length:var(--ui-text-2xs)]"
+                          className="ui-focus-ring shrink-0 rounded-full p-0.5 text-slate-400 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-200"
                           aria-label={`Remove attachment ${file.name}`}
                         >
                           <AppIcon kind="close" className="h-3 w-3" />
@@ -1880,7 +2011,7 @@ export default function GroupChatWindow({
                 onFocus={() => {
                   focusComposer();
                 }}
-                placeholder={`Message #${roomName}…`}
+                placeholder={mentioningMessage ? `Reply in #${roomName}…` : `Message #${roomName}…`}
                 rows={1}
                 maxLength={1500}
                 aria-describedby={composerHelpId}
