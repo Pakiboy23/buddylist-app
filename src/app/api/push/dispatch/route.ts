@@ -1,5 +1,5 @@
 import * as http2 from 'http2';
-import { createPrivateKey, createSign } from 'crypto';
+import { importPKCS8, SignJWT } from 'jose';
 import { NextResponse } from 'next/server';
 import {
   applyNotificationPreview,
@@ -7,6 +7,7 @@ import {
   normalizeUserPrivacySettings,
   type NotificationPreviewMode,
 } from '@/lib/privateChat';
+import { normalizeApplePushPrivateKey } from '@/lib/apnsKey';
 import { isPushEnvironmentSchemaMissingError } from '@/lib/pushEnvironmentSchema';
 import { htmlToPlainText } from '@/lib/richText';
 import { normalizeRoomKey } from '@/lib/roomName';
@@ -78,35 +79,23 @@ function getApnsConfig() {
   return {
     keyId: requirePushEnv('APPLE_PUSH_KEY_ID'),
     teamId: requirePushEnv('APPLE_PUSH_TEAM_ID'),
-    privateKey: requirePushEnv('APPLE_PUSH_PRIVATE_KEY').replace(/\\n/g, '\n'),
+    privateKey: normalizeApplePushPrivateKey(requirePushEnv('APPLE_PUSH_PRIVATE_KEY')),
     topic: (process.env.APPLE_PUSH_TOPIC ?? process.env.NEXT_PUBLIC_IOS_BUNDLE_ID ?? 'com.buddylist.app').trim(),
   };
 }
 
-function base64UrlEncode(value: Buffer | string) {
-  const buffer = typeof value === 'string' ? Buffer.from(value) : value;
-  return buffer
-    .toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/g, '');
-}
-
-function getApnsJwt() {
+async function getApnsJwt() {
   if (cachedJwt && cachedJwt.expiresAtMs > Date.now() + 60_000) {
     return cachedJwt.token;
   }
 
   const config = getApnsConfig();
-  const issuedAt = Math.floor(Date.now() / 1000);
-  const header = base64UrlEncode(JSON.stringify({ alg: 'ES256', kid: config.keyId }));
-  const claims = base64UrlEncode(JSON.stringify({ iss: config.teamId, iat: issuedAt }));
-  const unsigned = `${header}.${claims}`;
-  const signer = createSign('SHA256');
-  signer.update(unsigned);
-  signer.end();
-  const signature = signer.sign(createPrivateKey(config.privateKey));
-  const token = `${unsigned}.${base64UrlEncode(signature)}`;
+  const privateKey = await importPKCS8(config.privateKey, 'ES256');
+  const token = await new SignJWT({})
+    .setProtectedHeader({ alg: 'ES256', kid: config.keyId })
+    .setIssuer(config.teamId)
+    .setIssuedAt()
+    .sign(privateKey);
   cachedJwt = {
     token,
     expiresAtMs: Date.now() + 50 * 60 * 1000,
@@ -169,7 +158,7 @@ async function sendApnsNotificationViaHost(
   deviceToken: string,
   payload: ReturnType<typeof buildApnsPayload>,
 ) {
-  const jwt = getApnsJwt();
+  const jwt = await getApnsJwt();
   const { topic } = getApnsConfig();
 
   return await new Promise<{ status: number; body: string }>((resolve, reject) => {
