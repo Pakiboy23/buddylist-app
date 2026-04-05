@@ -66,6 +66,7 @@ import {
   sendDirectMessageWithClientMessageId,
   sendRoomMessageWithClientMessageId,
 } from '@/lib/messageIdempotency';
+import { dispatchBuddyAcceptedPush, dispatchBuddyRequestPush } from '@/lib/pushDispatch';
 import {
   EXTENDED_USER_PROFILE_SELECT_FIELDS,
   EXTENDED_USER_PROFILE_WITH_EMAIL_SELECT_FIELDS,
@@ -4617,7 +4618,7 @@ function BuddyListContent() {
   );
 
   const acceptBuddyById = useCallback(
-    async (buddyId: string) => {
+    async (buddyId: string, options?: { notifyBuddy?: boolean }) => {
       if (!userId) {
         return false;
       }
@@ -4650,6 +4651,9 @@ function BuddyListContent() {
       }
 
       await loadBuddies(userId);
+      if (options?.notifyBuddy) {
+        dispatchBuddyAcceptedPush(buddyId);
+      }
       setPendingRequestError(null);
       setProfileSheetError(null);
       return true;
@@ -4669,8 +4673,14 @@ function BuddyListContent() {
     try {
       const { outgoingStatus, incomingStatus } = await getBuddyRelationshipSnapshot(buddyId);
 
-      if (outgoingStatus === 'accepted' || incomingStatus === 'accepted' || incomingStatus === 'pending') {
-        const accepted = await acceptBuddyById(buddyId);
+      if (outgoingStatus === 'accepted' || incomingStatus === 'accepted') {
+        setProfileSheetFeedback('Already on your buddy list.');
+        setIsAddingBuddyId(null);
+        return true;
+      }
+
+      if (incomingStatus === 'pending') {
+        const accepted = await acceptBuddyById(buddyId, { notifyBuddy: true });
         setIsAddingBuddyId(null);
         return accepted;
       }
@@ -4699,6 +4709,7 @@ function BuddyListContent() {
       }
 
       await loadBuddies(userId);
+      dispatchBuddyRequestPush(buddyId);
       setProfileSheetFeedback('Buddy request sent.');
       return true;
     } catch (error) {
@@ -4730,7 +4741,7 @@ function BuddyListContent() {
       setPendingRequestError(null);
       setIsProcessingRequestId(senderId);
 
-      const accepted = await acceptBuddyById(senderId);
+      const accepted = await acceptBuddyById(senderId, { notifyBuddy: true });
       setIsProcessingRequestId(null);
       if (!accepted) {
         return;

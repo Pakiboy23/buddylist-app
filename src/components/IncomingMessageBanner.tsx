@@ -7,7 +7,7 @@ import AppIcon from '@/components/AppIcon';
 interface IncomingMessageBannerProps {
   senderName: string;
   messagePreview: string;
-  variant: 'room' | 'dm';
+  variant: 'room' | 'dm' | 'buddy';
   count?: number;
   onClose: () => void;
   onClick: () => void;
@@ -100,18 +100,20 @@ export default function IncomingMessageBanner({
             className={`ui-focus-ring flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-xl transition hover:opacity-80 active:scale-95 ${
               variant === 'dm'
                 ? 'bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-300'
-                : 'bg-violet-50 text-violet-600 dark:bg-violet-100 dark:text-violet-200'
+                : variant === 'room'
+                  ? 'bg-violet-50 text-violet-600 dark:bg-violet-100 dark:text-violet-200'
+                  : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-200'
             }`}
-            aria-label={`Open ${variant === 'dm' ? 'conversation' : 'room'} notification from ${senderName}`}
+            aria-label={`Open ${variant === 'dm' ? 'conversation' : variant === 'room' ? 'room' : 'buddy update'} notification from ${senderName}`}
           >
-            <AppIcon kind={variant === 'dm' ? 'mail' : 'chat'} className="h-5 w-5" />
+            <AppIcon kind={variant === 'dm' ? 'mail' : variant === 'room' ? 'chat' : 'buddy'} className="h-5 w-5" />
           </button>
           {/* Text — clickable */}
           <button
             type="button"
             onClick={onClick}
             className="ui-focus-ring min-w-0 flex-1 rounded-xl text-left transition active:opacity-80"
-            aria-label={`Open ${variant === 'dm' ? 'conversation' : 'room'} from ${senderName}`}
+            aria-label={`Open ${variant === 'dm' ? 'conversation' : variant === 'room' ? 'room' : 'buddy update'} from ${senderName}`}
           >
             <div className="flex items-baseline gap-1.5">
               <span className="truncate text-[length:var(--ui-text-md)] font-semibold text-slate-800">{senderName}</span>

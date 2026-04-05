@@ -5,7 +5,9 @@ import { getAccessTokenOrNull } from '@/lib/authClient';
 
 type PushDispatchPayload =
   | { kind: 'dm'; messageId: number }
-  | { kind: 'room'; roomMessageId: string };
+  | { kind: 'room'; roomMessageId: string }
+  | { kind: 'buddy_request'; buddyId: string }
+  | { kind: 'buddy_accept'; buddyId: string };
 
 async function sendPushDispatch(payload: PushDispatchPayload) {
   const accessToken = await getAccessTokenOrNull();
@@ -46,4 +48,20 @@ export function dispatchRoomMessagePush(roomMessageId: string) {
   }
 
   void sendPushDispatch({ kind: 'room', roomMessageId: roomMessageId.trim() });
+}
+
+export function dispatchBuddyRequestPush(buddyId: string) {
+  if (!buddyId.trim()) {
+    return;
+  }
+
+  void sendPushDispatch({ kind: 'buddy_request', buddyId: buddyId.trim() });
+}
+
+export function dispatchBuddyAcceptedPush(buddyId: string) {
+  if (!buddyId.trim()) {
+    return;
+  }
+
+  void sendPushDispatch({ kind: 'buddy_accept', buddyId: buddyId.trim() });
 }

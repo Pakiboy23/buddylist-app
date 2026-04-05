@@ -37,7 +37,7 @@ interface BannerData {
   senderName: string;
   messagePreview: string;
   targetPath: string;
-  variant: 'room' | 'dm';
+  variant: 'room' | 'dm' | 'buddy';
   count?: number;
   queuedAtMs?: number;
   source?: 'realtime' | 'push';
@@ -88,7 +88,10 @@ function resolvePushBannerData(notification: Pick<PushNotificationSchema, 'title
       : {};
   const targetPath =
     typeof rawData.targetPath === 'string' ? normalizeAppPath(rawData.targetPath) : BUDDY_LIST_PATH;
-  const variant = rawData.variant === 'room' || rawData.variant === 'dm' ? rawData.variant : 'dm';
+  const variant =
+    rawData.variant === 'room' || rawData.variant === 'dm' || rawData.variant === 'buddy'
+      ? rawData.variant
+      : 'dm';
   const senderName =
     typeof rawData.senderName === 'string' && rawData.senderName.trim()
       ? rawData.senderName.trim()

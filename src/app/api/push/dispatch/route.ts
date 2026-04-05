@@ -16,9 +16,10 @@ import { createSupabaseAdminClient, getRequestUser } from '@/lib/supabaseServer'
 export const runtime = 'nodejs';
 
 interface DispatchBody {
-  kind?: 'dm' | 'room';
+  kind?: 'dm' | 'room' | 'buddy_request' | 'buddy_accept';
   messageId?: number | string;
   roomMessageId?: string;
+  buddyId?: string;
 }
 
 interface PushTokenRow {
@@ -136,7 +137,7 @@ function buildApnsPayload(input: {
   senderName: string;
   messagePreview: string;
   targetPath: string;
-  variant: 'dm' | 'room';
+  variant: 'dm' | 'room' | 'buddy';
 }) {
   return {
     aps: {
@@ -247,7 +248,7 @@ async function dispatchToRecipients(input: {
   senderName: string;
   previewText: string;
   targetPath: string;
-  variant: 'dm' | 'room';
+  variant: 'dm' | 'room' | 'buddy';
 }) {
   if (input.recipientIds.length === 0) {
     return { delivered: 0, attempted: 0 };
@@ -470,6 +471,29 @@ async function dispatchRoomMessagePush(admin: ReturnType<typeof createSupabaseAd
   });
 }
 
+async function dispatchBuddyRelationshipPush(input: {
+  admin: ReturnType<typeof createSupabaseAdminClient>;
+  actorUserId: string;
+  buddyId: string;
+  kind: 'buddy_request' | 'buddy_accept';
+}) {
+  const senderName = await resolveSenderName(input.admin, input.actorUserId);
+  const previewText =
+    input.kind === 'buddy_request' ? 'sent you a buddy request.' : 'accepted your buddy request.';
+  const targetPath =
+    input.kind === 'buddy_request'
+      ? '/buddy-list?tab=im'
+      : `/buddy-list?tab=im&dm=${encodeURIComponent(input.actorUserId)}`;
+
+  return await dispatchToRecipients({
+    recipientIds: [input.buddyId],
+    senderName,
+    previewText,
+    targetPath,
+    variant: 'buddy',
+  });
+}
+
 export async function POST(request: Request) {
   const user = await getRequestUser(request);
   if (!user) {
@@ -493,6 +517,21 @@ export async function POST(request: Request) {
       }
 
       const result = await dispatchRoomMessagePush(admin, user.id, roomMessageId);
+      return NextResponse.json({ ok: true, ...result });
+    }
+
+    if (body.kind === 'buddy_request' || body.kind === 'buddy_accept') {
+      const buddyId = typeof body.buddyId === 'string' ? body.buddyId.trim() : '';
+      if (!buddyId) {
+        return NextResponse.json({ error: 'buddyId is required.' }, { status: 400 });
+      }
+
+      const result = await dispatchBuddyRelationshipPush({
+        admin,
+        actorUserId: user.id,
+        buddyId,
+        kind: body.kind,
+      });
       return NextResponse.json({ ok: true, ...result });
     }
 
