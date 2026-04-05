@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { dispatchDirectMessagePush, dispatchRoomMessagePush } from '@/lib/pushDispatch';
 
 type DatabaseErrorLike = {
   code?: string | null;
@@ -109,6 +110,9 @@ export async function sendDirectMessageWithClientMessageId(input: {
   }
 
   if (!isClientMessageConflict(error)) {
+    if (!error && data?.id) {
+      dispatchDirectMessagePush(data.id);
+    }
     return {
       data: (data as DirectMessageRow | null) ?? null,
       error,
@@ -157,6 +161,9 @@ export async function sendRoomMessageWithClientMessageId(input: {
     .single();
 
   if (!isClientMessageConflict(error)) {
+    if (!error && data?.id) {
+      dispatchRoomMessagePush(data.id);
+    }
     return {
       data: (data as RoomMessageRow | null) ?? null,
       error,

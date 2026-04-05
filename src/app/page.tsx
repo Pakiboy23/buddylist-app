@@ -8,6 +8,10 @@ import { waitForSessionOrNull } from '@/lib/authClient';
 import { getAppApiUrl } from '@/lib/appApi';
 import { navigateAppPath } from '@/lib/appNavigation';
 import { generateClientRecoveryCode, RECOVERY_CODE_MIN_LENGTH } from '@/lib/recoveryCode';
+import {
+  clearPendingSignupRecoveryDraft,
+  savePendingSignupRecoveryDraft,
+} from '@/lib/signupRecoveryDraft';
 import { initSoundSystem, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
 
@@ -273,6 +277,7 @@ export default function Home() {
         setStatusMsg('Account created. Securing your account...');
         try {
           await saveRecoveryCodeWithToken(data.session.access_token, signUpRecoveryCode.trim());
+          clearPendingSignupRecoveryDraft(trimmedScreenname);
         } catch (error) {
           await supabase.auth.signOut();
           isCompletingSignUpProtectionRef.current = false;
@@ -290,8 +295,9 @@ export default function Home() {
         setStatusMsg('Account created. Opening your Buddy List...');
         await routeToBuddyList(true);
       } else {
+        savePendingSignupRecoveryDraft(trimmedScreenname, signUpRecoveryCode.trim());
         isCompletingSignUpProtectionRef.current = false;
-        setStatusMsg('Account created. Check your email to confirm, then sign in to finish account protection.');
+        setStatusMsg('Account created. Check your email to confirm, then sign in here to finish saving your recovery code.');
       }
 
       setIsLoading(false);

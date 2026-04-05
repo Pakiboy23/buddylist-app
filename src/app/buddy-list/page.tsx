@@ -14,6 +14,10 @@ import SavedMessagesWindow from '@/components/SavedMessagesWindow';
 import { getAccessTokenOrNull, waitForSessionOrNull } from '@/lib/authClient';
 import { getAppApiUrl } from '@/lib/appApi';
 import { navigateAppPath, replaceAppPathInPlace } from '@/lib/appNavigation';
+import {
+  aggregateBuddyRelationships,
+  type BuddyRelationshipRecord,
+} from '@/lib/buddyRelationships';
 import { deleteBuddyIconFile, uploadBuddyIconFile, validateBuddyIconFile } from '@/lib/buddyIcon';
 import {
   getRaw,
@@ -102,6 +106,10 @@ import {
 } from '@/lib/presence';
 import { generateClientRecoveryCode, RECOVERY_CODE_MIN_LENGTH } from '@/lib/recoveryCode';
 import {
+  clearPendingSignupRecoveryDraft,
+  readPendingSignupRecoveryDraft,
+} from '@/lib/signupRecoveryDraft';
+import {
   applyDmStateEvent,
   mapRowsToUnreadDirectMessages,
   type DmStateEventType,
@@ -151,11 +159,6 @@ interface UserProfile {
   buddy_icon_path: string | null;
   idle_since: string | null;
   last_active_at: string | null;
-}
-
-interface BuddyRelationshipRow {
-  buddy_id: string;
-  status: 'pending' | 'accepted';
 }
 
 interface Buddy {
@@ -2424,8 +2427,8 @@ function BuddyListContent() {
 
     const { data: relationships, error: relationshipsError } = await supabase
       .from('buddies')
-      .select('buddy_id,status')
-      .eq('user_id', targetUserId)
+      .select('user_id,buddy_id,status')
+      .or(`user_id.eq.${targetUserId},buddy_id.eq.${targetUserId}`)
       .in('status', ['accepted', 'pending']);
 
     if (relationshipsError) {
@@ -2434,19 +2437,22 @@ function BuddyListContent() {
       return;
     }
 
-    const relationshipRows = (relationships ?? []) as BuddyRelationshipRow[];
+    const relationshipRows = (relationships ?? []) as BuddyRelationshipRecord[];
+    const aggregatedRelationships = aggregateBuddyRelationships(targetUserId, relationshipRows);
+    const counterpartIds = Array.from(
+      new Set([
+        ...aggregatedRelationships.acceptedBuddyIds,
+        ...aggregatedRelationships.incomingPendingBuddyIds,
+        ...aggregatedRelationships.outgoingPendingBuddyIds,
+      ]),
+    );
 
-    if (relationshipRows.length === 0) {
-      setBuddyRows([]);
-      setSelectedBuddyId(null);
-      setIsLoadingBuddies(false);
-      return;
-    }
-
-    const buddyIds = [...new Set(relationshipRows.map((item) => item.buddy_id))];
-    const { data: profiles, error: profilesError } = await loadManyUserProfiles({
-      applyFilters: (query) => query.in('id', buddyIds),
-    });
+    const { data: profiles, error: profilesError } =
+      counterpartIds.length > 0
+        ? await loadManyUserProfiles({
+            applyFilters: (query) => query.in('id', counterpartIds),
+          })
+        : { data: [], error: null };
 
     if (profilesError) {
       console.error('Failed to load buddy profiles:', profilesError.message);
@@ -2459,10 +2465,10 @@ function BuddyListContent() {
       ]),
     );
 
-    const mergedRows = relationshipRows.map((relationship) => {
-      const profile = profileMap.get(relationship.buddy_id);
+    const mergedRows = aggregatedRelationships.rows.map((relationship) => {
+      const profile = profileMap.get(relationship.buddyId);
       return {
-        id: relationship.buddy_id,
+        id: relationship.buddyId,
         screenname: profile?.screenname?.trim() || 'Unknown Buddy',
         status: profile?.status ?? null,
         away_message: profile?.away_message ?? null,
@@ -2471,7 +2477,7 @@ function BuddyListContent() {
         buddy_icon_path: profile?.buddy_icon_path ?? null,
         idle_since: profile?.idle_since ?? null,
         last_active_at: profile?.last_active_at ?? null,
-        relationshipStatus: relationship.status,
+        relationshipStatus: relationship.relationshipStatus,
       } as Buddy;
     });
 
@@ -2479,7 +2485,36 @@ function BuddyListContent() {
       (left, right) => left.screenname.localeCompare(right.screenname, undefined, { sensitivity: 'base' }),
     );
 
+    const persistentIncomingRequests = aggregatedRelationships.incomingPendingBuddyIds
+      .map((buddyId) => {
+        const profile = profileMap.get(buddyId);
+        return {
+          senderId: buddyId,
+          screenname: profile?.screenname?.trim() || 'Unknown User',
+        } as PendingRequest;
+      })
+      .sort((left, right) => left.screenname.localeCompare(right.screenname, undefined, { sensitivity: 'base' }));
+
     setBuddyRows(dedupedRows);
+    setPendingRequests((previous) => {
+      const relationshipIds = new Set(counterpartIds);
+      const merged = new Map<string, PendingRequest>();
+
+      for (const request of previous) {
+        if (relationshipIds.has(request.senderId)) {
+          continue;
+        }
+        merged.set(request.senderId, request);
+      }
+
+      for (const request of persistentIncomingRequests) {
+        merged.set(request.senderId, request);
+      }
+
+      return Array.from(merged.values()).sort((left, right) =>
+        left.screenname.localeCompare(right.screenname, undefined, { sensitivity: 'base' }),
+      );
+    });
     setSelectedBuddyId((previous) =>
       previous && dedupedRows.some((buddy) => buddy.id === previous)
         ? previous
@@ -2617,6 +2652,33 @@ function BuddyListContent() {
         hasRecoveryCode = Boolean(recoveryData);
       }
 
+      if (!hasRecoveryCode && session.access_token) {
+        const pendingRecoveryCode = readPendingSignupRecoveryDraft(resolvedScreenname);
+        if (pendingRecoveryCode) {
+          try {
+            const recoveryResponse = await fetch(getAppApiUrl('/api/auth/recovery/setup'), {
+              method: 'POST',
+              headers: {
+                'content-type': 'application/json',
+                authorization: `Bearer ${session.access_token}`,
+              },
+              body: JSON.stringify({ recoveryCode: pendingRecoveryCode }),
+            });
+
+            if (recoveryResponse.ok) {
+              hasRecoveryCode = true;
+              clearPendingSignupRecoveryDraft(resolvedScreenname);
+            } else {
+              const recoveryMessage = await readApiError(recoveryResponse);
+              setRecoverySetupError(recoveryMessage);
+            }
+          } catch (error) {
+            const message = error instanceof Error ? error.message : 'Could not finish recovery setup.';
+            setRecoverySetupError(message);
+          }
+        }
+      }
+
       setIsRecoverySetupOpen(!hasRecoveryCode);
 
       let adminFlag = false;
@@ -2682,8 +2744,8 @@ function BuddyListContent() {
       return;
     }
 
-    const buddiesChannel = supabase
-      .channel(`buddies:${userId}`)
+    const outgoingBuddiesChannel = supabase
+      .channel(`buddies:outgoing:${userId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'buddies', filter: `user_id=eq.${userId}` },
@@ -2693,8 +2755,20 @@ function BuddyListContent() {
       )
       .subscribe();
 
+    const incomingBuddiesChannel = supabase
+      .channel(`buddies:incoming:${userId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'buddies', filter: `buddy_id=eq.${userId}` },
+        () => {
+          void loadBuddies(userId);
+        },
+      )
+      .subscribe();
+
     return () => {
-      void supabase.removeChannel(buddiesChannel);
+      void supabase.removeChannel(outgoingBuddiesChannel);
+      void supabase.removeChannel(incomingBuddiesChannel);
     };
   }, [loadBuddies, userId]);
 
@@ -3429,23 +3503,6 @@ function BuddyListContent() {
     });
   }, [activeChatBuddyId, userId]);
 
-  const handleAcceptPendingRequest = useCallback(
-    (senderId: string) => {
-      setPendingRequestError(null);
-      setPendingRequests((previous) => previous.filter((request) => request.senderId !== senderId));
-      setTemporaryChatAllowedIds((previous) =>
-        previous.includes(senderId) ? previous : [...previous, senderId],
-      );
-      openChatWindowForId(senderId);
-    },
-    [openChatWindowForId],
-  );
-
-  const handleDeclinePendingRequest = useCallback((senderId: string) => {
-    setPendingRequestError(null);
-    setPendingRequests((previous) => previous.filter((request) => request.senderId !== senderId));
-  }, []);
-
   const sendAutoAwayReply = useCallback(
     async (senderId: string, incomingContent: string) => {
       if (!userId) {
@@ -4166,6 +4223,7 @@ function BuddyListContent() {
     setRecoveryCodeConfirmDraft('');
     setIsRecoverySetupOpen(false);
     setIsSavingRecoveryCode(false);
+    clearPendingSignupRecoveryDraft(screennameRef.current);
   };
 
   const handleGenerateRecoveryCodeDraft = async () => {
@@ -4523,6 +4581,82 @@ function BuddyListContent() {
     setSearchResults(data.filter((profile) => !blockedUserIdsRef.current.has(profile.id)));
   };
 
+  const getBuddyRelationshipSnapshot = useCallback(
+    async (buddyId: string) => {
+      if (!userId) {
+        return {
+          outgoingStatus: null as Buddy['relationshipStatus'] | null,
+          incomingStatus: null as Buddy['relationshipStatus'] | null,
+        };
+      }
+
+      const { data, error } = await supabase
+        .from('buddies')
+        .select('user_id,buddy_id,status')
+        .or(`and(user_id.eq.${userId},buddy_id.eq.${buddyId}),and(user_id.eq.${buddyId},buddy_id.eq.${userId})`)
+        .in('status', ['accepted', 'pending']);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      let outgoingStatus: Buddy['relationshipStatus'] | null = null;
+      let incomingStatus: Buddy['relationshipStatus'] | null = null;
+      for (const row of (data ?? []) as BuddyRelationshipRecord[]) {
+        if (row.user_id === userId && row.buddy_id === buddyId) {
+          outgoingStatus = row.status;
+        }
+        if (row.user_id === buddyId && row.buddy_id === userId) {
+          incomingStatus = row.status;
+        }
+      }
+
+      return { outgoingStatus, incomingStatus };
+    },
+    [userId],
+  );
+
+  const acceptBuddyById = useCallback(
+    async (buddyId: string) => {
+      if (!userId) {
+        return false;
+      }
+
+      const [outgoingResponse, incomingResponse] = await Promise.all([
+        supabase.from('buddies').upsert(
+          {
+            user_id: userId,
+            buddy_id: buddyId,
+            status: 'accepted',
+          },
+          { onConflict: 'user_id,buddy_id' },
+        ),
+        supabase.from('buddies').upsert(
+          {
+            user_id: buddyId,
+            buddy_id: userId,
+            status: 'accepted',
+          },
+          { onConflict: 'user_id,buddy_id' },
+        ),
+      ]);
+
+      const relationshipError = outgoingResponse.error ?? incomingResponse.error;
+      if (relationshipError) {
+        setSearchError(relationshipError.message);
+        setProfileSheetError(relationshipError.message);
+        setPendingRequestError(relationshipError.message);
+        return false;
+      }
+
+      await loadBuddies(userId);
+      setPendingRequestError(null);
+      setProfileSheetError(null);
+      return true;
+    },
+    [loadBuddies, userId],
+  );
+
   const handleAddBuddyById = useCallback(async (buddyId: string) => {
     if (!userId) {
       return false;
@@ -4532,27 +4666,49 @@ function BuddyListContent() {
     setSearchError(null);
     setProfileSheetError(null);
 
-    const { error } = await supabase.from('buddies').upsert(
-      {
-        user_id: userId,
-        buddy_id: buddyId,
-        status: 'accepted',
-      },
-      { onConflict: 'user_id,buddy_id' },
-    );
+    try {
+      const { outgoingStatus, incomingStatus } = await getBuddyRelationshipSnapshot(buddyId);
 
-    setIsAddingBuddyId(null);
+      if (outgoingStatus === 'accepted' || incomingStatus === 'accepted' || incomingStatus === 'pending') {
+        const accepted = await acceptBuddyById(buddyId);
+        setIsAddingBuddyId(null);
+        return accepted;
+      }
 
-    if (error) {
-      setSearchError(error.message);
-      setProfileSheetError(error.message);
+      if (outgoingStatus === 'pending') {
+        setProfileSheetFeedback('Buddy request already sent.');
+        setIsAddingBuddyId(null);
+        return true;
+      }
+
+      const { error } = await supabase.from('buddies').upsert(
+        {
+          user_id: userId,
+          buddy_id: buddyId,
+          status: 'pending',
+        },
+        { onConflict: 'user_id,buddy_id' },
+      );
+
+      setIsAddingBuddyId(null);
+
+      if (error) {
+        setSearchError(error.message);
+        setProfileSheetError(error.message);
+        return false;
+      }
+
+      await loadBuddies(userId);
+      setProfileSheetFeedback('Buddy request sent.');
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not update buddy request.';
+      setSearchError(message);
+      setProfileSheetError(message);
+      setIsAddingBuddyId(null);
       return false;
     }
-
-    await loadBuddies(userId);
-    setProfileSheetError(null);
-    return true;
-  }, [loadBuddies, userId]);
+  }, [acceptBuddyById, getBuddyRelationshipSnapshot, loadBuddies, userId]);
 
   const handleAddBuddy = async (profile: UserProfile) => {
     const added = await handleAddBuddyById(profile.id);
@@ -4564,6 +4720,59 @@ function BuddyListContent() {
     setSearchTerm('');
     setSearchResults([]);
   };
+
+  const handleAcceptPendingRequest = useCallback(
+    async (senderId: string) => {
+      if (!userId) {
+        return;
+      }
+
+      setPendingRequestError(null);
+      setIsProcessingRequestId(senderId);
+
+      const accepted = await acceptBuddyById(senderId);
+      setIsProcessingRequestId(null);
+      if (!accepted) {
+        return;
+      }
+
+      setPendingRequests((previous) => previous.filter((request) => request.senderId !== senderId));
+      setTemporaryChatAllowedIds((previous) =>
+        previous.includes(senderId) ? previous : [...previous, senderId],
+      );
+      openChatWindowForId(senderId);
+    },
+    [acceptBuddyById, openChatWindowForId, userId],
+  );
+
+  const handleDeclinePendingRequest = useCallback(
+    async (senderId: string) => {
+      if (!userId) {
+        return;
+      }
+
+      setPendingRequestError(null);
+      setIsProcessingRequestId(senderId);
+
+      const { error } = await supabase
+        .from('buddies')
+        .delete()
+        .eq('user_id', senderId)
+        .eq('buddy_id', userId)
+        .eq('status', 'pending');
+
+      setIsProcessingRequestId(null);
+
+      if (error) {
+        setPendingRequestError(error.message);
+        return;
+      }
+
+      setPendingRequests((previous) => previous.filter((request) => request.senderId !== senderId));
+      await loadBuddies(userId);
+    },
+    [loadBuddies, userId],
+  );
 
   const handleRemoveBuddy = useCallback(async (buddyId: string) => {
     if (!userId) {
