@@ -250,6 +250,7 @@ export default function ChatWindow({
   const [voiceNoteError, setVoiceNoteError] = useState<string | null>(null);
   const [enableSupplementalRealtime, setEnableSupplementalRealtime] = useState(false);
   const [composerAreaHeight, setComposerAreaHeight] = useState(0);
+  const [isComposerFocused, setIsComposerFocused] = useState(false);
   const [replyingToMessageId, setReplyingToMessageId] = useState<number | null>(null);
   const [showMediaGallery, setShowMediaGallery] = useState(false);
   const [mediaGalleryFilter, setMediaGalleryFilter] = useState<MediaGalleryFilter>('all');
@@ -307,10 +308,6 @@ export default function ChatWindow({
   useEffect(() => {
     setDraft(initialDraft);
   }, [initialDraft]);
-
-  useEffect(() => {
-    focusComposer();
-  }, [focusComposer]);
 
   useEffect(() => {
     if (showConversationMenu) {
@@ -2088,7 +2085,7 @@ export default function ChatWindow({
             ) : null}
             <div className="flex items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-2">
-                {!isKeyboardOpen ? (
+                {!isComposerFocused ? (
                   <button
                     type="button"
                     onClick={focusComposer}
@@ -2330,7 +2327,10 @@ export default function ChatWindow({
                 onChange={(event) => handleDraftChange(event.target.value)}
                 onKeyDown={handleDraftKeyDown}
                 onFocus={() => {
-                  focusComposer();
+                  setIsComposerFocused(true);
+                }}
+                onBlur={() => {
+                  setIsComposerFocused(false);
                 }}
                 placeholder={replyingToMessage ? `Reply to ${buddyScreenname}…` : 'Message…'}
                 rows={1}

@@ -207,6 +207,7 @@ export default function GroupChatWindow({
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [attachmentLoadError, setAttachmentLoadError] = useState<string | null>(null);
   const [composerAreaHeight, setComposerAreaHeight] = useState(0);
+  const [isComposerFocused, setIsComposerFocused] = useState(false);
   const [enableSupplementalRealtime, setEnableSupplementalRealtime] = useState(false);
 
   const [isClosing, setIsClosing] = useState(false);
@@ -280,10 +281,6 @@ export default function GroupChatWindow({
   useEffect(() => {
     setDraft(initialDraft);
   }, [initialDraft]);
-
-  useEffect(() => {
-    focusComposer();
-  }, [focusComposer]);
 
   useEffect(() => {
     const intervalId = setInterval(() => {
@@ -1906,7 +1903,7 @@ export default function GroupChatWindow({
             ) : null}
             <div className="flex items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-2">
-                {!isKeyboardOpen ? (
+                {!isComposerFocused ? (
                   <button
                     type="button"
                     onClick={focusComposer}
@@ -2071,7 +2068,10 @@ export default function GroupChatWindow({
                 onChange={(event) => handleDraftChange(event.target.value)}
                 onKeyDown={handleDraftKeyDown}
                 onFocus={() => {
-                  focusComposer();
+                  setIsComposerFocused(true);
+                }}
+                onBlur={() => {
+                  setIsComposerFocused(false);
                 }}
                 placeholder={mentioningMessage ? `Reply in #${roomName}…` : `Message #${roomName}…`}
                 rows={1}
