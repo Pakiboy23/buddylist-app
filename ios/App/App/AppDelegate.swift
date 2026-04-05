@@ -57,10 +57,10 @@ fileprivate struct BuddyListShellChromeState: Decodable, Equatable {
 
     init(
         title: String = "Buddy List",
-        subtitle: String? = nil,
+        subtitle: String? = "Private messaging for buddies",
         mode: BuddyListShellMode = .standard,
         activeTab: BuddyListShellTab = .im,
-        tabBarVisibility: BuddyListShellTabBarVisibility = .hidden,
+        tabBarVisibility: BuddyListShellTabBarVisibility = .visible,
         leadingAction: BuddyListShellAction? = nil,
         trailingActions: [BuddyListShellAction] = [],
         accentTone: BuddyListShellAccentTone = .blue,
@@ -68,8 +68,8 @@ fileprivate struct BuddyListShellChromeState: Decodable, Equatable {
         isDark: Bool = false,
         isAdminUser: Bool = false,
         unreadDirectCount: Int = 0,
-        showsTopChrome: Bool = false,
-        showsBottomChrome: Bool = false
+        showsTopChrome: Bool = true,
+        showsBottomChrome: Bool = true
     ) {
         self.title = title
         self.subtitle = subtitle
@@ -116,7 +116,7 @@ fileprivate struct BuddyListShellChromeState: Decodable, Equatable {
         let activeTabValue = try container.decodeIfPresent(String.self, forKey: .activeTab) ?? BuddyListShellTab.im.rawValue
         activeTab = BuddyListShellTab(rawValue: activeTabValue) ?? .im
         tabBarVisibility = try container.decodeIfPresent(BuddyListShellTabBarVisibility.self, forKey: .tabBarVisibility)
-            ?? .hidden
+            ?? .visible
         leadingAction = try container.decodeIfPresent(BuddyListShellAction.self, forKey: .leadingAction)
         trailingActions = try container.decodeIfPresent([BuddyListShellAction].self, forKey: .trailingActions)
             ?? []
@@ -125,8 +125,8 @@ fileprivate struct BuddyListShellChromeState: Decodable, Equatable {
         isDark = try container.decodeIfPresent(Bool.self, forKey: .isDark) ?? false
         isAdminUser = try container.decodeIfPresent(Bool.self, forKey: .isAdminUser) ?? false
         unreadDirectCount = max(0, try container.decodeIfPresent(Int.self, forKey: .unreadDirectCount) ?? 0)
-        showsTopChrome = try container.decodeIfPresent(Bool.self, forKey: .showsTopChrome) ?? false
-        showsBottomChrome = try container.decodeIfPresent(Bool.self, forKey: .showsBottomChrome) ?? false
+        showsTopChrome = try container.decodeIfPresent(Bool.self, forKey: .showsTopChrome) ?? true
+        showsBottomChrome = try container.decodeIfPresent(Bool.self, forKey: .showsBottomChrome) ?? true
     }
 
     var resolvedLeadingAction: BuddyListShellAction? {

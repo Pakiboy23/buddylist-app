@@ -134,15 +134,29 @@ export async function publishNativeShellChromeState(state: NativeShellChromeStat
     return;
   }
 
-  try {
-    const availability = await BuddyListShell.isAvailable();
-    if (!availability.available) {
-      return;
-    }
+  let lastError: unknown = null;
 
-    await BuddyListShell.setChromeState(state);
-  } catch (error) {
-    console.warn('Native shell state update failed:', error);
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      const availability = await BuddyListShell.isAvailable();
+      if (!availability.available) {
+        return;
+      }
+
+      await BuddyListShell.setChromeState(state);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt === 3) {
+        break;
+      }
+
+      await new Promise((resolve) => window.setTimeout(resolve, 120 * (attempt + 1)));
+    }
+  }
+
+  if (lastError) {
+    console.warn('Native shell state update failed:', lastError);
   }
 }
 
