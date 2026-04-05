@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import GlobalNotificationListener from "@/components/GlobalNotificationListener";
+import NativeShellRouteSync from "@/components/NativeShellRouteSync";
 import PwaBootstrap from "@/components/PwaBootstrap";
 import { ChatProvider } from "@/context/ChatContext";
 import "./globals.css";
@@ -47,6 +48,9 @@ export default function RootLayout({
         <ChatProvider>
           {children}
           <PwaBootstrap />
+          <Suspense fallback={null}>
+            <NativeShellRouteSync />
+          </Suspense>
           <Suspense fallback={null}>
             <GlobalNotificationListener />
           </Suspense>

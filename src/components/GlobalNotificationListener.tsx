@@ -226,7 +226,7 @@ export default function GlobalNotificationListener() {
   }, []);
 
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) {
+    if (!Capacitor.isNativePlatform() || !currentUserId || !pathname.startsWith(BUDDY_LIST_PATH)) {
       return;
     }
 
@@ -275,7 +275,7 @@ export default function GlobalNotificationListener() {
       localNotificationsEnabledRef.current = false;
       removeActionListener?.();
     };
-  }, [router]);
+  }, [currentUserId, pathname, router]);
 
   useEffect(() => {
     let isMounted = true;
@@ -460,7 +460,7 @@ export default function GlobalNotificationListener() {
   }, []);
 
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) {
+    if (!Capacitor.isNativePlatform() || !currentUserId || !pathname.startsWith(BUDDY_LIST_PATH)) {
       return;
     }
 
@@ -551,7 +551,7 @@ export default function GlobalNotificationListener() {
         void handle.remove();
       });
     };
-  }, [enqueueBanner, persistPushToken, router]);
+  }, [currentUserId, enqueueBanner, pathname, persistPushToken, router]);
 
   const resolveSenderNameById = useCallback(async (senderId: string, fallbackScreenname?: string | null) => {
     if (typeof fallbackScreenname === 'string' && fallbackScreenname.trim()) {
