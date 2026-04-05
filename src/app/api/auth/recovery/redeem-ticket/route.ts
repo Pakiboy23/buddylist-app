@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server';
 import {
   checkResetAttemptAllowed,
   clearFailedResetAttempts,
@@ -14,9 +13,11 @@ import {
   upsertRecoveryCodeForUser,
   updateAuthPassword,
 } from '@/lib/passwordRecovery';
+import { createCorsPreflightResponse, jsonWithCors } from '@/lib/apiCors';
 import { createSupabaseAdminClient } from '@/lib/supabaseServer';
 
 export const runtime = 'nodejs';
+const REDEEM_TICKET_METHODS = ['POST'];
 
 interface RedeemTicketBody {
   screenname?: string;
@@ -29,12 +30,16 @@ const INVALID_TICKET_MESSAGE =
 const TICKET_FLOW_RATE_LIMIT_PREFIX = 'ticket_redeem';
 const TOO_MANY_ATTEMPTS_MESSAGE = 'Too many attempts. Try again shortly.';
 
+export function OPTIONS(request: Request) {
+  return createCorsPreflightResponse(request, REDEEM_TICKET_METHODS);
+}
+
 export async function POST(request: Request) {
   let body: RedeemTicketBody;
   try {
     body = (await request.json()) as RedeemTicketBody;
   } catch {
-    return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 });
+    return jsonWithCors(request, { error: 'Invalid request body.' }, { status: 400 }, REDEEM_TICKET_METHODS);
   }
 
   const screennameKey = normalizeScreennameKey(typeof body.screenname === 'string' ? body.screenname : '');
@@ -42,11 +47,16 @@ export async function POST(request: Request) {
   const newPassword = typeof body.newPassword === 'string' ? body.newPassword : '';
 
   if (!screennameKey || !ticket || !newPassword) {
-    return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 });
+    return jsonWithCors(request, { error: 'Missing required fields.' }, { status: 400 }, REDEEM_TICKET_METHODS);
   }
 
   if (!isStrongEnoughPassword(newPassword)) {
-    return NextResponse.json({ error: 'Password must be between 8 and 128 characters.' }, { status: 400 });
+    return jsonWithCors(
+      request,
+      { error: 'Password must be between 8 and 128 characters.' },
+      { status: 400 },
+      REDEEM_TICKET_METHODS,
+    );
   }
 
   const ipHash = hashIp(extractClientIp(request));
@@ -62,9 +72,11 @@ export async function POST(request: Request) {
         ipHash,
         retryAfterSeconds: rateLimitStatus.retryAfterSeconds,
       });
-      return NextResponse.json(
+      return jsonWithCors(
+        request,
         { error: TOO_MANY_ATTEMPTS_MESSAGE, retryAfterSeconds: rateLimitStatus.retryAfterSeconds },
         { status: 429 },
+        REDEEM_TICKET_METHODS,
       );
     }
 
@@ -77,7 +89,7 @@ export async function POST(request: Request) {
         screennameKey,
         ipHash,
       });
-      return NextResponse.json({ error: INVALID_TICKET_MESSAGE }, { status: 401 });
+      return jsonWithCors(request, { error: INVALID_TICKET_MESSAGE }, { status: 401 }, REDEEM_TICKET_METHODS);
     }
 
     const redeemedTicketId = await redeemAdminResetTicket(admin, user.id, ticket);
@@ -87,7 +99,7 @@ export async function POST(request: Request) {
         reason: 'invalid_ticket',
         ipHash,
       });
-      return NextResponse.json({ error: INVALID_TICKET_MESSAGE }, { status: 401 });
+      return jsonWithCors(request, { error: INVALID_TICKET_MESSAGE }, { status: 401 }, REDEEM_TICKET_METHODS);
     }
 
     await clearFailedResetAttempts(admin, attemptScopeKey, ipHash);
@@ -99,9 +111,9 @@ export async function POST(request: Request) {
       ipHash,
     });
 
-    return NextResponse.json({ ok: true, nextRecoveryCode });
+    return jsonWithCors(request, { ok: true, nextRecoveryCode }, undefined, REDEEM_TICKET_METHODS);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to redeem ticket.';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return jsonWithCors(request, { error: message }, { status: 500 }, REDEEM_TICKET_METHODS);
   }
 }

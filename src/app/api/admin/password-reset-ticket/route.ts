@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server';
 import {
   assertAdminUser,
   checkResetAttemptAllowed,
@@ -11,9 +10,11 @@ import {
   normalizeScreennameKey,
   registerFailedResetAttempt,
 } from '@/lib/passwordRecovery';
+import { createCorsPreflightResponse, jsonWithCors } from '@/lib/apiCors';
 import { createSupabaseAdminClient, getRequestUser } from '@/lib/supabaseServer';
 
 export const runtime = 'nodejs';
+const PASSWORD_RESET_TICKET_METHODS = ['POST'];
 
 interface TicketIssueBody {
   screenname?: string;
@@ -22,22 +23,36 @@ interface TicketIssueBody {
 const ADMIN_TICKET_RATE_LIMIT_PREFIX = 'admin_ticket_issue';
 const TOO_MANY_ATTEMPTS_MESSAGE = 'Too many attempts. Try again shortly.';
 
+export function OPTIONS(request: Request) {
+  return createCorsPreflightResponse(request, PASSWORD_RESET_TICKET_METHODS);
+}
+
 export async function POST(request: Request) {
   const actor = await getRequestUser(request);
   if (!actor) {
-    return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+    return jsonWithCors(request, { error: 'Unauthorized.' }, { status: 401 }, PASSWORD_RESET_TICKET_METHODS);
   }
 
   let body: TicketIssueBody;
   try {
     body = (await request.json()) as TicketIssueBody;
   } catch {
-    return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 });
+    return jsonWithCors(
+      request,
+      { error: 'Invalid request body.' },
+      { status: 400 },
+      PASSWORD_RESET_TICKET_METHODS,
+    );
   }
 
   const screennameKey = normalizeScreennameKey(typeof body.screenname === 'string' ? body.screenname : '');
   if (!screennameKey) {
-    return NextResponse.json({ error: 'Screen name is required.' }, { status: 400 });
+    return jsonWithCors(
+      request,
+      { error: 'Screen name is required.' },
+      { status: 400 },
+      PASSWORD_RESET_TICKET_METHODS,
+    );
   }
 
   const ipHash = hashIp(extractClientIp(request));
@@ -46,7 +61,7 @@ export async function POST(request: Request) {
     const admin = createSupabaseAdminClient();
     const isAdmin = await assertAdminUser(admin, actor.id);
     if (!isAdmin) {
-      return NextResponse.json({ error: 'Forbidden.' }, { status: 403 });
+      return jsonWithCors(request, { error: 'Forbidden.' }, { status: 403 }, PASSWORD_RESET_TICKET_METHODS);
     }
 
     const attemptScopeKey = `${ADMIN_TICKET_RATE_LIMIT_PREFIX}:${actor.id}:${screennameKey}`;
@@ -57,9 +72,11 @@ export async function POST(request: Request) {
         ipHash,
         retryAfterSeconds: rateLimitStatus.retryAfterSeconds,
       });
-      return NextResponse.json(
+      return jsonWithCors(
+        request,
         { error: TOO_MANY_ATTEMPTS_MESSAGE, retryAfterSeconds: rateLimitStatus.retryAfterSeconds },
         { status: 429 },
+        PASSWORD_RESET_TICKET_METHODS,
       );
     }
 
@@ -71,7 +88,7 @@ export async function POST(request: Request) {
         screennameKey,
         ipHash,
       });
-      return NextResponse.json({ error: 'User not found.' }, { status: 404 });
+      return jsonWithCors(request, { error: 'User not found.' }, { status: 404 }, PASSWORD_RESET_TICKET_METHODS);
     }
 
     await clearFailedResetAttempts(admin, attemptScopeKey, ipHash);
@@ -82,9 +99,9 @@ export async function POST(request: Request) {
       ipHash,
     });
 
-    return NextResponse.json({ ok: true, ticket, expiresAt });
+    return jsonWithCors(request, { ok: true, ticket, expiresAt }, undefined, PASSWORD_RESET_TICKET_METHODS);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to issue reset ticket.';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return jsonWithCors(request, { error: message }, { status: 500 }, PASSWORD_RESET_TICKET_METHODS);
   }
 }

@@ -1,6 +1,5 @@
 import * as http2 from 'http2';
 import { importPKCS8, SignJWT } from 'jose';
-import { NextResponse } from 'next/server';
 import {
   applyNotificationPreview,
   DEFAULT_USER_PRIVACY_SETTINGS,
@@ -8,12 +7,14 @@ import {
   type NotificationPreviewMode,
 } from '@/lib/privateChat';
 import { normalizeApplePushPrivateKey } from '@/lib/apnsKey';
+import { createCorsPreflightResponse, jsonWithCors } from '@/lib/apiCors';
 import { isPushEnvironmentSchemaMissingError } from '@/lib/pushEnvironmentSchema';
 import { htmlToPlainText } from '@/lib/richText';
 import { normalizeRoomKey } from '@/lib/roomName';
 import { createSupabaseAdminClient, getRequestUser } from '@/lib/supabaseServer';
 
 export const runtime = 'nodejs';
+const PUSH_DISPATCH_METHODS = ['POST'];
 
 interface DispatchBody {
   kind?: 'dm' | 'room' | 'buddy_request' | 'buddy_accept';
@@ -497,14 +498,14 @@ async function dispatchBuddyRelationshipPush(input: {
 export async function POST(request: Request) {
   const user = await getRequestUser(request);
   if (!user) {
-    return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+    return jsonWithCors(request, { error: 'Unauthorized.' }, { status: 401 }, PUSH_DISPATCH_METHODS);
   }
 
   let body: DispatchBody;
   try {
     body = (await request.json()) as DispatchBody;
   } catch {
-    return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 });
+    return jsonWithCors(request, { error: 'Invalid request body.' }, { status: 400 }, PUSH_DISPATCH_METHODS);
   }
 
   try {
@@ -513,17 +514,22 @@ export async function POST(request: Request) {
     if (body.kind === 'room') {
       const roomMessageId = typeof body.roomMessageId === 'string' ? body.roomMessageId.trim() : '';
       if (!roomMessageId) {
-        return NextResponse.json({ error: 'roomMessageId is required.' }, { status: 400 });
+        return jsonWithCors(
+          request,
+          { error: 'roomMessageId is required.' },
+          { status: 400 },
+          PUSH_DISPATCH_METHODS,
+        );
       }
 
       const result = await dispatchRoomMessagePush(admin, user.id, roomMessageId);
-      return NextResponse.json({ ok: true, ...result });
+      return jsonWithCors(request, { ok: true, ...result }, undefined, PUSH_DISPATCH_METHODS);
     }
 
     if (body.kind === 'buddy_request' || body.kind === 'buddy_accept') {
       const buddyId = typeof body.buddyId === 'string' ? body.buddyId.trim() : '';
       if (!buddyId) {
-        return NextResponse.json({ error: 'buddyId is required.' }, { status: 400 });
+        return jsonWithCors(request, { error: 'buddyId is required.' }, { status: 400 }, PUSH_DISPATCH_METHODS);
       }
 
       const result = await dispatchBuddyRelationshipPush({
@@ -532,19 +538,23 @@ export async function POST(request: Request) {
         buddyId,
         kind: body.kind,
       });
-      return NextResponse.json({ ok: true, ...result });
+      return jsonWithCors(request, { ok: true, ...result }, undefined, PUSH_DISPATCH_METHODS);
     }
 
     const messageId = typeof body.messageId === 'number' ? body.messageId : Number(body.messageId);
     if (!Number.isFinite(messageId) || messageId <= 0) {
-      return NextResponse.json({ error: 'messageId is required.' }, { status: 400 });
+      return jsonWithCors(request, { error: 'messageId is required.' }, { status: 400 }, PUSH_DISPATCH_METHODS);
     }
 
     const result = await dispatchDirectMessagePush(admin, user.id, messageId);
-    return NextResponse.json({ ok: true, ...result });
+    return jsonWithCors(request, { ok: true, ...result }, undefined, PUSH_DISPATCH_METHODS);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to dispatch push notification.';
     const status = message.includes('APPLE_PUSH_') ? 503 : 500;
-    return NextResponse.json({ error: message }, { status });
+    return jsonWithCors(request, { error: message }, { status }, PUSH_DISPATCH_METHODS);
   }
+}
+
+export function OPTIONS(request: Request) {
+  return createCorsPreflightResponse(request, PUSH_DISPATCH_METHODS);
 }

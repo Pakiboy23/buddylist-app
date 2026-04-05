@@ -1,9 +1,10 @@
-import { NextResponse } from 'next/server';
+import { createCorsPreflightResponse, jsonWithCors } from '@/lib/apiCors';
 import { assertAdminUser } from '@/lib/passwordRecovery';
 import { createSupabaseAdminClient, getRequestUser } from '@/lib/supabaseServer';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+const PASSWORD_RESET_AUDIT_METHODS = ['GET'];
 
 interface PasswordResetAuditRow {
   id: number;
@@ -39,10 +40,19 @@ const NO_STORE_HEADERS = {
   'Cache-Control': 'no-store',
 };
 
+export function OPTIONS(request: Request) {
+  return createCorsPreflightResponse(request, PASSWORD_RESET_AUDIT_METHODS);
+}
+
 export async function GET(request: Request) {
   const user = await getRequestUser(request);
   if (!user) {
-    return NextResponse.json({ error: 'Unauthorized.' }, { status: 401, headers: NO_STORE_HEADERS });
+    return jsonWithCors(
+      request,
+      { error: 'Unauthorized.' },
+      { status: 401, headers: NO_STORE_HEADERS },
+      PASSWORD_RESET_AUDIT_METHODS,
+    );
   }
 
   const limit = parseLimit(new URL(request.url).searchParams.get('limit'));
@@ -51,7 +61,12 @@ export async function GET(request: Request) {
     const admin = createSupabaseAdminClient();
     const isAdmin = await assertAdminUser(admin, user.id);
     if (!isAdmin) {
-      return NextResponse.json({ error: 'Forbidden.' }, { status: 403, headers: NO_STORE_HEADERS });
+      return jsonWithCors(
+        request,
+        { error: 'Forbidden.' },
+        { status: 403, headers: NO_STORE_HEADERS },
+        PASSWORD_RESET_AUDIT_METHODS,
+      );
     }
 
     const { data, error } = await admin
@@ -96,9 +111,14 @@ export async function GET(request: Request) {
       createdAt: row.created_at,
     }));
 
-    return NextResponse.json({ entries }, { headers: NO_STORE_HEADERS });
+    return jsonWithCors(request, { entries }, { headers: NO_STORE_HEADERS }, PASSWORD_RESET_AUDIT_METHODS);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to load password reset audit.';
-    return NextResponse.json({ error: message }, { status: 500, headers: NO_STORE_HEADERS });
+    return jsonWithCors(
+      request,
+      { error: message },
+      { status: 500, headers: NO_STORE_HEADERS },
+      PASSWORD_RESET_AUDIT_METHODS,
+    );
   }
 }
