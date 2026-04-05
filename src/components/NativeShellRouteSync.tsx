@@ -14,26 +14,12 @@ export default function NativeShellRouteSync() {
       return;
     }
 
-    const isDark =
-      typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
-
     if (pathname.startsWith(BUDDY_LIST_PATH)) {
-      void publishNativeShellChromeState({
-        title: 'Buddy List',
-        subtitle: 'Private messaging for buddies',
-        mode: 'standard',
-        activeTab: 'im',
-        tabBarVisibility: 'visible',
-        leadingAction: null,
-        trailingActions: ['openSaved', 'toggleTheme', 'openMenu'],
-        accentTone: 'blue',
-        canGoBack: false,
-        isDark,
-        showsTopChrome: true,
-        showsBottomChrome: true,
-      });
       return;
     }
+
+    const isDark =
+      typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
 
     void publishNativeShellChromeState({
       title: 'Buddy List',

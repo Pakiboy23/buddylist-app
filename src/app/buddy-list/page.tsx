@@ -72,6 +72,7 @@ import {
   withProfileSchemaDefaults,
   withProfileSchemaDefaultsList,
 } from '@/lib/profileSchema';
+import { isChatRoomsRoomKeyMissingError } from '@/lib/roomSchema';
 import { hapticLight, hapticWarning, hapticSelection } from '@/lib/haptics';
 import { initSoundSystem, playFallbackTone, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
@@ -836,6 +837,7 @@ function BuddyListContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nativeShellActive = isNativeIosShell();
+  const roomKeySchemaUnavailableRef = useRef(false);
   const {
     activeRooms,
     unreadMessages,
@@ -4951,80 +4953,180 @@ function BuddyListContent() {
 
     let resolvedRoom: ChatRoom | null = null;
 
-    const { data: existingRoom, error: existingRoomError } = await supabase
+    const normalizeChatRoomRecord = (room: Partial<ChatRoom> | null | undefined): ChatRoom | null => {
+      if (!room) {
+        return null;
+      }
+
+      const normalizedName = typeof room.name === 'string' ? room.name.trim() : '';
+      const roomId = typeof room.id === 'string' ? room.id : '';
+      if (!roomId || !normalizedName) {
+        return null;
+      }
+
+      return {
+        id: roomId,
+        name: normalizedName,
+        room_key: normalizeRoomKey(typeof room.room_key === 'string' ? room.room_key : normalizedName) || null,
+      };
+    };
+
+    const roomSelectFields = roomKeySchemaUnavailableRef.current ? 'id,name' : 'id,name,room_key';
+
+    const existingRoomResult = await supabase
       .from('chat_rooms')
-      .select('id,name,room_key')
+      .select(roomSelectFields)
       .eq('name', roomName)
       .maybeSingle();
+
+    let existingRoom = normalizeChatRoomRecord((existingRoomResult.data as Partial<ChatRoom> | null) ?? null);
+    let existingRoomError = existingRoomResult.error;
+
+    if (isChatRoomsRoomKeyMissingError(existingRoomError)) {
+      roomKeySchemaUnavailableRef.current = true;
+      const fallbackRoomResult = await supabase
+        .from('chat_rooms')
+        .select('id,name')
+        .eq('name', roomName)
+        .maybeSingle();
+      existingRoom = normalizeChatRoomRecord((fallbackRoomResult.data as Partial<ChatRoom> | null) ?? null);
+      existingRoomError = fallbackRoomResult.error;
+    }
 
     if (existingRoomError && existingRoomError.code !== 'PGRST116') {
       throw new Error(existingRoomError.message);
     }
 
     if (existingRoom) {
-      resolvedRoom = existingRoom as ChatRoom;
+      resolvedRoom = existingRoom;
     } else {
-      const { data: caseInsensitiveRoom, error: caseInsensitiveRoomError } = await supabase
+      const caseInsensitiveRoomResult = await supabase
         .from('chat_rooms')
-        .select('id,name,room_key')
+        .select(roomKeySchemaUnavailableRef.current ? 'id,name' : 'id,name,room_key')
         .ilike('name', roomName)
         .limit(1)
         .maybeSingle();
+
+      let caseInsensitiveRoom = normalizeChatRoomRecord(
+        (caseInsensitiveRoomResult.data as Partial<ChatRoom> | null) ?? null,
+      );
+      let caseInsensitiveRoomError = caseInsensitiveRoomResult.error;
+
+      if (isChatRoomsRoomKeyMissingError(caseInsensitiveRoomError)) {
+        roomKeySchemaUnavailableRef.current = true;
+        const fallbackRoomResult = await supabase
+          .from('chat_rooms')
+          .select('id,name')
+          .ilike('name', roomName)
+          .limit(1)
+          .maybeSingle();
+        caseInsensitiveRoom = normalizeChatRoomRecord(
+          (fallbackRoomResult.data as Partial<ChatRoom> | null) ?? null,
+        );
+        caseInsensitiveRoomError = fallbackRoomResult.error;
+      }
 
       if (caseInsensitiveRoomError && caseInsensitiveRoomError.code !== 'PGRST116') {
         throw new Error(caseInsensitiveRoomError.message);
       }
 
       if (caseInsensitiveRoom) {
-        resolvedRoom = caseInsensitiveRoom as ChatRoom;
+        resolvedRoom = caseInsensitiveRoom;
       }
     }
 
-    if (!resolvedRoom) {
-      const { data: keyedRoom, error: keyedRoomError } = await supabase
+    if (!resolvedRoom && !roomKeySchemaUnavailableRef.current) {
+      const keyedRoomResult = await supabase
         .from('chat_rooms')
         .select('id,name,room_key')
         .eq('room_key', roomKey)
         .limit(1)
         .maybeSingle();
 
+      let keyedRoom = normalizeChatRoomRecord((keyedRoomResult.data as Partial<ChatRoom> | null) ?? null);
+      let keyedRoomError = keyedRoomResult.error;
+
+      if (isChatRoomsRoomKeyMissingError(keyedRoomError)) {
+        roomKeySchemaUnavailableRef.current = true;
+        keyedRoom = null;
+        keyedRoomError = null;
+      }
+
       if (keyedRoomError && keyedRoomError.code !== 'PGRST116') {
         throw new Error(keyedRoomError.message);
       }
 
       if (keyedRoom) {
-        resolvedRoom = keyedRoom as ChatRoom;
+        resolvedRoom = keyedRoom;
       }
     }
 
     if (!resolvedRoom && allowCreate) {
-      const { data: createdRoom, error: createRoomError } = await supabase
+      const createdRoomResult = await supabase
         .from('chat_rooms')
-        .insert({ name: roomName, room_key: roomKey })
-        .select('id,name,room_key')
+        .insert(roomKeySchemaUnavailableRef.current ? { name: roomName } : { name: roomName, room_key: roomKey })
+        .select(roomKeySchemaUnavailableRef.current ? 'id,name' : 'id,name,room_key')
         .single();
+
+      let createdRoom = normalizeChatRoomRecord((createdRoomResult.data as Partial<ChatRoom> | null) ?? null);
+      let createRoomError = createdRoomResult.error;
+
+      if (isChatRoomsRoomKeyMissingError(createRoomError)) {
+        roomKeySchemaUnavailableRef.current = true;
+        const fallbackCreateRoomResult = await supabase
+          .from('chat_rooms')
+          .insert({ name: roomName })
+          .select('id,name')
+          .single();
+        createdRoom = normalizeChatRoomRecord(
+          (fallbackCreateRoomResult.data as Partial<ChatRoom> | null) ?? null,
+        );
+        createRoomError = fallbackCreateRoomResult.error;
+      }
 
       if (createRoomError && createRoomError.code !== '23505') {
         throw new Error(createRoomError.message);
       }
 
       if (createdRoom) {
-        resolvedRoom = createdRoom as ChatRoom;
+        resolvedRoom = createdRoom;
       }
     }
 
     if (!resolvedRoom && allowCreate) {
-      const { data: racedRoom, error: racedRoomError } = await supabase
-        .from('chat_rooms')
-        .select('id,name,room_key')
-        .eq('room_key', roomKey)
-        .maybeSingle();
+      const racedRoomResult = roomKeySchemaUnavailableRef.current
+        ? await supabase
+            .from('chat_rooms')
+            .select('id,name')
+            .ilike('name', roomName)
+            .limit(1)
+            .maybeSingle()
+        : await supabase
+            .from('chat_rooms')
+            .select('id,name,room_key')
+            .eq('room_key', roomKey)
+            .maybeSingle();
+
+      let racedRoom = normalizeChatRoomRecord((racedRoomResult.data as Partial<ChatRoom> | null) ?? null);
+      let racedRoomError = racedRoomResult.error;
+
+      if (isChatRoomsRoomKeyMissingError(racedRoomError)) {
+        roomKeySchemaUnavailableRef.current = true;
+        const fallbackRacedRoomResult = await supabase
+          .from('chat_rooms')
+          .select('id,name')
+          .ilike('name', roomName)
+          .limit(1)
+          .maybeSingle();
+        racedRoom = normalizeChatRoomRecord((fallbackRacedRoomResult.data as Partial<ChatRoom> | null) ?? null);
+        racedRoomError = fallbackRacedRoomResult.error;
+      }
 
       if (racedRoomError) {
         throw new Error(racedRoomError.message);
       }
 
-      resolvedRoom = racedRoom as ChatRoom | null;
+      resolvedRoom = racedRoom;
     }
 
     return resolvedRoom;

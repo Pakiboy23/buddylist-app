@@ -14,6 +14,7 @@ import { waitForSessionOrNull } from '@/lib/authClient';
 import { getRaw, removeValue, setVersionedData, subscribeToStorageKey } from '@/lib/clientStorage';
 import { setAppBadgeCount } from '@/lib/badge';
 import { normalizeRoomKey, normalizeRoomName } from '@/lib/roomName';
+import { isUserActiveRoomsRoomKeyMissingError } from '@/lib/roomSchema';
 import { initSoundSystem, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
 
@@ -281,6 +282,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const userIdRef = useRef<string | null>(null);
   const cacheWriteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const syncInFlightRef = useRef<Promise<void> | null>(null);
+  const userActiveRoomKeySchemaUnavailableRef = useRef(false);
 
   useEffect(() => {
     roomsRef.current = rooms;
@@ -317,14 +319,43 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setLastSyncError(null);
 
       for (let attempt = 0; attempt <= SYNC_RETRY_DELAYS_MS.length; attempt += 1) {
-        const { data, error } = await supabase
-          .from('user_active_rooms')
-          .select('user_id,room_key,room_name,unread_count,updated_at')
-          .eq('user_id', sessionUserId)
-          .order('updated_at', { ascending: false });
+        let rows: UserActiveRoomRow[] = [];
+        let error: { message: string; code?: string | null; details?: string | null; hint?: string | null } | null =
+          null;
+
+        if (userActiveRoomKeySchemaUnavailableRef.current) {
+          const fallbackResult = await supabase
+            .from('user_active_rooms')
+            .select('*')
+            .eq('user_id', sessionUserId)
+            .order('updated_at', { ascending: false });
+
+          rows = (fallbackResult.data ?? []) as UserActiveRoomRow[];
+          error = fallbackResult.error;
+        } else {
+          const primaryResult = await supabase
+            .from('user_active_rooms')
+            .select('user_id,room_key,room_name,unread_count,updated_at')
+            .eq('user_id', sessionUserId)
+            .order('updated_at', { ascending: false });
+
+          rows = (primaryResult.data ?? []) as UserActiveRoomRow[];
+          error = primaryResult.error;
+
+          if (isUserActiveRoomsRoomKeyMissingError(error)) {
+            userActiveRoomKeySchemaUnavailableRef.current = true;
+            const fallbackResult = await supabase
+              .from('user_active_rooms')
+              .select('*')
+              .eq('user_id', sessionUserId)
+              .order('updated_at', { ascending: false });
+
+            rows = (fallbackResult.data ?? []) as UserActiveRoomRow[];
+            error = fallbackResult.error;
+          }
+        }
 
         if (!error) {
-          const rows = (data ?? []) as UserActiveRoomRow[];
           const nextRooms = mapRowsToStoredRooms(rows);
           setRooms((previous) => (areRoomsEqual(previous, nextRooms) ? previous : nextRooms));
           setLastSyncedAt(new Date().toISOString());
