@@ -5763,6 +5763,7 @@ function BuddyListContent() {
       isDark: shellIsDark,
       isAdminUser,
       unreadDirectCount: totalUnreadDirectCount,
+      showsTopChrome: true,
       showsBottomChrome: nativeShellShowsBottomChrome,
     });
   }, [
