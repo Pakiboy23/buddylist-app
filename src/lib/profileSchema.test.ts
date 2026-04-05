@@ -27,7 +27,7 @@ describe('isProfileSchemaMissingError', () => {
 
 describe('getProfileSchemaMigrationMessage', () => {
   it('references the migration file', () => {
-    expect(getProfileSchemaMigrationMessage()).toContain('supabase/presence_profiles.sql');
+    expect(getProfileSchemaMigrationMessage()).toContain('supabase/migrations/20260320000011_presence_profiles.sql');
   });
 });
 

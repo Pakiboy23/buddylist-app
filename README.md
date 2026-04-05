@@ -30,6 +30,25 @@ A retro AIM-style messaging app built with Next.js + Supabase, now mobile-first 
 - DM and room chat support file attachments via Supabase Storage (`chat-media`) + metadata tables.
 - Offline-safe local outbox (`buddylist:outbox:v1:<userId>`) retries queued DM/room sends with backoff.
 
+## Messaging Feature Policy
+
+BuddyList intentionally does not treat direct messages and rooms as the same product surface. The current v1 policy is:
+
+| Capability | DMs | Rooms | Decision |
+|---|---|---|---|
+| Soft edit / delete | Yes | Yes | Keep parity. Core message hygiene belongs in both surfaces. |
+| Emoji reactions | Yes | Yes | Keep parity. Reactions are now wired end to end in both DM and room chat. |
+| Attachments / media | Yes | Yes | Keep parity at the file/media layer. |
+| Inline search | Yes | Yes | Keep parity. Search is table stakes in both surfaces. |
+| Presence / membership context | Buddy presence | Room participant presence | Different on purpose. DMs are relationship-first; rooms are audience-first. |
+| Read receipts | Yes | No | Rooms do not expose per-user read state in v1. Too noisy and socially heavy for shared threads. |
+| Delivery tracking | Yes | No | Rooms do not model message delivery state per participant in v1. |
+| Forwarding | Yes | No | Forwarding remains DM-only in v1 until room moderation/distribution rules are defined. |
+| Disappearing messages (`expires_at`) | Yes | No | Ephemeral expiry is a private-conversation feature in v1, not a shared-room behavior. |
+| Voice note preview type | Yes | No | DMs keep the richer voice-note metadata path; rooms stay on the simpler shared attachment model in v1. |
+
+This is a product decision, not an unfinished parity backlog. If a room feature is not listed as supported above, assume it is intentionally out of scope until the room model is explicitly expanded.
+
 ## Stack
 
 - Next.js 16 (App Router, Turbopack)
@@ -101,17 +120,52 @@ npm install
 2. Apply Supabase SQL migrations in this order:
 
 ```text
-supabase/gtm_plan.sql
-supabase/chat_rooms.sql
-supabase/password_recovery_admin.sql
-supabase/persistent_chat_state.sql
-supabase/room_participants.sql
-supabase/room_unread_fanout.sql
-supabase/message_idempotency.sql
-supabase/dm_state.sql
-supabase/message_enhancements.sql
-supabase/chat_media.sql
-supabase/presence_profiles.sql
+supabase/migrations/20260320000001_gtm_plan.sql
+supabase/migrations/20260320000002_chat_rooms.sql
+supabase/migrations/20260320000003_password_recovery_admin.sql
+supabase/migrations/20260320000004_persistent_chat_state.sql
+supabase/migrations/20260320000005_room_participants.sql
+supabase/migrations/20260320000006_room_unread_fanout.sql
+supabase/migrations/20260320000007_message_idempotency.sql
+supabase/migrations/20260320000008_dm_state.sql
+supabase/migrations/20260320000009_message_enhancements.sql
+supabase/migrations/20260320000010_chat_media.sql
+supabase/migrations/20260320000011_presence_profiles.sql
+supabase/migrations/20260328000012_user_push_tokens.sql
+supabase/migrations/20260328000013_private_chat_foundation.sql
+supabase/migrations/20260328000014_trust_safety_slice.sql
+supabase/migrations/20260328000015_send_push_trigger.sql
+supabase/migrations/20260405034615_room_key_foreign_keys.sql
+```
+
+The legacy readable SQL snapshots still live in `supabase/*.sql`, but `supabase/migrations/` is the canonical CLI-managed history.
+
+If the remote project already has these schema changes and you are adopting Supabase CLI after the fact:
+
+```bash
+supabase login
+
+supabase migration repair --status applied 20260320000001
+supabase migration repair --status applied 20260320000002
+supabase migration repair --status applied 20260320000003
+supabase migration repair --status applied 20260320000004
+supabase migration repair --status applied 20260320000005
+supabase migration repair --status applied 20260320000006
+supabase migration repair --status applied 20260320000007
+supabase migration repair --status applied 20260320000008
+supabase migration repair --status applied 20260320000009
+supabase migration repair --status applied 20260320000010
+supabase migration repair --status applied 20260320000011
+supabase migration repair --status applied 20260328000012
+supabase migration repair --status applied 20260328000013
+supabase migration repair --status applied 20260328000014
+supabase migration repair --status applied 20260328000015
+```
+
+Then create/apply any new migrations normally and confirm the history:
+
+```bash
+supabase migration list
 ```
 
 3. (Optional but recommended) seed at least one admin:

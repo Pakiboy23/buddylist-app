@@ -3,6 +3,7 @@
 import { FormEvent, KeyboardEvent, type CSSProperties, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import AppIcon from '@/components/AppIcon';
 import ChatMediaGallerySheet, { type ChatMediaGalleryItem } from '@/components/ChatMediaGallerySheet';
+import { MessageReactionPicker, MessageReactionStrip } from '@/components/MessageReactions';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import RetroWindow from '@/components/RetroWindow';
 import RichTextToolbar from '@/components/RichTextToolbar';
@@ -27,6 +28,7 @@ import {
   sanitizeRichTextHtml,
 } from '@/lib/richText';
 import { hapticLight, hapticSuccess, hapticWarning } from '@/lib/haptics';
+import { buildReactionMutationKey, summarizeReactionRows } from '@/lib/messageReactions';
 import { playMessageSendSound, playUiSound } from '@/lib/sound';
 import { useKeyboardViewport } from '@/hooks/useKeyboardViewport';
 import { useSwipeBack } from '@/hooks/useSwipeBack';
@@ -239,6 +241,7 @@ export default function ChatWindow({
   const [longPressMessageId, setLongPressMessageId] = useState<number | null>(null);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [reactionRows, setReactionRows] = useState<MessageReactionRow[]>([]);
+  const [pendingReactionKeys, setPendingReactionKeys] = useState<Set<string>>(() => new Set());
   const [attachmentRows, setAttachmentRows] = useState<MessageAttachmentRow[]>([]);
   const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
   const [reactionError, setReactionError] = useState<string | null>(null);
@@ -266,6 +269,8 @@ export default function ChatWindow({
   const voiceNoteChunksRef = useRef<Blob[]>([]);
   const voiceNoteTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const voiceNoteMimeTypeRef = useRef('');
+  const seenReactionKeysRef = useRef(new Set<string>());
+  const [newReactionKeys, setNewReactionKeys] = useState<Set<string>>(() => new Set());
   const searchInputId = useId();
   const searchResultsId = useId();
   const messagesLogId = useId();
@@ -616,24 +621,45 @@ export default function ChatWindow({
       ? Math.max(0, visibleMessages.length - normalizedInitialUnreadCount)
       : null;
 
-  const reactionSummaryByMessageId = useMemo(() => {
-    const summary = new Map<number, Record<string, number>>();
+  const reactionSummaryByMessageId = useMemo(
+    () => summarizeReactionRows(reactionRows, currentUserId),
+    [currentUserId, reactionRows],
+  );
 
-    for (const row of reactionRows) {
-      if (!summary.has(row.message_id)) {
-        summary.set(row.message_id, {});
+  useEffect(() => {
+    const seenReactionKeys = seenReactionKeysRef.current;
+    const newlyDiscoveredKeys: string[] = [];
+
+    for (const [messageId, entries] of reactionSummaryByMessageId) {
+      for (const entry of entries) {
+        const reactionKey = `${messageId}-${entry.emoji}`;
+        if (!seenReactionKeys.has(reactionKey)) {
+          seenReactionKeys.add(reactionKey);
+          newlyDiscoveredKeys.push(reactionKey);
+        }
       }
-
-      const target = summary.get(row.message_id);
-      if (!target) {
-        continue;
-      }
-
-      target[row.emoji] = (target[row.emoji] ?? 0) + 1;
     }
 
-    return summary;
-  }, [reactionRows]);
+    if (newlyDiscoveredKeys.length === 0) {
+      return;
+    }
+
+    setNewReactionKeys((previous) => {
+      const next = new Set(previous);
+      newlyDiscoveredKeys.forEach((key) => next.add(key));
+      return next;
+    });
+
+    const clearTimer = setTimeout(() => {
+      setNewReactionKeys((previous) => {
+        const next = new Set(previous);
+        newlyDiscoveredKeys.forEach((key) => next.delete(key));
+        return next;
+      });
+    }, 950);
+
+    return () => clearTimeout(clearTimer);
+  }, [reactionSummaryByMessageId]);
 
   const attachmentsByMessageId = useMemo(() => {
     const grouped = new Map<number, MessageAttachmentRow[]>();
@@ -1037,6 +1063,69 @@ export default function ChatWindow({
   const cancelReply = () => {
     setReplyingToMessageId(null);
   };
+
+  const toggleReaction = useCallback(
+    async (messageId: number, emoji: string) => {
+      const mutationKey = buildReactionMutationKey(messageId, emoji);
+      if (pendingReactionKeys.has(mutationKey)) {
+        return;
+      }
+
+      const hasExistingReaction = reactionRows.some(
+        (row) => row.message_id === messageId && row.user_id === currentUserId && row.emoji === emoji,
+      );
+
+      setPendingReactionKeys((previous) => {
+        const next = new Set(previous);
+        next.add(mutationKey);
+        return next;
+      });
+      setReactionError(null);
+      setLongPressMessageId(null);
+      setReactionRows((previous) =>
+        hasExistingReaction
+          ? previous.filter(
+              (row) => !(row.message_id === messageId && row.user_id === currentUserId && row.emoji === emoji),
+            )
+          : [...previous, { message_id: messageId, user_id: currentUserId, emoji }],
+      );
+      void hapticLight();
+
+      const { error } = hasExistingReaction
+        ? await supabase
+            .from('message_reactions')
+            .delete()
+            .eq('message_id', messageId)
+            .eq('user_id', currentUserId)
+            .eq('emoji', emoji)
+        : await supabase.from('message_reactions').insert({
+            message_id: messageId,
+            user_id: currentUserId,
+            emoji,
+          });
+
+      setPendingReactionKeys((previous) => {
+        const next = new Set(previous);
+        next.delete(mutationKey);
+        return next;
+      });
+
+      if (!error) {
+        return;
+      }
+
+      setReactionRows((previous) =>
+        hasExistingReaction
+          ? [...previous, { message_id: messageId, user_id: currentUserId, emoji }]
+          : previous.filter(
+              (row) => !(row.message_id === messageId && row.user_id === currentUserId && row.emoji === emoji),
+            ),
+      );
+      setReactionError(error.message);
+      void hapticWarning();
+    },
+    [currentUserId, pendingReactionKeys, reactionRows],
+  );
 
   const formatDeliveryStatus = (message: ChatMessage) => {
     if (message.read_at) {
@@ -1513,12 +1602,10 @@ export default function ChatWindow({
                   const isMatch = normalizedSearchQuery ? Boolean(messageMatches.get(message.id)) : false;
                   const timestampDate = new Date(message.created_at);
                   const fullTimestamp = timestampDate.toLocaleString();
-                  const reactionSummary = reactionSummaryByMessageId.get(message.id);
-                  const reactionEntries = reactionSummary
-                    ? Object.entries(reactionSummary)
-                        .filter(([, count]) => count > 0)
-                        .sort((left, right) => right[1] - left[1])
-                    : [];
+                  const reactionEntries = reactionSummaryByMessageId.get(String(message.id)) ?? [];
+                  const activeReactionEmojis = reactionEntries
+                    .filter((entry) => entry.reactedByMe)
+                    .map((entry) => entry.emoji);
                   const messageAttachments = attachmentsByMessageId.get(message.id) ?? [];
                   const richTextPresentation = richTextPresentationByMessageId.get(message.id) ?? {
                     html: sanitizeRichTextHtml(message.content),
@@ -1727,21 +1814,34 @@ export default function ChatWindow({
                               {!isDeleted && !isEditing ? (
                                 <div
                                   data-swipe-ignore="true"
-                                  className={`absolute -top-8 right-0 items-center gap-0.5 rounded-full border border-white/70 bg-white/90 px-2 py-1 shadow-lg backdrop-blur-md ui-fade-in dark:border-slate-700/70 dark:bg-slate-950/88 ${
+                                  className={`absolute bottom-full right-0 z-10 mb-2 min-w-[15rem] rounded-2xl border border-white/70 bg-white/90 p-2 shadow-lg backdrop-blur-md ui-fade-in dark:border-slate-700/70 dark:bg-slate-950/88 ${
                                     longPressMessageId === message.id ? 'flex' : 'hidden group-hover:flex group-focus-within:flex'
-                                  }`}
+                                  } flex-col gap-2`}
                                 >
-                                  <button
-                                    type="button"
-                                    onClick={() => startReplyingToMessage(message)}
-                                    className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900"
-                                    aria-label={`Reply to message sent at ${metaTimeLabel}`}
-                                  >
-                                    Reply
-                                  </button>
-                                  {onForwardMessage ? (
-                                    <>
-                                      <span className="text-slate-300">·</span>
+                                  <div className="space-y-1">
+                                    <p className="px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                                      React
+                                    </p>
+                                    <MessageReactionPicker
+                                      activeEmojis={activeReactionEmojis}
+                                      disabledEmojis={activeReactionEmojis.filter((emoji) =>
+                                        pendingReactionKeys.has(buildReactionMutationKey(message.id, emoji)),
+                                      )}
+                                      onPick={(emoji) => {
+                                        void toggleReaction(message.id, emoji);
+                                      }}
+                                    />
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => startReplyingToMessage(message)}
+                                      className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900"
+                                      aria-label={`Reply to message sent at ${metaTimeLabel}`}
+                                    >
+                                      Reply
+                                    </button>
+                                    {onForwardMessage ? (
                                       <button
                                         type="button"
                                         onClick={() => {
@@ -1753,11 +1853,8 @@ export default function ChatWindow({
                                       >
                                         Forward
                                       </button>
-                                    </>
-                                  ) : null}
-                                  {onSaveMessage ? (
-                                    <>
-                                      <span className="text-slate-300">·</span>
+                                    ) : null}
+                                    {onSaveMessage ? (
                                       <button
                                         type="button"
                                         onClick={() => {
@@ -1769,51 +1866,49 @@ export default function ChatWindow({
                                       >
                                         Save
                                       </button>
-                                    </>
-                                  ) : null}
-                                  {isMine ? (
-                                    <>
-                                      <span className="text-slate-300">·</span>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          startEditingMessage(message);
-                                          setLongPressMessageId(null);
-                                        }}
-                                        className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900"
-                                        aria-label={`Edit message sent at ${metaTimeLabel}`}
-                                      >
-                                        Edit
-                                      </button>
-                                      <span className="text-slate-300">·</span>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          void softDeleteMessage(message.id);
-                                          setLongPressMessageId(null);
-                                        }}
-                                        disabled={isDeletingMessageId === message.id}
-                                        className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-red-500 hover:bg-red-50 disabled:opacity-60"
-                                        aria-label={`Delete message sent at ${metaTimeLabel}`}
-                                      >
-                                        {isDeletingMessageId === message.id ? '…' : 'Delete'}
-                                      </button>
-                                    </>
-                                  ) : null}
+                                    ) : null}
+                                    {isMine ? (
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            startEditingMessage(message);
+                                            setLongPressMessageId(null);
+                                          }}
+                                          className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900"
+                                          aria-label={`Edit message sent at ${metaTimeLabel}`}
+                                        >
+                                          Edit
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            void softDeleteMessage(message.id);
+                                            setLongPressMessageId(null);
+                                          }}
+                                          disabled={isDeletingMessageId === message.id}
+                                          className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-red-500 hover:bg-red-50 disabled:opacity-60"
+                                          aria-label={`Delete message sent at ${metaTimeLabel}`}
+                                        >
+                                          {isDeletingMessageId === message.id ? '…' : 'Delete'}
+                                        </button>
+                                      </>
+                                    ) : null}
+                                  </div>
                                 </div>
                               ) : null}
 
                               {!isDeleted && reactionEntries.length > 0 ? (
-                                <div className={`-mt-1 mb-1 flex flex-wrap gap-0.5 ${isMine ? 'justify-end' : 'justify-start'}`}>
-                                  {reactionEntries.map(([emoji, count]) => (
-                                    <span
-                                      key={`${message.id}-${emoji}`}
-                                      className="rounded-full border border-white/70 bg-white/85 px-1.5 py-[2px] text-[length:var(--ui-text-2xs)] text-slate-600 shadow-sm backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-950/85 dark:text-slate-200"
-                                    >
-                                      {emoji} {count}
-                                    </span>
-                                  ))}
-                                </div>
+                                <MessageReactionStrip
+                                  align={isMine ? 'end' : 'start'}
+                                  animatedReactionKeys={newReactionKeys}
+                                  disabledReactionKeys={pendingReactionKeys}
+                                  entries={reactionEntries}
+                                  messageId={message.id}
+                                  onToggle={(emoji) => {
+                                    void toggleReaction(message.id, emoji);
+                                  }}
+                                />
                               ) : null}
 
                               {!isDeleted && messageAttachments.length > 0 ? (

@@ -192,6 +192,7 @@ export interface TemporaryChatProfile {
 interface ChatRoom {
   id: string;
   name: string;
+  room_key?: string | null;
 }
 
 interface AdminMeResponse {
@@ -4943,6 +4944,7 @@ function BuddyListContent() {
 
   const resolveRoomByName = useCallback(async (roomNameInput: string, allowCreate: boolean) => {
     const roomName = roomNameInput.trim();
+    const roomKey = normalizeRoomKey(roomName);
     if (!roomName) {
       return null;
     }
@@ -4951,7 +4953,7 @@ function BuddyListContent() {
 
     const { data: existingRoom, error: existingRoomError } = await supabase
       .from('chat_rooms')
-      .select('id,name')
+      .select('id,name,room_key')
       .eq('name', roomName)
       .maybeSingle();
 
@@ -4964,7 +4966,7 @@ function BuddyListContent() {
     } else {
       const { data: caseInsensitiveRoom, error: caseInsensitiveRoomError } = await supabase
         .from('chat_rooms')
-        .select('id,name')
+        .select('id,name,room_key')
         .ilike('name', roomName)
         .limit(1)
         .maybeSingle();
@@ -4978,11 +4980,28 @@ function BuddyListContent() {
       }
     }
 
+    if (!resolvedRoom) {
+      const { data: keyedRoom, error: keyedRoomError } = await supabase
+        .from('chat_rooms')
+        .select('id,name,room_key')
+        .eq('room_key', roomKey)
+        .limit(1)
+        .maybeSingle();
+
+      if (keyedRoomError && keyedRoomError.code !== 'PGRST116') {
+        throw new Error(keyedRoomError.message);
+      }
+
+      if (keyedRoom) {
+        resolvedRoom = keyedRoom as ChatRoom;
+      }
+    }
+
     if (!resolvedRoom && allowCreate) {
       const { data: createdRoom, error: createRoomError } = await supabase
         .from('chat_rooms')
-        .insert({ name: roomName })
-        .select('id,name')
+        .insert({ name: roomName, room_key: roomKey })
+        .select('id,name,room_key')
         .single();
 
       if (createRoomError && createRoomError.code !== '23505') {
@@ -4997,8 +5016,8 @@ function BuddyListContent() {
     if (!resolvedRoom && allowCreate) {
       const { data: racedRoom, error: racedRoomError } = await supabase
         .from('chat_rooms')
-        .select('id,name')
-        .eq('name', roomName)
+        .select('id,name,room_key')
+        .eq('room_key', roomKey)
         .maybeSingle();
 
       if (racedRoomError) {

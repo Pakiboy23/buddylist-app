@@ -7,7 +7,7 @@ export const LEGACY_USER_PROFILE_WITH_EMAIL_SELECT_FIELDS = 'id,email,screenname
 export const EXTENDED_ROOM_PROFILE_SELECT_FIELDS = 'id,screenname,buddy_icon_path';
 export const LEGACY_ROOM_PROFILE_SELECT_FIELDS = 'id,screenname';
 
-const PROFILE_SCHEMA_MIGRATION_PATH = 'supabase/presence_profiles.sql';
+const PROFILE_SCHEMA_MIGRATION_PATH = 'supabase/migrations/20260320000011_presence_profiles.sql';
 const PROFILE_SCHEMA_COLUMNS = ['profile_bio', 'buddy_icon_path', 'idle_since', 'last_active_at'] as const;
 
 interface SupabaseLikeError {
