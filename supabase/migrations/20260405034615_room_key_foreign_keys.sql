@@ -152,9 +152,6 @@ begin
 end;
 $$;
 
-alter table public.user_active_rooms
-  validate constraint user_active_rooms_room_key_fkey;
-
 do $$
 begin
   if not exists (
@@ -172,6 +169,9 @@ begin
   end if;
 end;
 $$;
+
+alter table public.user_active_rooms
+  validate constraint user_active_rooms_room_key_fkey;
 
 do $$
 begin
