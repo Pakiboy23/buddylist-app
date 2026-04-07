@@ -6918,6 +6918,17 @@ function HiItsMeContent() {
                 <div className="grid h-16 grid-cols-4 items-center">
                   <button
                     type="button"
+                    onClick={handleSetupAction}
+                    className="ui-focus-ring ui-tabbar-button"
+                    data-active={activeTab === 'profile' ? 'true' : 'false'}
+                  >
+                    <span className="ui-tabbar-icon">
+                      <HiItsMeTabIcon kind="profile" className="h-5 w-5 text-current" />
+                    </span>
+                    <span className="ui-tabbar-label">Profile</span>
+                  </button>
+                  <button
+                    type="button"
                     onClick={handleOpenImFromActionBar}
                     className="ui-focus-ring ui-tabbar-button"
                     data-active={activeTab === 'im' ? 'true' : 'false'}
@@ -6941,7 +6952,7 @@ function HiItsMeContent() {
                     <span className="ui-tabbar-icon">
                       <HiItsMeTabIcon kind="chat" className="h-5 w-5 text-current" />
                     </span>
-                    <span className="ui-tabbar-label">Chat</span>
+                    <span className="ui-tabbar-label">Group Chats</span>
                   </button>
                   <button
                     type="button"
@@ -6953,17 +6964,6 @@ function HiItsMeContent() {
                       <HiItsMeTabIcon kind="buddy" className="h-5 w-5 text-current" />
                     </span>
                     <span className="ui-tabbar-label">Buddy</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSetupAction}
-                    className="ui-focus-ring ui-tabbar-button"
-                    data-active={activeTab === 'profile' ? 'true' : 'false'}
-                  >
-                    <span className="ui-tabbar-icon">
-                      <HiItsMeTabIcon kind="profile" className="h-5 w-5 text-current" />
-                    </span>
-                    <span className="ui-tabbar-label">Profile</span>
                   </button>
                 </div>
               </div>
