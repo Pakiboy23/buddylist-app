@@ -1,4 +1,4 @@
--- Presence/profile extensions for BuddyList.
+-- Presence/profile extensions for H.I.M.
 -- Run after gtm_plan.sql and chat_media.sql.
 
 begin;

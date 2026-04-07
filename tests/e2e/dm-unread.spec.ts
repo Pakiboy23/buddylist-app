@@ -8,7 +8,7 @@ async function signOn(page: Page, screenname: string, password: string) {
   await page.getByPlaceholder('e.g. sk8erboi99').fill(screenname);
   await page.getByPlaceholder('Enter password').fill(password);
   await page.locator('button[type="submit"]').click();
-  await expect(page).toHaveURL(/\/buddy-list/);
+  await expect(page).toHaveURL(/\/hi-its-me/);
 }
 
 function dmRow(page: Page, screenname: string) {
@@ -73,7 +73,7 @@ test.describe('dm unread invariants', () => {
       await expect.poll(async () => unreadCountForBuddy(pageA, userBScreenname)).toBe(0);
 
       await pageA.reload();
-      await expect(pageA).toHaveURL(/\/buddy-list/);
+      await expect(pageA).toHaveURL(/\/hi-its-me/);
       await expect.poll(async () => unreadCountForBuddy(pageA, userBScreenname)).toBe(0);
     } finally {
       await contextA.close();

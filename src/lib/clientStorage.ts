@@ -39,7 +39,7 @@ function getStorage() {
 
   try {
     const storage = window.localStorage;
-    const probeKey = '__buddylist_storage_probe__';
+    const probeKey = '__hiitsme_storage_probe__';
     storage.setItem(probeKey, '1');
     storage.removeItem(probeKey);
     cachedStorage = storage;

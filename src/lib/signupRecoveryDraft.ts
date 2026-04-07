@@ -2,7 +2,7 @@
 
 import { getVersionedData, removeValue, setVersionedData } from '@/lib/clientStorage';
 
-const SIGNUP_RECOVERY_DRAFT_KEY = 'buddylist:signup-recovery-draft:v1';
+const SIGNUP_RECOVERY_DRAFT_KEY = 'hiitsme:signup-recovery-draft:v1';
 const SIGNUP_RECOVERY_DRAFT_VERSION = 1;
 const SIGNUP_RECOVERY_DRAFT_TTL_MS = 48 * 60 * 60 * 1000;
 

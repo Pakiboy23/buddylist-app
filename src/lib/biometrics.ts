@@ -96,7 +96,7 @@ export async function authenticateWithBiometrics(reason: string) {
     cancelTitle: 'Use PIN',
     iosFallbackTitle: 'Use PIN',
     allowDeviceCredential: false,
-    androidTitle: 'Unlock BuddyList',
+    androidTitle: 'Unlock H.I.M.',
     androidSubtitle: reason,
     androidConfirmationRequired: false,
   });

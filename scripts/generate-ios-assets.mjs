@@ -274,7 +274,7 @@ function splashMarkup() {
           <div class="logo-mark"></div>
         </div>
       </div>
-      <div class="wordmark">BuddyList</div>
+      <div class="wordmark">H.I.M.</div>
       <div class="subhead">Sign on</div>
     </div>
   </body>
@@ -324,7 +324,7 @@ async function main() {
     await browser.close();
   }
 
-  console.log('Generated BuddyList iOS icon and splash assets.');
+  console.log('Generated H.I.M. iOS icon and splash assets.');
 }
 
 await main();

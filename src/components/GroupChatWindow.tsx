@@ -120,14 +120,14 @@ interface GroupChatWindowProps {
 }
 
 const GROUP_SENDER_COLOR_CLASSES = [
-  'text-emerald-600',
-  'text-violet-600',
-  'text-rose-600',
-  'text-amber-600',
-  'text-cyan-600',
-  'text-lime-600',
-  'text-fuchsia-600',
-  'text-sky-600',
+  'text-[var(--green)]',
+  'text-[var(--lavender)]',
+  'text-[var(--rose)]',
+  'text-[var(--gold)]',
+  'text-[color:color-mix(in_srgb,var(--rose)_78%,white)]',
+  'text-[color:color-mix(in_srgb,var(--gold)_76%,white)]',
+  'text-[color:color-mix(in_srgb,var(--lavender)_76%,white)]',
+  'text-[color:color-mix(in_srgb,var(--green)_78%,white)]',
 ] as const;
 
 function getStableSenderColorClass(senderId: string) {
@@ -1347,7 +1347,7 @@ export default function GroupChatWindow({
             >
               <div className="flex items-start gap-3">
                 <div className="min-w-0 flex flex-1 items-center gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-violet-100 text-[15px] font-bold text-violet-700">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[rgba(212,150,58,0.18)] bg-[rgba(212,150,58,0.14)] text-[15px] font-bold text-[var(--gold)]">
                     #
                   </div>
                   <div className="min-w-0 flex-1">
@@ -1355,7 +1355,7 @@ export default function GroupChatWindow({
                       <span className="truncate text-[15px] font-semibold text-slate-800 dark:text-slate-100">
                         #{roomName}
                       </span>
-                      <span className="text-[11px] font-semibold text-violet-500">
+                      <span className="text-[11px] font-semibold text-[var(--gold)]">
                         {participants.length} online
                       </span>
                     </div>
@@ -1498,7 +1498,7 @@ export default function GroupChatWindow({
                   const isDeleted = Boolean(message.deleted_at);
                   const isEditing = editingMessageId === message.id;
                   const isMatch = normalizedSearchQuery ? Boolean(messageMatches.get(message.id)) : false;
-                  const senderColorClass = isMine ? 'text-blue-600' : getStableSenderColorClass(message.sender_id);
+                  const senderColorClass = isMine ? 'text-[var(--rose)]' : getStableSenderColorClass(message.sender_id);
                   const plainMessageText = htmlToPlainText(message.content).toLowerCase();
                   const isMentioningCurrentUser =
                     !isMine && plainMessageText.includes(`@${currentUserScreenname.trim().toLowerCase()}`);
@@ -1583,7 +1583,7 @@ export default function GroupChatWindow({
                             >
                               {!isMine && clusterMeta.isFirstInRun ? (
                                 <div className="mb-1 flex items-center gap-2 px-1">
-                                  <span className={`text-[11px] font-semibold ${senderColorClass}`}>
+                                  <span className={`ui-screenname text-[11px] font-semibold ${senderColorClass}`}>
                                     {senderName}
                                   </span>
                                   <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">

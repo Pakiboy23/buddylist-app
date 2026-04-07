@@ -15,7 +15,7 @@ $VENDOR_ROOT/CapacitorPushNotifications
 $VENDOR_ROOT/CapawesomeCapacitorBadge
 "
 
-echo "Validating Xcode Cloud checkout for BuddyList"
+echo "Validating Xcode Cloud checkout for H.I.M."
 
 if [ ! -d "$WEB_BUNDLE_DIR" ]; then
     echo "error: Expected web bundle directory at $WEB_BUNDLE_DIR"

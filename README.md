@@ -1,4 +1,4 @@
-# BuddyList App
+# H.I.M. App
 
 A retro AIM-style messaging app built with Next.js + Supabase, now mobile-first with persistent room sessions, unread tracking, global realtime notifications, and Capacitor iOS/Android wrappers.
 
@@ -13,7 +13,7 @@ A retro AIM-style messaging app built with Next.js + Supabase, now mobile-first 
 - Global listener shows incoming notification banners outside active views.
 - DM behavior:
   - incoming DMs no longer force-open the chat window
-  - unread DM badge appears next to sender in Buddy List until opened
+  - unread DM badge appears next to sender in H.I.M. until opened
 - Chat UX is optimized for mobile:
   - dense AIM-style timestamped message rows (no heavy message cards)
   - collapsible rich text toolbar in compose area
@@ -24,15 +24,15 @@ A retro AIM-style messaging app built with Next.js + Supabase, now mobile-first 
   - `You` is always blue
   - other users get stable deterministic colors (per sender id)
 - Capacitor mobile wrapper is configured with status bar + safe-area aware layout behavior.
-- Chat room state now exposes sync status (`hydrating`, `syncing`, `live`, `error`) with manual resync in Buddy List.
-- UI preferences/drafts now use a versioned local cache (`buddylist:ui:v1:<userId>`) with legacy-key migration.
+- Chat room state now exposes sync status (`hydrating`, `syncing`, `live`, `error`) with manual resync in H.I.M..
+- UI preferences/drafts now use a versioned local cache (`hiitsme:ui:v1:<userId>`) with legacy-key migration.
 - DM and room chat support soft edit/delete and emoji reactions.
 - DM and room chat support file attachments via Supabase Storage (`chat-media`) + metadata tables.
-- Offline-safe local outbox (`buddylist:outbox:v1:<userId>`) retries queued DM/room sends with backoff.
+- Offline-safe local outbox (`hiitsme:outbox:v1:<userId>`) retries queued DM/room sends with backoff.
 
 ## Messaging Feature Policy
 
-BuddyList intentionally does not treat direct messages and rooms as the same product surface. The current v1 policy is:
+H.I.M. intentionally does not treat direct messages and rooms as the same product surface. The current v1 policy is:
 
 | Capability | DMs | Rooms | Decision |
 |---|---|---|---|
@@ -64,8 +64,8 @@ This is a product decision, not an unfinished parity backlog. If a room feature 
 ## Core App Routes
 
 - `/` - Sign-on + account creation + password recovery/ticket redemption
-- `/buddy-list` - Main app view, buddies, DM windows, room windows, settings, admin reset tooling
-- Note: room chat is rendered via components from Buddy List (not a standalone `/chat-rooms` route in this codebase).
+- `/hi-its-me` - Main app view, buddies, DM windows, room windows, settings, admin reset tooling
+- Note: room chat is rendered via components from H.I.M. (not a standalone `/chat-rooms` route in this codebase).
 - API routes:
   - `/api/auth/recovery/setup`
   - `/api/auth/recovery/reset`
@@ -229,7 +229,7 @@ Current native-shell behavior:
 ## Auth Model
 
 Supabase auth uses synthetic email behind screenname:
-- login/signup use `${screenname}@buddylist.com`
+- login/signup use `${screenname}@hiitsme.app`
 - user profile screenname lives in `public.users`
 
 Recovery model:
@@ -278,7 +278,7 @@ Recovery model:
 - `src/components/ChatWindow.tsx` - DM UI (mobile-first dense log + collapsible formatting)
 - `src/components/IncomingMessageBanner.tsx` - mobile-style notification banner
 - `src/components/RetroWindow.tsx` - top-level mobile window shell + centered glossy titlebar
-- `src/app/buddy-list/page.tsx` - buddy list, DM windows, room controls, admin reset UI
+- `src/app/hi-its-me/page.tsx` - H.I.M. contacts, DM windows, room controls, admin reset UI
 - `src/lib/passwordRecovery.ts` - recovery/ticket crypto + workflows
 - `src/lib/clientStorage.ts` - safe typed local persistence with versioned envelopes
 - `src/lib/chatMedia.ts` - attachment validation + Supabase Storage upload helpers
@@ -314,7 +314,7 @@ npm run dev
 Usually means `npm run dev` was started from the wrong directory. Run from repo root:
 
 ```bash
-cd /path/to/buddylist-app
+cd /path/to/hiitsme-app
 npm install
 npm run dev
 ```

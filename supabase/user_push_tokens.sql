@@ -1,4 +1,4 @@
--- Push notification device tokens for BuddyList.
+-- Push notification device tokens for H.I.M.
 -- Run after gtm_plan.sql so public.set_updated_at() is available.
 
 begin;

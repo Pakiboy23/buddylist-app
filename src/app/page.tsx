@@ -67,7 +67,7 @@ export default function Home() {
     }
   }, []);
 
-  const routeToBuddyList = useCallback(
+  const routeToHiItsMe = useCallback(
     async (withSound: boolean) => {
       if (hasNavigatedRef.current) {
         return;
@@ -77,7 +77,7 @@ export default function Home() {
       if (withSound) {
         await playSignOnSound();
       }
-      navigateAppPath(router, '/buddy-list');
+      navigateAppPath(router, '/hi-its-me');
     },
     [playSignOnSound, router],
   );
@@ -96,7 +96,7 @@ export default function Home() {
         return;
       }
 
-      await routeToBuddyList(false);
+      await routeToHiItsMe(false);
     };
     void checkSession();
 
@@ -111,14 +111,14 @@ export default function Home() {
         return;
       }
 
-      void routeToBuddyList(true);
+      void routeToHiItsMe(true);
     });
 
     return () => {
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, [routeToBuddyList]);
+  }, [routeToHiItsMe]);
 
   const applyViewStatusMessage = (view: AuthView, signUpMode: boolean) => {
     if (view === 'forgot-password') {
@@ -176,7 +176,7 @@ export default function Home() {
 
   const getAuthEmail = () => {
     const trimmedScreenname = screenname.trim();
-    return `${trimmedScreenname.toLowerCase()}@buddylist.com`;
+    return `${trimmedScreenname.toLowerCase()}@hiitsme.app`;
   };
 
   const readApiError = async (response: Response) => {
@@ -292,8 +292,8 @@ export default function Home() {
 
         resetSignUpRecoveryFields();
         isCompletingSignUpProtectionRef.current = false;
-        setStatusMsg('Account created. Opening your Buddy List...');
-        await routeToBuddyList(true);
+        setStatusMsg('Account created. Opening H.I.M....');
+        await routeToHiItsMe(true);
       } else {
         savePendingSignupRecoveryDraft(trimmedScreenname, signUpRecoveryCode.trim());
         isCompletingSignUpProtectionRef.current = false;
@@ -316,8 +316,8 @@ export default function Home() {
       return;
     }
 
-    setStatusMsg('Success! Opening your Buddy List...');
-    await routeToBuddyList(true);
+    setStatusMsg('Success! Opening H.I.M....');
+    await routeToHiItsMe(true);
     setIsLoading(false);
   };
 
@@ -487,36 +487,32 @@ export default function Home() {
       ? 'border-emerald-200/80 bg-emerald-50/90 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200'
       : 'border-slate-200/80 bg-white/88 text-slate-600 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300';
   const fieldClass =
-    'ui-focus-ring min-h-[52px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-[15px] font-medium text-slate-900 shadow-[inset_0_1px_2px_rgba(15,23,42,0.05)] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-300 dark:border-slate-700 dark:bg-slate-950/60 dark:text-slate-100 dark:placeholder:text-slate-500';
+    'ui-focus-ring ui-auth-field min-h-[52px] w-full rounded-2xl px-4 py-3 text-[15px] font-medium';
   const secondaryActionClass =
-    'ui-focus-ring inline-flex min-h-[42px] items-center rounded-2xl px-3 text-[13px] font-semibold text-blue-700 transition hover:bg-blue-50/80 hover:text-blue-800 disabled:opacity-50 dark:text-blue-300 dark:hover:bg-slate-800 dark:hover:text-blue-200';
+    'ui-focus-ring ui-auth-secondary inline-flex min-h-[42px] items-center rounded-2xl px-3 text-[13px] font-semibold transition disabled:opacity-50';
   const authModeButtonClass = (active: boolean) =>
-    `ui-focus-ring flex min-h-[46px] items-center justify-center rounded-[1.1rem] px-3 text-[13px] font-semibold transition ${
-      active
-        ? 'bg-blue-500 text-white shadow-[0_12px_22px_rgba(37,99,235,0.24)]'
-        : 'text-slate-600 hover:bg-white/75 dark:text-slate-300 dark:hover:bg-slate-950/55'
-    }`;
+    `ui-focus-ring ui-auth-mode flex min-h-[46px] items-center justify-center rounded-[1.1rem] px-3 text-[13px] font-semibold transition ${active ? '' : 'hover:bg-white/5'}`;
   const submitLabel = authView === 'forgot-password' ? 'Reset password' : authView === 'redeem-ticket' ? 'Redeem ticket' : isSignUp ? 'Create account' : 'Sign in';
   const busySubmitLabel =
     authView === 'forgot-password' ? 'Resetting...' : authView === 'redeem-ticket' ? 'Redeeming...' : isSignUp ? 'Creating...' : 'Signing in...';
   const shouldShowStatusCard = statusMsg !== baselineStatusMsg;
 
   return (
-    <main className="relative h-[100dvh] overflow-hidden bg-[radial-gradient(circle_at_14%_14%,#dbeafe_0%,#eef5ff_34%,#f8fbff_64%,#e1ecff_100%)] dark:bg-[radial-gradient(circle_at_16%_12%,#172554_0%,#0f172a_34%,#020617_100%)]">
-      <div className="pointer-events-none absolute -left-12 top-10 h-44 w-44 rounded-full bg-blue-200/45 blur-3xl dark:bg-blue-500/20" />
-      <div className="pointer-events-none absolute bottom-0 right-0 h-64 w-64 rounded-full bg-cyan-200/25 blur-3xl dark:bg-cyan-400/10" />
+    <main className="ui-auth-shell relative h-[100dvh] overflow-hidden">
+      <div className="ui-auth-orb--rose pointer-events-none absolute -left-12 top-10 h-44 w-44 rounded-full blur-3xl" />
+      <div className="ui-auth-orb--gold pointer-events-none absolute bottom-0 right-0 h-64 w-64 rounded-full blur-3xl" />
 
-      <RetroWindow title="BuddyList">
+      <RetroWindow title="H.I.M.">
         <div className="mx-auto flex min-h-full w-full max-w-md items-center pb-6 pt-2">
           <form onSubmit={handlePrimarySubmit} className="w-full space-y-4">
-            <section className="rounded-[1.9rem] border border-white/65 bg-white/82 p-5 text-slate-800 shadow-[0_20px_40px_rgba(15,23,42,0.14)] backdrop-blur-2xl dark:border-slate-700/70 dark:bg-slate-900/78 dark:text-slate-100">
+            <section className="ui-auth-card rounded-[1.9rem] p-5 backdrop-blur-2xl">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-600 dark:bg-blue-500/15 dark:text-blue-300">
+                  <span className="ui-brand-sparkle inline-flex h-11 w-11 items-center justify-center rounded-2xl">
                     <AppIcon kind="sparkle" className="h-5 w-5" />
                   </span>
-                  <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-700/80 dark:text-blue-300/80">
-                    BuddyList
+                  <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--rose)]">
+                    H.I.M.
                   </p>
                   <h1 className="mt-2 text-[31px] font-semibold tracking-[-0.04em] text-slate-900 dark:text-slate-50">
                     {authTitle}
@@ -531,7 +527,7 @@ export default function Home() {
                     type="button"
                     onClick={returnToSignIn}
                     disabled={controlsDisabled}
-                    className="ui-focus-ring inline-flex min-h-[40px] shrink-0 items-center rounded-full border border-slate-200 bg-white/85 px-3 text-[12px] font-semibold text-slate-600 transition hover:bg-white disabled:opacity-50 dark:border-slate-700 dark:bg-slate-950/65 dark:text-slate-300 dark:hover:bg-slate-900"
+                    className="ui-focus-ring ui-auth-back inline-flex min-h-[40px] shrink-0 items-center rounded-full px-3 text-[12px] font-semibold transition disabled:opacity-50"
                   >
                     Back
                   </button>
@@ -539,12 +535,13 @@ export default function Home() {
               </div>
 
               {isSignOnView ? (
-                <div className="mt-5 grid grid-cols-2 gap-2 rounded-[1.4rem] border border-slate-200 bg-slate-100/85 p-1 dark:border-slate-700 dark:bg-slate-950/55">
+                <div className="mt-5 grid grid-cols-2 gap-2 rounded-[1.4rem] border border-white/8 bg-[rgba(19,16,14,0.72)] p-1">
                   <button
                     type="button"
                     onClick={returnToSignIn}
                     disabled={controlsDisabled}
                     className={authModeButtonClass(!isSignUp)}
+                    data-active={!isSignUp ? 'true' : 'false'}
                   >
                     Sign in
                   </button>
@@ -553,6 +550,7 @@ export default function Home() {
                     onClick={openSignUp}
                     disabled={controlsDisabled}
                     className={authModeButtonClass(isSignUp)}
+                    data-active={isSignUp ? 'true' : 'false'}
                   >
                     Create account
                   </button>
@@ -568,7 +566,7 @@ export default function Home() {
                     type="text"
                     value={screenname}
                     onChange={(event) => setScreenname(event.target.value)}
-                    className={fieldClass}
+                    className={`${fieldClass} ui-screenname`}
                     placeholder="e.g. sk8erboi99"
                     disabled={isLoading}
                     autoComplete="username"
@@ -596,23 +594,23 @@ export default function Home() {
                 )}
 
                 {isSignOnView && isSignUp && (
-                  <div className="rounded-[1.55rem] border border-blue-100 bg-blue-50/70 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:border-slate-700 dark:bg-slate-950/45">
+                  <div className="ui-auth-recovery rounded-[1.55rem] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-700/80 dark:text-blue-300/80">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--gold)]">
                           Account Protection
                         </p>
                         <p className="mt-2 text-[13px] leading-5 text-slate-600 dark:text-slate-300">
                           Create a secret recovery code now so you can reset your password later without admin help.
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => void handleGenerateSignUpRecoveryCode()}
-                        disabled={controlsDisabled}
-                        className="ui-focus-ring inline-flex min-h-[38px] shrink-0 items-center rounded-full border border-blue-200 bg-white/90 px-3 text-[12px] font-semibold text-blue-700 transition hover:bg-white disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900/70 dark:text-blue-200 dark:hover:bg-slate-900"
-                      >
-                        Generate
+                        <button
+                          type="button"
+                          onClick={() => void handleGenerateSignUpRecoveryCode()}
+                          disabled={controlsDisabled}
+                          className="ui-focus-ring ui-auth-back inline-flex min-h-[38px] shrink-0 items-center rounded-full px-3 text-[12px] font-semibold transition disabled:opacity-50"
+                        >
+                          Generate
                       </button>
                     </div>
 
@@ -761,7 +759,7 @@ export default function Home() {
                 <button
                   type="submit"
                   disabled={controlsDisabled}
-                  className="ui-focus-ring mt-2 min-h-[52px] w-full rounded-2xl border border-blue-500/60 bg-blue-500 px-4 py-3 text-[15px] font-semibold text-white shadow-[0_12px_24px_rgba(37,99,235,0.28)] transition hover:bg-blue-600 active:scale-[0.99] disabled:opacity-50"
+                  className="ui-focus-ring ui-auth-submit mt-2 min-h-[52px] w-full rounded-2xl px-4 py-3 text-[15px] font-semibold transition active:scale-[0.99] disabled:opacity-50"
                 >
                   {isLoading ? busySubmitLabel : submitLabel}
                 </button>

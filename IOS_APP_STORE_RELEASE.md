@@ -4,8 +4,8 @@ This repo now has a Capacitor iOS project at `ios/App/App.xcodeproj`.
 
 ## Current setup
 
-- Bundle/app id: `com.buddylist.app`
-- App name: `BuddyList`
+- Bundle/app id: `com.hiitsme.app`
+- App name: `H.I.M.`
 - The iOS shell now defaults to bundled native assets from `native-web/`.
 - Hosted mode still exists, but only as an explicit opt-in debug path via `npm run ios:sync:hosted`.
 - The native export intentionally excludes `src/app/api` and continues to use the hosted backend for recovery/admin requests via `NEXT_PUBLIC_APP_API_ORIGIN`.
@@ -18,7 +18,7 @@ Supabase auth/data and the recovery/admin backend still require network access.
 
 - Full Xcode installed
 - Apple Developer membership active
-- App Store Connect app created for `com.buddylist.app`
+- App Store Connect app created for `com.hiitsme.app`
 
 ## Repo commands
 
@@ -48,7 +48,7 @@ npm run ios:open
 2. In Xcode, select target `App`.
 3. Set `Signing & Capabilities`:
    - Team: your Apple Developer team
-   - Bundle Identifier: keep `com.buddylist.app` unless you intentionally change it everywhere
+   - Bundle Identifier: keep `com.hiitsme.app` unless you intentionally change it everywhere
    - Turn on `Automatically manage signing`
 4. Update `Version` and `Build` before each submission.
 5. Choose a real iPhone device or `Any iOS Device (arm64)` and build once.
@@ -76,5 +76,5 @@ Hosted mode still exists, but it is now an explicit debug-only escape hatch. The
 ## Bundled-build prep already in place
 
 - Client recovery/admin calls can target a hosted backend origin from native builds.
-- Override the default backend origin with `NEXT_PUBLIC_APP_API_ORIGIN` if you move API traffic off `https://buddylist-app.vercel.app`.
+- Override the default backend origin with `NEXT_PUBLIC_APP_API_ORIGIN` if you move API traffic off `https://hiitsme-app.vercel.app`.
 - The native bundle is generated in an isolated export workspace so App Router pages can statically export without shipping the web-only `src/app/api` routes into Capacitor.

@@ -112,20 +112,20 @@ export type NativeShellCommand =
       action: NativeShellAction;
     };
 
-interface BuddyListShellPlugin {
+interface HiItsMeShellPlugin {
   isAvailable(): Promise<{ available: boolean; platform?: string }>;
   setChromeState(state: NativeShellChromeState): Promise<void>;
   getPushEnvironment(): Promise<{ environment?: NativePushEnvironment | null }>;
 }
 
-const BuddyListShell = registerPlugin<BuddyListShellPlugin>('BuddyListShell');
-const NATIVE_SHELL_COMMAND_EVENT = 'buddylist:native-shell-command';
+const HiItsMeShell = registerPlugin<HiItsMeShellPlugin>('HiItsMeShell');
+const NATIVE_SHELL_COMMAND_EVENT = 'hiitsme:native-shell-command';
 let cachedPushEnvironment: NativePushEnvironment | null | undefined;
 let pendingPushEnvironmentLookup: Promise<NativePushEnvironment | null> | null = null;
 
 declare global {
   interface Window {
-    __buddyListNativeShell?: NativeShellBridge;
+    __hiItsMeNativeShell?: NativeShellBridge;
   }
 }
 
@@ -145,12 +145,12 @@ export async function getNativePushEnvironment(): Promise<NativePushEnvironment 
   if (!pendingPushEnvironmentLookup) {
     pendingPushEnvironmentLookup = (async () => {
       try {
-        const availability = await BuddyListShell.isAvailable();
+        const availability = await HiItsMeShell.isAvailable();
         if (!availability.available) {
           return null;
         }
 
-        const result = await BuddyListShell.getPushEnvironment();
+        const result = await HiItsMeShell.getPushEnvironment();
         return result.environment === 'sandbox' || result.environment === 'production'
           ? result.environment
           : null;
@@ -179,12 +179,12 @@ export async function publishNativeShellChromeState(state: NativeShellChromeStat
 
   for (let attempt = 0; attempt < 4; attempt += 1) {
     try {
-      const availability = await BuddyListShell.isAvailable();
+      const availability = await HiItsMeShell.isAvailable();
       if (!availability.available) {
         return;
       }
 
-      await BuddyListShell.setChromeState(state);
+      await HiItsMeShell.setChromeState(state);
       return;
     } catch (error) {
       lastError = error;
@@ -226,9 +226,9 @@ export function registerNativeShellBridge(bridge: NativeShellBridge | null) {
   }
 
   if (bridge) {
-    window.__buddyListNativeShell = bridge;
+    window.__hiItsMeNativeShell = bridge;
     return;
   }
 
-  delete window.__buddyListNativeShell;
+  delete window.__hiItsMeNativeShell;
 }

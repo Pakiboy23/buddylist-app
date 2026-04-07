@@ -49,7 +49,7 @@ describe('applyNotificationPreview', () => {
         },
       ),
     ).toEqual({
-      senderName: 'BuddyList',
+      senderName: 'H.I.M.',
       messagePreview: 'New message',
     });
   });

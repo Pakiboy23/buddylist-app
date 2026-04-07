@@ -30,10 +30,10 @@ const slides = [
     imageOffsetY: 18,
   },
   {
-    output: '02_buddy-list-home-marketing.png',
-    source: '02_buddy-list-home.png',
+    output: '02_hi-its-me-home-marketing.png',
+    source: '02_hi-its-me-home.png',
     eyebrow: 'Premium Home',
-    title: 'Your Buddy List,',
+    title: 'Your H.I.M.,',
     highlight: 'rebuilt for calm.',
     body: 'See people, notes, presence, and unread activity in one polished home.',
     accentStart: '#38bdf8',
@@ -83,7 +83,7 @@ const slides = [
     eyebrow: 'Privacy Controls',
     title: 'Thoughtful privacy,',
     highlight: 'right on the surface.',
-    body: 'Hide previews, enable screen shielding, and control what BuddyList reveals.',
+    body: 'Hide previews, enable screen shielding, and control what H.I.M. reveals.',
     accentStart: '#818cf8',
     accentEnd: '#22d3ee',
     panelGlow: 'rgba(129, 140, 248, 0.24)',
@@ -99,7 +99,7 @@ const slides = [
     eyebrow: 'App Lock',
     title: 'A device-only PIN',
     highlight: 'for extra peace.',
-    body: 'Add a hidden app lock and choose exactly how quickly BuddyList asks again.',
+    body: 'Add a hidden app lock and choose exactly how quickly H.I.M. asks again.',
     accentStart: '#60a5fa',
     accentEnd: '#34d399',
     panelGlow: 'rgba(52, 211, 153, 0.18)',
@@ -436,7 +436,7 @@ function buildHtml(slide, imageUrl) {
       <div class="grid"></div>
       <div class="brand">
         <span class="brand-mark"></span>
-        <span>BuddyList</span>
+        <span>H.I.M.</span>
       </div>
       <section class="hero">
         <p class="eyebrow">${escapeHtml(slide.eyebrow)}</p>

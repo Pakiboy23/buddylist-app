@@ -47,7 +47,7 @@ function PinRow({ label, value, active, helperText, onPress }: PinRowProps) {
       onClick={onPress}
       className={`ui-focus-ring w-full rounded-[1.4rem] border px-4 py-3 text-left transition ${
         active
-          ? 'border-blue-400 bg-blue-50/90 shadow-[0_12px_30px_rgba(59,130,246,0.18)] dark:border-blue-400/80 dark:bg-blue-500/10'
+          ? 'border-rose-400/70 bg-[rgba(232,96,138,0.12)] shadow-[0_12px_30px_rgba(232,96,138,0.18)]'
           : 'border-white/75 bg-white/78 dark:border-slate-800 dark:bg-slate-950/45'
       }`}
       aria-label={`${label}. ${value.length} of ${PIN_SLOT_COUNT} digits entered.`}
@@ -69,7 +69,7 @@ function PinRow({ label, value, active, helperText, onPress }: PinRowProps) {
                   isFilled
                     ? 'border-slate-900 bg-slate-900 dark:border-slate-100 dark:bg-slate-100'
                     : active
-                      ? 'border-blue-300 bg-blue-100/70 dark:border-blue-500/60 dark:bg-blue-500/20'
+                      ? 'border-rose-300/70 bg-[rgba(232,96,138,0.16)]'
                       : 'border-slate-200 bg-white/30 dark:border-slate-700 dark:bg-slate-900/40'
                 }`}
               />
@@ -152,7 +152,7 @@ export default function AppLockSheet({
 
   const activePrompt = useMemo(() => {
     if (mode === 'unlock') {
-      return `Enter your app PIN to unlock BuddyList. ${isBiometricAvailable ? `${biometricLabel} is also ready.` : ''}`.trim();
+      return `Enter your app PIN to unlock H.I.M. ${isBiometricAvailable ? `${biometricLabel} is also ready.` : ''}`.trim();
     }
 
     if (activeField === 'confirm') {
@@ -226,12 +226,12 @@ export default function AppLockSheet({
 
         <div className="ui-sheet-header">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600/12 text-blue-600 dark:bg-blue-500/15 dark:text-blue-300">
+            <div className="ui-brand-sparkle flex h-11 w-11 items-center justify-center rounded-2xl">
               <AppIcon kind="lock" className="h-5 w-5" />
             </div>
             <div>
               <h2 id={titleId} className="ui-sheet-title text-[length:var(--ui-text-lg)]">
-                {mode === 'unlock' ? 'Unlock BuddyList' : 'Turn On App Lock'}
+                {mode === 'unlock' ? 'Unlock H.I.M.' : 'Turn On App Lock'}
               </h2>
               <p className="text-[12px] text-slate-500 dark:text-slate-400">
                 {mode === 'unlock' ? 'Private chats stay covered until you unlock.' : 'Use a hidden PIN like your iPhone lock screen.'}
@@ -288,7 +288,7 @@ export default function AppLockSheet({
                 <div className="min-w-0 flex-1">
                   <p className="text-[13px] font-semibold text-slate-800 dark:text-slate-100">Auto-lock</p>
                   <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-                    Choose how quickly BuddyList asks for the PIN after you leave the app.
+                    Choose how quickly H.I.M. asks for the PIN after you leave the app.
                   </p>
                 </div>
               </div>
@@ -302,7 +302,7 @@ export default function AppLockSheet({
                       onClick={() => onAutoLockSecondsChange(value)}
                       className={`ui-focus-ring rounded-full border px-3 py-2 text-[11px] font-semibold transition ${
                         selected
-                          ? 'border-blue-500 bg-blue-600 text-white shadow-[0_12px_30px_rgba(37,99,235,0.22)]'
+                          ? 'border-rose-500/70 bg-[linear-gradient(180deg,#E8608A_0%,#B93A67_100%)] text-white shadow-[0_12px_30px_rgba(232,96,138,0.24)]'
                           : 'border-white/75 bg-white/78 text-slate-600 dark:border-slate-800 dark:bg-slate-950/45 dark:text-slate-300'
                       }`}
                     >
@@ -339,7 +339,7 @@ export default function AppLockSheet({
                     type="button"
                     onClick={onUseBiometrics}
                     disabled={isBiometricAuthenticating}
-                    className="ui-focus-ring flex h-14 w-full items-center justify-center rounded-[1.25rem] border border-blue-200 bg-blue-50/95 px-2 text-[11px] font-semibold text-blue-700 transition disabled:opacity-60 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200"
+                    className="ui-focus-ring flex h-14 w-full items-center justify-center rounded-[1.25rem] border border-rose-300/40 bg-[rgba(232,96,138,0.12)] px-2 text-[11px] font-semibold text-[var(--rose)] transition disabled:opacity-60"
                   >
                     {isBiometricAuthenticating ? 'Checking...' : biometricLabel}
                   </button>

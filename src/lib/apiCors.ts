@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-const DEFAULT_NATIVE_API_ORIGIN = 'https://buddylist-app.vercel.app';
+const DEFAULT_NATIVE_API_ORIGIN = 'https://hiitsme-app.vercel.app';
 const CORS_ALLOWED_HEADERS = 'authorization, content-type';
 const CORS_MAX_AGE_SECONDS = '86400';
 

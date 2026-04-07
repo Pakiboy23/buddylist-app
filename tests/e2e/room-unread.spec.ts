@@ -16,7 +16,7 @@ async function signOn(page: Page, screenname: string, password: string) {
   await page.getByPlaceholder('e.g. sk8erboi99').fill(screenname);
   await page.getByPlaceholder('Enter password').fill(password);
   await page.locator('button[type="submit"]').click();
-  await expect(page).toHaveURL(/\/buddy-list/);
+  await expect(page).toHaveURL(/\/hi-its-me/);
 }
 
 function roomRow(page: Page, roomName: string) {
@@ -38,7 +38,7 @@ async function joinRoom(page: Page, roomName: string) {
   await page.getByRole('button', { name: 'Chat' }).click();
   await page.getByLabel('Room name:').fill(roomName);
   await page.getByRole('button', { name: 'Join' }).click();
-  await expect(page).toHaveURL(new RegExp(`/buddy-list\\?room=${escapeRegExp(encodeURIComponent(roomName))}`));
+  await expect(page).toHaveURL(new RegExp(`/hi-its-me\\?room=${escapeRegExp(encodeURIComponent(roomName))}`));
 }
 
 async function leaveRoomView(page: Page) {
@@ -46,7 +46,7 @@ async function leaveRoomView(page: Page) {
   if ((await backButton.count()) > 0 && (await backButton.isVisible())) {
     await backButton.click();
   }
-  await expect(page).toHaveURL(/\/buddy-list(?:\?|$)/);
+  await expect(page).toHaveURL(/\/hi-its-me(?:\?|$)/);
 }
 
 async function sendRoomMessage(page: Page, roomName: string, message: string) {
@@ -93,16 +93,16 @@ test.describe('room unread invariants', () => {
 
       await contextA.setOffline(false);
       await pageA.reload();
-      await expect(pageA).toHaveURL(/\/buddy-list/);
+      await expect(pageA).toHaveURL(/\/hi-its-me/);
       await expect.poll(async () => unreadCountForRoom(pageA, roomName)).toBe(2);
 
       await roomRow(pageA, roomName).click();
-      await expect(pageA).toHaveURL(new RegExp(`/buddy-list\\?room=${escapeRegExp(encodeURIComponent(roomName))}`));
+      await expect(pageA).toHaveURL(new RegExp(`/hi-its-me\\?room=${escapeRegExp(encodeURIComponent(roomName))}`));
       await leaveRoomView(pageA);
       await expect.poll(async () => unreadCountForRoom(pageA, roomName)).toBe(0);
 
       await pageA.reload();
-      await expect(pageA).toHaveURL(/\/buddy-list/);
+      await expect(pageA).toHaveURL(/\/hi-its-me/);
       await expect.poll(async () => unreadCountForRoom(pageA, roomName)).toBe(0);
     } finally {
       await contextA.close();

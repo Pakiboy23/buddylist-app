@@ -39,7 +39,7 @@ export default function RetroWindow({
   if (variant === 'xp_shell' || variant === 'glass_shell') {
     return (
       <div
-        className={`flex h-[100dvh] w-full flex-col overflow-hidden bg-transparent font-["SF_Pro_Text","SF_Pro_Display","Segoe_UI",sans-serif] text-[12px] text-slate-700 ${className ?? ''}`}
+        className={`flex h-[100dvh] w-full flex-col overflow-hidden bg-transparent text-[12px] text-slate-700 ${className ?? ''}`}
         style={style}
       >
         {hideHeader ? null : (
@@ -60,7 +60,7 @@ export default function RetroWindow({
                   <span>Back</span>
                 </button>
               ) : null}
-              <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-blue-600 dark:bg-blue-500/15 dark:text-blue-300">
+              <span className="ui-brand-sparkle inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full">
                 <AppIcon kind="sparkle" className="h-3.5 w-3.5" />
               </span>
               <div className="min-w-0">
@@ -96,7 +96,7 @@ export default function RetroWindow({
 
   return (
     <div
-      className={`flex h-[100dvh] w-full flex-col overflow-hidden bg-transparent font-["SF_Pro_Text","SF_Pro_Display","Segoe_UI",sans-serif] ${className ?? ''}`}
+      className={`flex h-[100dvh] w-full flex-col overflow-hidden bg-transparent ${className ?? ''}`}
       style={style}
     >
       {hideHeader ? null : (
@@ -115,7 +115,7 @@ export default function RetroWindow({
             ) : null}
           </div>
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-24">
-            <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-blue-600">
+            <span className="ui-brand-sparkle inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full">
               <AppIcon kind="sparkle" className="h-3.5 w-3.5" />
             </span>
             <span className="ml-2 truncate tracking-wide text-slate-700 dark:text-slate-100">
