@@ -63,6 +63,7 @@ export default function BuddyProfileSheet({
   const [showReportForm, setShowReportForm] = useState(false);
   const [reportCategory, setReportCategory] = useState<AbuseReportCategory>('harassment');
   const [reportDetails, setReportDetails] = useState('');
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
 
   useEffect(() => {
     if (!isOpen || !buddy) {
@@ -204,13 +205,50 @@ export default function BuddyProfileSheet({
             {showRemoveAction ? (
               <button
                 type="button"
-                onClick={onRemoveBuddy}
+                onClick={() => setShowRemoveConfirm(true)}
                 disabled={isUpdating}
                 aria-label={`Remove ${buddy.screenname} from your buddy list`}
                 className="ui-focus-ring ui-button-danger rounded-2xl px-4 py-2.5 text-[length:var(--ui-text-md)] disabled:opacity-60"
               >
                 {isUpdating ? 'Removing…' : 'Remove Buddy'}
               </button>
+            ) : null}
+            {showRemoveConfirm ? (
+              <div
+                className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-[2px]"
+                onClick={() => setShowRemoveConfirm(false)}
+              >
+                <div
+                  className="ui-sheet-surface mx-4 w-full max-w-sm rounded-[1.6rem] p-5 shadow-xl"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <p className="text-[length:var(--ui-text-lg)] font-semibold text-slate-800">
+                    Remove {buddy.screenname}?
+                  </p>
+                  <p className="mt-1.5 text-[length:var(--ui-text-sm)] text-slate-500">
+                    Remove {buddy.screenname} from your buddy list?
+                  </p>
+                  <div className="mt-5 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowRemoveConfirm(false)}
+                      className="ui-focus-ring ui-button-secondary rounded-2xl px-4 py-2.5 text-[length:var(--ui-text-md)]"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowRemoveConfirm(false);
+                        onRemoveBuddy?.();
+                      }}
+                      className="ui-focus-ring ui-button-danger rounded-2xl px-4 py-2.5 text-[length:var(--ui-text-md)]"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              </div>
             ) : null}
           </div>
 
