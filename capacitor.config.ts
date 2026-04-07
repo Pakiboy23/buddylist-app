@@ -19,6 +19,9 @@ const config: CapacitorConfig = {
         },
       }
     : {}),
+  ios: {
+    scheme: 'HIM',
+  },
   plugins: {
     StatusBar: {
       overlaysWebView: false,

@@ -81,7 +81,7 @@ async function main() {
   console.log('\nRepo-side iOS preflight passed.');
   console.log('Manual release checklist:');
   console.log('- Set the final Version and Build in Xcode.');
-  console.log('- Confirm Apple Developer team/signing for the App target.');
+  console.log('- Confirm Apple Developer team/signing for the HIM target.');
   console.log('- Complete App Store privacy answers, support URL, privacy policy, and screenshots.');
   console.log('- Archive from Xcode and validate the uploaded build in TestFlight.');
 }

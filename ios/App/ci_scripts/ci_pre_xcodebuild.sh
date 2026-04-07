@@ -25,7 +25,7 @@ if [ "$XCODEBUILD_ACTION" = "test-without-building" ]; then
 fi
 
 if [ ! -f "$WEB_BUNDLE_DIR/index.html" ]; then
-    echo "error: Xcode Cloud build aborted because App/App/public/index.html is missing."
+    echo "error: Xcode Cloud build aborted because ios/App/App/public/index.html is missing."
     exit 1
 fi
 

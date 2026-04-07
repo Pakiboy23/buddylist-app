@@ -45,7 +45,7 @@ npm run ios:preflight
 npm run ios:open
 ```
 
-2. In Xcode, select target `App`.
+2. In Xcode, select target `HIM`.
 3. Set `Signing & Capabilities`:
    - Team: your Apple Developer team
    - Bundle Identifier: keep `com.hiitsme.app` unless you intentionally change it everywhere
