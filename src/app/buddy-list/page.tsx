@@ -4795,8 +4795,10 @@ function BuddyListContent() {
     const { error } = await supabase
       .from('buddies')
       .delete()
-      .eq('user_id', userId)
-      .eq('buddy_id', buddyId);
+      .or(
+        `and(user_id.eq.${userId},buddy_id.eq.${buddyId}),` +
+        `and(user_id.eq.${buddyId},buddy_id.eq.${userId})`
+      );
     setIsRemovingBuddyId(null);
 
     if (error) {
