@@ -18,7 +18,7 @@ async function signOn(page: Page, screenname: string, password: string) {
   await page.getByPlaceholder('e.g. sk8erboi99').fill(screenname);
   await page.getByPlaceholder('Enter password').fill(password);
   await page.locator('button[type="submit"]').click();
-  await expect(page).toHaveURL(/\/buddy-list/);
+  await expect(page).toHaveURL(/\/hi-its-me/);
 }
 
 function dmRow(page: Page, screenname: string) {
@@ -39,14 +39,14 @@ async function attachThenRemovePendingFile(page: Page, fileName: string) {
 
 async function leaveCurrentWindow(page: Page) {
   await page.getByRole('button', { name: 'Back' }).click();
-  await expect(page).toHaveURL(/\/buddy-list(?:\?|$)/);
+  await expect(page).toHaveURL(/\/hi-its-me(?:\?|$)/);
 }
 
 async function joinRoom(page: Page, roomName: string) {
   await page.getByRole('button', { name: 'Chat' }).click();
   await page.getByLabel('Room name:').fill(roomName);
   await page.getByRole('button', { name: 'Join' }).click();
-  await expect(page).toHaveURL(new RegExp(`/buddy-list\\?room=${escapeRegExp(encodeURIComponent(roomName))}`));
+  await expect(page).toHaveURL(new RegExp(`/hi-its-me\\?room=${escapeRegExp(encodeURIComponent(roomName))}`));
 }
 
 test.describe('logged-in ui smoke', () => {

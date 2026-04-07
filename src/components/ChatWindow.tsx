@@ -792,7 +792,7 @@ export default function ChatWindow({
             const extension = getVoiceNoteExtension(mimeType);
             const file = new File(
               [blob],
-              `buddylist-voice-note-${Date.now()}.${extension}`,
+              `hiitsme-voice-note-${Date.now()}.${extension}`,
               { type: mimeType || 'audio/webm', lastModified: Date.now() },
             );
             appendPendingFiles([file]);
@@ -1319,7 +1319,7 @@ export default function ChatWindow({
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="truncate text-[15px] font-semibold text-slate-800 dark:text-slate-100">
+                      <span className="ui-screenname truncate text-[15px] font-semibold text-slate-800 dark:text-slate-100">
                         {buddyScreenname}
                       </span>
                       <span className={`text-[11px] font-semibold ${presenceToneClass}`}>
@@ -1350,8 +1350,11 @@ export default function ChatWindow({
                 </button>
               </div>
               {buddyPresenceState === 'away' && buddyStatusLine ? (
-                <div className="mt-3 rounded-2xl bg-amber-50/90 px-3 py-2 text-[11px] font-medium text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
-                  {buddyStatusLine}
+                <div className="ui-away-card mt-3">
+                  <p data-away-label="true">Away Message</p>
+                  <p data-away-text="true" className="mt-1 text-[11px] font-medium">
+                    {buddyStatusLine}
+                  </p>
                 </div>
               ) : null}
             </div>
@@ -1683,7 +1686,7 @@ export default function ChatWindow({
                             >
                               {!isMine && clusterMeta.isFirstInRun ? (
                                 <div className="mb-1 flex items-center gap-2 px-1">
-                                  <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-200">
+                                  <span className="ui-screenname text-[11px] font-semibold text-slate-500 dark:text-slate-200">
                                     {buddyScreenname}
                                   </span>
                                   <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">

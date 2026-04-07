@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 
-const STORAGE_KEY = 'buddylist_theme';
+const STORAGE_KEY = 'hiitsme_theme';
 
 function getStoredTheme(): ThemeMode {
   if (typeof window === 'undefined') return 'dark';

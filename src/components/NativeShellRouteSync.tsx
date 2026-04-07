@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { isNativeIosShell, publishNativeShellChromeState } from '@/lib/nativeShell';
 
-const BUDDY_LIST_PATH = '/buddy-list';
+const HI_ITS_ME_PATH = '/hi-its-me';
 
 export default function NativeShellRouteSync() {
   const pathname = usePathname();
@@ -14,7 +14,7 @@ export default function NativeShellRouteSync() {
       return;
     }
 
-    if (pathname.startsWith(BUDDY_LIST_PATH)) {
+    if (pathname.startsWith(HI_ITS_ME_PATH)) {
       return;
     }
 
@@ -22,7 +22,7 @@ export default function NativeShellRouteSync() {
       typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
 
     void publishNativeShellChromeState({
-      title: 'Buddy List',
+      title: 'H.I.M.',
       subtitle: null,
       mode: 'sheet',
       activeTab: 'im',

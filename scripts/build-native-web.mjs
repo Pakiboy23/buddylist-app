@@ -8,7 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
 const outputDir = path.join(repoRoot, 'native-web');
-const tempPrefix = path.join(os.tmpdir(), 'buddylist-native-export-');
+const tempPrefix = path.join(os.tmpdir(), 'hiitsme-native-export-');
 const tempExportDirName = '.next-native';
 const excludedTopLevelEntries = new Set([
   '.git',
@@ -61,7 +61,7 @@ async function createTempWorkspace() {
 async function assertBuildArtifacts(staticExportDir) {
   const requiredFiles = [
     path.join(staticExportDir, 'index.html'),
-    path.join(staticExportDir, 'buddy-list', 'index.html'),
+    path.join(staticExportDir, 'hi-its-me', 'index.html'),
     path.join(staticExportDir, 'favicon.ico'),
     path.join(staticExportDir, 'manifest.webmanifest'),
   ];

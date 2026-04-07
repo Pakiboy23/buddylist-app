@@ -1,12 +1,12 @@
 {
-	"appId": "com.buddylist.app",
-	"appName": "BuddyList",
+	"appId": "com.hiitsme.app",
+	"appName": "H.I.M.",
 	"webDir": "native-web",
 	"plugins": {
 		"StatusBar": {
 			"overlaysWebView": false,
 			"style": "LIGHT",
-			"backgroundColor": "#1D4ED8"
+			"backgroundColor": "#13100E"
 		},
 		"PushNotifications": {
 			"presentationOptions": [

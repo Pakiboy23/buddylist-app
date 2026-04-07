@@ -16,7 +16,7 @@ export const DEFAULT_APP_LOCK_SETTINGS: AppLockSettings = {
   biometricsEnabled: false,
 };
 
-const APP_LOCK_STORAGE_PREFIX = 'buddylist:app-lock:v1:';
+const APP_LOCK_STORAGE_PREFIX = 'hiitsme:app-lock:v1:';
 
 function isAllowedAutoLockSeconds(value: unknown): value is (typeof APP_LOCK_AUTO_LOCK_OPTIONS)[number] {
   return typeof value === 'number' && APP_LOCK_AUTO_LOCK_OPTIONS.includes(value as (typeof APP_LOCK_AUTO_LOCK_OPTIONS)[number]);

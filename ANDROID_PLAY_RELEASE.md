@@ -6,13 +6,13 @@ This project can build a signed Play Store bundle (`.aab`) with Gradle.
 
 - Java 17+ installed (`java -version`)
 - Android SDK / Android Studio installed
-- Google Play Console app created for package id `com.buddylist.app`
+- Google Play Console app created for package id `com.hiitsme.app`
 
 ## 2) Create upload keystore (one-time)
 
 ```bash
 keytool -genkey -v \
-  -keystore ~/keys/buddylist-upload.jks \
+  -keystore ~/keys/hiitsme-upload.jks \
   -alias upload \
   -keyalg RSA \
   -keysize 2048 \
@@ -30,7 +30,7 @@ cp android/keystore.properties.example android/keystore.properties
 Edit `android/keystore.properties`:
 
 ```properties
-storeFile=/absolute/path/to/buddylist-upload.jks
+storeFile=/absolute/path/to/hiitsme-upload.jks
 storePassword=...
 keyAlias=upload
 keyPassword=...

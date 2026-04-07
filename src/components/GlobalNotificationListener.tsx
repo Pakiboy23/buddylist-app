@@ -72,7 +72,7 @@ interface PushNotificationData {
   variant?: unknown;
 }
 
-const BUDDY_LIST_PATH = '/buddy-list';
+const HI_ITS_ME_PATH = '/hi-its-me';
 const MAX_BANNER_QUEUE = 20;
 const BANNER_DEDUPE_WINDOW_MS = 2000;
 
@@ -87,7 +87,7 @@ function resolvePushBannerData(notification: Pick<PushNotificationSchema, 'title
       ? (notification.data as PushNotificationData)
       : {};
   const targetPath =
-    typeof rawData.targetPath === 'string' ? normalizeAppPath(rawData.targetPath) : BUDDY_LIST_PATH;
+    typeof rawData.targetPath === 'string' ? normalizeAppPath(rawData.targetPath) : HI_ITS_ME_PATH;
   const variant =
     rawData.variant === 'room' || rawData.variant === 'dm' || rawData.variant === 'buddy'
       ? rawData.variant
@@ -95,7 +95,7 @@ function resolvePushBannerData(notification: Pick<PushNotificationSchema, 'title
   const senderName =
     typeof rawData.senderName === 'string' && rawData.senderName.trim()
       ? rawData.senderName.trim()
-      : notification.title?.trim() || 'BuddyList';
+      : notification.title?.trim() || 'H.I.M.';
   const messagePreview =
     typeof rawData.messagePreview === 'string' && rawData.messagePreview.trim()
       ? rawData.messagePreview.trim()
@@ -231,7 +231,7 @@ export default function GlobalNotificationListener() {
   }, []);
 
   useEffect(() => {
-    if (!Capacitor.isNativePlatform() || !currentUserId || !pathname.startsWith(BUDDY_LIST_PATH)) {
+    if (!Capacitor.isNativePlatform() || !currentUserId || !pathname.startsWith(HI_ITS_ME_PATH)) {
       return;
     }
 
@@ -258,7 +258,7 @@ export default function GlobalNotificationListener() {
               | undefined;
             const targetPath =
               typeof rawExtra?.targetPath === 'string' ? rawExtra.targetPath : '';
-            if (targetPath.startsWith(BUDDY_LIST_PATH)) {
+            if (targetPath.startsWith(HI_ITS_ME_PATH)) {
               navigateAppPath(router, targetPath);
             }
           },
@@ -477,7 +477,7 @@ export default function GlobalNotificationListener() {
   }, []);
 
   useEffect(() => {
-    if (!Capacitor.isNativePlatform() || !currentUserId || !pathname.startsWith(BUDDY_LIST_PATH)) {
+    if (!Capacitor.isNativePlatform() || !currentUserId || !pathname.startsWith(HI_ITS_ME_PATH)) {
       return;
     }
 
@@ -537,7 +537,7 @@ export default function GlobalNotificationListener() {
             'pushNotificationActionPerformed',
             (action: ActionPerformed) => {
               const banner = resolvePushBannerData(action.notification);
-              if (banner.targetPath.startsWith(BUDDY_LIST_PATH)) {
+              if (banner.targetPath.startsWith(HI_ITS_ME_PATH)) {
                 navigateAppPath(router, banner.targetPath);
               }
             },
@@ -672,7 +672,7 @@ export default function GlobalNotificationListener() {
           }
 
           const view = getCurrentView();
-          if (view.pathname === BUDDY_LIST_PATH && view.dm === senderId) {
+          if (view.pathname === HI_ITS_ME_PATH && view.dm === senderId) {
             return;
           }
 
@@ -682,7 +682,7 @@ export default function GlobalNotificationListener() {
               senderName,
               messagePreview: normalizeTextContent(incoming.content, 'New direct message.'),
               targetPath: normalizeAppPath(
-                `${BUDDY_LIST_PATH}?dm=${encodeURIComponent(senderId)}`,
+                `${HI_ITS_ME_PATH}?dm=${encodeURIComponent(senderId)}`,
               ),
               variant: 'dm',
               source: 'realtime',
@@ -734,7 +734,7 @@ export default function GlobalNotificationListener() {
             }
 
             const view = getCurrentView();
-            if (view.pathname === BUDDY_LIST_PATH && view.room && sameRoom(view.room, roomName)) {
+            if (view.pathname === HI_ITS_ME_PATH && view.room && sameRoom(view.room, roomName)) {
               return;
             }
 
@@ -750,7 +750,7 @@ export default function GlobalNotificationListener() {
               senderName: isMention ? `${senderName} (mention)` : senderName,
               messagePreview: isMention ? `Mention: ${previewText}` : previewText,
               targetPath: normalizeAppPath(
-                `${BUDDY_LIST_PATH}?room=${encodeURIComponent(activeRoomName)}`,
+                `${HI_ITS_ME_PATH}?room=${encodeURIComponent(activeRoomName)}`,
               ),
               variant: 'room',
               source: 'realtime',

@@ -1,7 +1,0 @@
-1:"$Sreact.fragment"
-2:I[926,["252","static/chunks/252-0ed0b0be501f0c3f.js","830","static/chunks/830-148ee3fa7c1e1dac.js","51","static/chunks/51-713ddc88c168ef0b.js","962","static/chunks/962-6a026617b43e4de3.js","535","static/chunks/app/buddy-list/layout-49c58c42ce89cc5c.js"],"ChatProvider"]
-3:I[9656,[],""]
-4:I[7950,[],""]
-5:"$Sreact.suspense"
-6:I[8962,["252","static/chunks/252-0ed0b0be501f0c3f.js","830","static/chunks/830-148ee3fa7c1e1dac.js","51","static/chunks/51-713ddc88c168ef0b.js","962","static/chunks/962-6a026617b43e4de3.js","535","static/chunks/app/buddy-list/layout-49c58c42ce89cc5c.js"],"default"]
-0:{"buildId":"8t_MImHx7_aaWVbvg4Glb","rsc":["$","$1","c",{"children":[null,["$","$L2",null,{"children":[["$","$L3",null,{"parallelRouterKey":"children","template":["$","$L4",null,{}]}],["$","$5",null,{"fallback":null,"children":["$","$L6",null,{}]}]]}]]}],"loading":null,"isPartial":false}

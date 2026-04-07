@@ -1,4 +1,4 @@
--- BuddyList GTM plan schema + security
+-- H.I.M. GTM plan schema + security
 -- Run this in Supabase SQL Editor as a privileged role.
 
 begin;

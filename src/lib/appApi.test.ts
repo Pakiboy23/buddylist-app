@@ -45,6 +45,6 @@ describe('getAppApiUrl', () => {
 
   it('uses the hosted backend origin on native platforms', () => {
     isNativePlatform.mockReturnValue(true);
-    expect(getAppApiUrl('/api/admin/me')).toBe('https://buddylist-app.vercel.app/api/admin/me');
+    expect(getAppApiUrl('/api/admin/me')).toBe('https://hiitsme-app.vercel.app/api/admin/me');
   });
 });

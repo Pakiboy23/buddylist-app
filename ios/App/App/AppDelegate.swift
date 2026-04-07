@@ -2,25 +2,38 @@ import UIKit
 import Capacitor
 import WebKit
 
-fileprivate enum BuddyListShellTab: String, Decodable {
+fileprivate extension UIColor {
+    static let himBg = UIColor(red: 19 / 255, green: 16 / 255, blue: 14 / 255, alpha: 1)
+    static let himBg2 = UIColor(red: 29 / 255, green: 25 / 255, blue: 22 / 255, alpha: 1)
+    static let himBg3 = UIColor(red: 38 / 255, green: 33 / 255, blue: 24 / 255, alpha: 1)
+    static let himText = UIColor(red: 247 / 255, green: 240 / 255, blue: 232 / 255, alpha: 1)
+    static let himMuted = UIColor(red: 156 / 255, green: 142 / 255, blue: 130 / 255, alpha: 1)
+    static let himRose = UIColor(red: 232 / 255, green: 96 / 255, blue: 138 / 255, alpha: 1)
+    static let himGold = UIColor(red: 212 / 255, green: 150 / 255, blue: 58 / 255, alpha: 1)
+    static let himGreen = UIColor(red: 78 / 255, green: 201 / 255, blue: 122 / 255, alpha: 1)
+    static let himLavender = UIColor(red: 167 / 255, green: 139 / 255, blue: 250 / 255, alpha: 1)
+    static let himOffline = UIColor(red: 122 / 255, green: 115 / 255, blue: 108 / 255, alpha: 1)
+}
+
+fileprivate enum HiItsMeShellTab: String, Decodable {
     case im
     case chat
     case buddy
     case profile
 }
 
-fileprivate enum BuddyListShellMode: String, Decodable {
+fileprivate enum HiItsMeShellMode: String, Decodable {
     case standard
     case conversation
     case sheet
 }
 
-fileprivate enum BuddyListShellTabBarVisibility: String, Decodable {
+fileprivate enum HiItsMeShellTabBarVisibility: String, Decodable {
     case visible
     case hidden
 }
 
-fileprivate enum BuddyListShellAccentTone: String, Decodable {
+fileprivate enum HiItsMeShellAccentTone: String, Decodable {
     case blue
     case violet
     case emerald
@@ -28,7 +41,7 @@ fileprivate enum BuddyListShellAccentTone: String, Decodable {
     case slate
 }
 
-fileprivate enum BuddyListShellAction: String, Decodable {
+fileprivate enum HiItsMeShellAction: String, Decodable {
     case toggleTheme
     case openSaved
     case openAdd
@@ -39,15 +52,15 @@ fileprivate enum BuddyListShellAction: String, Decodable {
     case goBack
 }
 
-fileprivate struct BuddyListShellChromeState: Decodable, Equatable {
+fileprivate struct HiItsMeShellChromeState: Decodable, Equatable {
     let title: String
     let subtitle: String?
-    let mode: BuddyListShellMode
-    let activeTab: BuddyListShellTab
-    let tabBarVisibility: BuddyListShellTabBarVisibility
-    let leadingAction: BuddyListShellAction?
-    let trailingActions: [BuddyListShellAction]
-    let accentTone: BuddyListShellAccentTone
+    let mode: HiItsMeShellMode
+    let activeTab: HiItsMeShellTab
+    let tabBarVisibility: HiItsMeShellTabBarVisibility
+    let leadingAction: HiItsMeShellAction?
+    let trailingActions: [HiItsMeShellAction]
+    let accentTone: HiItsMeShellAccentTone
     let canGoBack: Bool
     let isDark: Bool
     let isAdminUser: Bool
@@ -56,14 +69,14 @@ fileprivate struct BuddyListShellChromeState: Decodable, Equatable {
     let showsBottomChrome: Bool
 
     init(
-        title: String = "Buddy List",
-        subtitle: String? = "Private messaging for buddies",
-        mode: BuddyListShellMode = .standard,
-        activeTab: BuddyListShellTab = .im,
-        tabBarVisibility: BuddyListShellTabBarVisibility = .visible,
-        leadingAction: BuddyListShellAction? = nil,
-        trailingActions: [BuddyListShellAction] = [],
-        accentTone: BuddyListShellAccentTone = .blue,
+        title: String = "H.I.M.",
+        subtitle: String? = "Private messaging, close by design.",
+        mode: HiItsMeShellMode = .standard,
+        activeTab: HiItsMeShellTab = .im,
+        tabBarVisibility: HiItsMeShellTabBarVisibility = .visible,
+        leadingAction: HiItsMeShellAction? = nil,
+        trailingActions: [HiItsMeShellAction] = [],
+        accentTone: HiItsMeShellAccentTone = .blue,
         canGoBack: Bool = false,
         isDark: Bool = false,
         isAdminUser: Bool = false,
@@ -106,21 +119,21 @@ fileprivate struct BuddyListShellChromeState: Decodable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        title = try container.decodeIfPresent(String.self, forKey: .title) ?? "Buddy List"
+        title = try container.decodeIfPresent(String.self, forKey: .title) ?? "H.I.M."
 
         let subtitleValue = try container.decodeIfPresent(String.self, forKey: .subtitle)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         subtitle = subtitleValue?.isEmpty == true ? nil : subtitleValue
 
-        mode = try container.decodeIfPresent(BuddyListShellMode.self, forKey: .mode) ?? .standard
-        let activeTabValue = try container.decodeIfPresent(String.self, forKey: .activeTab) ?? BuddyListShellTab.im.rawValue
-        activeTab = BuddyListShellTab(rawValue: activeTabValue) ?? .im
-        tabBarVisibility = try container.decodeIfPresent(BuddyListShellTabBarVisibility.self, forKey: .tabBarVisibility)
+        mode = try container.decodeIfPresent(HiItsMeShellMode.self, forKey: .mode) ?? .standard
+        let activeTabValue = try container.decodeIfPresent(String.self, forKey: .activeTab) ?? HiItsMeShellTab.im.rawValue
+        activeTab = HiItsMeShellTab(rawValue: activeTabValue) ?? .im
+        tabBarVisibility = try container.decodeIfPresent(HiItsMeShellTabBarVisibility.self, forKey: .tabBarVisibility)
             ?? .visible
-        leadingAction = try container.decodeIfPresent(BuddyListShellAction.self, forKey: .leadingAction)
-        trailingActions = try container.decodeIfPresent([BuddyListShellAction].self, forKey: .trailingActions)
+        leadingAction = try container.decodeIfPresent(HiItsMeShellAction.self, forKey: .leadingAction)
+        trailingActions = try container.decodeIfPresent([HiItsMeShellAction].self, forKey: .trailingActions)
             ?? []
-        accentTone = try container.decodeIfPresent(BuddyListShellAccentTone.self, forKey: .accentTone) ?? .blue
+        accentTone = try container.decodeIfPresent(HiItsMeShellAccentTone.self, forKey: .accentTone) ?? .blue
         canGoBack = try container.decodeIfPresent(Bool.self, forKey: .canGoBack) ?? false
         isDark = try container.decodeIfPresent(Bool.self, forKey: .isDark) ?? false
         isAdminUser = try container.decodeIfPresent(Bool.self, forKey: .isAdminUser) ?? false
@@ -129,11 +142,11 @@ fileprivate struct BuddyListShellChromeState: Decodable, Equatable {
         showsBottomChrome = try container.decodeIfPresent(Bool.self, forKey: .showsBottomChrome) ?? true
     }
 
-    var resolvedLeadingAction: BuddyListShellAction? {
+    var resolvedLeadingAction: HiItsMeShellAction? {
         leadingAction ?? (canGoBack ? .goBack : nil)
     }
 
-    var resolvedTrailingActions: [BuddyListShellAction] {
+    var resolvedTrailingActions: [HiItsMeShellAction] {
         if trailingActions.isEmpty {
             switch mode {
             case .conversation:
@@ -271,7 +284,7 @@ fileprivate struct NativeAdminResetAuditResponse: Decodable {
 }
 
 fileprivate func makeShellError(_ message: String) -> NSError {
-    NSError(domain: "BuddyListShell", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
+    NSError(domain: "HiItsMeShell", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
 }
 
 fileprivate func resolveSignedPushEnvironment() -> String? {
@@ -283,13 +296,13 @@ fileprivate func resolveSignedPushEnvironment() -> String? {
     return "production"
 }
 
-@objc(BuddyListBridgeViewController)
-class BuddyListBridgeViewController: CAPBridgeViewController {
-    weak var shellController: BuddyListShellViewController?
+@objc(HiItsMeBridgeViewController)
+class HiItsMeBridgeViewController: CAPBridgeViewController {
+    weak var shellController: HiItsMeShellViewController?
 
     override func capacitorDidLoad() {
         super.capacitorDidLoad()
-        bridge?.registerPluginType(BuddyListShellPlugin.self)
+        bridge?.registerPluginType(HiItsMeShellPlugin.self)
     }
 
     override func viewDidLoad() {
@@ -301,18 +314,18 @@ class BuddyListBridgeViewController: CAPBridgeViewController {
     }
 }
 
-@objc(BuddyListShellPlugin)
-class BuddyListShellPlugin: CAPPlugin, CAPBridgedPlugin {
-    public let identifier = "BuddyListShellPlugin"
-    public let jsName = "BuddyListShell"
+@objc(HiItsMeShellPlugin)
+class HiItsMeShellPlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "HiItsMeShellPlugin"
+    public let jsName = "HiItsMeShell"
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "isAvailable", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setChromeState", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getPushEnvironment", returnType: CAPPluginReturnPromise)
     ]
 
-    private var shellController: BuddyListShellViewController? {
-        (bridge?.viewController as? BuddyListBridgeViewController)?.shellController
+    private var shellController: HiItsMeShellViewController? {
+        (bridge?.viewController as? HiItsMeBridgeViewController)?.shellController
     }
 
     @objc func isAvailable(_ call: CAPPluginCall) {
@@ -329,7 +342,7 @@ class BuddyListShellPlugin: CAPPlugin, CAPBridgedPlugin {
         }
 
         do {
-            let state = try call.decode(BuddyListShellChromeState.self)
+            let state = try call.decode(HiItsMeShellChromeState.self)
             DispatchQueue.main.async {
                 shellController.applyChromeState(state)
                 call.resolve()
@@ -346,13 +359,15 @@ class BuddyListShellPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 }
 
-@objc(BuddyListShellViewController)
-class BuddyListShellViewController: UIViewController, UITabBarDelegate {
-    private let bridgeViewController = BuddyListBridgeViewController()
+@objc(HiItsMeShellViewController)
+class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
+    private let bridgeViewController = HiItsMeBridgeViewController()
     private let topChromeView = UIVisualEffectView(effect: nil)
     private let bottomChromeView = UIVisualEffectView(effect: nil)
     private let topDockView = UIVisualEffectView(effect: nil)
     private let bottomDockView = UIVisualEffectView(effect: nil)
+    private let headerGradientView = UIView()
+    private let headerGradientLayer = CAGradientLayer()
     private let navigationBar = UINavigationBar(frame: .zero)
     private let tabBar = UITabBar(frame: .zero)
     private let topNavigationItem = UINavigationItem(title: "")
@@ -389,12 +404,17 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
         image: UIImage(systemName: "person.crop.circle"),
         selectedImage: UIImage(systemName: "person.crop.circle.fill")
     )
-    private var chromeState = BuddyListShellChromeState()
+    private var chromeState = HiItsMeShellChromeState()
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = .systemBackground
+        view.backgroundColor = .himBg
         bridgeViewController.shellController = self
+
+        headerGradientLayer.colors = [UIColor.himRose.cgColor, UIColor.himLavender.cgColor, UIColor.himGold.cgColor]
+        headerGradientLayer.startPoint = CGPoint(x: 0, y: 0.5)
+        headerGradientLayer.endPoint = CGPoint(x: 1, y: 0.5)
+        headerGradientView.layer.addSublayer(headerGradientLayer)
 
         configureTitleView()
         configureNavigationBar()
@@ -407,6 +427,7 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
         super.viewDidLayoutSubviews()
         topDockView.layer.cornerRadius = max(22, topDockView.bounds.height / 2)
         bottomDockView.layer.cornerRadius = max(24, bottomDockView.bounds.height / 2)
+        headerGradientLayer.frame = headerGradientView.bounds
         updateTabSelectionIndicator()
     }
 
@@ -414,10 +435,10 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
         chromeState.isDark ? .lightContent : .darkContent
     }
 
-    fileprivate func applyChromeState(_ state: BuddyListShellChromeState, animated: Bool = true) {
+    fileprivate func applyChromeState(_ state: HiItsMeShellChromeState, animated: Bool = true) {
         chromeState = state
         overrideUserInterfaceStyle = state.isDark ? .dark : .light
-        view.backgroundColor = state.isDark ? UIColor.black : UIColor.systemBackground
+        view.backgroundColor = .himBg
 
         titleLabel.text = state.title
         subtitleLabel.text = state.subtitle
@@ -433,13 +454,13 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
     func tabBar(_ tabBar: UITabBar, didSelect item: UITabBarItem) {
         switch item {
         case imTabItem:
-            dispatchCommand(type: "selectTab", valueKey: "tab", value: BuddyListShellTab.im.rawValue)
+            dispatchCommand(type: "selectTab", valueKey: "tab", value: HiItsMeShellTab.im.rawValue)
         case chatTabItem:
-            dispatchCommand(type: "selectTab", valueKey: "tab", value: BuddyListShellTab.chat.rawValue)
+            dispatchCommand(type: "selectTab", valueKey: "tab", value: HiItsMeShellTab.chat.rawValue)
         case buddyTabItem:
-            dispatchCommand(type: "selectTab", valueKey: "tab", value: BuddyListShellTab.buddy.rawValue)
+            dispatchCommand(type: "selectTab", valueKey: "tab", value: HiItsMeShellTab.buddy.rawValue)
         case profileTabItem:
-            dispatchCommand(type: "selectTab", valueKey: "tab", value: BuddyListShellTab.profile.rawValue)
+            dispatchCommand(type: "selectTab", valueKey: "tab", value: HiItsMeShellTab.profile.rawValue)
         default:
             return
         }
@@ -488,10 +509,10 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
     fileprivate func loadPrivacyState(completion: @escaping (Result<NativePrivacyResponse, Error>) -> Void) {
         callBridgeMethod(
             """
-            if (!window.__buddyListNativeShell?.loadPrivacyState) {
+            if (!window.__hiItsMeNativeShell?.loadPrivacyState) {
                 return { ok: false, error: "Privacy bridge unavailable." };
             }
-            return await window.__buddyListNativeShell.loadPrivacyState();
+            return await window.__hiItsMeNativeShell.loadPrivacyState();
             """,
             arguments: [:],
             as: NativePrivacyResponse.self,
@@ -505,10 +526,10 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
     ) {
         callBridgeMethod(
             """
-            if (!window.__buddyListNativeShell?.updatePrivacySettings) {
+            if (!window.__hiItsMeNativeShell?.updatePrivacySettings) {
                 return { ok: false, error: "Privacy bridge unavailable." };
             }
-            return await window.__buddyListNativeShell.updatePrivacySettings(patch);
+            return await window.__hiItsMeNativeShell.updatePrivacySettings(patch);
             """,
             arguments: ["patch": patch],
             as: NativePrivacyResponse.self,
@@ -519,10 +540,10 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
     fileprivate func loadAdminResetAudit(limit: Int = 12, completion: @escaping (Result<[NativeAdminResetAuditItem], Error>) -> Void) {
         callBridgeMethod(
             """
-            if (!window.__buddyListNativeShell?.loadAdminResetAudit) {
+            if (!window.__hiItsMeNativeShell?.loadAdminResetAudit) {
                 return { ok: false, error: "Admin reset bridge unavailable." };
             }
-            return await window.__buddyListNativeShell.loadAdminResetAudit(limit);
+            return await window.__hiItsMeNativeShell.loadAdminResetAudit(limit);
             """,
             arguments: ["limit": limit],
             as: NativeAdminResetAuditResponse.self
@@ -550,10 +571,10 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
     ) {
         callBridgeMethod(
             """
-            if (!window.__buddyListNativeShell?.issueAdminResetTicket) {
+            if (!window.__hiItsMeNativeShell?.issueAdminResetTicket) {
                 return { ok: false, error: "Admin reset bridge unavailable." };
             }
-            return await window.__buddyListNativeShell.issueAdminResetTicket(screenname);
+            return await window.__hiItsMeNativeShell.issueAdminResetTicket(screenname);
             """,
             arguments: ["screenname": screenname],
             as: NativeAdminResetIssueResponse.self
@@ -578,7 +599,7 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
         completion: @escaping (Result<T, Error>) -> Void
     ) {
         guard let webView = bridgeViewController.webView else {
-            completion(.failure(makeShellError("Buddy List is still loading.")))
+            completion(.failure(makeShellError("H.I.M. is still loading.")))
             return
         }
 
@@ -586,7 +607,7 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
             switch result {
             case .success(let value):
                 guard JSONSerialization.isValidJSONObject(value) else {
-                    completion(.failure(makeShellError("Buddy List returned an unreadable response.")))
+                    completion(.failure(makeShellError("H.I.M. returned an unreadable response.")))
                     return
                 }
 
@@ -604,14 +625,18 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
     }
 
     private func configureTitleView() {
-        titleLabel.font = UIFont.preferredFont(forTextStyle: .headline)
+        titleLabel.font = UIFontMetrics(forTextStyle: .headline).scaledFont(
+            for: UIFont.monospacedSystemFont(ofSize: UIFont.preferredFont(forTextStyle: .headline).pointSize, weight: .semibold)
+        )
         titleLabel.adjustsFontForContentSizeCategory = true
         titleLabel.textAlignment = .center
         titleLabel.numberOfLines = 1
         titleLabel.adjustsFontSizeToFitWidth = true
         titleLabel.minimumScaleFactor = 0.9
 
-        subtitleLabel.font = UIFont.preferredFont(forTextStyle: .caption1)
+        subtitleLabel.font = UIFontMetrics(forTextStyle: .caption1).scaledFont(
+            for: UIFont.systemFont(ofSize: UIFont.preferredFont(forTextStyle: .caption1).pointSize, weight: .medium)
+        )
         subtitleLabel.adjustsFontForContentSizeCategory = true
         subtitleLabel.textAlignment = .center
         subtitleLabel.numberOfLines = 1
@@ -629,9 +654,12 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
         navigationBar.setItems([topNavigationItem], animated: false)
         topDockView.clipsToBounds = true
         topDockView.layer.cornerCurve = .continuous
+        headerGradientView.translatesAutoresizingMaskIntoConstraints = false
+        headerGradientView.isUserInteractionEnabled = false
 
         view.addSubview(topChromeView)
         topChromeView.contentView.addSubview(topDockView)
+        topDockView.contentView.addSubview(headerGradientView)
         topDockView.contentView.addSubview(navigationBar)
 
         NSLayoutConstraint.activate([
@@ -644,7 +672,12 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
             topDockView.trailingAnchor.constraint(equalTo: topChromeView.contentView.trailingAnchor, constant: -12),
             topDockView.bottomAnchor.constraint(equalTo: topChromeView.contentView.bottomAnchor, constant: -6),
 
-            navigationBar.topAnchor.constraint(equalTo: topDockView.contentView.topAnchor, constant: 2),
+            headerGradientView.topAnchor.constraint(equalTo: topDockView.contentView.topAnchor),
+            headerGradientView.leadingAnchor.constraint(equalTo: topDockView.contentView.leadingAnchor),
+            headerGradientView.trailingAnchor.constraint(equalTo: topDockView.contentView.trailingAnchor),
+            headerGradientView.heightAnchor.constraint(equalToConstant: 2),
+
+            navigationBar.topAnchor.constraint(equalTo: headerGradientView.bottomAnchor, constant: 4),
             navigationBar.leadingAnchor.constraint(equalTo: topDockView.contentView.leadingAnchor, constant: 8),
             navigationBar.trailingAnchor.constraint(equalTo: topDockView.contentView.trailingAnchor, constant: -8),
             navigationBar.bottomAnchor.constraint(equalTo: topDockView.contentView.bottomAnchor, constant: -2)
@@ -764,18 +797,14 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
         imTabItem.badgeValue = chromeState.unreadDirectCount > 0
             ? (chromeState.unreadDirectCount > 99 ? "99+" : String(chromeState.unreadDirectCount))
             : nil
-        imTabItem.badgeColor = .systemRed
+        imTabItem.badgeColor = .himRose
     }
 
     private func updateChromeAppearance(animated: Bool) {
-        let blurStyle: UIBlurEffect.Style = chromeState.isDark
-            ? .systemUltraThinMaterialDark
-            : .systemUltraThinMaterialLight
+        let blurStyle: UIBlurEffect.Style = .systemUltraThinMaterialDark
         let tintColor = resolvedAccentColor()
-        let titleColor = chromeState.isDark ? UIColor.white : UIColor.label
-        let subtitleColor = chromeState.isDark
-            ? UIColor.secondaryLabel.withAlphaComponent(0.92)
-            : UIColor.secondaryLabel
+        let titleColor = UIColor.himText
+        let subtitleColor = UIColor.himMuted
         let dockOverlayColor = resolvedDockOverlayColor()
         let dockBorderColor = resolvedDockBorderColor()
 
@@ -832,9 +861,7 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
         appearance.backgroundColor = .clear
         appearance.shadowColor = .clear
 
-        let normalColor = chromeState.isDark
-            ? UIColor.secondaryLabel.withAlphaComponent(0.92)
-            : UIColor.secondaryLabel
+        let normalColor = UIColor.himMuted
         let selectedColor = resolvedAccentColor()
 
         appearance.stackedLayoutAppearance.normal.iconColor = normalColor
@@ -847,34 +874,15 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
     }
 
     private func resolvedAccentColor() -> UIColor {
-        switch chromeState.accentTone {
-        case .violet:
-            return .systemIndigo
-        case .emerald:
-            return .systemGreen
-        case .amber:
-            return .systemOrange
-        case .slate:
-            return chromeState.isDark ? UIColor.systemGray2 : UIColor.systemGray
-        case .blue:
-            return .systemBlue
-        }
+        .himRose
     }
 
     private func resolvedDockOverlayColor() -> UIColor {
-        if chromeState.isDark {
-            return UIColor(red: 9 / 255, green: 15 / 255, blue: 28 / 255, alpha: 0.66)
-        }
-
-        return UIColor(white: 1, alpha: 0.72)
+        UIColor.himBg2.withAlphaComponent(0.92)
     }
 
     private func resolvedDockBorderColor() -> UIColor {
-        if chromeState.isDark {
-            return UIColor.white.withAlphaComponent(0.08)
-        }
-
-        return UIColor.white.withAlphaComponent(0.72)
+        UIColor.white.withAlphaComponent(0.08)
     }
 
     private func applyDockAppearance(
@@ -928,7 +936,7 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
         )
     }
 
-    private func makeBarButtonItem(for action: BuddyListShellAction) -> UIBarButtonItem? {
+    private func makeBarButtonItem(for action: HiItsMeShellAction) -> UIBarButtonItem? {
         switch action {
         case .toggleTheme:
             let themeIcon = chromeState.isDark ? "sun.max.fill" : "moon.fill"
@@ -1000,9 +1008,7 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
         var configuration = UIButton.Configuration.plain()
         configuration.image = UIImage(systemName: systemName)
         configuration.baseForegroundColor = resolvedAccentColor()
-        configuration.background.backgroundColor = chromeState.isDark
-            ? UIColor.white.withAlphaComponent(0.05)
-            : UIColor.black.withAlphaComponent(0.035)
+        configuration.background.backgroundColor = UIColor.himBg3.withAlphaComponent(0.88)
         configuration.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8)
         configuration.cornerStyle = .capsule
         button.configuration = configuration
@@ -1038,7 +1044,7 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
         return UIMenu(title: "", children: actions)
     }
 
-    private func dispatchAction(_ action: BuddyListShellAction) {
+    private func dispatchAction(_ action: HiItsMeShellAction) {
         dispatchCommand(type: "triggerAction", valueKey: "action", value: action.rawValue)
     }
 
@@ -1060,7 +1066,7 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
         }
 
         let script = """
-        window.dispatchEvent(new CustomEvent('buddylist:native-shell-command', { detail: \(json) }));
+        window.dispatchEvent(new CustomEvent('hiitsme:native-shell-command', { detail: \(json) }));
         """
 
         webView.evaluateJavaScript(script) { _, error in
@@ -1093,7 +1099,7 @@ class BuddyListShellViewController: UIViewController, UITabBarDelegate {
 }
 
 fileprivate final class PrivacySheetViewController: UIViewController {
-    private weak var shellController: BuddyListShellViewController?
+    private weak var shellController: HiItsMeShellViewController?
 
     private let scrollView = UIScrollView()
     private let contentStack = UIStackView()
@@ -1116,7 +1122,7 @@ fileprivate final class PrivacySheetViewController: UIViewController {
     private var isLoadingState = false
     private var isSavingState = false
 
-    init(shellController: BuddyListShellViewController) {
+    init(shellController: HiItsMeShellViewController) {
         self.shellController = shellController
         super.init(nibName: nil, bundle: nil)
     }
@@ -1128,7 +1134,7 @@ fileprivate final class PrivacySheetViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = .systemGroupedBackground
+        view.backgroundColor = .himBg
         title = "Privacy"
         navigationItem.leftBarButtonItem = refreshItem
         navigationItem.rightBarButtonItem = UIBarButtonItem(
@@ -1169,18 +1175,18 @@ fileprivate final class PrivacySheetViewController: UIViewController {
         let heroCard = makeCardView()
         let heroIcon = UIImageView(image: UIImage(systemName: "hand.raised.fill"))
         heroIcon.translatesAutoresizingMaskIntoConstraints = false
-        heroIcon.tintColor = .systemBlue
+        heroIcon.tintColor = .himRose
         heroIcon.preferredSymbolConfiguration = .init(pointSize: 20, weight: .semibold)
-        heroIcon.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.12)
+        heroIcon.backgroundColor = UIColor.himRose.withAlphaComponent(0.16)
         heroIcon.layer.cornerRadius = 22
         heroIcon.clipsToBounds = true
 
         let heroTitle = makeLabel(textStyle: .headline, weight: .semibold)
         heroTitle.text = "Private by default"
         let heroBody = makeLabel(textStyle: .subheadline)
-        heroBody.text = "Tune the essentials here, then jump into the full Buddy List controls for app lock and blocked members."
+        heroBody.text = "Tune the essentials here, then jump into the full H.I.M. controls for app lock and blocked members."
         heroBody.numberOfLines = 0
-        heroBody.textColor = .secondaryLabel
+        heroBody.textColor = .himMuted
 
         let heroTextStack = UIStackView(arrangedSubviews: [heroTitle, heroBody])
         heroTextStack.axis = .vertical
@@ -1206,6 +1212,11 @@ fileprivate final class PrivacySheetViewController: UIViewController {
         feedbackLabel.font = UIFont.preferredFont(forTextStyle: .subheadline)
         feedbackLabel.numberOfLines = 0
         feedbackLabel.isHidden = true
+        feedbackLabel.textColor = .himMuted
+        loadSpinner.color = .himRose
+        shareReadReceiptsSwitch.onTintColor = .himRose
+        screenShieldSwitch.onTintColor = .himRose
+        notificationPreviewControl.selectedSegmentTintColor = .himRose
 
         let statusRow = UIStackView(arrangedSubviews: [loadSpinner, feedbackLabel])
         statusRow.axis = .horizontal
@@ -1218,7 +1229,7 @@ fileprivate final class PrivacySheetViewController: UIViewController {
         let readReceiptsBody = makeLabel(textStyle: .caption1)
         readReceiptsBody.text = "Let buddies know when you have opened their messages."
         readReceiptsBody.numberOfLines = 0
-        readReceiptsBody.textColor = .secondaryLabel
+        readReceiptsBody.textColor = .himMuted
 
         let readReceiptsTextStack = UIStackView(arrangedSubviews: [readReceiptsTitle, readReceiptsBody])
         readReceiptsTextStack.axis = .vertical
@@ -1245,13 +1256,13 @@ fileprivate final class PrivacySheetViewController: UIViewController {
         let previewBody = makeLabel(textStyle: .caption1)
         previewBody.text = "Choose how much detail appears in banners and lock-screen alerts."
         previewBody.numberOfLines = 0
-        previewBody.textColor = .secondaryLabel
+        previewBody.textColor = .himMuted
 
         notificationPreviewControl.selectedSegmentIndex = 0
         notificationPreviewControl.addTarget(self, action: #selector(handleNotificationPreviewChanged), for: .valueChanged)
 
         notificationPreviewDetailLabel.font = UIFont.preferredFont(forTextStyle: .caption1)
-        notificationPreviewDetailLabel.textColor = .secondaryLabel
+        notificationPreviewDetailLabel.textColor = .himMuted
         notificationPreviewDetailLabel.numberOfLines = 0
 
         let previewStack = UIStackView(arrangedSubviews: [
@@ -1276,9 +1287,9 @@ fileprivate final class PrivacySheetViewController: UIViewController {
         let screenShieldTitle = makeLabel(textStyle: .subheadline, weight: .semibold)
         screenShieldTitle.text = "Screen shield"
         let screenShieldBody = makeLabel(textStyle: .caption1)
-        screenShieldBody.text = "Obscure Buddy List when the app moves into the background."
+        screenShieldBody.text = "Obscure H.I.M. when the app moves into the background."
         screenShieldBody.numberOfLines = 0
-        screenShieldBody.textColor = .secondaryLabel
+        screenShieldBody.textColor = .himMuted
 
         let screenShieldTextStack = UIStackView(arrangedSubviews: [screenShieldTitle, screenShieldBody])
         screenShieldTextStack.axis = .vertical
@@ -1303,19 +1314,21 @@ fileprivate final class PrivacySheetViewController: UIViewController {
         let advancedTitle = makeLabel(textStyle: .subheadline, weight: .semibold)
         advancedTitle.text = "Advanced security"
         let advancedBody = makeLabel(textStyle: .caption1)
-        advancedBody.text = "App lock, biometric unlock, and blocked-buddy management still live in the full Buddy List privacy panel."
+        advancedBody.text = "App lock, biometric unlock, and blocked-buddy management still live in the full H.I.M. privacy panel."
         advancedBody.numberOfLines = 0
-        advancedBody.textColor = .secondaryLabel
+        advancedBody.textColor = .himMuted
 
         advancedSummaryLabel.font = UIFont.preferredFont(forTextStyle: .subheadline)
         advancedSummaryLabel.numberOfLines = 0
-        advancedSummaryLabel.textColor = .label
+        advancedSummaryLabel.textColor = .himText
 
         openAdvancedButton.configuration = .tinted()
         openAdvancedButton.configuration?.cornerStyle = .large
         openAdvancedButton.configuration?.title = "Open Full Controls"
         openAdvancedButton.configuration?.image = UIImage(systemName: "arrow.up.right.square")
         openAdvancedButton.configuration?.imagePadding = 8
+        openAdvancedButton.configuration?.baseForegroundColor = .himRose
+        openAdvancedButton.configuration?.background.backgroundColor = UIColor.himBg3
         openAdvancedButton.addTarget(self, action: #selector(handleOpenAdvancedControls), for: .touchUpInside)
 
         let advancedStack = UIStackView(arrangedSubviews: [
@@ -1350,7 +1363,7 @@ fileprivate final class PrivacySheetViewController: UIViewController {
         }
 
         guard let shellController else {
-            showFeedback("Buddy List is still loading.", color: .systemRed)
+            showFeedback("H.I.M. is still loading.", color: .himRose)
             return
         }
 
@@ -1371,18 +1384,18 @@ fileprivate final class PrivacySheetViewController: UIViewController {
                 switch result {
                 case .success(let response):
                     guard response.ok, let state = response.state else {
-                        self.showFeedback(response.error ?? "Could not load privacy settings.", color: .systemRed)
+                        self.showFeedback(response.error ?? "Could not load privacy settings.", color: .himRose)
                         return
                     }
 
                     self.applyState(state)
                     if let warning = response.warning, !warning.isEmpty {
-                        self.showFeedback(warning, color: .systemOrange)
+                        self.showFeedback(warning, color: .himGold)
                     } else {
                         self.feedbackLabel.isHidden = true
                     }
                 case .failure(let error):
-                    self.showFeedback(error.localizedDescription, color: .systemRed)
+                    self.showFeedback(error.localizedDescription, color: .himRose)
                 }
             }
         }
@@ -1430,13 +1443,13 @@ fileprivate final class PrivacySheetViewController: UIViewController {
 
         guard let shellController else {
             applyState(previousState)
-            showFeedback("Buddy List is still loading.", color: .systemRed)
+            showFeedback("H.I.M. is still loading.", color: .himRose)
             return
         }
 
         isSavingState = true
         updateInteractivity()
-        showFeedback("Saving privacy updates...", color: .secondaryLabel)
+        showFeedback("Saving privacy updates...", color: .himMuted)
 
         shellController.updatePrivacySettings(patch: patch) { [weak self] result in
             DispatchQueue.main.async {
@@ -1451,19 +1464,19 @@ fileprivate final class PrivacySheetViewController: UIViewController {
                 case .success(let response):
                     guard response.ok, let state = response.state else {
                         self.applyState(previousState)
-                        self.showFeedback(response.error ?? "Could not update privacy.", color: .systemRed)
+                        self.showFeedback(response.error ?? "Could not update privacy.", color: .himRose)
                         return
                     }
 
                     self.applyState(state)
                     if let warning = response.warning, !warning.isEmpty {
-                        self.showFeedback(warning, color: .systemOrange)
+                        self.showFeedback(warning, color: .himGold)
                     } else {
-                        self.showFeedback("Privacy updated.", color: .systemGreen)
+                        self.showFeedback("Privacy updated.", color: .himGreen)
                     }
                 case .failure(let error):
                     self.applyState(previousState)
-                    self.showFeedback(error.localizedDescription, color: .systemRed)
+                    self.showFeedback(error.localizedDescription, color: .himRose)
                 }
             }
         }
@@ -1486,8 +1499,10 @@ fileprivate final class PrivacySheetViewController: UIViewController {
 
     private func makeCardView() -> UIView {
         let view = UIView()
-        view.backgroundColor = .secondarySystemGroupedBackground
+        view.backgroundColor = .himBg2
         view.layer.cornerRadius = 24
+        view.layer.borderWidth = 1
+        view.layer.borderColor = UIColor.white.withAlphaComponent(0.06).cgColor
         return view
     }
 
@@ -1496,6 +1511,7 @@ fileprivate final class PrivacySheetViewController: UIViewController {
         label.font = UIFont.systemFont(ofSize: UIFont.preferredFont(forTextStyle: textStyle).pointSize, weight: weight)
         label.adjustsFontForContentSizeCategory = true
         label.numberOfLines = 1
+        label.textColor = .himText
         return label
     }
 
@@ -1548,7 +1564,7 @@ fileprivate final class PrivacySheetViewController: UIViewController {
 }
 
 fileprivate final class AdminResetSheetViewController: UIViewController, UITextFieldDelegate {
-    private weak var shellController: BuddyListShellViewController?
+    private weak var shellController: HiItsMeShellViewController?
 
     private let scrollView = UIScrollView()
     private let contentStack = UIStackView()
@@ -1573,7 +1589,7 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
     private var isIssuing = false
     private var isLoadingAudit = false
 
-    init(shellController: BuddyListShellViewController) {
+    init(shellController: HiItsMeShellViewController) {
         self.shellController = shellController
         super.init(nibName: nil, bundle: nil)
     }
@@ -1585,7 +1601,7 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = .systemGroupedBackground
+        view.backgroundColor = .himBg
         title = "Reset Access"
         navigationItem.rightBarButtonItem = UIBarButtonItem(
             barButtonSystemItem: .close,
@@ -1632,9 +1648,9 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
         let heroCard = makeCardView()
         let heroIcon = UIImageView(image: UIImage(systemName: "shield.lefthalf.filled"))
         heroIcon.translatesAutoresizingMaskIntoConstraints = false
-        heroIcon.tintColor = .systemBlue
+        heroIcon.tintColor = .himRose
         heroIcon.preferredSymbolConfiguration = .init(pointSize: 20, weight: .semibold)
-        heroIcon.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.12)
+        heroIcon.backgroundColor = UIColor.himRose.withAlphaComponent(0.16)
         heroIcon.layer.cornerRadius = 22
         heroIcon.clipsToBounds = true
 
@@ -1643,7 +1659,7 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
         let heroBody = makeLabel(textStyle: .subheadline)
         heroBody.text = "Issue a secure one-time handoff for members who missed recovery setup or need assisted access."
         heroBody.numberOfLines = 0
-        heroBody.textColor = .secondaryLabel
+        heroBody.textColor = .himMuted
 
         let heroTextStack = UIStackView(arrangedSubviews: [heroTitle, heroBody])
         heroTextStack.axis = .vertical
@@ -1670,6 +1686,7 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
         screennameField.borderStyle = .none
         screennameField.placeholder = "KittyKat34"
         screennameField.font = UIFont.preferredFont(forTextStyle: .body)
+        screennameField.textColor = .himText
         screennameField.autocorrectionType = .no
         screennameField.autocapitalizationType = .none
         screennameField.smartDashesType = .no
@@ -1680,10 +1697,10 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
 
         let fieldShell = UIView()
         fieldShell.translatesAutoresizingMaskIntoConstraints = false
-        fieldShell.backgroundColor = .tertiarySystemGroupedBackground
+        fieldShell.backgroundColor = .himBg3
         fieldShell.layer.cornerRadius = 18
         fieldShell.layer.borderWidth = 1
-        fieldShell.layer.borderColor = UIColor.separator.withAlphaComponent(0.22).cgColor
+        fieldShell.layer.borderColor = UIColor.white.withAlphaComponent(0.08).cgColor
 
         screennameField.translatesAutoresizingMaskIntoConstraints = false
         fieldShell.addSubview(screennameField)
@@ -1699,6 +1716,7 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
         let confirmLabel = makeLabel(textStyle: .subheadline, weight: .medium)
         confirmLabel.text = "I verified this request and will deliver the reset handoff through a trusted channel."
         confirmLabel.numberOfLines = 0
+        confirmationSwitch.onTintColor = .himRose
         let confirmRow = UIStackView(arrangedSubviews: [confirmLabel, confirmationSwitch])
         confirmRow.axis = .horizontal
         confirmRow.alignment = .center
@@ -1719,6 +1737,8 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
         issueButton.configuration?.title = "Issue Secure Ticket"
         issueButton.configuration?.image = UIImage(systemName: "paperplane.fill")
         issueButton.configuration?.imagePadding = 8
+        issueButton.configuration?.baseBackgroundColor = .himRose
+        issueButton.configuration?.baseForegroundColor = .white
         issueButton.addTarget(self, action: #selector(handleIssue), for: .touchUpInside)
 
         issueSpinner.hidesWhenStopped = true
@@ -1734,26 +1754,38 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
         feedbackLabel.font = UIFont.preferredFont(forTextStyle: .subheadline)
         feedbackLabel.numberOfLines = 0
         feedbackLabel.isHidden = true
+        feedbackLabel.textColor = .himMuted
+        issueSpinner.color = .white
+        auditSpinner.color = .himRose
 
         resultCard.isHidden = true
+        resultCard.backgroundColor = .himBg2
+        resultCard.layer.cornerRadius = 24
+        resultCard.layer.borderWidth = 1
+        resultCard.layer.borderColor = UIColor.white.withAlphaComponent(0.06).cgColor
         let resultTitle = makeSectionTitleLabel("Secure reset ready")
         resultSummaryLabel.font = UIFont.preferredFont(forTextStyle: .subheadline)
         resultSummaryLabel.numberOfLines = 0
-        resultSummaryLabel.textColor = .secondaryLabel
+        resultSummaryLabel.textColor = .himMuted
         ticketLabel.font = UIFont.monospacedSystemFont(ofSize: 15, weight: .semibold)
         ticketLabel.numberOfLines = 0
+        ticketLabel.textColor = .himText
         expiresLabel.font = UIFont.preferredFont(forTextStyle: .caption1)
         expiresLabel.numberOfLines = 0
-        expiresLabel.textColor = .secondaryLabel
+        expiresLabel.textColor = .himMuted
 
         copyTicketButton.configuration = .tinted()
         copyTicketButton.configuration?.cornerStyle = .medium
         copyTicketButton.configuration?.title = "Copy Ticket"
+        copyTicketButton.configuration?.baseForegroundColor = .himRose
+        copyTicketButton.configuration?.background.backgroundColor = .himBg3
         copyTicketButton.addTarget(self, action: #selector(handleCopyTicket), for: .touchUpInside)
 
         copyHandoffButton.configuration = .tinted()
         copyHandoffButton.configuration?.cornerStyle = .medium
         copyHandoffButton.configuration?.title = "Copy Secure Handoff"
+        copyHandoffButton.configuration?.baseForegroundColor = .himRose
+        copyHandoffButton.configuration?.background.backgroundColor = .himBg3
         copyHandoffButton.addTarget(self, action: #selector(handleCopyHandoff), for: .touchUpInside)
 
         let resultButtons = UIStackView(arrangedSubviews: [copyTicketButton, copyHandoffButton])
@@ -1778,6 +1810,8 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
         refreshButton.configuration = .tinted()
         refreshButton.configuration?.cornerStyle = .medium
         refreshButton.configuration?.title = "Refresh"
+        refreshButton.configuration?.baseForegroundColor = .himRose
+        refreshButton.configuration?.background.backgroundColor = .himBg3
         refreshButton.addTarget(self, action: #selector(handleRefresh), for: .touchUpInside)
 
         auditSpinner.hidesWhenStopped = true
@@ -1790,7 +1824,7 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
         auditStack.axis = .vertical
         auditStack.spacing = 10
         emptyAuditLabel.font = UIFont.preferredFont(forTextStyle: .subheadline)
-        emptyAuditLabel.textColor = .secondaryLabel
+        emptyAuditLabel.textColor = .himMuted
         emptyAuditLabel.numberOfLines = 0
         emptyAuditLabel.text = "No recent recovery activity yet."
         emptyAuditLabel.isHidden = true
@@ -1836,7 +1870,7 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
         }
 
         guard let shellController else {
-            showFeedback("Buddy List is still loading.", isError: true)
+            showFeedback("H.I.M. is still loading.", isError: true)
             return
         }
 
@@ -1870,7 +1904,7 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
             view.removeFromSuperview()
         }
 
-        emptyAuditLabel.textColor = .secondaryLabel
+        emptyAuditLabel.textColor = .himMuted
 
         if entries.isEmpty {
             emptyAuditLabel.text = "No recent recovery activity yet."
@@ -1892,21 +1926,23 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
         }
 
         emptyAuditLabel.text = message
-        emptyAuditLabel.textColor = .systemRed
+        emptyAuditLabel.textColor = .himRose
         emptyAuditLabel.isHidden = false
     }
 
     private func makeAuditEntryView(_ entry: NativeAdminResetAuditItem) -> UIView {
         let card = UIView()
-        card.backgroundColor = .tertiarySystemGroupedBackground
+        card.backgroundColor = .himBg3
         card.layer.cornerRadius = 18
+        card.layer.borderWidth = 1
+        card.layer.borderColor = UIColor.white.withAlphaComponent(0.06).cgColor
 
         let titleLabel = makeLabel(textStyle: .subheadline, weight: .semibold)
         titleLabel.text = entry.title
 
         let timestampLabel = makeLabel(textStyle: .caption1)
         timestampLabel.text = entry.timestamp
-        timestampLabel.textColor = .secondaryLabel
+        timestampLabel.textColor = .himMuted
 
         let actorLabel = makeLabel(textStyle: .caption1)
         actorLabel.text = "Actor: \(entry.actorLabel)"
@@ -1944,7 +1980,7 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
 
     private func showFeedback(_ message: String, isError: Bool) {
         feedbackLabel.text = message
-        feedbackLabel.textColor = isError ? .systemRed : .systemGreen
+        feedbackLabel.textColor = isError ? .himRose : .himGreen
         feedbackLabel.isHidden = false
     }
 
@@ -1968,15 +2004,17 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
 
     private func makeCardView() -> UIView {
         let view = UIView()
-        view.backgroundColor = .secondarySystemGroupedBackground
+        view.backgroundColor = .himBg2
         view.layer.cornerRadius = 24
+        view.layer.borderWidth = 1
+        view.layer.borderColor = UIColor.white.withAlphaComponent(0.06).cgColor
         return view
     }
 
     private func makeSectionTitleLabel(_ text: String) -> UILabel {
         let label = makeLabel(textStyle: .footnote, weight: .semibold)
         label.text = text.uppercased()
-        label.textColor = .secondaryLabel
+        label.textColor = .himMuted
         return label
     }
 
@@ -1985,6 +2023,7 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
         label.font = UIFont.systemFont(ofSize: UIFont.preferredFont(forTextStyle: textStyle).pointSize, weight: weight)
         label.adjustsFontForContentSizeCategory = true
         label.numberOfLines = 1
+        label.textColor = .himText
         return label
     }
 
@@ -1997,7 +2036,7 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
     }
 
     @objc private func handleRefresh() {
-        emptyAuditLabel.textColor = .secondaryLabel
+        emptyAuditLabel.textColor = .himMuted
         loadAuditEntries()
     }
 
@@ -2018,7 +2057,7 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
         }
 
         guard let shellController else {
-            showFeedback("Buddy List is still loading.", isError: true)
+            showFeedback("H.I.M. is still loading.", isError: true)
             return
         }
 
@@ -2047,7 +2086,7 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
                         let expiresAt = response.expiresAt,
                         let handoff = response.handoff
                     else {
-                        self.showFeedback("Buddy List returned an incomplete reset response.", isError: true)
+                        self.showFeedback("H.I.M. returned an incomplete reset response.", isError: true)
                         return
                     }
 

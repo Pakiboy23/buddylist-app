@@ -3,13 +3,13 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
 const isHostedBuild = process.env.CAPACITOR_HOSTED === '1';
-const hostedServerUrl = (process.env.CAPACITOR_SERVER_URL ?? 'https://buddylist-app.vercel.app')
+const hostedServerUrl = (process.env.CAPACITOR_SERVER_URL ?? 'https://hiitsme-app.vercel.app')
   .trim()
   .replace(/\/+$/, '');
 
 const config: CapacitorConfig = {
-  appId: 'com.buddylist.app',
-  appName: 'BuddyList',
+  appId: 'com.hiitsme.app',
+  appName: 'H.I.M.',
   // Default to bundled native assets for release-safe syncs.
   webDir: isHostedBuild ? 'public' : 'native-web',
   ...(isHostedBuild
@@ -23,7 +23,7 @@ const config: CapacitorConfig = {
     StatusBar: {
       overlaysWebView: false,
       style: 'LIGHT',
-      backgroundColor: '#1D4ED8',
+      backgroundColor: '#13100E',
     },
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert'],

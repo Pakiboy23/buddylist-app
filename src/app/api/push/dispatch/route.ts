@@ -82,7 +82,7 @@ function getApnsConfig() {
     keyId: requirePushEnv('APPLE_PUSH_KEY_ID'),
     teamId: requirePushEnv('APPLE_PUSH_TEAM_ID'),
     privateKey: normalizeApplePushPrivateKey(requirePushEnv('APPLE_PUSH_PRIVATE_KEY')),
-    topic: (process.env.APPLE_PUSH_TOPIC ?? process.env.NEXT_PUBLIC_IOS_BUNDLE_ID ?? 'com.buddylist.app').trim(),
+    topic: (process.env.APPLE_PUSH_TOPIC ?? process.env.NEXT_PUBLIC_IOS_BUNDLE_ID ?? 'com.hiitsme.app').trim(),
   };
 }
 
@@ -384,7 +384,7 @@ async function resolveSenderName(admin: ReturnType<typeof createSupabaseAdminCli
   }
 
   const sender = data as UserRow | null;
-  return sender?.screenname?.trim() || 'BuddyList';
+  return sender?.screenname?.trim() || 'H.I.M.';
 }
 
 async function dispatchDirectMessagePush(admin: ReturnType<typeof createSupabaseAdminClient>, actorUserId: string, messageId: number) {
@@ -408,7 +408,7 @@ async function dispatchDirectMessagePush(admin: ReturnType<typeof createSupabase
     recipientIds: [message.receiver_id],
     senderName,
     previewText: resolvePreviewText(message.content, message.preview_type),
-    targetPath: `/buddy-list?dm=${encodeURIComponent(actorUserId)}`,
+    targetPath: `/hi-its-me?dm=${encodeURIComponent(actorUserId)}`,
     variant: 'dm',
   });
 }
@@ -467,7 +467,7 @@ async function dispatchRoomMessagePush(admin: ReturnType<typeof createSupabaseAd
     recipientIds,
     senderName,
     previewText: clampPreview(`${room.name}: ${htmlToPlainText(message.content) || 'New room message'}`),
-    targetPath: `/buddy-list?room=${encodeURIComponent(room.name)}`,
+    targetPath: `/hi-its-me?room=${encodeURIComponent(room.name)}`,
     variant: 'room',
   });
 }
@@ -483,8 +483,8 @@ async function dispatchBuddyRelationshipPush(input: {
     input.kind === 'buddy_request' ? 'sent you a buddy request.' : 'accepted your buddy request.';
   const targetPath =
     input.kind === 'buddy_request'
-      ? '/buddy-list?tab=im'
-      : `/buddy-list?tab=im&dm=${encodeURIComponent(input.actorUserId)}`;
+      ? '/hi-its-me?tab=im'
+      : `/hi-its-me?tab=im&dm=${encodeURIComponent(input.actorUserId)}`;
 
   return await dispatchToRecipients({
     recipientIds: [input.buddyId],

@@ -1,4 +1,4 @@
--- Chat Rooms schema for BuddyList
+-- Chat Rooms schema for H.I.M.
 -- Run in Supabase SQL Editor
 
 begin;

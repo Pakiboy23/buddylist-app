@@ -15,10 +15,10 @@ def releaseKeyPassword = keystoreProperties['keyPassword'] ?: System.getenv('AND
 def hasReleaseSigning = releaseStoreFile && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
 
 android {
-    namespace = "com.buddylist.app"
+    namespace = "com.hiitsme.app"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.buddylist.app"
+        applicationId "com.hiitsme.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

@@ -51,8 +51,8 @@ export const DEFAULT_USER_PRIVACY_SETTINGS: UserPrivacySettings = {
   screenShieldEnabled: false,
 };
 
-const DM_PREFERENCES_STORAGE_PREFIX = 'buddylist:dm-preferences:v1:';
-const PRIVACY_SETTINGS_STORAGE_PREFIX = 'buddylist:privacy:v1:';
+const DM_PREFERENCES_STORAGE_PREFIX = 'hiitsme:dm-preferences:v1:';
+const PRIVACY_SETTINGS_STORAGE_PREFIX = 'hiitsme:privacy:v1:';
 
 function toNullableString(value: unknown) {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
@@ -184,7 +184,7 @@ export function applyNotificationPreview(
 ): NotificationPreviewInput {
   if (settings.notificationPreviewMode === 'hidden') {
     return {
-      senderName: 'BuddyList',
+      senderName: 'H.I.M.',
       messagePreview: 'New message',
     };
   }

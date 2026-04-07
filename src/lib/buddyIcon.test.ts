@@ -28,10 +28,10 @@ describe('resolveBuddyIconUrl', () => {
   });
 
   it('passes through direct image urls unchanged', () => {
-    expect(resolveBuddyIconUrl('blob:https://buddylist.app/avatar-123')).toBe(
-      'blob:https://buddylist.app/avatar-123',
+    expect(resolveBuddyIconUrl('blob:https://hiitsme.app/avatar-123')).toBe(
+      'blob:https://hiitsme.app/avatar-123',
     );
-    expect(resolveBuddyIconUrl('https://buddylist.app/avatar.png')).toBe('https://buddylist.app/avatar.png');
+    expect(resolveBuddyIconUrl('https://hiitsme.app/avatar.png')).toBe('https://hiitsme.app/avatar.png');
     expect(resolveBuddyIconUrl('/avatars/local-preview.png')).toBe('/avatars/local-preview.png');
     expect(from).not.toHaveBeenCalled();
   });

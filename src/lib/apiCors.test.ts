@@ -3,7 +3,7 @@ import { createCorsPreflightResponse, jsonWithCors } from '@/lib/apiCors';
 
 describe('apiCors', () => {
   it('echoes the native Capacitor origin on preflight responses', () => {
-    const request = new Request('https://buddylist-app.vercel.app/api/push/dispatch', {
+    const request = new Request('https://hiitsme-app.vercel.app/api/push/dispatch', {
       method: 'OPTIONS',
       headers: {
         origin: 'capacitor://localhost',
@@ -21,7 +21,7 @@ describe('apiCors', () => {
   });
 
   it('does not reflect unknown origins', () => {
-    const request = new Request('https://buddylist-app.vercel.app/api/push/dispatch', {
+    const request = new Request('https://hiitsme-app.vercel.app/api/push/dispatch', {
       method: 'OPTIONS',
       headers: {
         origin: 'https://malicious.example',
@@ -34,7 +34,7 @@ describe('apiCors', () => {
   });
 
   it('adds CORS headers to JSON responses for native clients', async () => {
-    const request = new Request('https://buddylist-app.vercel.app/api/auth/recovery/setup', {
+    const request = new Request('https://hiitsme-app.vercel.app/api/auth/recovery/setup', {
       method: 'POST',
       headers: {
         origin: 'capacitor://localhost',

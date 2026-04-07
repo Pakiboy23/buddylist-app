@@ -143,10 +143,10 @@ export default function BuddyProfileSheet({
                 showStatusDot
               />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[length:var(--ui-text-xl)] font-semibold text-slate-800">
+                <p className="ui-screenname truncate text-[length:var(--ui-text-xl)] font-semibold text-slate-800">
                   {buddy.screenname}
                 </p>
-                <p className="text-[length:var(--ui-text-sm)] font-semibold text-blue-600">
+                <p className="text-[length:var(--ui-text-sm)] font-semibold text-[var(--rose)]">
                   {getPresenceLabel(buddy.presenceState)}
                 </p>
                 <p className="mt-1 text-[length:var(--ui-text-sm)] text-slate-500">{buddy.presenceDetail}</p>
@@ -163,11 +163,11 @@ export default function BuddyProfileSheet({
             ) : null}
 
             {buddy.awayMessage ? (
-              <div className="ui-note-warning mt-3">
-                <p className="text-[length:var(--ui-text-2xs)] font-semibold uppercase tracking-widest text-amber-500">
+              <div className="ui-away-card mt-3">
+                <p data-away-label="true" className="text-[length:var(--ui-text-2xs)] font-semibold uppercase tracking-widest">
                   Away Message
                 </p>
-                <p className="mt-1 text-[length:var(--ui-text-md)] italic text-amber-800">{buddy.awayMessage}</p>
+                <p data-away-text="true" className="mt-1 text-[length:var(--ui-text-md)] italic">{buddy.awayMessage}</p>
               </div>
             ) : null}
 
@@ -207,7 +207,7 @@ export default function BuddyProfileSheet({
                 type="button"
                 onClick={() => setShowRemoveConfirm(true)}
                 disabled={isUpdating}
-                aria-label={`Remove ${buddy.screenname} from your buddy list`}
+                aria-label={`Remove ${buddy.screenname} from your H.I.M. contacts`}
                 className="ui-focus-ring ui-button-danger rounded-2xl px-4 py-2.5 text-[length:var(--ui-text-md)] disabled:opacity-60"
               >
                 {isUpdating ? 'Removing…' : 'Remove Buddy'}
@@ -226,7 +226,7 @@ export default function BuddyProfileSheet({
                     Remove {buddy.screenname}?
                   </p>
                   <p className="mt-1.5 text-[length:var(--ui-text-sm)] text-slate-500">
-                    Remove {buddy.screenname} from your buddy list?
+                    Remove {buddy.screenname} from your H.I.M. contacts?
                   </p>
                   <div className="mt-5 flex justify-end gap-2">
                     <button

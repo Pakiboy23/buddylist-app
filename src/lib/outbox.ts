@@ -38,7 +38,7 @@ export interface NewOutboxItem {
   previewType?: OutboxPreviewType;
 }
 
-const OUTBOX_STORAGE_KEY_PREFIX = 'buddylist:outbox:v1:';
+const OUTBOX_STORAGE_KEY_PREFIX = 'hiitsme:outbox:v1:';
 const OUTBOX_VERSION = 1;
 const OUTBOX_MAX_ITEMS = 160;
 const OUTBOX_MAX_CONTENT_CHARS = 4000;

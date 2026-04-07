@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">BuddyList</string>
-    <string name="title_activity_main">BuddyList</string>
-    <string name="package_name">com.buddylist.app</string>
-    <string name="custom_url_scheme">com.buddylist.app</string>
+    <string name="app_name">H.I.M.</string>
+    <string name="title_activity_main">H.I.M.</string>
+    <string name="package_name">com.hiitsme.app</string>
+    <string name="custom_url_scheme">com.hiitsme.app</string>
 </resources>

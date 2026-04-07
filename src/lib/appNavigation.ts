@@ -19,11 +19,11 @@ function isNativePlatform() {
 
 export function normalizeAppPath(path: string, native = isNativePlatform()) {
   const normalizedInput = path.trim() || '/';
-  const url = new URL(normalizedInput, 'https://buddylist.local');
+  const url = new URL(normalizedInput, 'https://hiitsme.local');
 
   let pathname = url.pathname || '/';
-  if (native && pathname === '/buddy-list') {
-    pathname = '/buddy-list/';
+  if (native && pathname === '/hi-its-me') {
+    pathname = '/hi-its-me/';
   }
 
   return `${pathname}${url.search}${url.hash}`;

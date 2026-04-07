@@ -33,37 +33,37 @@ const SIZE_CLASSES = {
 function getFallbackToneClasses(tone: NonNullable<ProfileAvatarProps['tone']>) {
   switch (tone) {
     case 'violet':
-      return 'bg-violet-100 text-violet-700';
+      return 'bg-[rgba(167,139,250,0.18)] text-[var(--lavender)]';
     case 'slate':
-      return 'bg-slate-200 text-slate-700';
+      return 'bg-[rgba(156,142,130,0.16)] text-[var(--muted)]';
     default:
-      return 'bg-blue-100 text-blue-700';
+      return 'bg-[rgba(232,96,138,0.16)] text-[var(--rose)]';
   }
 }
 
 function getPresenceRingClass(presenceState: ResolvedPresenceState | null | undefined) {
   switch (presenceState) {
     case 'away':
-      return 'ring-amber-400';
+      return 'presence-ring-away';
     case 'idle':
-      return 'ring-sky-400';
+      return 'presence-ring-idle';
     case 'offline':
-      return 'ring-slate-300';
+      return 'presence-ring-offline';
     default:
-      return 'ring-emerald-400';
+      return 'presence-ring-available';
   }
 }
 
 function getPresenceDotClass(presenceState: ResolvedPresenceState | null | undefined) {
   switch (presenceState) {
     case 'away':
-      return 'bg-amber-400';
+      return 'presence-dot-away';
     case 'idle':
-      return 'bg-sky-400';
+      return 'presence-dot-idle';
     case 'offline':
-      return 'bg-slate-300';
+      return 'presence-dot-offline';
     default:
-      return 'bg-emerald-400';
+      return 'presence-dot-available';
   }
 }
 
@@ -90,7 +90,7 @@ export default function ProfileAvatar({
   return (
     <div className={`relative shrink-0 ${className}`}>
       <div
-        className={`flex ${sizeClasses.avatar} items-center justify-center overflow-hidden rounded-full font-bold ring-2 ring-offset-1 ring-offset-transparent ${getPresenceRingClass(presenceState)} ${presenceState === 'available' ? 'presence-ring-available' : ''} ${getFallbackToneClasses(tone)}`}
+        className={`flex ${sizeClasses.avatar} items-center justify-center overflow-hidden rounded-full font-bold ring-2 ring-offset-1 ring-offset-transparent ${getPresenceRingClass(presenceState)} ${getFallbackToneClasses(tone)}`}
       >
         {visibleIconUrl ? (
           // Remote buddy icons may come from arbitrary user-provided URLs.
@@ -109,7 +109,7 @@ export default function ProfileAvatar({
       </div>
       {showStatusDot && presenceState ? (
         <span
-          className={`absolute -bottom-0.5 -right-0.5 ${sizeClasses.dot} rounded-full border-white/85 ${getPresenceDotClass(presenceState)}`}
+          className={`absolute -bottom-0.5 -right-0.5 ${sizeClasses.dot} rounded-full border-[var(--bg)] ${getPresenceDotClass(presenceState)}`}
         />
       ) : null}
     </div>

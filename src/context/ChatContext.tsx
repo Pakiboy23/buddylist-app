@@ -42,8 +42,8 @@ const SOUND_MAP: Record<SoundType, string> = {
   message: '/sounds/im_receive.mp3',
 };
 
-const CHAT_STATE_CACHE_PREFIX = 'buddylist:chatstate:v2:';
-const LEGACY_CHAT_STATE_CACHE_PREFIX = 'buddylist:chatstate:';
+const CHAT_STATE_CACHE_PREFIX = 'hiitsme:chatstate:v2:';
+const LEGACY_CHAT_STATE_CACHE_PREFIX = 'hiitsme:chatstate:';
 const CHAT_STATE_CACHE_VERSION = 2;
 const CHAT_STATE_WRITE_DEBOUNCE_MS = 180;
 const CHAT_STATE_ROOM_LIMIT = 250;
