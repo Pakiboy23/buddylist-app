@@ -1,6 +1,6 @@
 # Xcode Cloud
 
-This repository is set up for Xcode Cloud builds of the `App` scheme.
+This repository is set up for Xcode Cloud builds of the `HIM` scheme.
 
 ## What the scripts do
 
@@ -26,11 +26,11 @@ That sync command now runs `scripts/prepare-ios-swift-packages.mjs` automaticall
 Create these workflows in Xcode or App Store Connect after enabling Xcode Cloud for the project:
 
 1. `CI`
-   - Scheme: `App`
+   - Scheme: `HIM`
    - Start conditions: pull requests and changes to your main branch
    - Action: `Build`
 2. `Beta`
-   - Scheme: `App`
+   - Scheme: `HIM`
    - Start condition: manual, then optionally tags or release branches
    - Action: `Archive`
    - Distribution: `TestFlight`

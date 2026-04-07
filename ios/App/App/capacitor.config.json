@@ -2,6 +2,9 @@
 	"appId": "com.hiitsme.app",
 	"appName": "H.I.M.",
 	"webDir": "native-web",
+	"ios": {
+		"scheme": "HIM"
+	},
 	"plugins": {
 		"StatusBar": {
 			"overlaysWebView": false,
