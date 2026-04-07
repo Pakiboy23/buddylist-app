@@ -11,6 +11,15 @@ import type { ChatMessage } from '@/components/ChatWindow';
 import BuddyProfileSheet from '@/components/BuddyProfileSheet';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import SavedMessagesWindow from '@/components/SavedMessagesWindow';
+import {
+  AWAY_MOOD_OPTIONS,
+  buildRoomFilterOptions,
+  DEFAULT_AWAY_MOOD_ID,
+  getAwayMoodOption,
+  getHimRoomMeta,
+  isAwayMoodId,
+  type AwayMoodId,
+} from '@/lib/himArtDirection';
 import { getAccessTokenOrNull, waitForSessionOrNull } from '@/lib/authClient';
 import { getAppApiUrl } from '@/lib/appApi';
 import { navigateAppPath, replaceAppPathInPlace } from '@/lib/appNavigation';
@@ -238,7 +247,6 @@ interface BuddyActivityToast {
   message: string;
   tone: 'online' | 'offline' | 'away' | 'back';
 }
-type AwayMood = 'honest' | 'funny' | 'busy' | 'chaotic' | 'cozy' | 'out';
 
 type ConversationFilter = 'all' | 'unread' | 'pinned' | 'requests' | 'archived';
 
@@ -307,18 +315,10 @@ const PROFILE_ACTIVITY_DEDUPE_MS = 4000;
 const BUDDY_LIST_WAVE_TTL_MS = 1800;
 const LAST_ACTIVE_WRITE_INTERVAL_MS = 60 * 1000;
 const DEFAULT_AWAY_PRESETS: AwayPreset[] = [
-  { id: 'solo-reset', label: 'Solo Reset', message: "Taking a solo reset lap. Back at %t — leave a note if it's urgent.", builtIn: true },
-  { id: 'funny-brb', label: 'Funny BRB', message: "BRB. If this were a sitcom, I'd re-enter holding snacks at %t.", builtIn: true },
-  { id: 'city-run', label: 'City Run', message: 'Out in the city for a bit (%d %t). Ping me and I’ll circle back.', builtIn: true },
-  { id: 'cozy-mode', label: 'Cozy Mode', message: "Phone down, tea up. I'll reply when I'm back online.", builtIn: true },
-];
-const AWAY_MOOD_OPTIONS: Array<{ id: AwayMood; label: string }> = [
-  { id: 'honest', label: 'Honest' },
-  { id: 'funny', label: 'Funny' },
-  { id: 'busy', label: 'Busy' },
-  { id: 'chaotic', label: 'Chaotic' },
-  { id: 'cozy', label: 'Cozy' },
-  { id: 'out', label: 'Out' },
+  { id: 'gym-regret', label: 'Gym', message: 'at the gym, probably regretting this decision', builtIn: true },
+  { id: 'emotionally-elsewhere', label: 'Elsewhere', message: 'technically available, emotionally somewhere else', builtIn: true },
+  { id: 'cooking', label: 'Cooking', message: "cooking. don't talk to me until there is food", builtIn: true },
+  { id: 'snacks', label: 'Snacks', message: 'do not disturb unless you are bringing snacks', builtIn: true },
 ];
 
 function normalizeShellSection(value: string | null | undefined): ShellSection {
@@ -354,6 +354,7 @@ interface UiDraftState {
 
 interface UiCachePayloadV1 {
   buddySortMode: BuddySortMode;
+  awayMoodId?: AwayMoodId;
   awaySettings: {
     autoAwayEnabled: boolean;
     autoAwayMinutes: number;
@@ -453,6 +454,7 @@ function normalizeUiCachePayload(value: unknown): UiCachePayloadV1 | null {
 
   return {
     buddySortMode: candidate.buddySortMode,
+    awayMoodId: isAwayMoodId(candidate.awayMoodId) ? candidate.awayMoodId : DEFAULT_AWAY_MOOD_ID,
     awaySettings: {
       autoAwayEnabled: Boolean(awaySettings.autoAwayEnabled),
       autoAwayMinutes: normalizedMinutes,
@@ -698,6 +700,7 @@ function HiItsMeContent() {
   const [showAwayModal, setShowAwayModal] = useState(false);
   const [awayPresets, setAwayPresets] = useState<AwayPreset[]>(DEFAULT_AWAY_PRESETS);
   const [selectedAwayPresetId, setSelectedAwayPresetId] = useState<string>(DEFAULT_AWAY_PRESETS[0].id);
+  const [awayMoodId, setAwayMoodId] = useState<AwayMoodId>(DEFAULT_AWAY_MOOD_ID);
   const [awayLabelDraft, setAwayLabelDraft] = useState('');
   const [awayText, setAwayText] = useState('');
   const [profileStatusDraft, setProfileStatusDraft] = useState(AVAILABLE_STATUS);
@@ -725,7 +728,6 @@ function HiItsMeContent() {
   const [isUiCacheHydrated, setIsUiCacheHydrated] = useState(false);
   const [awayReplyCooldowns, setAwayReplyCooldowns] = useState<Record<string, number>>({});
   const [draftCache, setDraftCache] = useState<UiDraftState>({ dm: {}, rooms: {} });
-  const [awayMood, setAwayMood] = useState<AwayMood>('honest');
   const [buddyListWaveTone, setBuddyListWaveTone] = useState<'online' | 'offline' | null>(null);
   const [conversationFilter, setConversationFilter] = useState<ConversationFilter>('all');
   const [dmPreferencesByBuddyId, setDmPreferencesByBuddyId] = useState<Record<string, DmConversationPreference>>({});
@@ -779,6 +781,7 @@ function HiItsMeContent() {
 
   const [showRoomsWindow, setShowRoomsWindow] = useState(false);
   const [roomNameDraft, setRoomNameDraft] = useState('');
+  const [roomFilterTag, setRoomFilterTag] = useState('all');
   const [roomJoinError, setRoomJoinError] = useState<string | null>(null);
   const [isJoiningRoom, setIsJoiningRoom] = useState(false);
   const [activeRoom, setActiveRoom] = useState<ChatRoom | null>(null);
@@ -1001,6 +1004,7 @@ function HiItsMeContent() {
   const applyUiCachePayload = useCallback((payload: UiCachePayloadV1) => {
     const normalized = compactUiCachePayload(payload);
     setAwayPresets([...DEFAULT_AWAY_PRESETS, ...normalized.awayPresets]);
+    setAwayMoodId(normalized.awayMoodId ?? DEFAULT_AWAY_MOOD_ID);
     setIsAutoAwayEnabled(normalized.awaySettings.autoAwayEnabled);
     setAutoAwayMinutes(normalized.awaySettings.autoAwayMinutes);
     setAutoReturnOnActivity(normalized.awaySettings.autoReturnOnActivity);
@@ -1017,6 +1021,7 @@ function HiItsMeContent() {
 
     const defaultPayload: UiCachePayloadV1 = {
       buddySortMode: 'online_then_alpha',
+      awayMoodId: DEFAULT_AWAY_MOOD_ID,
       awaySettings: {
         autoAwayEnabled: true,
         autoAwayMinutes: 10,
@@ -1132,6 +1137,7 @@ function HiItsMeContent() {
 
     const payload: UiCachePayloadV1 = compactUiCachePayload({
       buddySortMode,
+      awayMoodId,
       awaySettings: {
         autoAwayEnabled: isAutoAwayEnabled,
         autoAwayMinutes,
@@ -1152,6 +1158,7 @@ function HiItsMeContent() {
   }, [
     autoAwayMinutes,
     autoReturnOnActivity,
+    awayMoodId,
     awayPresets,
     awayReplyCooldowns,
     buddySortMode,
@@ -5730,22 +5737,57 @@ function HiItsMeContent() {
   }
   const hiItsMeHeaderSummary = headerSummaryParts.join(' · ');
   const totalUnreadDirectCount = Object.values(unreadDirectMessages).reduce((sum, count) => sum + count, 0);
+  const activeAwayMood = getAwayMoodOption(awayMoodId);
+  const buddyActivityById = useMemo(
+    () =>
+      new Map(
+        buddyActivityToasts.map((item) => [item.buddyId, item] as const),
+      ),
+    [buddyActivityToasts],
+  );
+  const roomCards = useMemo(
+    () =>
+      activeRooms.map((roomName) => ({
+        roomName,
+        meta: getHimRoomMeta(roomName),
+      })),
+    [activeRooms],
+  );
+  const roomFilterOptions = useMemo(() => buildRoomFilterOptions(activeRooms), [activeRooms]);
+  const filteredRoomCards = useMemo(
+    () =>
+      roomCards.filter(
+        (roomCard) => roomFilterTag === 'all' || roomCard.meta.tags.some((tag) => tag.key === roomFilterTag),
+      ),
+    [roomCards, roomFilterTag],
+  );
+  useEffect(() => {
+    if (roomFilterTag === 'all') {
+      return;
+    }
+
+    if (roomFilterOptions.some((option) => option.key === roomFilterTag)) {
+      return;
+    }
+
+    setRoomFilterTag('all');
+  }, [roomFilterOptions, roomFilterTag]);
   const mainShellTitle =
     bodyShellSection === 'im'
-      ? 'Direct Messages'
+      ? 'H.I.M.'
       : bodyShellSection === 'chat'
-        ? 'Group Rooms'
+        ? 'Chat Rooms'
         : bodyShellSection === 'buddy'
           ? 'Find Buddies'
-          : 'H.I.M.';
+          : 'Profile';
   const mainShellSubtitle =
     bodyShellSection === 'im'
-      ? `${filteredDirectMessageBuddies.length} conversation${filteredDirectMessageBuddies.length === 1 ? '' : 's'}`
+      ? hiItsMeHeaderSummary
       : bodyShellSection === 'chat'
-      ? `${activeRooms.length} room${activeRooms.length === 1 ? '' : 's'} ready`
+      ? 'Find your people'
         : bodyShellSection === 'buddy'
           ? 'Search people and handle buddy requests'
-          : hiItsMeHeaderSummary;
+          : 'Identity, status, and privacy';
   const nativeShellMode =
     activeChatBuddy || activeRoom
       ? 'conversation'
@@ -5833,6 +5875,8 @@ function HiItsMeContent() {
     const presenceSummary = getBuddyPresenceSummary(buddy);
     const conversationPreference = getDmPreference(dmPreferencesByBuddyId, buddy.id);
     const isBlockedBuddy = blockedUserIds.includes(buddy.id);
+    const recentBuddyActivity = buddyActivityById.get(buddy.id) ?? null;
+    const showArrivalWave = recentBuddyActivity?.tone === 'online' || recentBuddyActivity?.tone === 'back';
     const presenceToneClass =
       presenceSummary.presenceState === 'away'
         ? 'text-[var(--gold)]'
@@ -5890,12 +5934,21 @@ function HiItsMeContent() {
                 </span>
               ) : null}
             </div>
-            <p className={`truncate text-[11px] font-semibold ${presenceToneClass}`}>
-              {presenceSummary.presenceLabel}
-            </p>
-            <p className="truncate text-[11px] text-slate-400" title={presenceSummary.presenceDetail}>
+            <div className="mt-0.5 flex items-center gap-1.5">
+              <p className={`truncate text-[11px] font-semibold ${presenceToneClass}`}>
+                {presenceSummary.presenceLabel}
+              </p>
+              {showArrivalWave ? (
+                <span className="ui-buddy-arrival-wave" aria-hidden="true" title={recentBuddyActivity?.message}>
+                  <span />
+                  <span />
+                  <span />
+                </span>
+              ) : null}
+            </div>
+            <p className="truncate text-[11px] text-slate-400" title={recentBuddyActivity?.message || presenceSummary.presenceDetail}>
               {activeDmTypingText && activeChatBuddyId === buddy.id ? (
-                <span className="italic text-[var(--rose)]">typing...</span>
+                <span className="italic text-[var(--rose)]">typing…</span>
               ) : (
                 buddyLastMessagePreview[buddy.id] || presenceSummary.presenceDetail
               )}
@@ -6162,6 +6215,34 @@ function HiItsMeContent() {
     screenname,
     'Buddy',
   );
+  const savedAwayPreview = awayMessage?.trim()
+    ? resolveAwayTemplate(awayMessage, screenname, screenname)
+    : 'Set an away message so your buddies know the vibe.';
+  const selfStatusCopy =
+    currentUserPresenceState === 'away'
+      ? savedAwayPreview
+      : profileBio || (statusMsg.trim() && statusMsg !== AVAILABLE_STATUS ? statusMsg : 'Say a little more than “available.”');
+  const currentUserPresenceToneClass =
+    currentUserPresenceState === 'away'
+      ? 'text-[var(--gold)]'
+      : currentUserPresenceState === 'idle'
+        ? 'text-[var(--lavender)]'
+        : currentUserPresenceState === 'offline'
+          ? 'text-[var(--muted)]'
+          : 'text-[var(--green)]';
+  const currentUserPresenceChipClass =
+    currentUserPresenceState === 'away'
+      ? 'border border-[rgba(212,150,58,0.18)] bg-[rgba(212,150,58,0.12)] text-[var(--gold)]'
+      : currentUserPresenceState === 'idle'
+        ? 'border border-[rgba(167,139,250,0.18)] bg-[rgba(167,139,250,0.12)] text-[var(--lavender)]'
+        : currentUserPresenceState === 'offline'
+          ? 'border border-[rgba(156,142,130,0.18)] bg-[rgba(156,142,130,0.12)] text-[var(--muted)]'
+          : 'border border-[rgba(78,201,122,0.18)] bg-[rgba(78,201,122,0.12)] text-[var(--green)]';
+  const profileQuickStats = [
+    { label: 'buddies', value: acceptedBuddies.length },
+    { label: 'rooms', value: activeRooms.length },
+    { label: 'saved', value: savedMessages.length },
+  ];
 
   return (
     <main className="h-[100dvh] overflow-hidden bg-transparent">
@@ -6278,7 +6359,7 @@ function HiItsMeContent() {
             ) : null}
               {bodyShellSection === 'profile' ? (
                 <div className="ui-page-stack">
-                  <div className="ui-panel-card rounded-[1.55rem] px-4 py-4">
+                  <div className="ui-panel-card ui-profile-hero rounded-[1.7rem] px-4 py-5">
                     <input
                       ref={quickPhotoInputRef}
                       type="file"
@@ -6290,56 +6371,73 @@ function HiItsMeContent() {
                         event.currentTarget.value = '';
                       }}
                     />
-                    <p className="ui-section-kicker">Identity</p>
-                    <div className="flex items-start gap-3">
+                    <div className="ui-profile-hero-glow" aria-hidden="true" />
+                    <div className="relative z-[1] flex flex-col items-center text-center">
                       <button
                         type="button"
                         onClick={handleQuickPhotoPickerOpen}
-                        className="group relative shrink-0 rounded-full text-left transition active:scale-95"
+                        className="ui-profile-avatar-button group relative shrink-0 rounded-full text-left transition active:scale-95"
                         aria-label="Change profile photo"
                       >
                         <ProfileAvatar
                           screenname={screenname}
                           buddyIconPath={buddyIconPath}
                           presenceState={currentUserPresenceState}
-                          size="md"
+                          size="lg"
                         />
-                        <span className="absolute -bottom-1 -right-1 rounded-full border border-white/80 bg-slate-900/90 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white shadow-sm">
-                          Photo
+                        <span className="ui-profile-avatar-badge">
+                          Buddy icon
                         </span>
+                        <span className="ui-profile-pro-badge">H.I.M. Pro</span>
                       </button>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">You</p>
-                        <p className="ui-screenname truncate text-[14px] font-semibold text-slate-800 dark:text-slate-100">{screenname}</p>
-                        <p className={`truncate text-[11px] font-semibold ${
-                          currentUserPresenceState === 'away'
-                            ? 'text-amber-500'
-                            : currentUserPresenceState === 'idle'
-                              ? 'text-sky-500'
-                              : 'text-emerald-500'
-                        }`}>
+                      <div className="mt-4 min-w-0">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--rose)]">You</p>
+                        <p className="ui-screenname mt-1 truncate text-[17px] font-semibold text-slate-800 dark:text-slate-100">{screenname}</p>
+                        <p className={`mt-1 text-[11px] font-semibold ${currentUserPresenceToneClass}`}>
                           {getPresenceLabel(currentUserPresenceState)}
                         </p>
-                        <p className="truncate text-[11px] text-slate-400 dark:text-slate-400">{currentUserPresenceDetail}</p>
-                        {profileBio ? <p className="mt-1 truncate text-[11px] text-slate-400 dark:text-slate-400">{profileBio}</p> : null}
-                        <p className="mt-1 truncate text-[10px] font-semibold text-slate-400 dark:text-slate-500">
+                        <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-400">{currentUserPresenceDetail}</p>
+                        {profileBio ? (
+                          <p className="mt-2 text-[11px] italic text-slate-400 dark:text-slate-400">{profileBio}</p>
+                        ) : null}
+                        <p className="mt-2 text-[10px] font-semibold text-slate-400 dark:text-slate-500">
                           {buddyIconPath ? 'Tap your avatar to change your photo.' : 'Tap your avatar to add a profile photo.'}
                         </p>
                       </div>
-                      <div className="shrink-0 space-y-2">
+
+                      <div className="ui-profile-away-box mt-4 w-full" data-mood={awayMoodId}>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="ui-profile-away-label">Away message</p>
+                          <span className="ui-away-mood-pill" data-tone={activeAwayMood.tone}>
+                            {activeAwayMood.label}
+                          </span>
+                        </div>
+                        <p className="ui-profile-away-text mt-1">{savedAwayPreview}</p>
+                      </div>
+
+                      <div className="ui-profile-stat-row mt-4 w-full">
+                        {profileQuickStats.map((item) => (
+                          <div key={item.label} className="ui-profile-stat">
+                            <p className="ui-profile-stat-value">{item.value}</p>
+                            <p className="ui-profile-stat-label">{item.label}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="mt-4 grid w-full grid-cols-2 gap-2">
                         <button
                           type="button"
                           onClick={() => openAwayModal('away')}
-                          className="ui-focus-ring ui-button-primary ui-button-compact block w-full"
+                          className="ui-focus-ring ui-button-primary ui-button-compact justify-center"
                         >
                           {currentUserPresenceState === 'away' ? 'Update away' : 'Away message'}
                         </button>
                         <button
                           type="button"
                           onClick={() => openAwayModal('profile')}
-                          className="ui-focus-ring ui-button-secondary ui-button-compact block w-full"
+                          className="ui-focus-ring ui-button-secondary ui-button-compact justify-center"
                         >
-                          Profile
+                          Edit profile
                         </button>
                       </div>
                     </div>
@@ -6349,12 +6447,12 @@ function HiItsMeContent() {
                   <div className="ui-panel-card rounded-[1.55rem] px-4 py-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="ui-section-kicker">Status</p>
+                        <p className="ui-section-kicker">Presence</p>
                         <p className="mt-2 text-[14px] font-semibold text-slate-800 dark:text-slate-100">
                           {currentUserPresenceDetail}
                         </p>
                         <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-                          {awayPreview}
+                          {selfStatusCopy}
                         </p>
                         {awaySinceAt ? (
                           <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
@@ -6362,15 +6460,14 @@ function HiItsMeContent() {
                           </p>
                         ) : null}
                       </div>
-                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${
-                        currentUserPresenceState === 'away'
-                          ? 'border border-[rgba(212,150,58,0.18)] bg-[rgba(212,150,58,0.12)] text-[var(--gold)]'
-                          : currentUserPresenceState === 'idle'
-                            ? 'border border-[rgba(167,139,250,0.18)] bg-[rgba(167,139,250,0.12)] text-[var(--lavender)]'
-                            : 'border border-[rgba(78,201,122,0.18)] bg-[rgba(78,201,122,0.12)] text-[var(--green)]'
-                      }`}>
-                        {getPresenceLabel(currentUserPresenceState)}
-                      </span>
+                      <div className="flex shrink-0 flex-col items-end gap-2">
+                        <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${currentUserPresenceChipClass}`}>
+                          {getPresenceLabel(currentUserPresenceState)}
+                        </span>
+                        <span className="ui-away-mood-pill" data-tone={activeAwayMood.tone}>
+                          {activeAwayMood.label}
+                        </span>
+                      </div>
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-2">
                       <button
@@ -6529,26 +6626,40 @@ function HiItsMeContent() {
 
               {bodyShellSection === 'im' ? (
                 <div className="ui-page-stack pt-2">
-                  {isCurrentUserAway ? (
-                    <div className="ui-away-card">
-                      <div className="flex items-start gap-2">
-                        <AppIcon kind="moon" className="mt-0.5 h-4 w-4 shrink-0 text-[var(--rose)]" />
-                        <div className="min-w-0 flex-1">
-                          <p data-away-label="true" className="text-[12px] font-semibold">Away</p>
-                          <p data-away-text="true" className="mt-0.5 break-words text-[11px] italic">
-                            {resolveAwayTemplate(awayMessage || 'Away from keyboard.', screenname, screenname)}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={handleImBack}
-                          className="ui-focus-ring ui-button-secondary ui-button-compact shrink-0"
-                        >
-                          Back
-                        </button>
+                  <section className="ui-my-status-card">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="ui-my-status-label">
+                          {currentUserPresenceState === 'away' ? 'your away message' : 'your line right now'}
+                        </p>
+                        <p className="ui-my-status-text">{selfStatusCopy}</p>
                       </div>
+                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${currentUserPresenceChipClass}`}>
+                        {getPresenceLabel(currentUserPresenceState)}
+                      </span>
                     </div>
-                  ) : null}
+                    <div className="ui-my-status-chips">
+                      <button
+                        type="button"
+                        onClick={() => openAwayModal('away')}
+                        className="ui-focus-ring ui-my-status-chip"
+                        data-tone="rose"
+                      >
+                        {currentUserPresenceState === 'away' ? 'edit' : 'set away'}
+                      </button>
+                      <span className="ui-my-status-chip" data-tone={activeAwayMood.tone}>
+                        {activeAwayMood.label}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={currentUserPresenceState === 'away' ? handleImBack : () => openAwayModal('profile')}
+                        className="ui-focus-ring ui-my-status-chip"
+                        data-tone={currentUserPresenceState === 'away' ? 'ghost' : 'gold'}
+                      >
+                        {currentUserPresenceState === 'away' ? 'back online' : 'edit profile'}
+                      </button>
+                    </div>
+                  </section>
 
                   {isCurrentUserIdle ? (
                     <div className="ui-note-info">
@@ -6800,9 +6911,9 @@ function HiItsMeContent() {
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="ui-section-kicker">Rooms</p>
-                          <p className="mt-1 text-[16px] font-semibold text-slate-800 dark:text-slate-100">Group Rooms</p>
+                          <p className="mt-1 text-[16px] font-semibold text-slate-800 dark:text-slate-100">Chat Rooms</p>
                           <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-                            Join an existing room or create one instantly.
+                            Find your people, then join or create the room in one move.
                           </p>
                         </div>
                         <span className="ui-section-count">{activeRooms.length}</span>
@@ -6835,6 +6946,25 @@ function HiItsMeContent() {
                       ) : null}
                     </div>
 
+                    {roomFilterOptions.length > 1 ? (
+                      <div className="px-4 pt-3">
+                        <div className="ui-room-filter-row">
+                          {roomFilterOptions.map((option) => (
+                            <button
+                              key={option.key}
+                              type="button"
+                              onClick={() => setRoomFilterTag(option.key)}
+                              className="ui-focus-ring ui-room-filter-chip"
+                              data-active={roomFilterTag === option.key ? 'true' : 'false'}
+                              data-tone={option.tone}
+                            >
+                              {option.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+
                     <div className="px-2 pb-2 pt-3">
                       {activeRooms.length === 0 ? (
                         <div className="ui-empty-state px-4 py-8 ui-fade-in">
@@ -6843,12 +6973,18 @@ function HiItsMeContent() {
                           </div>
                           <p className="text-[12px] text-slate-400">Join a room to start chatting.</p>
                         </div>
+                      ) : filteredRoomCards.length === 0 ? (
+                        <div className="ui-empty-state px-4 py-8 ui-fade-in">
+                          <div className="flex h-11 w-11 items-center justify-center rounded-full border border-[rgba(232,96,138,0.16)] bg-[rgba(232,96,138,0.12)]">
+                            <AppIcon kind="chat" className="h-5 w-5 text-[var(--rose)]" />
+                          </div>
+                          <p className="text-[12px] text-slate-400">No rooms match this vibe right now.</p>
+                        </div>
                       ) : (
-                        activeRooms.map((roomName) => {
+                        filteredRoomCards.map(({ roomName, meta }) => {
                           const unreadCount = getUnreadCountForRoom(roomName);
                           const isRoomSelected = Boolean(activeRoom && sameRoom(activeRoom.name, roomName));
                           const normalizedRoomKey = normalizeRoomKey(roomName);
-                          const roomTags = parseRoomTags(roomName);
 
                           return (
                             <div key={roomName} className="flex items-center gap-2">
@@ -6859,24 +6995,28 @@ function HiItsMeContent() {
                                 data-room-name={roomName}
                                 data-room-unread={unreadCount}
                                 data-active={isRoomSelected ? 'true' : 'false'}
-                                className="ui-list-row flex-1 text-left"
+                                data-live={meta.liveCount > 0 ? 'true' : 'false'}
+                                className="ui-list-row ui-room-card flex-1 text-left"
                               >
-                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[rgba(212,150,58,0.18)] bg-[rgba(212,150,58,0.14)] text-[13px] font-bold text-[var(--gold)]">
+                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[0.9rem] border border-[rgba(212,150,58,0.18)] bg-[rgba(212,150,58,0.14)] text-[13px] font-bold text-[var(--gold)]">
                                   #
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                  <p className="truncate text-[13px] font-semibold text-slate-800 dark:text-slate-100">{roomName}</p>
-                                  <div className="mt-0.5 flex items-center gap-1.5">
-                                    <p className="text-[11px] text-slate-400 dark:text-slate-500">Group chat</p>
-                                    {(unreadCount > 0 || isRoomSelected) ? <span className="aim-room-pulse" aria-label="room activity pulse" /> : null}
+                                  <div className="flex items-center gap-2">
+                                    <p className="truncate text-[13px] font-semibold text-slate-800 dark:text-slate-100">{roomName}</p>
+                                    <span className="ui-room-live-pill">
+                                      <span className="ui-room-live-dot" />
+                                      {meta.liveCount}
+                                    </span>
                                   </div>
-                                  {roomTags.length > 0 ? (
-                                    <div className="mt-1 flex flex-wrap gap-1">
-                                      {roomTags.map((tag) => (
-                                        <span key={`${roomName}-${tag}`} className="aim-room-tag-chip">{tag}</span>
-                                      ))}
-                                    </div>
-                                  ) : null}
+                                  <p className="mt-0.5 truncate text-[11px] text-slate-400 dark:text-slate-500">{meta.blurb}</p>
+                                  <div className="mt-2 flex flex-wrap gap-1.5">
+                                    {meta.tags.map((tag) => (
+                                      <span key={`${normalizedRoomKey}-${tag.key}`} className="ui-room-tag" data-tone={tag.tone}>
+                                        {tag.label}
+                                      </span>
+                                    ))}
+                                  </div>
                                 </div>
                                 {unreadCount > 0 ? (
                                   <span
@@ -7413,17 +7553,22 @@ function HiItsMeContent() {
               </div>
 
               <div>
-                <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Mood</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {AWAY_MOOD_OPTIONS.map((mood) => (
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Mood</p>
+                  <span className="text-[10px] italic text-slate-500">{activeAwayMood.hint}</span>
+                </div>
+                <div className="mt-2 grid grid-cols-5 gap-2">
+                  {AWAY_MOOD_OPTIONS.map((option) => (
                     <button
-                      key={mood.id}
+                      key={option.id}
                       type="button"
-                      onClick={() => setAwayMood(mood.id)}
-                      className="ui-focus-ring aim-mood-chip"
-                      data-active={awayMood === mood.id ? 'true' : 'false'}
+                      onClick={() => setAwayMoodId(option.id)}
+                      className="ui-focus-ring ui-mood-button"
+                      data-active={awayMoodId === option.id ? 'true' : 'false'}
+                      data-tone={option.tone}
                     >
-                      {mood.label}
+                      <span className="ui-mood-symbol" aria-hidden="true">{option.symbol}</span>
+                      <span className="ui-mood-label">{option.label}</span>
                     </button>
                   ))}
                 </div>
@@ -7438,16 +7583,23 @@ function HiItsMeContent() {
                   value={awayText}
                   onChange={(event) => setAwayText(event.target.value)}
                   className={`${xpModalInputClass} min-h-[90px] resize-none`}
-                  placeholder="Use %n for buddy's name, %t for time, %d for date…"
+                  placeholder="what's going on with you right now…"
                   maxLength={320}
                 />
-                <p className="mt-1 text-right text-[10px] text-slate-400">{awayText.length}/320</p>
+                <div className="mt-1 flex items-center justify-between gap-2">
+                  <p className="text-[10px] italic text-slate-500">Use %n for names, %t for time, %d for date.</p>
+                  <p className="text-right text-[10px] text-slate-400">{awayText.length}/320</p>
+                </div>
               </div>
 
               {/* Live preview */}
-              <div className="rounded-2xl border border-slate-800/80 bg-slate-950 px-3.5 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-500">Preview</p>
-                <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--gold)]">{awayMood}</p>
+              <div className="ui-away-preview-card rounded-2xl px-3.5 py-3" data-mood={awayMoodId}>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-500">Preview</p>
+                  <span className="ui-away-mood-pill" data-tone={activeAwayMood.tone}>
+                    {activeAwayMood.label}
+                  </span>
+                </div>
                 <p className="mt-1 break-words text-[13px] text-[#ffc4d8]">{awayPreview}</p>
               </div>
 
@@ -8181,6 +8333,7 @@ function HiItsMeContent() {
 
       {buddyActivityToasts.length > 0 ? (
         <div
+          aria-live="polite"
           className={`pointer-events-none fixed right-3 z-40 flex w-[min(22rem,calc(100vw-1.5rem))] flex-col gap-2 ${
             nativeShellActive ? 'top-3' : 'top-[calc(env(safe-area-inset-top)+4.25rem)]'
           }`}
@@ -8188,14 +8341,14 @@ function HiItsMeContent() {
           {buddyActivityToasts.map((item) => (
             <div
               key={item.id}
-              className={`rounded-2xl border px-3 py-2 text-[12px] shadow-[0_12px_28px_rgba(15,23,42,0.16)] backdrop-blur-xl ${
+              className={`rounded-2xl border px-3 py-2 text-[12px] shadow-[0_16px_34px_rgba(0,0,0,0.32)] backdrop-blur-xl ${
                 item.tone === 'offline'
-                  ? 'border-slate-200/80 bg-white/88 text-slate-600'
+                  ? 'border-[rgba(156,142,130,0.22)] bg-[rgba(29,25,22,0.94)] text-[var(--muted)]'
                   : item.tone === 'away'
-                    ? 'border-amber-200/80 bg-amber-50/92 text-amber-800'
+                    ? 'border-[rgba(212,150,58,0.24)] bg-[rgba(44,31,15,0.92)] text-[var(--gold)]'
                     : item.tone === 'back'
-                      ? 'border-sky-200/80 bg-sky-50/92 text-sky-800'
-                      : 'border-emerald-200/80 bg-emerald-50/92 text-emerald-800'
+                      ? 'border-[rgba(167,139,250,0.26)] bg-[rgba(42,31,58,0.92)] text-[var(--lavender)]'
+                      : 'border-[rgba(78,201,122,0.24)] bg-[rgba(17,37,27,0.92)] text-[var(--green)]'
               }`}
             >
               {item.message}

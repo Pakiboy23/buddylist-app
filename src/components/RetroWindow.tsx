@@ -1,5 +1,6 @@
 import React from 'react';
 import AppIcon from '@/components/AppIcon';
+import HimWordmark from '@/components/HimWordmark';
 
 interface RetroWindowProps {
   title: string;
@@ -36,6 +37,9 @@ export default function RetroWindow({
   onXpSignOff,
   hideHeader = false,
 }: RetroWindowProps) {
+  const resolvedXpTitle = xpTitleText ?? title;
+  const isWordmarkTitle = resolvedXpTitle === 'H.I.M.' || title === 'H.I.M.';
+
   if (variant === 'xp_shell' || variant === 'glass_shell') {
     return (
       <div
@@ -64,13 +68,14 @@ export default function RetroWindow({
                 <AppIcon kind="sparkle" className="h-3.5 w-3.5" />
               </span>
               <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <p className="ui-him-wordmark truncate">
-                    <span>H</span><span>.</span><span>I</span><span>.</span><span>M</span>
-                  </p>
-                  <span className="aim-pro-badge">Pro</span>
-                </div>
-                <p className="truncate text-[11px] tracking-[0.08em] text-slate-500 dark:text-slate-300">{xpTitleText ?? title}</p>
+                {isWordmarkTitle ? (
+                  <div className="flex items-center gap-1.5">
+                    <HimWordmark className="truncate text-[15px]" showOnlinePip />
+                    <span className="aim-pro-badge">Pro</span>
+                  </div>
+                ) : (
+                  <p className="truncate tracking-[0.01em] text-slate-700 dark:text-slate-100">{resolvedXpTitle}</p>
+                )}
                 {xpSubtitleText ? (
                   <p className="truncate text-[11px] font-medium text-slate-400 dark:text-slate-400">{xpSubtitleText}</p>
                 ) : null}
@@ -124,13 +129,16 @@ export default function RetroWindow({
             <span className="ui-brand-sparkle inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full">
               <AppIcon kind="sparkle" className="h-3.5 w-3.5" />
             </span>
-            <span className="ui-him-wordmark ml-2 truncate">
-              <span>H</span><span>.</span><span>I</span><span>.</span><span>M</span>
-            </span>
-            <span className="aim-pro-badge ml-1">Pro</span>
-            <span className="ml-2 truncate tracking-wide text-slate-700 dark:text-slate-100">
-              {title}
-            </span>
+            {title === 'H.I.M.' ? (
+              <>
+                <HimWordmark className="ml-2 truncate text-[13px]" />
+                <span className="aim-pro-badge ml-1">Pro</span>
+              </>
+            ) : (
+              <span className="ml-2 truncate tracking-wide text-slate-700 dark:text-slate-100">
+                {title}
+              </span>
+            )}
           </div>
           <div className="z-10 ml-auto flex min-w-[44px] items-center justify-end gap-2">
             {headerActions}

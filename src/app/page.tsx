@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
 import AppIcon from '@/components/AppIcon';
+import HimWordmark from '@/components/HimWordmark';
 import RetroWindow from '@/components/RetroWindow';
 import { waitForSessionOrNull } from '@/lib/authClient';
 import { getPrimaryAuthEmail, getSignInAuthEmailCandidates, isInvalidCredentialsError } from '@/lib/authIdentity';
@@ -517,9 +518,7 @@ export default function Home() {
                   <span className="ui-brand-sparkle inline-flex h-11 w-11 items-center justify-center rounded-2xl">
                     <AppIcon kind="sparkle" className="h-5 w-5" />
                   </span>
-                  <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--rose)]">
-                    H.I.M.
-                  </p>
+                  <HimWordmark className="mt-4 text-[13px]" />
                   <h1 className="mt-2 text-[31px] font-semibold tracking-[-0.04em] text-slate-900 dark:text-slate-50">
                     {authTitle}
                   </h1>
