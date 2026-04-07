@@ -238,6 +238,7 @@ interface BuddyActivityToast {
   message: string;
   tone: 'online' | 'offline' | 'away' | 'back';
 }
+type AwayMood = 'honest' | 'funny' | 'busy' | 'chaotic' | 'cozy' | 'out';
 
 type ConversationFilter = 'all' | 'unread' | 'pinned' | 'requests' | 'archived';
 
@@ -303,12 +304,21 @@ const PROFILE_STATUS_MAX_LENGTH = 80;
 const PROFILE_BIO_MAX_LENGTH = 240;
 const PROFILE_ACTIVITY_TTL_MS = 4200;
 const PROFILE_ACTIVITY_DEDUPE_MS = 4000;
+const BUDDY_LIST_WAVE_TTL_MS = 1800;
 const LAST_ACTIVE_WRITE_INTERVAL_MS = 60 * 1000;
 const DEFAULT_AWAY_PRESETS: AwayPreset[] = [
-  { id: 'simple-plan', label: 'Simple Plan', message: "Hey %n, I'm away right now. Back at %t.", builtIn: true },
-  { id: 'brb', label: 'BRB', message: 'Be right back. Current time: %t.', builtIn: true },
-  { id: 'lunch', label: 'Lunch', message: 'Out for lunch (%d %t). Leave me a message.', builtIn: true },
-  { id: 'afk', label: 'AFK', message: "AFK for a bit. I'll get back to you soon.", builtIn: true },
+  { id: 'solo-reset', label: 'Solo Reset', message: "Taking a solo reset lap. Back at %t — leave a note if it's urgent.", builtIn: true },
+  { id: 'funny-brb', label: 'Funny BRB', message: "BRB. If this were a sitcom, I'd re-enter holding snacks at %t.", builtIn: true },
+  { id: 'city-run', label: 'City Run', message: 'Out in the city for a bit (%d %t). Ping me and I’ll circle back.', builtIn: true },
+  { id: 'cozy-mode', label: 'Cozy Mode', message: "Phone down, tea up. I'll reply when I'm back online.", builtIn: true },
+];
+const AWAY_MOOD_OPTIONS: Array<{ id: AwayMood; label: string }> = [
+  { id: 'honest', label: 'Honest' },
+  { id: 'funny', label: 'Funny' },
+  { id: 'busy', label: 'Busy' },
+  { id: 'chaotic', label: 'Chaotic' },
+  { id: 'cozy', label: 'Cozy' },
+  { id: 'out', label: 'Out' },
 ];
 
 function normalizeShellSection(value: string | null | undefined): ShellSection {
@@ -715,6 +725,8 @@ function HiItsMeContent() {
   const [isUiCacheHydrated, setIsUiCacheHydrated] = useState(false);
   const [awayReplyCooldowns, setAwayReplyCooldowns] = useState<Record<string, number>>({});
   const [draftCache, setDraftCache] = useState<UiDraftState>({ dm: {}, rooms: {} });
+  const [awayMood, setAwayMood] = useState<AwayMood>('honest');
+  const [buddyListWaveTone, setBuddyListWaveTone] = useState<'online' | 'offline' | null>(null);
   const [conversationFilter, setConversationFilter] = useState<ConversationFilter>('all');
   const [dmPreferencesByBuddyId, setDmPreferencesByBuddyId] = useState<Record<string, DmConversationPreference>>({});
   const [privacySettings, setPrivacySettings] = useState<UserPrivacySettings>(DEFAULT_USER_PRIVACY_SETTINGS);
@@ -1438,6 +1450,12 @@ function HiItsMeContent() {
       lastBuddyActivityAtRef.current[activityKey] = now;
       const id = `${activityKey}:${now}`;
       setBuddyActivityToasts((previous) => [...previous, { id, buddyId, message, tone }].slice(-4));
+      if (tone === 'online' || tone === 'offline') {
+        setBuddyListWaveTone(tone);
+        window.setTimeout(() => {
+          setBuddyListWaveTone((current) => (current === tone ? null : current));
+        }, BUDDY_LIST_WAVE_TTL_MS);
+      }
 
       const existingTimeout = activityTimeoutsRef.current[id];
       if (existingTimeout) {
@@ -1471,6 +1489,15 @@ function HiItsMeContent() {
     },
     [userId],
   );
+
+  const parseRoomTags = useCallback((roomName: string) => {
+    const tokens = roomName
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter(Boolean);
+    const allowed = ['30s', 'city', 'single', 'divorced', 'late-night', 'music', 'parents', 'local'];
+    return allowed.filter((tag) => tokens.includes(tag.replace('-', '')) || roomName.toLowerCase().includes(tag)).slice(0, 3);
+  }, []);
 
   const upsertConversationPreference = useCallback(
     async (
@@ -6632,6 +6659,13 @@ function HiItsMeContent() {
                     </div>
 
                     <div className="px-2 pb-2">
+                      {buddyListWaveTone ? (
+                        <div className="aim-buddy-wave px-2 pb-2" data-tone={buddyListWaveTone} aria-hidden="true">
+                          <span />
+                          <span />
+                          <span />
+                        </div>
+                      ) : null}
                       {isBootstrapping || (!isBootstrapping && isLoadingBuddies) ? (
                         <div className="space-y-2 px-2 py-2 ui-fade-in">
                           {Array.from({ length: 5 }).map((_, idx) => (
@@ -6814,6 +6848,7 @@ function HiItsMeContent() {
                           const unreadCount = getUnreadCountForRoom(roomName);
                           const isRoomSelected = Boolean(activeRoom && sameRoom(activeRoom.name, roomName));
                           const normalizedRoomKey = normalizeRoomKey(roomName);
+                          const roomTags = parseRoomTags(roomName);
 
                           return (
                             <div key={roomName} className="flex items-center gap-2">
@@ -6831,7 +6866,17 @@ function HiItsMeContent() {
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <p className="truncate text-[13px] font-semibold text-slate-800 dark:text-slate-100">{roomName}</p>
-                                  <p className="text-[11px] text-slate-400 dark:text-slate-500">Group chat</p>
+                                  <div className="mt-0.5 flex items-center gap-1.5">
+                                    <p className="text-[11px] text-slate-400 dark:text-slate-500">Group chat</p>
+                                    {(unreadCount > 0 || isRoomSelected) ? <span className="aim-room-pulse" aria-label="room activity pulse" /> : null}
+                                  </div>
+                                  {roomTags.length > 0 ? (
+                                    <div className="mt-1 flex flex-wrap gap-1">
+                                      {roomTags.map((tag) => (
+                                        <span key={`${roomName}-${tag}`} className="aim-room-tag-chip">{tag}</span>
+                                      ))}
+                                    </div>
+                                  ) : null}
                                 </div>
                                 {unreadCount > 0 ? (
                                   <span
@@ -6873,6 +6918,17 @@ function HiItsMeContent() {
                 <div className="grid h-16 grid-cols-4 items-center">
                   <button
                     type="button"
+                    onClick={handleSetupAction}
+                    className="ui-focus-ring ui-tabbar-button"
+                    data-active={activeTab === 'profile' ? 'true' : 'false'}
+                  >
+                    <span className="ui-tabbar-icon">
+                      <HiItsMeTabIcon kind="profile" className="h-5 w-5 text-current" />
+                    </span>
+                    <span className="ui-tabbar-label">Profile</span>
+                  </button>
+                  <button
+                    type="button"
                     onClick={handleOpenImFromActionBar}
                     className="ui-focus-ring ui-tabbar-button"
                     data-active={activeTab === 'im' ? 'true' : 'false'}
@@ -6896,7 +6952,7 @@ function HiItsMeContent() {
                     <span className="ui-tabbar-icon">
                       <HiItsMeTabIcon kind="chat" className="h-5 w-5 text-current" />
                     </span>
-                    <span className="ui-tabbar-label">Chat</span>
+                    <span className="ui-tabbar-label">Group Chats</span>
                   </button>
                   <button
                     type="button"
@@ -6908,17 +6964,6 @@ function HiItsMeContent() {
                       <HiItsMeTabIcon kind="buddy" className="h-5 w-5 text-current" />
                     </span>
                     <span className="ui-tabbar-label">Buddy</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSetupAction}
-                    className="ui-focus-ring ui-tabbar-button"
-                    data-active={activeTab === 'profile' ? 'true' : 'false'}
-                  >
-                    <span className="ui-tabbar-icon">
-                      <HiItsMeTabIcon kind="profile" className="h-5 w-5 text-current" />
-                    </span>
-                    <span className="ui-tabbar-label">Profile</span>
                   </button>
                 </div>
               </div>
@@ -7367,6 +7412,23 @@ function HiItsMeContent() {
                 </div>
               </div>
 
+              <div>
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Mood</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {AWAY_MOOD_OPTIONS.map((mood) => (
+                    <button
+                      key={mood.id}
+                      type="button"
+                      onClick={() => setAwayMood(mood.id)}
+                      className="ui-focus-ring aim-mood-chip"
+                      data-active={awayMood === mood.id ? 'true' : 'false'}
+                    >
+                      {mood.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Message textarea */}
               <div>
                 <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Message</p>
@@ -7385,6 +7447,7 @@ function HiItsMeContent() {
               {/* Live preview */}
               <div className="rounded-2xl border border-slate-800/80 bg-slate-950 px-3.5 py-3">
                 <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-500">Preview</p>
+                <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--gold)]">{awayMood}</p>
                 <p className="mt-1 break-words text-[13px] text-[#ffc4d8]">{awayPreview}</p>
               </div>
 

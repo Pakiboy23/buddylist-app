@@ -109,7 +109,7 @@ export default function ProfileAvatar({
       </div>
       {showStatusDot && presenceState ? (
         <span
-          className={`absolute -bottom-0.5 -right-0.5 ${sizeClasses.dot} rounded-full border-[var(--bg)] ${getPresenceDotClass(presenceState)}`}
+          className={`aim-presence-dot absolute -bottom-0.5 -right-0.5 ${sizeClasses.dot} border-[var(--bg)] ${getPresenceDotClass(presenceState)}`}
         />
       ) : null}
     </div>
