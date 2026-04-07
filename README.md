@@ -229,7 +229,7 @@ Current native-shell behavior:
 ## Auth Model
 
 Supabase auth uses synthetic email behind screenname:
-- login/signup use `${screenname}@hiitsme.app`
+- new signup uses `${screenname}@hiitsme.app`; sign-in also falls back to legacy BuddyList auth emails such as `${screenname}@buddylist.com`
 - user profile screenname lives in `public.users`
 
 Recovery model:

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import AppIcon from '@/components/AppIcon';
 import RetroWindow from '@/components/RetroWindow';
 import { waitForSessionOrNull } from '@/lib/authClient';
+import { getPrimaryAuthEmail, getSignInAuthEmailCandidates, isInvalidCredentialsError } from '@/lib/authIdentity';
 import { getAppApiUrl } from '@/lib/appApi';
 import { navigateAppPath } from '@/lib/appNavigation';
 import { generateClientRecoveryCode, RECOVERY_CODE_MIN_LENGTH } from '@/lib/recoveryCode';
@@ -174,11 +175,6 @@ export default function Home() {
     applyViewStatusMessage('sign-on', false);
   };
 
-  const getAuthEmail = () => {
-    const trimmedScreenname = screenname.trim();
-    return `${trimmedScreenname.toLowerCase()}@hiitsme.app`;
-  };
-
   const readApiError = async (response: Response) => {
     try {
       const data = (await response.json()) as ApiErrorResponse;
@@ -250,7 +246,7 @@ export default function Home() {
       }
     }
 
-    const authEmail = getAuthEmail();
+    const authEmail = getPrimaryAuthEmail(trimmedScreenname);
     setIsLoading(true);
     setStatusMsg(isSignUp ? 'Creating account...' : 'Dialing in...');
 
@@ -304,21 +300,31 @@ export default function Home() {
       return;
     }
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email: authEmail,
-      password,
-    });
+    let signInError: Error | null = null;
+    for (const authEmail of getSignInAuthEmailCandidates(trimmedScreenname)) {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: authEmail,
+        password,
+      });
 
-    if (error) {
-      const isInvalidCredentials = error.message.toLowerCase().includes('invalid login credentials');
-      setStatusMsg(`Connection failed: ${isInvalidCredentials ? 'Invalid login credentials.' : error.message}`);
+      if (!error) {
+        setStatusMsg('Success! Opening H.I.M....');
+        await routeToHiItsMe(true);
+        setIsLoading(false);
+        return;
+      }
+
+      signInError = error;
+      if (!isInvalidCredentialsError(error.message)) {
+        break;
+      }
+    }
+
+    if (signInError) {
+      setStatusMsg(`Connection failed: ${isInvalidCredentialsError(signInError.message) ? 'Invalid login credentials.' : signInError.message}`);
       setIsLoading(false);
       return;
     }
-
-    setStatusMsg('Success! Opening H.I.M....');
-    await routeToHiItsMe(true);
-    setIsLoading(false);
   };
 
   const handleRecoveryReset = async () => {
