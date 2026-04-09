@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import AppIcon from '@/components/AppIcon';
 import HimWordmark from '@/components/HimWordmark';
 import RetroWindow from '@/components/RetroWindow';
@@ -830,6 +831,15 @@ export default function Home() {
           </form>
         </div>
       </RetroWindow>
+
+      <div className="absolute bottom-6 left-0 right-0 text-center">
+        <Link
+          href="/story"
+          className="text-[13px] font-medium text-[#9C8E82] transition hover:text-[#F7F0E8]"
+        >
+          Why H.I.M.?
+        </Link>
+      </div>
     </main>
   );
 }
