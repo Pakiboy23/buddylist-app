@@ -72,7 +72,6 @@ body.privacy-shield-active::after {
 /* ── Dark mode ─────────────────────────────────────────────────────── */
 .dark body,
 html.dark body {
-  background: radial-gradient(circle at 4% 6%, #0c1929 0%, #0f172a 34%, #111827 58%, #0e1726 100%);
   color: #e2e8f0;
 }
 
@@ -874,7 +873,6 @@ html.dark body {
 
 .dark .ui-tabbar {
   border-color: rgba(255, 255, 255, 0.08);
-  background: rgba(15, 23, 42, 0.55);
   box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.2), inset 0 0.5px 0 rgba(255, 255, 255, 0.06);
 }
 
@@ -911,11 +909,11 @@ html.dark body {
 }
 
 .ui-tabbar-button[data-active='true'] .ui-tabbar-icon {
-  background: rgba(59, 130, 246, 0.12);
+  background: none;
 }
 
 .dark .ui-tabbar-button[data-active='true'] .ui-tabbar-icon {
-  background: rgba(59, 130, 246, 0.18);
+  background: none;
 }
 
 .ui-tabbar-label {
@@ -989,8 +987,7 @@ html.dark body {
 .dark .ui-chat-header-card,
 .dark .ui-search-surface,
 .dark .ui-chat-log,
-.dark .ui-toolbar-surface,
-.dark .ui-compose-surface {
+.dark .ui-toolbar-surface {
   border-color: rgba(255, 255, 255, 0.08);
   background: rgba(15, 23, 42, 0.56);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2), inset 0 0.5px 0 rgba(255, 255, 255, 0.05);
@@ -1479,7 +1476,7 @@ button:not(:disabled):active,
 
   .dark .ui-window-panel  { background: rgba(15, 23, 42, 0.94)  !important; }
   .dark .ui-panel-card    { background: rgba(15, 23, 42, 0.95)  !important; }
-  .dark .ui-tabbar        { background: rgba(15, 23, 42, 0.94)  !important; }
+  .dark .ui-tabbar        { background: var(--bg)               !important; }
   .dark .ui-sheet-surface { background: rgba(15, 23, 42, 0.94)  !important; }
   .dark .ui-window-header { background: rgba(15, 23, 42, 0.92)  !important; }
   .dark .ui-modal-frame   { background: rgba(15, 23, 42, 0.94)  !important; }
@@ -1487,7 +1484,7 @@ button:not(:disabled):active,
   .dark .ui-search-surface,
   .dark .ui-chat-log,
   .dark .ui-toolbar-surface,
-  .dark .ui-compose-surface { background: rgba(15, 23, 42, 0.94) !important; }
+  .dark .ui-compose-surface { background: #262118                !important; }
   .dark .ui-popover-menu  { background: rgba(15, 23, 42, 0.95)  !important; }
 }
 
