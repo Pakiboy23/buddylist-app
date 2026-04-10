@@ -8,6 +8,9 @@ import {
   ABUSE_REPORT_CATEGORY_OPTIONS,
   type AbuseReportCategory,
 } from '@/lib/trustSafety';
+import { supabase } from '@/lib/supabase';
+
+type ConnectionStatus = 'following' | 'pending' | 'mutual' | 'blocked' | null;
 
 interface BuddyProfileSheetData {
   id: string;
@@ -37,6 +40,13 @@ interface BuddyProfileSheetProps {
   onBlockBuddy?: () => void;
   onUnblockBuddy?: () => void;
   onSubmitReport?: (payload: { category: AbuseReportCategory; details: string }) => Promise<void> | void;
+  /** When provided, enables the room-gated connection system (user_connections table). */
+  currentUserId?: string;
+}
+
+/** Returns [ua, ub] with the lesser UUID first (canonical pair ordering). */
+function canonicalPair(a: string, b: string): [string, string] {
+  return a < b ? [a, b] : [b, a];
 }
 
 export default function BuddyProfileSheet({
@@ -55,6 +65,7 @@ export default function BuddyProfileSheet({
   onBlockBuddy,
   onUnblockBuddy,
   onSubmitReport,
+  currentUserId,
 }: BuddyProfileSheetProps) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const previouslyFocusedElementRef = useRef<HTMLElement | null>(null);
@@ -64,6 +75,12 @@ export default function BuddyProfileSheet({
   const [reportCategory, setReportCategory] = useState<AbuseReportCategory>('harassment');
   const [reportDetails, setReportDetails] = useState('');
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+
+  // Connection state — only active when currentUserId is provided.
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(null);
+  const [canAddFromRoom, setCanAddFromRoom] = useState(false);
+  const [isConnectionLoading, setIsConnectionLoading] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen || !buddy) {
@@ -79,12 +96,96 @@ export default function BuddyProfileSheet({
     };
   }, [buddy, isOpen]);
 
+  // Fetch connection state when the sheet opens (only when currentUserId is provided).
+  useEffect(() => {
+    if (!isOpen || !buddy || !currentUserId) {
+      setConnectionStatus(null);
+      setCanAddFromRoom(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsConnectionLoading(true);
+    setConnectionError(null);
+
+    async function fetchConnectionState() {
+      if (!buddy || !currentUserId) return;
+
+      const [statusResult, roomResult] = await Promise.all([
+        supabase.rpc('get_connection_status', {
+          p_user_id: currentUserId,
+          p_other_id: buddy.id,
+        }),
+        supabase.rpc('can_add_from_room', {
+          p_user_id: currentUserId,
+          p_target_id: buddy.id,
+        }),
+      ]);
+
+      if (cancelled) return;
+
+      if (statusResult.error) {
+        setConnectionError('Could not load connection info.');
+      } else {
+        setConnectionStatus((statusResult.data as ConnectionStatus) ?? null);
+      }
+
+      setCanAddFromRoom(Boolean(roomResult.data));
+      setIsConnectionLoading(false);
+    }
+
+    void fetchConnectionState();
+    return () => { cancelled = true; };
+  }, [isOpen, buddy, currentUserId]);
+
   if (!isOpen || !buddy) {
     return null;
   }
 
   const showAddAction = buddy.relationshipStatus !== 'accepted' && Boolean(onAddBuddy);
   const showRemoveAction = buddy.relationshipStatus === 'accepted' && Boolean(onRemoveBuddy);
+
+  // --- Connection action handlers (user_connections system) ---
+  async function handleFollow() {
+    if (!currentUserId || !buddy) return;
+    setConnectionError(null);
+    const [ua, ub] = canonicalPair(currentUserId, buddy.id);
+    const { error } = await supabase.from('user_connections').insert({
+      user_a: ua,
+      user_b: ub,
+      status: 'following',
+      initiated_by: currentUserId,
+    });
+    if (error) { setConnectionError(error.message); return; }
+    setConnectionStatus('following');
+  }
+
+  async function handleAddBuddy() {
+    if (!currentUserId || !buddy) return;
+    setConnectionError(null);
+    const [ua, ub] = canonicalPair(currentUserId, buddy.id);
+    const { error } = await supabase.from('user_connections').insert({
+      user_a: ua,
+      user_b: ub,
+      status: 'pending',
+      initiated_by: currentUserId,
+    });
+    if (error) { setConnectionError(error.message); return; }
+    setConnectionStatus('pending');
+  }
+
+  async function handleUpgradeToBuddy() {
+    if (!currentUserId || !buddy) return;
+    setConnectionError(null);
+    const [ua, ub] = canonicalPair(currentUserId, buddy.id);
+    const { error } = await supabase
+      .from('user_connections')
+      .update({ status: 'pending', initiated_by: currentUserId })
+      .eq('user_a', ua)
+      .eq('user_b', ub);
+    if (error) { setConnectionError(error.message); return; }
+    setConnectionStatus('pending');
+  }
   const hasSafetyActions = Boolean(onBlockBuddy || onUnblockBuddy || onSubmitReport);
   const handleOverlayKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Escape') {
@@ -191,7 +292,66 @@ export default function BuddyProfileSheet({
             >
               {isBlocked ? 'Blocked' : 'Send IM'}
             </button>
-            {showAddAction ? (
+
+            {/* --- New connection system (when currentUserId is provided) --- */}
+            {currentUserId && !isConnectionLoading ? (
+              <>
+                {connectionStatus === null ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => void handleAddBuddy()}
+                      disabled={!canAddFromRoom}
+                      title={!canAddFromRoom ? 'Join a room with them first to send a buddy request' : undefined}
+                      aria-label={`Add ${buddy.screenname} as a buddy`}
+                      className="ui-focus-ring ui-button-secondary rounded-2xl px-4 py-2.5 text-[length:var(--ui-text-md)] disabled:opacity-50"
+                    >
+                      Add Buddy
+                    </button>
+                    {!canAddFromRoom ? (
+                      <p className="w-full text-right text-[length:var(--ui-text-xs)] text-slate-400">
+                        Join a room with them first to send a buddy request
+                      </p>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => void handleFollow()}
+                      aria-label={`Follow ${buddy.screenname}`}
+                      className="ui-focus-ring ui-button-secondary rounded-2xl px-4 py-2.5 text-[length:var(--ui-text-md)]"
+                    >
+                      Follow
+                    </button>
+                  </>
+                ) : null}
+
+                {connectionStatus === 'following' ? (
+                  <>
+                    <span className="flex items-center rounded-2xl px-4 py-2.5 text-[length:var(--ui-text-md)] text-slate-400">
+                      Following
+                    </span>
+                    {canAddFromRoom ? (
+                      <button
+                        type="button"
+                        onClick={() => void handleUpgradeToBuddy()}
+                        aria-label={`Upgrade to buddy with ${buddy.screenname}`}
+                        className="ui-focus-ring ui-button-secondary rounded-2xl px-4 py-2.5 text-[length:var(--ui-text-md)]"
+                      >
+                        Upgrade to Buddy
+                      </button>
+                    ) : null}
+                  </>
+                ) : null}
+
+                {connectionStatus === 'pending' ? (
+                  <span className="flex items-center rounded-2xl px-4 py-2.5 text-[length:var(--ui-text-md)] text-slate-400">
+                    Request Sent
+                  </span>
+                ) : null}
+              </>
+            ) : null}
+
+            {/* --- Legacy prop-driven add (when currentUserId not provided or connection is mutual) --- */}
+            {!currentUserId && showAddAction ? (
               <button
                 type="button"
                 onClick={onAddBuddy}
@@ -202,6 +362,7 @@ export default function BuddyProfileSheet({
                 {isUpdating ? 'Adding…' : 'Add Buddy'}
               </button>
             ) : null}
+
             {showRemoveAction ? (
               <button
                 type="button"
@@ -370,6 +531,11 @@ export default function BuddyProfileSheet({
             </div>
           ) : null}
 
+          {connectionError ? (
+            <p role="alert" className="ui-note-error text-[length:var(--ui-text-sm)] font-semibold">
+              {connectionError}
+            </p>
+          ) : null}
           {feedbackMessage ? (
             <p className="ui-note-info text-[length:var(--ui-text-sm)] font-semibold">
               {feedbackMessage}
