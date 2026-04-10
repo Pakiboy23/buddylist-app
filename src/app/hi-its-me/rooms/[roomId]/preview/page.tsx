@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import RetroWindow from '@/components/RetroWindow';
 import { supabase } from '@/lib/supabase';
 import { waitForSessionOrNull } from '@/lib/authClient';
@@ -17,6 +17,7 @@ interface RoomPreview {
   member_count: number;
   buddy_overlap_count: number;
   is_member: boolean;
+  invite_code?: string;
 }
 
 const ROOM_TYPE_LABELS: Record<string, string> = {
@@ -25,17 +26,18 @@ const ROOM_TYPE_LABELS: Record<string, string> = {
   private: 'Private',
 };
 
-export default function RoomPreviewPage({
-  params,
-}: {
-  params: { roomId: string };
-}) {
+function RoomPreviewContent({ roomId }: { roomId: string }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const viaInvite = searchParams.get('via') === 'invite';
+
   const [preview, setPreview] = useState<RoomPreview | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isJoining, setIsJoining] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -48,7 +50,7 @@ export default function RoomPreviewPage({
       setUserId(session.user.id);
 
       const { data, error: rpcError } = await supabase.rpc('get_room_preview', {
-        p_room_id: params.roomId,
+        p_room_id: roomId,
         p_user_id: session.user.id,
       });
 
@@ -58,19 +60,45 @@ export default function RoomPreviewPage({
         return;
       }
 
-      const row = Array.isArray(data) ? data[0] : data;
+      const row = (Array.isArray(data) ? data[0] : data) as RoomPreview | undefined;
       if (!row) {
         setError('Room not found or access denied.');
         setIsLoading(false);
         return;
       }
 
-      setPreview(row as RoomPreview);
+      // Fetch invite_code when the user is a member (used for the share button).
+      if (row.is_member && row.room_type !== 'private') {
+        const { data: roomData } = await supabase
+          .from('chat_rooms')
+          .select('invite_code')
+          .eq('id', roomId)
+          .maybeSingle();
+        if (roomData?.invite_code) {
+          row.invite_code = roomData.invite_code as string;
+        }
+      }
+
+      setPreview(row);
       setIsLoading(false);
     }
 
     void load();
-  }, [params.roomId]);
+  }, [roomId]);
+
+  // Auto-join for private rooms reached via an invite link.
+  useEffect(() => {
+    if (!viaInvite || !preview || preview.is_member || preview.room_type !== 'private' || !userId) {
+      return;
+    }
+    void joinRoom(preview.id, userId).then((result) => {
+      if ('success' in result) {
+        router.replace(`/hi-its-me/rooms/${preview.id}`);
+      } else {
+        setError(result.error);
+      }
+    });
+  }, [viaInvite, preview, userId, router]);
 
   async function handleJoin() {
     if (!userId || !preview) return;
@@ -83,6 +111,20 @@ export default function RoomPreviewPage({
     }
     router.push(`/hi-its-me/rooms/${preview.id}`);
   }
+
+  async function handleShare() {
+    if (!preview?.invite_code) return;
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
+    await navigator.clipboard.writeText(`${appUrl}/join/${preview.invite_code}`);
+    setCopied(true);
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
+  }
+
+  const canShare =
+    preview?.is_member &&
+    (preview.room_type === 'public' || preview.room_type === 'invite') &&
+    Boolean(preview.invite_code);
 
   return (
     <RetroWindow
@@ -133,7 +175,7 @@ export default function RoomPreviewPage({
             ) : null}
           </div>
 
-          {/* Stats card */}
+          {/* Stats */}
           <div className="ui-panel-muted rounded-[1.4rem] px-4 py-3">
             <p className="text-[length:var(--ui-text-sm)] text-slate-700">
               <span className="font-semibold">{preview.member_count}</span>{' '}
@@ -148,8 +190,18 @@ export default function RoomPreviewPage({
             ) : null}
           </div>
 
-          {/* Action */}
-          <div className="flex justify-end">
+          {/* Actions */}
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {canShare ? (
+              <button
+                type="button"
+                onClick={() => void handleShare()}
+                className="ui-focus-ring ui-button-secondary rounded-2xl px-4 py-2.5 text-[length:var(--ui-text-md)]"
+              >
+                {copied ? 'Copied!' : 'Share Room'}
+              </button>
+            ) : null}
+
             {preview.is_member ? (
               <button
                 type="button"
@@ -158,6 +210,8 @@ export default function RoomPreviewPage({
               >
                 Open Room
               </button>
+            ) : viaInvite && preview.room_type === 'private' ? (
+              <p className="text-[length:var(--ui-text-sm)] text-slate-400">Joining…</p>
             ) : (
               <button
                 type="button"
@@ -172,5 +226,17 @@ export default function RoomPreviewPage({
         </div>
       ) : null}
     </RetroWindow>
+  );
+}
+
+export default function RoomPreviewPage({
+  params,
+}: {
+  params: { roomId: string };
+}) {
+  return (
+    <Suspense fallback={null}>
+      <RoomPreviewContent roomId={params.roomId} />
+    </Suspense>
   );
 }
