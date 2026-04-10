@@ -73,7 +73,7 @@ export default function ChatMediaGallerySheet({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-[#13100E]/30 backdrop-blur-[2px]"
       onClick={onClose}
       onKeyDown={handleOverlayKeyDown}
     >
@@ -124,7 +124,7 @@ export default function ChatMediaGallerySheet({
                 className={`ui-focus-ring rounded-full px-3 py-1.5 text-[length:var(--ui-text-xs)] font-semibold ${
                   filter === option.id
                     ? 'bg-blue-500 text-white shadow-[0_8px_20px_rgba(37,99,235,0.22)]'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-[#13100E] dark:text-slate-300 dark:hover:bg-[#1E1812]'
                 }`}
               >
                 {option.label}
@@ -165,9 +165,9 @@ export default function ChatMediaGallerySheet({
                         href={item.publicUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="ui-focus-ring group overflow-hidden rounded-[1.4rem] border border-white/70 bg-white/85 shadow-sm dark:border-slate-800 dark:bg-slate-950/55"
+                        className="ui-focus-ring group overflow-hidden rounded-[1.4rem] border border-white/70 bg-white/85 shadow-sm dark:border-slate-800 dark:bg-[#13100E]/55"
                       >
-                        <div className="aspect-square bg-slate-100 dark:bg-slate-900">
+                        <div className="aspect-square bg-slate-100 dark:bg-[#13100E]">
                           {kind === 'image' ? (
                             /* eslint-disable-next-line @next/next/no-img-element */
                             <img
@@ -214,7 +214,7 @@ export default function ChatMediaGallerySheet({
                     return (
                       <div
                         key={item.id}
-                        className="rounded-[1.3rem] border border-white/70 bg-white/85 px-3 py-3 shadow-sm dark:border-slate-800 dark:bg-slate-950/55"
+                        className="rounded-[1.3rem] border border-white/70 bg-white/85 px-3 py-3 shadow-sm dark:border-slate-800 dark:bg-[#13100E]/55"
                       >
                         <div className="flex items-start gap-3">
                           <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-500 dark:bg-blue-500/15 dark:text-blue-200">
@@ -235,7 +235,7 @@ export default function ChatMediaGallerySheet({
                                 href={item.publicUrl}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="ui-focus-ring mt-2 inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1.5 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-200 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                                className="ui-focus-ring mt-2 inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1.5 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-200 dark:bg-[#13100E] dark:text-slate-200 dark:hover:bg-[#1E1812]"
                               >
                                 <AppIcon kind="attachment" className="h-3.5 w-3.5" />
                                 Open file

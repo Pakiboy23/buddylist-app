@@ -5924,7 +5924,7 @@ function HiItsMeContent() {
                 </span>
               ) : null}
               {conversationPreference.isMuted ? (
-                <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:bg-slate-900 dark:text-slate-300">
+                <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:bg-[#13100E] dark:text-slate-300">
                   Muted
                 </span>
               ) : null}
@@ -6527,7 +6527,7 @@ function HiItsMeContent() {
                                     : 'System status'}
                             </span>
                           </div>
-                          <span className="shrink-0 rounded-full border border-white/70 bg-white/80 px-2 py-0.5 text-[10px] font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-300">
+                          <span className="shrink-0 rounded-full border border-white/70 bg-white/80 px-2 py-0.5 text-[10px] font-semibold text-slate-500 dark:border-slate-700 dark:bg-[#13100E]/70 dark:text-slate-300">
                             Details
                           </span>
                         </button>
@@ -6577,7 +6577,7 @@ function HiItsMeContent() {
                       {searchError ? <p className="ui-note-error mt-2">{searchError}</p> : null}
 
                       {(isSearching || searchTerm.trim() !== '' || searchResults.length > 0) ? (
-                        <div className="mt-3 max-h-56 overflow-y-auto rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-[inset_0_1px_1px_rgba(15,23,42,0.05)] dark:border-slate-700 dark:bg-slate-950/50">
+                        <div className="mt-3 max-h-56 overflow-y-auto rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-[inset_0_1px_1px_rgba(15,23,42,0.05)] dark:border-slate-700 dark:bg-[#13100E]/50">
                           {isSearching ? (
                             <p className="p-2 text-sm italic text-slate-500">Searching screen names...</p>
                           ) : null}
@@ -7113,7 +7113,7 @@ function HiItsMeContent() {
       </RetroWindow>
 
       {isRecoverySetupOpen && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-[1px]">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#13100E]/60 p-4 backdrop-blur-[1px]">
           <div className="w-full max-w-md">
             <div className={xpModalFrameClass}>
               <div className={`${xpModalHeaderClass} mb-2`}>Finish Account Protection</div>
@@ -7208,7 +7208,7 @@ function HiItsMeContent() {
       )}
 
       {isAdminResetOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-[1px]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#13100E]/45 p-4 backdrop-blur-[1px]">
           <div className="w-full max-w-md">
             <div className={xpModalFrameClass}>
               <div className={`${xpModalHeaderClass} mb-2`}>Reset Account Access</div>
@@ -7368,7 +7368,7 @@ function HiItsMeContent() {
 
       {showAwayModal && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/25 backdrop-blur-[2px]"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-[#13100E]/25 backdrop-blur-[2px]"
           onClick={() => { setShowAwayModal(false); setAwayModalError(null); }}
         >
           <div
@@ -7424,7 +7424,7 @@ function HiItsMeContent() {
                       presenceState={currentUserPresenceState}
                       size="lg"
                     />
-                    <span className="absolute inset-x-1 bottom-1 rounded-full bg-slate-900/85 px-2 py-1 text-center text-[10px] font-semibold uppercase tracking-wide text-white shadow-sm transition group-hover:bg-slate-950">
+                    <span className="absolute inset-x-1 bottom-1 rounded-full bg-[#13100E]/85 px-2 py-1 text-center text-[10px] font-semibold uppercase tracking-wide text-white shadow-sm transition group-hover:bg-[#13100E]">
                       Edit Photo
                     </span>
                   </label>
@@ -7461,7 +7461,7 @@ function HiItsMeContent() {
                 ) : null}
 
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <label className={`ui-focus-ring inline-flex items-center rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-200 ${isProfileSchemaUnavailable ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900'}`}>
+                  <label className={`ui-focus-ring inline-flex items-center rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 shadow-sm dark:border-slate-700 dark:bg-[#13100E]/70 dark:text-slate-200 ${isProfileSchemaUnavailable ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-slate-50 dark:hover:bg-[#13100E]'}`}>
                     Upload Profile Photo
                     <input
                       type="file"
@@ -7532,7 +7532,7 @@ function HiItsMeContent() {
                       className={`ui-focus-ring rounded-full border px-3 py-1 text-[11px] font-semibold transition active:scale-95 ${
                         selectedAwayPresetId === preset.id
                           ? 'border-rose-400/70 bg-[linear-gradient(180deg,#E8608A_0%,#B93A67_100%)] text-white'
-                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-200 dark:hover:bg-slate-900'
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-[#13100E]/70 dark:text-slate-200 dark:hover:bg-[#13100E]'
                       }`}
                     >
                       {preset.label}
@@ -7544,7 +7544,7 @@ function HiItsMeContent() {
                     className={`ui-focus-ring rounded-full border px-3 py-1 text-[11px] font-semibold transition active:scale-95 ${
                       selectedAwayPresetId === '__custom__'
                         ? 'border-rose-400/70 bg-[linear-gradient(180deg,#E8608A_0%,#B93A67_100%)] text-white'
-                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-200 dark:hover:bg-slate-900'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-[#13100E]/70 dark:text-slate-200 dark:hover:bg-[#13100E]'
                     }`}
                   >
                     Custom…
@@ -7694,7 +7694,7 @@ function HiItsMeContent() {
 
       {showSystemStatusSheet && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/25 backdrop-blur-[2px]"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-[#13100E]/25 backdrop-blur-[2px]"
           onClick={() => setShowSystemStatusSheet(false)}
         >
           <div
@@ -7762,7 +7762,7 @@ function HiItsMeContent() {
 
       {showPrivacySheet && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/25 backdrop-blur-[2px]"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-[#13100E]/25 backdrop-blur-[2px]"
           onClick={() => setShowPrivacySheet(false)}
         >
           <div
@@ -7890,7 +7890,7 @@ function HiItsMeContent() {
                 {appLockSettings.enabled ? (
                   <div className="mt-3 space-y-3">
                     {biometricAvailability.isAvailable ? (
-                      <div className="flex items-center justify-between gap-3 rounded-[1rem] border border-white/70 bg-white/75 px-3 py-3 dark:border-slate-800 dark:bg-slate-950/55">
+                      <div className="flex items-center justify-between gap-3 rounded-[1rem] border border-white/70 bg-white/75 px-3 py-3 dark:border-slate-800 dark:bg-[#13100E]/55">
                         <div>
                           <p className="text-[12px] font-semibold text-slate-700 dark:text-slate-100">
                             Use {biometricAvailability.label}
@@ -7932,7 +7932,7 @@ function HiItsMeContent() {
                               className={`ui-focus-ring rounded-full border px-3 py-2 text-[11px] font-semibold transition ${
                                 selected
                                   ? 'border-rose-500/70 bg-[linear-gradient(180deg,#E8608A_0%,#B93A67_100%)] text-white shadow-[0_12px_30px_rgba(232,96,138,0.24)]'
-                                  : 'border-white/75 bg-white/78 text-slate-600 dark:border-slate-800 dark:bg-slate-950/45 dark:text-slate-300'
+                                  : 'border-white/75 bg-white/78 text-slate-600 dark:border-slate-800 dark:bg-[#13100E]/45 dark:text-slate-300'
                               }`}
                             >
                               {formatAppLockTimeoutLabel(value)}
@@ -7957,7 +7957,7 @@ function HiItsMeContent() {
                       return (
                         <div
                           key={blockedUserId}
-                          className="flex items-center justify-between gap-3 rounded-[1rem] border border-white/70 bg-white/75 px-3 py-2 dark:border-slate-800 dark:bg-slate-950/55"
+                          className="flex items-center justify-between gap-3 rounded-[1rem] border border-white/70 bg-white/75 px-3 py-2 dark:border-slate-800 dark:bg-[#13100E]/55"
                         >
                           <div className="min-w-0">
                             <p className="ui-screenname truncate text-[12px] font-semibold text-slate-700 dark:text-slate-100">
@@ -8019,11 +8019,11 @@ function HiItsMeContent() {
       />
 
       {isAppLocked ? (
-        <div className="pointer-events-auto fixed inset-0 z-[65] bg-slate-950/18 backdrop-blur-[10px]" aria-hidden="true" />
+        <div className="pointer-events-auto fixed inset-0 z-[65] bg-[#13100E]/18 backdrop-blur-[10px]" aria-hidden="true" />
       ) : null}
 
       {showRoomsWindow && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-[1px]">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#13100E]/45 p-4 backdrop-blur-[1px]">
           <div className="w-full max-w-sm">
             <div className={xpModalFrameClass}>
               <div className={`${xpModalHeaderClass} mb-2`}>Join a Room</div>
@@ -8066,7 +8066,7 @@ function HiItsMeContent() {
       )}
 
       {activePendingRequest && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-[1px]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#13100E]/50 p-4 backdrop-blur-[1px]">
           <div className="w-full max-w-sm">
             <div className={xpModalFrameClass}>
               <div className={`${xpModalHeaderClass} mb-2`}>New Message Request</div>
@@ -8116,7 +8116,7 @@ function HiItsMeContent() {
       )}
 
       {showAddWindow && (
-        <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-[1px]">
+        <div className="fixed inset-0 z-30 flex items-center justify-center bg-[#13100E]/45 p-4 backdrop-blur-[1px]">
           <div className="w-full max-w-md">
             <div className={xpModalFrameClass}>
               <div className={`${xpModalHeaderClass} mb-2`}>Add Buddy</div>
@@ -8138,7 +8138,7 @@ function HiItsMeContent() {
 
                 {searchError && <p className="ui-note-error">{searchError}</p>}
 
-                <div className="max-h-56 overflow-y-auto rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-[inset_0_1px_1px_rgba(15,23,42,0.05)] dark:border-slate-700 dark:bg-slate-950/50">
+                <div className="max-h-56 overflow-y-auto rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-[inset_0_1px_1px_rgba(15,23,42,0.05)] dark:border-slate-700 dark:bg-[#13100E]/50">
                   {isSearching && (
                     <p className="p-2 text-sm italic text-slate-500">Searching screen names...</p>
                   )}
@@ -8196,7 +8196,7 @@ function HiItsMeContent() {
       )}
 
       {forwardingMessage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-[1px]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#13100E]/45 p-4 backdrop-blur-[1px]">
           <div className="w-full max-w-md">
             <div className={xpModalFrameClass}>
               <div className={`${xpModalHeaderClass} mb-2`}>Forward Message</div>
@@ -8223,7 +8223,7 @@ function HiItsMeContent() {
                   <span className="ui-button-secondary ui-button-compact">{isForwardingToId === 'saved' ? '…' : 'Save'}</span>
                 </button>
 
-                <div className="max-h-64 overflow-y-auto rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-[inset_0_1px_1px_rgba(15,23,42,0.05)] dark:border-slate-700 dark:bg-slate-950/50">
+                <div className="max-h-64 overflow-y-auto rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-[inset_0_1px_1px_rgba(15,23,42,0.05)] dark:border-slate-700 dark:bg-[#13100E]/50">
                   {sortedDirectMessageBuddies.map((buddy) => (
                     <button
                       key={buddy.id}

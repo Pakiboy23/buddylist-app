@@ -1160,7 +1160,7 @@ export default function GroupChatWindow({
     `ui-focus-ring inline-flex h-7 min-w-7 items-center justify-center rounded-lg border px-1.5 text-[length:var(--ui-text-xs)] font-semibold text-slate-700 transition ${
       active
         ? 'border-blue-400/70 bg-blue-50 text-blue-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:border-blue-400/50 dark:bg-blue-500/15 dark:text-blue-200'
-        : 'border-slate-200 bg-white/80 hover:bg-white dark:border-slate-700 dark:bg-slate-950/65 dark:text-slate-200 dark:hover:bg-slate-900'
+        : 'border-slate-200 bg-white/80 hover:bg-white dark:border-slate-700 dark:bg-[#13100E]/65 dark:text-slate-200 dark:hover:bg-[#13100E]'
     }`;
 
   const resolvedTypingUsers = useMemo(() => {
@@ -1402,7 +1402,7 @@ export default function GroupChatWindow({
                 </div>
 
                 <div className="mt-3 space-y-3">
-                  <div className="rounded-[1rem] border border-white/60 bg-white/70 px-3 py-2 dark:border-slate-700 dark:bg-slate-950/55">
+                  <div className="rounded-[1rem] border border-white/60 bg-white/70 px-3 py-2 dark:border-slate-700 dark:bg-[#13100E]/55">
                     <label htmlFor={searchInputId} className="ui-section-kicker">Search</label>
                     <div className="mt-2 flex items-center gap-2">
                       <AppIcon kind="search" className="h-3.5 w-3.5 shrink-0 text-slate-400" />
@@ -1608,7 +1608,7 @@ export default function GroupChatWindow({
                                     ? hasCustomStyling
                                       ? `rounded-[1.35rem] border border-blue-200/80 bg-white/96 text-slate-900 shadow-[0_10px_24px_rgba(37,99,235,0.16)] ${clusterMeta.isLastInRun ? 'rounded-br-[8px] bubble-tail-out' : ''}`
                                       : `rounded-[1.35rem] bg-blue-500 text-white shadow-[0_8px_22px_rgba(37,99,235,0.26)] ${clusterMeta.isLastInRun ? 'rounded-br-[7px] bubble-tail-out' : ''}`
-                                    : `rounded-[1.35rem] border border-white/70 bg-white/85 text-slate-800 shadow-sm backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-950/70 dark:text-slate-100 ${clusterMeta.isLastInRun ? 'rounded-bl-[7px] bubble-tail-in' : ''} ${isMentioningCurrentUser ? 'border-amber-300/70 bg-amber-50/80 dark:border-amber-400/35 dark:bg-amber-950/25' : ''}`
+                                    : `rounded-[1.35rem] border border-white/70 bg-white/85 text-slate-800 shadow-sm backdrop-blur-sm dark:border-slate-700/70 dark:bg-[#13100E]/70 dark:text-slate-100 ${clusterMeta.isLastInRun ? 'rounded-bl-[7px] bubble-tail-in' : ''} ${isMentioningCurrentUser ? 'border-amber-300/70 bg-amber-50/80 dark:border-amber-400/35 dark:bg-amber-950/25' : ''}`
                                 } ${isMatch ? 'ring-2 ring-amber-400' : ''} ${!isDeleted && !isEditing ? 'ui-focus-ring' : ''}`}
                               >
                                 {isEditing ? (
@@ -1665,7 +1665,7 @@ export default function GroupChatWindow({
                               {!isDeleted && !isEditing ? (
                                 <div
                                   data-swipe-ignore="true"
-                                  className={`absolute bottom-full right-0 z-10 mb-2 min-w-[15rem] rounded-2xl border border-white/70 bg-white/90 p-2 shadow-lg backdrop-blur-md ui-fade-in dark:border-slate-700/70 dark:bg-slate-950/88 ${
+                                  className={`absolute bottom-full right-0 z-10 mb-2 min-w-[15rem] rounded-2xl border border-white/70 bg-white/90 p-2 shadow-lg backdrop-blur-md ui-fade-in dark:border-slate-700/70 dark:bg-[#13100E]/88 ${
                                     longPressMessageId === message.id ? 'flex' : 'hidden group-hover:flex group-focus-within:flex'
                                   } flex-col gap-2`}
                                 >
@@ -1688,7 +1688,7 @@ export default function GroupChatWindow({
                                       <button
                                         type="button"
                                         onClick={() => startMentioningMessage(message)}
-                                        className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900"
+                                        className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-[#13100E]"
                                         aria-label={`Mention ${senderName} from message sent at ${metaTimeLabel}`}
                                       >
                                         Mention
@@ -1702,7 +1702,7 @@ export default function GroupChatWindow({
                                             startEditingMessage(message);
                                             setLongPressMessageId(null);
                                           }}
-                                          className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-900"
+                                          className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-[#13100E]"
                                           aria-label={`Edit message sent at ${metaTimeLabel}`}
                                         >
                                           Edit
@@ -2056,7 +2056,7 @@ export default function GroupChatWindow({
             </p>
             <form
               onSubmit={handleSendMessage}
-              className="ui-compose-surface flex items-end gap-2 rounded-2xl px-3.5 py-2.5"
+              className="ui-compose-surface flex items-end gap-2 rounded-2xl border border-[#2A221A] bg-[#1E1812] px-3.5 py-2.5"
             >
               <label htmlFor={composerInputId} className="sr-only">
                 Message room {roomName}
@@ -2077,7 +2077,7 @@ export default function GroupChatWindow({
                 rows={1}
                 maxLength={1500}
                 aria-describedby={composerHelpId}
-                className="ui-focus-ring min-h-[24px] flex-1 resize-none rounded-xl bg-transparent text-[length:var(--ui-text-md)] text-slate-800 placeholder-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
+                className="min-h-[24px] flex-1 resize-none rounded-xl bg-transparent text-[length:var(--ui-text-md)] text-white placeholder-[#6B5B4E] focus:outline-none focus:border-[#E8608A]"
                 style={composerTextStyle}
               />
               {(draft.trim() || pendingAttachments.length > 0) ? (

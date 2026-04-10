@@ -133,7 +133,7 @@ export default function SavedMessagesWindow({
           ) : null}
 
           <div className="mx-3 mt-2" style={{ paddingBottom: composerInset }}>
-            <form onSubmit={handleSubmit} className="ui-compose-surface flex items-end gap-2 rounded-2xl px-3.5 py-2.5">
+            <form onSubmit={handleSubmit} className="ui-compose-surface flex items-end gap-2 rounded-2xl border border-[#2A221A] bg-[#1E1812] px-3.5 py-2.5">
               <label htmlFor="saved-message-input" className="sr-only">
                 New saved note
               </label>
@@ -144,7 +144,7 @@ export default function SavedMessagesWindow({
                 placeholder="Write a note to yourself…"
                 rows={1}
                 maxLength={4000}
-                className="ui-focus-ring min-h-[24px] flex-1 resize-none rounded-xl bg-transparent text-[length:var(--ui-text-md)] text-slate-800 placeholder-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
+                className="min-h-[24px] flex-1 resize-none rounded-xl bg-transparent text-[length:var(--ui-text-md)] text-white placeholder-[#6B5B4E] focus:outline-none focus:border-[#E8608A]"
               />
               {draft.trim() ? (
                 <button

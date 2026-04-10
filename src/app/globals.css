@@ -887,15 +887,15 @@ html.dark body {
 }
 
 .ui-tabbar-button[data-active='true'] {
-  color: #2563eb;
+  color: #E8608A;
 }
 
 .dark .ui-tabbar-button {
-  color: #94a3b8;
+  color: #4A3C35;
 }
 
 .dark .ui-tabbar-button[data-active='true'] {
-  color: #93c5fd;
+  color: #E8608A;
 }
 
 .ui-tabbar-icon {
@@ -1796,12 +1796,13 @@ body.privacy-shield-active::after {
 
 .ui-tabbar-button,
 .dark .ui-tabbar-button {
-  color: var(--muted);
+  color: #4A3C35;
 }
 
 .ui-tabbar-button[data-active='true'],
 .dark .ui-tabbar-button[data-active='true'] {
-  color: var(--rose);
+  color: #E8608A;
+  background: none;
 }
 
 .ui-tabbar-button[data-active='true'] .ui-tabbar-icon,

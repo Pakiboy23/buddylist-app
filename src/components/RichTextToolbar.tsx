@@ -69,7 +69,7 @@ export default function RichTextToolbar({ value, onChange }: RichTextToolbarProp
                 className={`ui-focus-ring shrink-0 rounded-full border px-3 py-1.5 text-[12px] font-semibold transition ${
                   isActive
                     ? 'border-blue-400/70 bg-blue-500 text-white shadow-[0_10px_20px_rgba(37,99,235,0.24)]'
-                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950/65 dark:text-slate-200 dark:hover:bg-slate-900'
+                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-[#13100E]/65 dark:text-slate-200 dark:hover:bg-[#13100E]'
                 }`}
                 style={{ fontFamily: fontName }}
                 aria-pressed={isActive}
@@ -112,7 +112,7 @@ export default function RichTextToolbar({ value, onChange }: RichTextToolbarProp
         </div>
       </div>
 
-      <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-950/55">
+      <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/80 px-3 py-2 dark:border-slate-700 dark:bg-[#13100E]/55">
         <p className="text-[12px] text-slate-500 dark:text-slate-400">Applies to your next message</p>
         <span
           className="inline-flex items-center rounded-full border border-slate-200 px-3 py-1 text-[12px] dark:border-slate-700"
