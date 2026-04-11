@@ -33,6 +33,11 @@ import { htmlToPlainText } from '@/lib/richText';
 import { supabase } from '@/lib/supabase';
 import { normalizeBlockedUserIds } from '@/lib/trustSafety';
 
+interface BannerAction {
+  label: string;
+  onAction: () => void;
+}
+
 interface BannerData {
   senderName: string;
   messagePreview: string;
@@ -41,6 +46,15 @@ interface BannerData {
   count?: number;
   queuedAtMs?: number;
   source?: 'realtime' | 'push';
+  actions?: BannerAction[];
+  dismissMs?: number;
+}
+
+interface UserConnectionChange {
+  user_a: string;
+  user_b: string;
+  status: 'following' | 'pending' | 'mutual' | 'blocked';
+  initiated_by: string;
 }
 
 interface MessageInsert {
@@ -765,6 +779,101 @@ export default function GlobalNotificationListener() {
     };
   }, [enqueueBanner, getCurrentView, resolveRoomNameById, resolveSenderNameById]);
 
+  useEffect(() => {
+    if (!currentUserId) {
+      return;
+    }
+
+    const connectionsChannel = supabase
+      .channel('global_notifications_connections')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_connections',
+        },
+        (payload) => {
+          const currentUser = currentUserIdRef.current;
+          if (!currentUser) {
+            return;
+          }
+
+          const row = payload.new as UserConnectionChange | undefined;
+          if (!row) {
+            return;
+          }
+
+          const isUserA = row.user_a === currentUser;
+          const isUserB = row.user_b === currentUser;
+          if (!isUserA && !isUserB) {
+            return;
+          }
+
+          const otherId = isUserA ? row.user_b : row.user_a;
+          const iInitiated = row.initiated_by === currentUser;
+
+          void (async () => {
+            const senderName = await resolveSenderNameById(otherId);
+
+            if (payload.eventType === 'INSERT') {
+              if (row.status === 'following' && !iInitiated) {
+                // Someone started following me
+                enqueueBanner({
+                  senderName,
+                  messagePreview: `${senderName} started following you.`,
+                  targetPath: HI_ITS_ME_PATH,
+                  variant: 'buddy',
+                  source: 'realtime',
+                });
+              } else if (row.status === 'pending' && !iInitiated) {
+                // Someone sent me a buddy request
+                enqueueBanner({
+                  senderName,
+                  messagePreview: `${senderName} wants to be your buddy.`,
+                  targetPath: HI_ITS_ME_PATH,
+                  variant: 'buddy',
+                  source: 'realtime',
+                  dismissMs: 6000,
+                  actions: [
+                    {
+                      label: 'Accept',
+                      onAction: () => {
+                        void supabase.rpc('accept_buddy_request', { p_other_id: otherId });
+                      },
+                    },
+                    {
+                      label: 'Ignore',
+                      onAction: () => {
+                        void supabase.rpc('decline_buddy_request', { p_other_id: otherId });
+                      },
+                    },
+                  ],
+                });
+              }
+            } else if (payload.eventType === 'UPDATE') {
+              const oldRow = payload.old as Partial<UserConnectionChange> | undefined;
+              if (row.status === 'mutual' && oldRow?.status !== 'mutual') {
+                // Buddy request accepted — notify both parties
+                enqueueBanner({
+                  senderName,
+                  messagePreview: `You and ${senderName} are now buddies!`,
+                  targetPath: HI_ITS_ME_PATH,
+                  variant: 'buddy',
+                  source: 'realtime',
+                });
+              }
+            }
+          })();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      connectionsChannel.unsubscribe();
+    };
+  }, [currentUserId, enqueueBanner, resolveSenderNameById]);
+
   const activeBanner = bannerQueue[0] ?? null;
   if (!activeBanner) {
     return null;
@@ -776,6 +885,8 @@ export default function GlobalNotificationListener() {
       messagePreview={activeBanner.messagePreview}
       variant={activeBanner.variant}
       count={activeBanner.count}
+      actions={activeBanner.actions}
+      dismissMs={activeBanner.dismissMs}
       onClose={() => setBannerQueue((previous) => previous.slice(1))}
       onClick={() => {
         const targetPath = activeBanner.targetPath;

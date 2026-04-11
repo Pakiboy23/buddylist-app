@@ -4,6 +4,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import AppIcon from '@/components/AppIcon';
 
+interface BannerAction {
+  label: string;
+  onAction: () => void;
+}
+
 interface IncomingMessageBannerProps {
   senderName: string;
   messagePreview: string;
@@ -11,10 +16,12 @@ interface IncomingMessageBannerProps {
   count?: number;
   onClose: () => void;
   onClick: () => void;
+  actions?: BannerAction[];
+  dismissMs?: number;
 }
 
 const EXIT_ANIMATION_MS = 260;
-const AUTO_DISMISS_MS = 4000;
+const DEFAULT_DISMISS_MS = 4000;
 
 export default function IncomingMessageBanner({
   senderName,
@@ -23,6 +30,8 @@ export default function IncomingMessageBanner({
   count = 1,
   onClose,
   onClick,
+  actions,
+  dismissMs = DEFAULT_DISMISS_MS,
 }: IncomingMessageBannerProps) {
   const [isVisible, setIsVisible] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -51,7 +60,7 @@ export default function IncomingMessageBanner({
   useEffect(() => {
     const dismissId = setTimeout(() => {
       dismissBanner();
-    }, AUTO_DISMISS_MS);
+    }, dismissMs);
 
     return () => {
       clearTimeout(dismissId);
@@ -59,7 +68,7 @@ export default function IncomingMessageBanner({
         clearTimeout(closeTimerRef.current);
       }
     };
-  }, [dismissBanner]);
+  }, [dismissBanner, dismissMs]);
 
   if (typeof document === 'undefined') {
     return null;
@@ -133,6 +142,28 @@ export default function IncomingMessageBanner({
             <AppIcon kind="close" className="h-4 w-4" />
           </button>
         </div>
+        {/* Inline action buttons (e.g. Accept / Ignore for buddy requests) */}
+        {actions && actions.length > 0 ? (
+          <div className="flex gap-2 px-4 pb-3">
+            {actions.map((action) => (
+              <button
+                key={action.label}
+                type="button"
+                onClick={() => {
+                  action.onAction();
+                  dismissBanner();
+                }}
+                className={`ui-focus-ring rounded-xl px-4 py-1.5 text-[length:var(--ui-text-sm)] font-semibold transition active:scale-95 ${
+                  action.label === 'Accept'
+                    ? 'ui-button-primary'
+                    : 'ui-button-secondary'
+                }`}
+              >
+                {action.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
     </div>,
     document.body,
