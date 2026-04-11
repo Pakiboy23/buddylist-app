@@ -10,6 +10,7 @@ import HiItsMeTabIcon from '@/components/HiItsMeTabIcon';
 import type { ChatMessage } from '@/components/ChatWindow';
 import BuddyProfileSheet from '@/components/BuddyProfileSheet';
 import ProfileAvatar from '@/components/ProfileAvatar';
+import RenameScreenname from '@/components/RenameScreenname';
 import SavedMessagesWindow from '@/components/SavedMessagesWindow';
 import {
   AWAY_MOOD_OPTIONS,
@@ -698,6 +699,7 @@ function HiItsMeContent() {
   const [idleSinceAt, setIdleSinceAt] = useState<string | null>(null);
   const [lastActiveAt, setLastActiveAt] = useState<string | null>(null);
   const [showAwayModal, setShowAwayModal] = useState(false);
+  const [showRename, setShowRename] = useState(false);
   const [awayPresets, setAwayPresets] = useState<AwayPreset[]>(DEFAULT_AWAY_PRESETS);
   const [selectedAwayPresetId, setSelectedAwayPresetId] = useState<string>(DEFAULT_AWAY_PRESETS[0].id);
   const [awayMoodId, setAwayMoodId] = useState<AwayMoodId>(DEFAULT_AWAY_MOOD_ID);
@@ -7369,7 +7371,11 @@ function HiItsMeContent() {
       {showAwayModal && (
         <div
           className="fixed inset-0 z-50 flex items-end justify-center bg-[#13100E]/25 backdrop-blur-[2px]"
-          onClick={() => { setShowAwayModal(false); setAwayModalError(null); }}
+          onClick={() => {
+            setShowAwayModal(false);
+            setShowRename(false);
+            setAwayModalError(null);
+          }}
         >
           <div
             className="ui-sheet-surface w-full max-w-lg bottom-sheet rounded-t-[2rem]"
@@ -7386,7 +7392,11 @@ function HiItsMeContent() {
               <h2 className="ui-sheet-title">{awayModalMode === 'away' ? 'Away Message' : 'Profile'}</h2>
               <button
                 type="button"
-                onClick={() => { setShowAwayModal(false); setAwayModalError(null); }}
+                onClick={() => {
+                  setShowAwayModal(false);
+                  setShowRename(false);
+                  setAwayModalError(null);
+                }}
                 className="ui-focus-ring ui-sheet-close"
               >
                 <AppIcon kind="close" className="h-3.5 w-3.5" />
@@ -7488,6 +7498,31 @@ function HiItsMeContent() {
                     className="ui-focus-ring ui-button-danger ui-button-compact disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Remove Photo
+                  </button>
+                </div>
+
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!userId) {
+                        return;
+                      }
+                      setShowRename(true);
+                    }}
+                    disabled={!userId}
+                    className="ui-focus-ring ui-list-row w-full text-left disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Screenname</p>
+                      <p className="mt-1 text-[11px] text-slate-500">Change how buddies see your name.</p>
+                    </div>
+                    <div className="ml-3 flex min-w-0 items-center gap-2">
+                      <span className="ui-screenname max-w-[140px] truncate text-[13px] font-semibold text-slate-800">
+                        {screenname}
+                      </span>
+                      <AppIcon kind="chevron" className="h-3.5 w-3.5 text-slate-400" />
+                    </div>
                   </button>
                 </div>
 
@@ -7691,6 +7726,17 @@ function HiItsMeContent() {
           </div>
         </div>
       )}
+
+      {showRename && userId ? (
+        <RenameScreenname
+          currentUsername={screenname}
+          userId={userId}
+          onSuccess={(newUsername) => {
+            setScreenname(newUsername);
+          }}
+          onClose={() => setShowRename(false)}
+        />
+      ) : null}
 
       {showSystemStatusSheet && (
         <div
