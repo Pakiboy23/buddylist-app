@@ -2879,8 +2879,11 @@ function HiItsMeContent() {
         let buddyWentAway = false;
         let buddyCameBack = false;
         let updatedBuddyScreenname = '';
-        setBuddyRows((previous) =>
-          previous.map((buddy) => {
+        setBuddyRows((previous) => {
+          if (!previous.some((buddy) => buddy.id === updated.id)) {
+            return previous;
+          }
+          return previous.map((buddy) => {
             if (buddy.id !== updated.id) {
               return buddy;
             }
@@ -2945,8 +2948,8 @@ function HiItsMeContent() {
                     ? null
                     : buddy.last_active_at,
             };
-          }),
-        );
+          });
+        });
 
         if (updated.id !== userId && acceptedBuddyIdsRef.current.has(updated.id)) {
           if (buddyWentAway) {
@@ -6000,7 +6003,7 @@ function HiItsMeContent() {
           <AppIcon kind="mail" className="h-4 w-4" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[13px] font-semibold leading-tight text-slate-800">Saved Messages</p>
+          <p className="truncate text-[13px] font-semibold leading-tight text-slate-800 dark:text-slate-100">Saved Messages</p>
           <p className="truncate text-[11px] font-semibold text-[var(--rose)]">Private notes</p>
           <p className="truncate text-[11px] text-slate-400">
             {savedMessages[0]
@@ -6293,7 +6296,7 @@ function HiItsMeContent() {
         onXpSignOff={() => setIsHeaderMenuOpen((previous) => !previous)}
       >
         <div
-          className={`relative flex h-full min-h-0 flex-col overflow-hidden text-[12px] text-slate-700 ${nativeShellActive ? 'bg-transparent' : 'ui-window-panel rounded-[1.6rem]'}`}
+          className={`relative flex h-full min-h-0 flex-col overflow-hidden text-[12px] text-slate-700 dark:text-slate-300 ${nativeShellActive ? 'bg-transparent' : 'ui-window-panel rounded-[1.6rem]'}`}
         >
           {isHeaderMenuOpen ? (
             <div className="fixed inset-0 z-30" onClick={() => setIsHeaderMenuOpen(false)}>
@@ -7145,7 +7148,7 @@ function HiItsMeContent() {
                 </div>
 
                 <div>
-                  <label htmlFor="recovery-code-input" className="mb-1 block text-[12px] font-semibold text-slate-700">
+                  <label htmlFor="recovery-code-input" className="mb-1 block text-[12px] font-semibold text-slate-700 dark:text-slate-300">
                     Recovery code
                   </label>
                   <input
@@ -7166,7 +7169,7 @@ function HiItsMeContent() {
                 <div>
                   <label
                     htmlFor="recovery-code-confirm-input"
-                    className="mb-1 block text-[12px] font-semibold text-slate-700"
+                    className="mb-1 block text-[12px] font-semibold text-slate-700 dark:text-slate-300"
                   >
                     Confirm recovery code
                   </label>
@@ -7235,7 +7238,7 @@ function HiItsMeContent() {
                   </div>
                 </div>
                 <div>
-                  <label htmlFor="admin-reset-screenname" className="mb-1 block text-[12px] font-semibold text-slate-700">
+                  <label htmlFor="admin-reset-screenname" className="mb-1 block text-[12px] font-semibold text-slate-700 dark:text-slate-300">
                     Member screen name
                   </label>
                   <input
@@ -7298,7 +7301,7 @@ function HiItsMeContent() {
                   </div>
                 )}
 
-                <div className="ui-panel-card rounded-2xl px-3 py-3 text-[11px] text-slate-700">
+                <div className="ui-panel-card rounded-2xl px-3 py-3 text-[11px] text-slate-700 dark:text-slate-300">
                   <div className="flex items-center justify-between gap-2">
                     <p className="font-bold">Recent Recovery Activity</p>
                     <button
@@ -7331,7 +7334,7 @@ function HiItsMeContent() {
 
                         return (
                           <div key={entry.id} className="ui-panel-muted rounded-xl px-2.5 py-2">
-                            <p className="font-semibold text-slate-700">{formatAdminAuditEvent(entry.eventType)}</p>
+                            <p className="font-semibold text-slate-700 dark:text-slate-300">{formatAdminAuditEvent(entry.eventType)}</p>
                             <p className="text-[10px] text-slate-500">{new Date(entry.createdAt).toLocaleString()}</p>
                             <p className="mt-0.5">
                               <span className="font-semibold">Actor:</span> {actorLabel}
@@ -7444,7 +7447,7 @@ function HiItsMeContent() {
                     </span>
                   </label>
                   <div className="min-w-0 flex-1">
-                    <p className="ui-screenname truncate text-[14px] font-semibold text-slate-800">{screenname}</p>
+                    <p className="ui-screenname truncate text-[14px] font-semibold text-slate-800 dark:text-slate-100">{screenname}</p>
                     <p className="truncate text-[11px] text-slate-500">{profileStatusDraft || AVAILABLE_STATUS}</p>
                     {buddyIconPreviewUrl ? (
                       <p className="mt-1 text-[10px] text-[var(--rose)]">New icon ready to save</p>
@@ -7520,7 +7523,7 @@ function HiItsMeContent() {
                       <p className="mt-1 text-[11px] text-slate-500">Change how buddies see your name.</p>
                     </div>
                     <div className="ml-3 flex min-w-0 items-center gap-2">
-                      <span className="ui-screenname max-w-[140px] truncate text-[13px] font-semibold text-slate-800">
+                      <span className="ui-screenname max-w-[140px] truncate text-[13px] font-semibold text-slate-800 dark:text-slate-100">
                         {screenname}
                       </span>
                       <AppIcon kind="chevron" className="h-3.5 w-3.5 text-slate-400" />
@@ -7644,7 +7647,7 @@ function HiItsMeContent() {
               <div className="ui-panel-muted space-y-3 rounded-2xl px-4 py-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-[13px] font-semibold text-slate-700">Show Idle when inactive</p>
+                    <p className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Show Idle when inactive</p>
                     <p className="text-[11px] text-slate-400">Mark yourself idle after inactivity</p>
                   </div>
                   <button
@@ -7671,7 +7674,7 @@ function HiItsMeContent() {
                 ) : null}
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-[13px] font-semibold text-slate-700">Clear idle on activity</p>
+                    <p className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Clear idle on activity</p>
                     <p className="text-[11px] text-slate-400">Move back to active when you interact</p>
                   </div>
                   <button
@@ -7684,7 +7687,7 @@ function HiItsMeContent() {
                   />
                 </div>
                 <div className="flex items-center justify-between">
-                  <p className="text-[13px] font-semibold text-slate-700">Save as preset</p>
+                  <p className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Save as preset</p>
                   <button
                     type="button"
                     onClick={() => setSaveAwayPreset((p) => !p)}
@@ -7767,7 +7770,7 @@ function HiItsMeContent() {
             <div className="space-y-3 px-5 pb-2">
               <div className="ui-panel-card rounded-2xl px-3.5 py-3">
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Sync</p>
-                <p className="mt-1 text-[14px] font-semibold text-slate-800">{chatSyncSummary}</p>
+                <p className="mt-1 text-[14px] font-semibold text-slate-800 dark:text-slate-100">{chatSyncSummary}</p>
                 <p className="mt-1 text-[12px] text-slate-500">
                   {lastSyncedAt
                     ? `Last synced ${new Date(lastSyncedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
@@ -7780,7 +7783,7 @@ function HiItsMeContent() {
 
               <div className="ui-panel-card rounded-2xl px-3.5 py-3">
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Outbox</p>
-                <p className="mt-1 text-[14px] font-semibold text-slate-800">{outboxSummary}</p>
+                <p className="mt-1 text-[14px] font-semibold text-slate-800 dark:text-slate-100">{outboxSummary}</p>
                 {latestOutboxError ? (
                   <p className="ui-note-warning mt-2">{latestOutboxError}</p>
                 ) : null}
@@ -7839,7 +7842,7 @@ function HiItsMeContent() {
               <div className="ui-panel-card rounded-2xl px-4 py-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-[13px] font-semibold text-slate-700">Share read receipts</p>
+                    <p className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Share read receipts</p>
                     <p className="text-[11px] text-slate-400">Let buddies know when you have read their messages.</p>
                   </div>
                   <button
@@ -7855,7 +7858,7 @@ function HiItsMeContent() {
               </div>
 
               <div className="ui-panel-card rounded-2xl px-4 py-4">
-                <p className="text-[13px] font-semibold text-slate-700">Notification previews</p>
+                <p className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Notification previews</p>
                 <p className="mt-1 text-[11px] text-slate-400">Choose how much message detail appears in banners.</p>
                 <select
                   value={privacySettings.notificationPreviewMode}
@@ -7874,7 +7877,7 @@ function HiItsMeContent() {
               <div className="ui-panel-card rounded-2xl px-4 py-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-[13px] font-semibold text-slate-700">Screen shield</p>
+                    <p className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Screen shield</p>
                     <p className="text-[11px] text-slate-400">Obscure the app when it moves to the background.</p>
                   </div>
                   <button
@@ -7892,7 +7895,7 @@ function HiItsMeContent() {
               <div className="ui-panel-card rounded-2xl px-4 py-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-[13px] font-semibold text-slate-700">App lock</p>
+                    <p className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">App lock</p>
                     <p className="text-[11px] text-slate-400">
                       Device-only PIN lock that appears when H.I.M. returns from the background.
                     </p>
@@ -7994,7 +7997,7 @@ function HiItsMeContent() {
               </div>
 
               <div className="ui-panel-card rounded-2xl px-4 py-4">
-                <p className="text-[13px] font-semibold text-slate-700">Blocked buddies</p>
+                <p className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Blocked buddies</p>
                 <p className="mt-1 text-[11px] text-slate-400">Blocked contacts cannot send new messages or requests.</p>
                 {blockedUserIds.length === 0 ? (
                   <p className="mt-3 text-[11px] text-slate-400">No one is blocked right now.</p>
@@ -8076,7 +8079,7 @@ function HiItsMeContent() {
             <div className={xpModalFrameClass}>
               <div className={`${xpModalHeaderClass} mb-2`}>Join a Room</div>
               <form onSubmit={handleJoinRoom} className="flex flex-col gap-3 px-2 pb-2 text-[11px]">
-                <label htmlFor="room-name-input" className="font-semibold text-slate-700">
+                <label htmlFor="room-name-input" className="font-semibold text-slate-700 dark:text-slate-300">
                   Room name
                 </label>
                 <input
@@ -8118,7 +8121,7 @@ function HiItsMeContent() {
           <div className="w-full max-w-sm">
             <div className={xpModalFrameClass}>
               <div className={`${xpModalHeaderClass} mb-2`}>New Message Request</div>
-              <div className="flex flex-col gap-3 px-2 pb-2 text-[11px] text-slate-700">
+              <div className="flex flex-col gap-3 px-2 pb-2 text-[11px] text-slate-700 dark:text-slate-300">
                 <p>
                   <span className="ui-screenname font-bold text-[var(--rose)]">{activePendingRequest.screenname}</span> wants to message
                   you, but they are not in your H.I.M. contacts yet.
@@ -8251,7 +8254,7 @@ function HiItsMeContent() {
               <div className="flex flex-col gap-3 px-2 pb-2 text-[11px]">
                 <div className="ui-panel-muted rounded-2xl px-3 py-3">
                   <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Preview</p>
-                  <p className="mt-1 text-[12px] text-slate-700">
+                  <p className="mt-1 text-[12px] text-slate-700 dark:text-slate-300">
                     {htmlToPlainText(forwardingMessage.content).trim() || 'Forwarded message'}
                   </p>
                 </div>
@@ -8265,7 +8268,7 @@ function HiItsMeContent() {
                   className="ui-focus-ring ui-panel-muted flex items-center justify-between rounded-2xl px-3 py-3 text-left"
                 >
                   <span>
-                    <span className="block font-semibold text-slate-800">Saved Messages</span>
+                    <span className="block font-semibold text-slate-800 dark:text-slate-100">Saved Messages</span>
                     <span className="block text-[11px] text-slate-400">Keep a copy for yourself</span>
                   </span>
                   <span className="ui-button-secondary ui-button-compact">{isForwardingToId === 'saved' ? '…' : 'Save'}</span>
@@ -8281,7 +8284,7 @@ function HiItsMeContent() {
                       className="ui-focus-ring ui-panel-muted mb-2 flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left last:mb-0"
                     >
                       <span className="min-w-0">
-                        <span className="ui-screenname block truncate font-semibold text-slate-800">{buddy.screenname}</span>
+                        <span className="ui-screenname block truncate font-semibold text-slate-800 dark:text-slate-100">{buddy.screenname}</span>
                         <span className="block truncate text-[11px] text-slate-400">Forward as a new message</span>
                       </span>
                       <span className="ui-button-secondary ui-button-compact">{isForwardingToId === buddy.id ? '…' : 'Send'}</span>
