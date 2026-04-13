@@ -1,8 +1,6 @@
-'use client';
-
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import type { LocalNotificationsPlugin } from '@capacitor/local-notifications';
 import type {
   ActionPerformed,
@@ -12,7 +10,7 @@ import type {
 } from '@capacitor/push-notifications';
 import IncomingMessageBanner from '@/components/IncomingMessageBanner';
 import { useChatContext } from '@/context/ChatContext';
-import { navigateAppPath, normalizeAppPath } from '@/lib/appNavigation';
+import { navigateAppPath, normalizeAppPath, useAppRouter } from '@/lib/appNavigation';
 import { waitForSessionOrNull } from '@/lib/authClient';
 import { subscribeToStorageKey } from '@/lib/clientStorage';
 import { getNativePushEnvironment } from '@/lib/nativeShell';
@@ -128,9 +126,9 @@ export default function GlobalNotificationListener() {
   const [currentUserScreenname, setCurrentUserScreenname] = useState('');
   const [bannerQueue, setBannerQueue] = useState<BannerData[]>([]);
 
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const router = useRouter();
+  const { pathname } = useLocation();
+  const [searchParams] = useSearchParams();
+  const router = useAppRouter();
 
   const { activeRooms, playChatSound } = useChatContext();
 

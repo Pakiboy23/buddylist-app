@@ -1228,7 +1228,7 @@ export default function ChatWindow({
   const xpTinyToolbarButtonClass = (active = false) =>
     `ui-focus-ring inline-flex h-7 min-w-7 items-center justify-center rounded-lg border px-1.5 text-[length:var(--ui-text-xs)] font-semibold text-slate-700 transition ${
       active
-        ? 'border-blue-400/70 bg-blue-50 text-blue-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:border-blue-400/50 dark:bg-blue-500/15 dark:text-blue-200'
+        ? 'border-[#E8608A]/40 bg-[#E8608A]/10 text-[#E8608A] shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:border-[#E8608A]/30 dark:bg-[#E8608A]/15 dark:text-[#E8608A]'
         : 'border-slate-200 bg-white/80 hover:bg-white dark:border-slate-700 dark:bg-[#13100E]/65 dark:text-slate-200 dark:hover:bg-[#13100E]'
     }`;
   const presenceToneClass =
@@ -1575,7 +1575,7 @@ export default function ChatWindow({
             )}
             {!isLoading && visibleMessages.length === 0 && (
               <div className="ui-empty-state h-full px-6 ui-fade-in">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-50">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#302820]">
                   <AppIcon kind="mail" className="h-7 w-7 text-blue-400" />
                 </div>
                 <div>
@@ -1757,7 +1757,7 @@ export default function ChatWindow({
                                           onClick={() => void saveEditedMessage(message.id)}
                                           disabled={isSavingEdit || !editDraft.trim()}
                                           className={`ui-focus-ring rounded-xl px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold disabled:opacity-60 ${
-                                            isMine ? 'bg-white/30 text-white hover:bg-white/40' : 'bg-blue-500 text-white hover:bg-blue-600'
+                                            isMine ? 'bg-white/30 text-white hover:bg-white/40' : 'bg-[#E8608A] text-white hover:bg-[#B93A67]'
                                           }`}
                                         >
                                           Save
@@ -1968,7 +1968,7 @@ export default function ChatWindow({
                       ? 'border border-red-200/80 bg-red-50/90 text-red-950 shadow-[0_8px_24px_rgba(239,68,68,0.12)]'
                       : item.status === 'queued'
                         ? 'border border-amber-200/80 bg-amber-50/90 text-amber-950 shadow-[0_8px_24px_rgba(245,158,11,0.12)]'
-                        : 'bg-blue-500/92 text-white shadow-[0_2px_8px_rgba(37,99,235,0.28)]';
+                        : 'bg-[#E8608A]/75 text-white shadow-[0_2px_8px_rgba(232,96,138,0.28)]';
 
                   return (
                     <div key={`outbox-${item.id}`} className="flex flex-col">

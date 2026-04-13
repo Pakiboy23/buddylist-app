@@ -1,5 +1,5 @@
-'use client';
-
+import { useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 
 interface RouterLike {
@@ -70,4 +70,34 @@ export function replaceAppPathInPlace(path: string) {
   }
 
   window.history.replaceState(window.history.state, '', targetPath);
+}
+
+/**
+ * React Router adapter — returns a RouterLike compatible with navigateAppPath.
+ * Replaces the Next.js useRouter() pattern:
+ *   const router = useRouter();
+ *   navigateAppPath(router, '/some-path');
+ *
+ * Becomes:
+ *   const router = useAppRouter();
+ *   navigateAppPath(router, '/some-path');
+ */
+export function useAppRouter(): RouterLike {
+  const navigate = useNavigate();
+
+  const push = useCallback(
+    (href: string) => {
+      navigate(href);
+    },
+    [navigate],
+  );
+
+  const replace = useCallback(
+    (href: string) => {
+      navigate(href, { replace: true });
+    },
+    [navigate],
+  );
+
+  return { push, replace };
 }

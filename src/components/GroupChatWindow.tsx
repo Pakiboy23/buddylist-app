@@ -1169,7 +1169,7 @@ export default function GroupChatWindow({
   const xpTinyToolbarButtonClass = (active = false) =>
     `ui-focus-ring inline-flex h-7 min-w-7 items-center justify-center rounded-lg border px-1.5 text-[length:var(--ui-text-xs)] font-semibold text-slate-700 transition ${
       active
-        ? 'border-blue-400/70 bg-blue-50 text-blue-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:border-blue-400/50 dark:bg-blue-500/15 dark:text-blue-200'
+        ? 'border-[#E8608A]/40 bg-[#E8608A]/10 text-[#E8608A] shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:border-[#E8608A]/30 dark:bg-[#E8608A]/15 dark:text-[#E8608A]'
         : 'border-slate-200 bg-white/80 hover:bg-white dark:border-slate-700 dark:bg-[#13100E]/65 dark:text-slate-200 dark:hover:bg-[#13100E]'
     }`;
 
@@ -1617,7 +1617,7 @@ export default function GroupChatWindow({
                                   isMine
                                     ? hasCustomStyling
                                       ? `rounded-[1.35rem] border border-blue-200/80 bg-white/96 text-slate-900 shadow-[0_10px_24px_rgba(37,99,235,0.16)] ${clusterMeta.isLastInRun ? 'rounded-br-[8px] bubble-tail-out' : ''}`
-                                      : `rounded-[1.35rem] bg-blue-500 text-white shadow-[0_8px_22px_rgba(37,99,235,0.26)] ${clusterMeta.isLastInRun ? 'rounded-br-[7px] bubble-tail-out' : ''}`
+                                      : `rounded-[1.35rem] bg-[#E8608A]/22 text-white shadow-[0_8px_22px_rgba(232,96,138,0.26)] ${clusterMeta.isLastInRun ? 'rounded-br-[7px] bubble-tail-out' : ''}`
                                     : `rounded-[1.35rem] border border-white/70 bg-white/85 text-slate-800 shadow-sm backdrop-blur-sm dark:border-slate-700/70 dark:bg-[#13100E]/70 dark:text-slate-100 ${clusterMeta.isLastInRun ? 'rounded-bl-[7px] bubble-tail-in' : ''} ${isMentioningCurrentUser ? 'border-amber-300/70 bg-amber-50/80 dark:border-amber-400/35 dark:bg-amber-950/25' : ''}`
                                 } ${isMatch ? 'ring-2 ring-amber-400' : ''} ${!isDeleted && !isEditing ? 'ui-focus-ring' : ''}`}
                               >
@@ -1650,7 +1650,7 @@ export default function GroupChatWindow({
                                         onClick={() => void saveEditedMessage(message.id)}
                                         disabled={isSavingEdit || !editDraft.trim()}
                                         className={`ui-focus-ring rounded-xl px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold disabled:opacity-60 ${
-                                          isMine ? 'bg-white/30 text-white hover:bg-white/40' : 'bg-blue-500 text-white hover:bg-blue-600'
+                                          isMine ? 'bg-white/30 text-white hover:bg-white/40' : 'bg-[#E8608A] text-white hover:bg-[#B93A67]'
                                         }`}
                                       >
                                         Save
@@ -1800,7 +1800,7 @@ export default function GroupChatWindow({
                       ? 'border border-red-200/80 bg-red-50/90 text-red-950 shadow-[0_8px_24px_rgba(239,68,68,0.12)]'
                       : item.status === 'queued'
                         ? 'border border-amber-200/80 bg-amber-50/90 text-amber-950 shadow-[0_8px_24px_rgba(245,158,11,0.12)]'
-                        : 'bg-blue-500/92 text-white shadow-[0_2px_8px_rgba(37,99,235,0.28)]';
+                        : 'bg-[#E8608A]/75 text-white shadow-[0_2px_8px_rgba(232,96,138,0.28)]';
 
                   return (
                     <div key={`outbox-${item.id}`} className="flex flex-col">

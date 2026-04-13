@@ -1,7 +1,5 @@
-'use client';
-
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useAppRouter } from '@/lib/appNavigation';
 import RetroWindow from '@/components/RetroWindow';
 import { supabase } from '@/lib/supabase';
 import { waitForSessionOrNull } from '@/lib/authClient';
@@ -17,7 +15,7 @@ type RoomType = (typeof ROOM_TYPES)[number]['value'];
 const MAX_TAGS = 5;
 
 export default function NewRoomPage() {
-  const router = useRouter();
+  const router = useAppRouter();
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');

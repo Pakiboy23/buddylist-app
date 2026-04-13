@@ -1,9 +1,5 @@
-'use client';
-
-import dynamic from 'next/dynamic';
-import Image from 'next/image';
-import { FormEvent, Suspense, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { FormEvent, Suspense, lazy, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import AppIcon from '@/components/AppIcon';
 import AppLockSheet from '@/components/AppLockSheet';
 import HiItsMeTabIcon from '@/components/HiItsMeTabIcon';
@@ -23,7 +19,7 @@ import {
 } from '@/lib/himArtDirection';
 import { getAccessTokenOrNull, waitForSessionOrNull } from '@/lib/authClient';
 import { getAppApiUrl } from '@/lib/appApi';
-import { navigateAppPath, replaceAppPathInPlace } from '@/lib/appNavigation';
+import { navigateAppPath, replaceAppPathInPlace, useAppRouter } from '@/lib/appNavigation';
 import {
   aggregateBuddyRelationships,
   type BuddyRelationshipRecord,
@@ -149,15 +145,8 @@ import {
   type AbuseReportCategory,
 } from '@/lib/trustSafety';
 
-const ChatWindow = dynamic(() => import('@/components/ChatWindow'), {
-  ssr: false,
-  loading: () => null,
-});
-
-const GroupChatWindow = dynamic(() => import('@/components/GroupChatWindow'), {
-  ssr: false,
-  loading: () => null,
-});
+const ChatWindow = lazy(() => import('@/components/ChatWindow'));
+const GroupChatWindow = lazy(() => import('@/components/GroupChatWindow'));
 
 interface UserProfile {
   id: string;
@@ -855,8 +844,8 @@ function HiItsMeContent() {
   const adminResetInputRef = useRef<HTMLInputElement | null>(null);
   const playSound = useSoundPlayer();
   const { isDark, toggleDark } = useTheme();
-  const router = useRouter();
-  const searchParams = useSearchParams();
+  const router = useAppRouter();
+  const [searchParams] = useSearchParams();
   const nativeShellActive = isNativeIosShell();
   const roomKeySchemaUnavailableRef = useRef(false);
   const {
@@ -6516,7 +6505,7 @@ function HiItsMeContent() {
                             <span className={`h-1.5 w-1.5 rounded-full ${
                               syncState === 'error' ? 'bg-red-400' :
                               isChatSyncBusy ? 'bg-amber-400 animate-pulse' :
-                              pendingOutboxCount > 0 ? 'bg-sky-400' :
+                              pendingOutboxCount > 0 ? 'bg-[#D4963A]' :
                               'bg-emerald-400'
                             }`} />
                             <span className="truncate">
@@ -7459,12 +7448,9 @@ function HiItsMeContent() {
                 {buddyIconPreviewUrl ? (
                   <div className="mt-3">
                     <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Preview</p>
-                    <Image
-                      src={buddyIconPreviewUrl}
+                    <img
+                      src={buddyIconPreviewUrl ?? undefined}
                       alt=""
-                      width={80}
-                      height={80}
-                      unoptimized
                       className="h-20 w-20 rounded-2xl border border-white/70 object-cover shadow-sm"
                     />
                   </div>

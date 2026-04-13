@@ -10,8 +10,8 @@ function requireEnv(name: string) {
 
 function getSupabaseConfig() {
   return {
-    url: requireEnv('NEXT_PUBLIC_SUPABASE_URL'),
-    anonKey: requireEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
+    url: requireEnv('SUPABASE_URL'),
+    anonKey: requireEnv('SUPABASE_ANON_KEY'),
     serviceRoleKey: requireEnv('SUPABASE_SERVICE_ROLE_KEY'),
   };
 }

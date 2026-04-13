@@ -1,13 +1,11 @@
-'use client';
-
 import { useEffect } from 'react';
-import { usePathname } from 'next/navigation';
+import { useLocation } from 'react-router-dom';
 import { isNativeIosShell, publishNativeShellChromeState } from '@/lib/nativeShell';
 
 const HI_ITS_ME_PATH = '/hi-its-me';
 
 export default function NativeShellRouteSync() {
-  const pathname = usePathname();
+  const { pathname } = useLocation();
 
   useEffect(() => {
     if (!isNativeIosShell()) {

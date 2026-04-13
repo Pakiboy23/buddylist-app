@@ -651,19 +651,19 @@ html.dark body {
 }
 
 .ui-button-primary {
-  border: 1px solid rgba(59, 130, 246, 0.45);
-  background: linear-gradient(180deg, #60a5fa 0%, #2563eb 100%);
+  border: 1px solid rgba(232, 96, 138, 0.45);
+  background: linear-gradient(180deg, var(--rose) 0%, var(--rose-dark) 100%);
   color: #fff;
-  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.28);
+  box-shadow: 0 12px 24px rgba(232, 96, 138, 0.28);
 }
 
 .ui-button-primary:hover {
-  background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--rose) 92%, white 8%) 0%, color-mix(in srgb, var(--rose-dark) 92%, black 8%) 100%);
 }
 
 .dark .ui-button-primary {
-  border-color: rgba(96, 165, 250, 0.45);
-  box-shadow: 0 12px 24px rgba(30, 64, 175, 0.34);
+  border-color: rgba(232, 96, 138, 0.45);
+  box-shadow: 0 12px 24px rgba(232, 96, 138, 0.28);
 }
 
 .ui-button-secondary {
@@ -940,16 +940,17 @@ html.dark body {
 }
 
 .ui-list-row[data-active='true'] {
-  border-color: rgba(59, 130, 246, 0.18);
-  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(232, 96, 138, 0.22);
+  background: rgba(232, 96, 138, 0.12);
 }
 
 .dark .ui-list-row:hover {
-  background: rgba(30, 41, 59, 0.52);
+  background: rgba(38, 33, 24, 0.9);
 }
 
 .dark .ui-list-row[data-active='true'] {
-  background: rgba(37, 99, 235, 0.22);
+  border-color: rgba(232, 96, 138, 0.22);
+  background: rgba(232, 96, 138, 0.12);
 }
 
 .ui-status-chip {
@@ -1104,22 +1105,22 @@ html.dark body {
 }
 
 .ui-filter-chip[data-active='true'] {
-  border-color: rgba(59, 130, 246, 0.4);
-  background: linear-gradient(180deg, #60a5fa 0%, #2563eb 100%);
+  border-color: rgba(232, 96, 138, 0.4);
+  background: linear-gradient(180deg, var(--rose) 0%, var(--rose-dark) 100%);
   color: #fff;
-  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.22);
+  box-shadow: 0 10px 24px rgba(232, 96, 138, 0.22);
 }
 
 .dark .ui-filter-chip {
-  border-color: rgba(71, 85, 105, 0.95);
-  background: rgba(15, 23, 42, 0.82);
-  color: #cbd5e1;
+  border-color: rgba(247, 240, 232, 0.1);
+  background: rgba(19, 16, 14, 0.72);
+  color: var(--muted);
 }
 
 .dark .ui-filter-chip[data-active='true'] {
-  border-color: rgba(96, 165, 250, 0.45);
-  background: rgba(37, 99, 235, 0.9);
-  color: #eff6ff;
+  border-color: rgba(232, 96, 138, 0.4);
+  background: linear-gradient(180deg, var(--rose) 0%, var(--rose-dark) 100%);
+  color: #fff;
 }
 
 .ui-conversation-header {
@@ -1578,6 +1579,25 @@ body.privacy-shield-active::after {
     0 1px 0 rgba(19, 16, 14, 0.95),
     0 -1px 0 rgba(19, 16, 14, 0.95),
     0 0 18px rgba(232, 96, 138, 0.18);
+}
+
+/* H.I.M. wordmark letter + pip treatment */
+.him-letter {
+  background: linear-gradient(135deg, var(--rose) 0%, var(--gold) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+}
+
+.him-pip {
+  display: inline-block;
+  width: 0.3em;
+  height: 0.3em;
+  border-radius: 50%;
+  vertical-align: middle;
+  margin-bottom: 0.08em;
+  flex-shrink: 0;
 }
 
 .ui-online-pip {

@@ -1,5 +1,3 @@
-import { NextResponse } from 'next/server';
-
 const DEFAULT_NATIVE_API_ORIGIN = 'https://hiitsme-app.vercel.app';
 const CORS_ALLOWED_HEADERS = 'authorization, content-type';
 const CORS_MAX_AGE_SECONDS = '86400';
@@ -10,8 +8,8 @@ function normalizeOrigin(origin: string) {
 
 function buildAllowedOrigins() {
   const configuredOrigins = [
-    process.env.NEXT_PUBLIC_APP_API_ORIGIN,
-    process.env.NEXT_PUBLIC_SITE_URL,
+    process.env.VITE_APP_API_ORIGIN,
+    process.env.VITE_SITE_URL,
     DEFAULT_NATIVE_API_ORIGIN,
   ]
     .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
@@ -76,7 +74,7 @@ function buildCorsHeaders(request: Request, methods: string[]) {
 }
 
 export function createCorsPreflightResponse(request: Request, methods: string[]) {
-  return new NextResponse(null, {
+  return new Response(null, {
     status: 204,
     headers: buildCorsHeaders(request, methods),
   });
@@ -88,7 +86,7 @@ export function jsonWithCors<Data>(
   init: ResponseInit = {},
   methods: string[],
 ) {
-  return NextResponse.json(data, {
+  return Response.json(data, {
     ...init,
     headers: mergeHeaders(buildCorsHeaders(request, methods), init.headers),
   });

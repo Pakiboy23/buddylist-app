@@ -1,7 +1,5 @@
-'use client';
-
 import { useMemo, useState } from 'react';
-import Link from 'next/link';
+import { Link } from 'react-router-dom';
 
 interface RoomRow {
   id: string;
@@ -72,7 +70,7 @@ export default function RoomListClient({ rooms }: { rooms: RoomRow[] }) {
                     {room.member_count === 1 ? 'member' : 'members'}
                   </p>
                   <Link
-                    href={`/hi-its-me/rooms/${room.id}/preview`}
+                    to={`/hi-its-me/rooms/${room.id}/preview`}
                     className="ui-focus-ring ui-button-secondary rounded-xl px-3 py-1.5 text-[length:var(--ui-text-xs)] font-semibold"
                   >
                     Preview

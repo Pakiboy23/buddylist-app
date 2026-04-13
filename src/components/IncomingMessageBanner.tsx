@@ -108,7 +108,7 @@ export default function IncomingMessageBanner({
             onClick={onClick}
             className={`ui-focus-ring flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-xl transition hover:opacity-80 active:scale-95 ${
               variant === 'dm'
-                ? 'bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-300'
+                ? 'bg-[#E8608A]/10 text-[#E8608A] dark:bg-[#E8608A]/15 dark:text-[#E8608A]'
                 : variant === 'room'
                   ? 'bg-violet-50 text-violet-600 dark:bg-violet-100 dark:text-violet-200'
                   : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-200'

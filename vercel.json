@@ -1,0 +1,44 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": null,
+  "functions": {
+    "api/**/*.ts": {
+      "runtime": "nodejs20.x"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/admin/me",
+      "destination": "/api/admin/me"
+    },
+    {
+      "source": "/api/admin/password-reset-audit",
+      "destination": "/api/admin/password-reset-audit"
+    },
+    {
+      "source": "/api/admin/password-reset-ticket",
+      "destination": "/api/admin/password-reset-ticket"
+    },
+    {
+      "source": "/api/auth/recovery/setup",
+      "destination": "/api/auth/recovery/setup"
+    },
+    {
+      "source": "/api/auth/recovery/reset",
+      "destination": "/api/auth/recovery/reset"
+    },
+    {
+      "source": "/api/auth/recovery/redeem-ticket",
+      "destination": "/api/auth/recovery/redeem-ticket"
+    },
+    {
+      "source": "/api/push/dispatch",
+      "destination": "/api/push/dispatch"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

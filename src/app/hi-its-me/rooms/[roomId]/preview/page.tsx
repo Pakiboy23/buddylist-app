@@ -1,7 +1,5 @@
-'use client';
-
 import { Suspense, useEffect, useRef, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import RetroWindow from '@/components/RetroWindow';
 import { supabase } from '@/lib/supabase';
 import { waitForSessionOrNull } from '@/lib/authClient';
@@ -27,8 +25,8 @@ const ROOM_TYPE_LABELS: Record<string, string> = {
 };
 
 function RoomPreviewContent({ roomId }: { roomId: string }) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const viaInvite = searchParams.get('via') === 'invite';
 
   const [preview, setPreview] = useState<RoomPreview | null>(null);
@@ -93,12 +91,12 @@ function RoomPreviewContent({ roomId }: { roomId: string }) {
     }
     void joinRoom(preview.id, userId).then((result) => {
       if ('success' in result) {
-        router.replace(`/hi-its-me/rooms/${preview.id}`);
+        navigate(`/hi-its-me/rooms/${preview.id}`, { replace: true });
       } else {
         setError(result.error);
       }
     });
-  }, [viaInvite, preview, userId, router]);
+  }, [viaInvite, preview, userId, navigate]);
 
   async function handleJoin() {
     if (!userId || !preview) return;
@@ -109,12 +107,12 @@ function RoomPreviewContent({ roomId }: { roomId: string }) {
       setIsJoining(false);
       return;
     }
-    router.push(`/hi-its-me/rooms/${preview.id}`);
+    navigate(`/hi-its-me/rooms/${preview.id}`);
   }
 
   async function handleShare() {
     if (!preview?.invite_code) return;
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
+    const appUrl = (import.meta.env.VITE_APP_URL as string | undefined) ?? window.location.origin;
     await navigator.clipboard.writeText(`${appUrl}/join/${preview.invite_code}`);
     setCopied(true);
     if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
@@ -130,7 +128,7 @@ function RoomPreviewContent({ roomId }: { roomId: string }) {
     <RetroWindow
       title={preview?.name ?? 'Room'}
       showBackButton
-      onBack={() => router.push('/hi-its-me/rooms')}
+      onBack={() => navigate('/hi-its-me/rooms')}
     >
       {isLoading ? (
         <div className="flex h-48 items-center justify-center">
@@ -205,7 +203,7 @@ function RoomPreviewContent({ roomId }: { roomId: string }) {
             {preview.is_member ? (
               <button
                 type="button"
-                onClick={() => router.push(`/hi-its-me/rooms/${preview.id}`)}
+                onClick={() => navigate(`/hi-its-me/rooms/${preview.id}`)}
                 className="ui-focus-ring ui-button-primary rounded-2xl px-5 py-2.5 text-[length:var(--ui-text-md)]"
               >
                 Open Room
@@ -229,14 +227,11 @@ function RoomPreviewContent({ roomId }: { roomId: string }) {
   );
 }
 
-export default function RoomPreviewPage({
-  params,
-}: {
-  params: { roomId: string };
-}) {
+export default function RoomPreviewPage() {
+  const { roomId } = useParams<{ roomId: string }>();
   return (
     <Suspense fallback={null}>
-      <RoomPreviewContent roomId={params.roomId} />
+      <RoomPreviewContent roomId={roomId!} />
     </Suspense>
   );
 }

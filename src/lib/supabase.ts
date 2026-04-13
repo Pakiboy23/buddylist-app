@@ -3,14 +3,14 @@ import { createClient } from '@supabase/supabase-js';
 const fallbackUrl = 'https://placeholder.supabase.co';
 const fallbackAnonKey = 'placeholder-anon-key';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 const shouldAllowFallback =
-  process.env.NODE_ENV !== 'production' || process.env.ALLOW_SUPABASE_FALLBACK === 'true';
+  import.meta.env.MODE !== 'production' || import.meta.env.VITE_ALLOW_SUPABASE_FALLBACK === 'true';
 
 if ((!supabaseUrl || !supabaseAnonKey) && !shouldAllowFallback) {
   throw new Error(
-    'Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. Set public Supabase env vars for production builds.',
+    'Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY. Set public Supabase env vars for production builds.',
   );
 }
 

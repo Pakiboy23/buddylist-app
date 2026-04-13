@@ -10,8 +10,9 @@ const hostedServerUrl = (process.env.CAPACITOR_SERVER_URL ?? 'https://hiitsme-ap
 const config: CapacitorConfig = {
   appId: 'com.hiitsme.app',
   appName: 'H.I.M.',
-  // Default to bundled native assets for release-safe syncs.
-  webDir: isHostedBuild ? 'public' : 'native-web',
+  // Bundled mode: Capacitor serves from dist/ (Vite output).
+  // Hosted mode: Capacitor WebView points to the deployed Vercel URL.
+  webDir: isHostedBuild ? 'public' : 'dist',
   ...(isHostedBuild
     ? {
         server: {

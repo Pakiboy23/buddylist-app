@@ -1,41 +1,47 @@
-import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import RetroWindow from '@/components/RetroWindow';
-import { createSupabaseAdminClient } from '@/lib/supabaseServer';
+import { supabase } from '@/lib/supabase';
 import RoomListClient from './RoomListClient';
 
-async function getPublicRooms() {
-  const supabase = createSupabaseAdminClient();
-  const { data, error } = await supabase.rpc('get_public_rooms');
-  if (error) {
-    console.error('get_public_rooms error:', error.message);
-    return [];
-  }
-  return (data ?? []) as Array<{
-    id: string;
-    name: string;
-    description: string | null;
-    tags: string[] | null;
-    room_key: string;
-    member_count: number;
-  }>;
+interface PublicRoom {
+  id: string;
+  name: string;
+  description: string | null;
+  tags: string[] | null;
+  room_key: string;
+  member_count: number;
 }
 
-export default async function RoomsPage() {
-  const rooms = await getPublicRooms();
+export default function RoomsPage() {
+  const [rooms, setRooms] = useState<PublicRoom[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchRooms() {
+      const { data, error } = await supabase.rpc('get_public_rooms');
+      if (error) {
+        console.error('get_public_rooms error:', error.message);
+      }
+      setRooms((data ?? []) as PublicRoom[]);
+      setIsLoading(false);
+    }
+    void fetchRooms();
+  }, []);
 
   return (
     <RetroWindow
       title="Chat Rooms"
       headerActions={
         <Link
-          href="/hi-its-me/rooms/new"
+          to="/hi-its-me/rooms/new"
           className="ui-focus-ring ui-button-primary rounded-xl px-3 py-1.5 text-[length:var(--ui-text-xs)] font-semibold"
         >
           Create Room
         </Link>
       }
     >
-      <RoomListClient rooms={rooms} />
+      {isLoading ? <div className="h-20" /> : <RoomListClient rooms={rooms} />}
     </RetroWindow>
   );
 }

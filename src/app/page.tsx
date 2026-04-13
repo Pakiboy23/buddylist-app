@@ -1,7 +1,5 @@
-'use client';
-
 import { FormEvent, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { useRouter } from 'next/navigation';
+import { useAppRouter } from '@/lib/appNavigation';
 import AppIcon from '@/components/AppIcon';
 import HimWordmark from '@/components/HimWordmark';
 import RetroWindow from '@/components/RetroWindow';
@@ -51,7 +49,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const hasNavigatedRef = useRef(false);
   const isCompletingSignUpProtectionRef = useRef(false);
-  const router = useRouter();
+  const router = useAppRouter();
   const controlsDisabled = isLoading || !isHydrated;
 
   const playSignOnSound = useCallback(async () => {

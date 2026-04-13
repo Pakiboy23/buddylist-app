@@ -38,7 +38,7 @@ export function MessageReactionPicker({
             disabled={isDisabled}
             className={`ui-focus-ring inline-flex h-8 min-w-8 items-center justify-center rounded-full border px-2 text-base transition disabled:cursor-not-allowed disabled:opacity-50 ${
               isActive
-                ? 'border-blue-400/80 bg-blue-50 text-blue-700 shadow-[0_6px_18px_rgba(37,99,235,0.16)] dark:border-blue-400/60 dark:bg-blue-500/15 dark:text-blue-200'
+                ? 'border-[#E8608A]/40 bg-[#E8608A]/10 text-[#E8608A] shadow-[0_6px_18px_rgba(232,96,138,0.16)] dark:border-[#E8608A]/30 dark:bg-[#E8608A]/15 dark:text-[#E8608A]'
                 : 'border-white/70 bg-white/90 text-slate-700 shadow-sm backdrop-blur-md hover:bg-white dark:border-slate-700/70 dark:bg-[#13100E]/88 dark:text-slate-200 dark:hover:bg-[#13100E]'
             }`}
             aria-label={`${isActive ? 'Remove' : 'Add'} reaction ${emoji}`}
@@ -78,7 +78,7 @@ export function MessageReactionStrip({
             disabled={isDisabled}
             className={`ui-focus-ring inline-flex items-center gap-1 rounded-full border px-1.5 py-[2px] text-[length:var(--ui-text-2xs)] shadow-sm backdrop-blur-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${
               entry.reactedByMe
-                ? 'border-blue-300/80 bg-blue-50/95 text-blue-700 shadow-[0_6px_16px_rgba(37,99,235,0.14)] dark:border-blue-400/40 dark:bg-blue-500/18 dark:text-blue-100'
+                ? 'border-[#E8608A]/35 bg-[#E8608A]/10 text-[#E8608A] shadow-[0_6px_16px_rgba(232,96,138,0.14)] dark:border-[#E8608A]/25 dark:bg-[#E8608A]/18 dark:text-[#E8608A]'
                 : 'border-white/70 bg-white/85 text-slate-600 dark:border-slate-700/70 dark:bg-[#13100E]/85 dark:text-slate-200'
             } ${isAnimated ? 'reaction-pop' : ''}`}
             aria-label={`${entry.reactedByMe ? 'Remove' : 'Add'} reaction ${entry.emoji}. ${entry.count} ${

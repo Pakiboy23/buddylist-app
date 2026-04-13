@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
     "lint": "eslint .",
     "test": "npm run test:unit",
     "test:unit": "vitest run",
@@ -35,21 +35,22 @@
     "@capawesome/capacitor-badge": "^8.0.1",
     "@supabase/supabase-js": "^2.98.0",
     "jose": "^6.2.2",
-    "next": "16.1.6",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "react-router-dom": "^7.5.0"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.1.0",
     "@eslint/config-helpers": "^0.5.3",
     "@playwright/test": "^1.56.1",
     "@tailwindcss/postcss": "^4",
+    "@tailwindcss/vite": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "babel-plugin-react-compiler": "1.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "dotenv": "^17.4.2",
     "eslint": "^9.39.4",
-    "eslint-config-next": "16.1.6",
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "eslint-plugin-react": "^7.37.5",
@@ -57,6 +58,7 @@
     "patch-package": "^8.0.1",
     "tailwindcss": "^4",
     "typescript": "^5",
+    "vite": "^6.3.2",
     "vitest": "^3.2.4"
   }
 }

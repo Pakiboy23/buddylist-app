@@ -1,7 +1,9 @@
 import { Capacitor } from '@capacitor/core';
 
 const DEFAULT_NATIVE_API_ORIGIN = 'https://hiitsme-app.vercel.app';
-const NATIVE_API_ORIGIN = (process.env.NEXT_PUBLIC_APP_API_ORIGIN ?? DEFAULT_NATIVE_API_ORIGIN)
+const NATIVE_API_ORIGIN = (
+  (import.meta.env.VITE_APP_API_ORIGIN as string | undefined) ?? DEFAULT_NATIVE_API_ORIGIN
+)
   .trim()
   .replace(/\/+$/, '');
 

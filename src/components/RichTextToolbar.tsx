@@ -68,7 +68,7 @@ export default function RichTextToolbar({ value, onChange }: RichTextToolbarProp
                 onClick={() => updateValue({ fontFamily: fontName })}
                 className={`ui-focus-ring shrink-0 rounded-full border px-3 py-1.5 text-[12px] font-semibold transition ${
                   isActive
-                    ? 'border-blue-400/70 bg-blue-500 text-white shadow-[0_10px_20px_rgba(37,99,235,0.24)]'
+                    ? 'border-[#A78BFA]/40 bg-[#A78BFA] text-white shadow-[0_10px_20px_rgba(167,139,250,0.24)]'
                     : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-[#13100E]/65 dark:text-slate-200 dark:hover:bg-[#13100E]'
                 }`}
                 style={{ fontFamily: fontName }}
