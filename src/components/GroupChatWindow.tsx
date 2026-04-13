@@ -669,12 +669,14 @@ export default function GroupChatWindow({
       setParticipants(nextParticipants);
     });
 
+    // Server-side filter removed — filtering client-side to avoid JWT evaluation issues
+    // in Capacitor WebSocket connections.
     roomChannel.on(
       'postgres_changes',
-      { event: 'INSERT', schema: 'public', table: 'room_messages', filter: `room_id=eq.${roomId}` },
+      { event: 'INSERT', schema: 'public', table: 'room_messages' },
       (payload) => {
         const incoming = payload.new as RoomMessage;
-        if (!incoming?.id) {
+        if (!incoming?.id || incoming.room_id !== roomId) {
           return;
         }
         setMessages((previous) =>
@@ -688,10 +690,10 @@ export default function GroupChatWindow({
 
     roomChannel.on(
       'postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'room_messages', filter: `room_id=eq.${roomId}` },
+      { event: 'UPDATE', schema: 'public', table: 'room_messages' },
       (payload) => {
         const updated = payload.new as RoomMessage;
-        if (!updated?.id) {
+        if (!updated?.id || updated.room_id !== roomId) {
           return;
         }
 
@@ -735,8 +737,16 @@ export default function GroupChatWindow({
       }, 3500);
     });
 
-    roomChannel.subscribe((status) => {
+    // Explicitly sync the user's JWT to the realtime WebSocket connection.
+    // In Capacitor, the HTTP session and WebSocket session can diverge without this.
+    roomChannel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          await supabase.realtime.setAuth(session.access_token);
+        }
         void roomChannel.track({
           user_id: currentUserId,
           screenname: currentUserScreenname,

@@ -17,4 +17,10 @@ if ((!supabaseUrl || !supabaseAnonKey) && !shouldAllowFallback) {
 export const supabase = createClient(
   supabaseUrl ?? fallbackUrl,
   supabaseAnonKey ?? fallbackAnonKey,
+  {
+    auth: {
+      detectSessionInUrl: false, // Capacitor doesn't use URL-based auth callbacks
+      persistSession: true,
+    },
+  }
 );
