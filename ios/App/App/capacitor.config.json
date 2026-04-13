@@ -1,7 +1,7 @@
 {
 	"appId": "com.hiitsme.app",
 	"appName": "H.I.M.",
-	"webDir": "native-web",
+	"webDir": "dist",
 	"ios": {
 		"scheme": "HIM"
 	},
