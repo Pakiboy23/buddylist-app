@@ -197,6 +197,7 @@ interface ChatRoom {
   id: string;
   name: string;
   room_key?: string | null;
+  invite_code?: string | null;
 }
 
 interface AdminMeResponse {
@@ -3057,7 +3058,15 @@ function HiItsMeContent() {
 
     presenceChannel.on('presence', { event: 'sync' }, () => {
       const state = presenceChannel.presenceState();
-      setOnlineUserIds(new Set(Object.keys(state)));
+      const nextIds = new Set(Object.keys(state));
+      // Only update state when the ID set actually changed — prevents reference
+      // churn that causes the entire buddy list to re-render on every join/leave.
+      setOnlineUserIds((prev) => {
+        if (prev.size === nextIds.size && [...nextIds].every((id) => prev.has(id))) {
+          return prev;
+        }
+        return nextIds;
+      });
       hasPresenceSyncedRef.current = true;
     });
 
@@ -3067,6 +3076,10 @@ function HiItsMeContent() {
           user_id: userId,
           online_at: new Date().toISOString(),
         });
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        // Reset sync flag so reconnect join floods don't trigger toasts/sounds.
+        // Join events after a reconnect are not real sign-ons.
+        hasPresenceSyncedRef.current = false;
       }
     });
 
@@ -5215,10 +5228,11 @@ function HiItsMeContent() {
         id: roomId,
         name: normalizedName,
         room_key: normalizeRoomKey(typeof room.room_key === 'string' ? room.room_key : normalizedName) || null,
+        invite_code: typeof room.invite_code === 'string' && room.invite_code ? room.invite_code : null,
       };
     };
 
-    const roomSelectFields = roomKeySchemaUnavailableRef.current ? 'id,name' : 'id,name,room_key';
+    const roomSelectFields = roomKeySchemaUnavailableRef.current ? 'id,name' : 'id,name,room_key,invite_code';
 
     const existingRoomResult = await supabase
       .from('chat_rooms')
@@ -5899,7 +5913,7 @@ function HiItsMeContent() {
           />
           <div className="min-w-0 flex-1">
             <p className={`ui-screenname truncate text-[13px] font-semibold leading-tight ${
-              isSelected ? 'text-[var(--rose)]' : 'text-slate-800'
+              isSelected ? 'text-[var(--rose)]' : 'text-slate-800 dark:text-slate-100'
             }`}>
               {buddy.screenname}
             </p>
@@ -6387,7 +6401,9 @@ function HiItsMeContent() {
                         <p className={`mt-1 text-[11px] font-semibold ${currentUserPresenceToneClass}`}>
                           {getPresenceLabel(currentUserPresenceState)}
                         </p>
-                        <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-400">{currentUserPresenceDetail}</p>
+                        {currentUserPresenceDetail !== getPresenceLabel(currentUserPresenceState) ? (
+                          <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-400">{currentUserPresenceDetail}</p>
+                        ) : null}
                         {profileBio ? (
                           <p className="mt-2 text-[11px] italic text-slate-400 dark:text-slate-400">{profileBio}</p>
                         ) : null}
@@ -8459,6 +8475,7 @@ function HiItsMeContent() {
           onDraftChange={(draft) => updateRoomDraft(activeRoom.name, draft)}
           onRetryOutboxMessage={handleRetryConversationOutboxMessage}
           onQueueRoomMessage={handleQueueRoomMessage}
+          inviteCode={activeRoom.invite_code ?? null}
           onBack={handleBackFromRoom}
           onLeave={handleLeaveCurrentRoom}
           onSignOff={handleSignOff}

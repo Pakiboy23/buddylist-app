@@ -113,6 +113,7 @@ interface GroupChatWindowProps {
     errorMessage?: string;
   }) => void;
   onRetryOutboxMessage?: (itemId: string) => void;
+  inviteCode?: string | null;
   onBack: () => void;
   onLeave: () => void;
   onSignOff?: () => void;
@@ -167,6 +168,7 @@ export default function GroupChatWindow({
   onDraftChange,
   onQueueRoomMessage,
   onRetryOutboxMessage,
+  inviteCode = null,
   onBack,
   onLeave,
   onSignOff,
@@ -191,6 +193,7 @@ export default function GroupChatWindow({
   const [showFormatting, setShowFormatting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showConversationMenu, setShowConversationMenu] = useState(false);
+  const [shareLinkCopied, setShareLinkCopied] = useState(false);
   const [showComposerTools, setShowComposerTools] = useState(false);
   const [mentioningMessageId, setMentioningMessageId] = useState<string | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -1412,6 +1415,29 @@ export default function GroupChatWindow({
                 </div>
 
                 <div className="mt-3 space-y-3">
+                  {/* Members */}
+                  <div className="rounded-[1rem] border border-white/60 bg-white/70 px-3 py-2 dark:border-slate-700 dark:bg-[#13100E]/55">
+                    <p className="ui-section-kicker">
+                      Members{participants.length > 0 ? ` · ${participants.length}` : ''}
+                    </p>
+                    <ul className="mt-2 space-y-1.5">
+                      {participants.map((participant) => (
+                        <li key={participant.userId} className="flex items-center gap-2">
+                          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--green)]" aria-hidden="true" />
+                          <span className="truncate text-[12px] font-semibold text-slate-800 dark:text-slate-100">
+                            {participant.screenname}
+                            {participant.userId === currentUserId ? (
+                              <span className="ml-1 font-normal text-slate-400 dark:text-slate-500">(You)</span>
+                            ) : null}
+                          </span>
+                        </li>
+                      ))}
+                      {participants.length === 0 ? (
+                        <li className="text-[12px] text-slate-400 dark:text-slate-500">No one else here yet.</li>
+                      ) : null}
+                    </ul>
+                  </div>
+                  {/* Search */}
                   <div className="rounded-[1rem] border border-white/60 bg-white/70 px-3 py-2 dark:border-slate-700 dark:bg-[#13100E]/55">
                     <label htmlFor={searchInputId} className="ui-section-kicker">Search</label>
                     <div className="mt-2 flex items-center gap-2">
@@ -1447,6 +1473,24 @@ export default function GroupChatWindow({
                     ) : null}
                   </div>
 
+                  {inviteCode ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void navigator.clipboard
+                          .writeText(`${window.location.origin}/join/${inviteCode}`)
+                          .then(() => {
+                            setShareLinkCopied(true);
+                            setTimeout(() => setShareLinkCopied(false), 2000);
+                          });
+                      }}
+                      className="ui-focus-ring ui-button-secondary ui-button-compact flex items-center gap-2"
+                      title="Copy invite link"
+                    >
+                      <AppIcon kind="link" className="h-3.5 w-3.5 shrink-0" />
+                      {shareLinkCopied ? 'Link copied!' : 'Share invite link'}
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     onClick={onLeave}
