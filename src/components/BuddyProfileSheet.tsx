@@ -152,7 +152,7 @@ export default function BuddyProfileSheet({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-[#13100E]/25 backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/20 backdrop-blur-[2px]"
       onClick={onClose}
       onKeyDown={handleOverlayKeyDown}
     >
@@ -358,7 +358,7 @@ export default function BuddyProfileSheet({
 
             {showRemoveConfirm ? (
               <div
-                className="fixed inset-0 z-[60] flex items-center justify-center bg-[#13100E]/40 backdrop-blur-[2px]"
+                className="fixed inset-0 z-[60] flex items-center justify-center bg-black/35 backdrop-blur-[2px]"
                 onClick={() => setShowRemoveConfirm(false)}
               >
                 <div

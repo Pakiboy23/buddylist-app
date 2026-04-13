@@ -1,9 +1,11 @@
 interface AppIconProps {
   kind:
+    | 'add'
     | 'attachment'
     | 'bolt'
     | 'buddy'
     | 'chat'
+    | 'check'
     | 'chevron'
     | 'close'
     | 'clock'
@@ -24,6 +26,22 @@ interface AppIconProps {
 
 export default function AppIcon({ kind, className = 'h-5 w-5' }: AppIconProps) {
   switch (kind) {
+    case 'add':
+      return (
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={className}
+        >
+          <path d="M12 5v14" />
+          <path d="M5 12h14" />
+        </svg>
+      );
     case 'attachment':
       return (
         <svg
@@ -88,6 +106,21 @@ export default function AppIcon({ kind, className = 'h-5 w-5' }: AppIconProps) {
           <path d="M4.5 6.5A2.5 2.5 0 0 1 7 4h8a2.5 2.5 0 0 1 2.5 2.5V12A2.5 2.5 0 0 1 15 14.5h-4.5L7 17v-2.5A2.5 2.5 0 0 1 4.5 12z" />
           <path d="M9 9.5h6" />
           <path d="M9 12.5h4" />
+        </svg>
+      );
+    case 'check':
+      return (
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={className}
+        >
+          <path d="M5 12.5 10 17.5 19 7" />
         </svg>
       );
     case 'chevron':

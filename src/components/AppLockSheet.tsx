@@ -67,7 +67,7 @@ function PinRow({ label, value, active, helperText, onPress }: PinRowProps) {
                 key={`${label}-${index}`}
                 className={`flex h-3.5 w-3.5 items-center justify-center rounded-full border transition ${
                   isFilled
-                    ? 'border-slate-900 bg-[#13100E] dark:border-slate-100 dark:bg-slate-100'
+                    ? 'border-slate-900 bg-slate-900 dark:border-slate-100 dark:bg-slate-100'
                     : active
                       ? 'border-rose-300/70 bg-[rgba(232,96,138,0.16)]'
                       : 'border-slate-200 bg-white/30 dark:border-slate-700 dark:bg-[#13100E]/40'
@@ -207,7 +207,7 @@ export default function AppLockSheet({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-end justify-center bg-[#13100E]/35 backdrop-blur-[6px]"
+      className="fixed inset-0 z-[70] flex items-end justify-center bg-black/30 backdrop-blur-[6px]"
       onClick={canDismiss ? onCancel : undefined}
       onKeyDown={handleKeyDown}
     >

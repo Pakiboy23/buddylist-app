@@ -95,6 +95,11 @@ interface RoomMessageAttachmentRow extends ChatMediaAttachmentRecord {
   message_id: string;
 }
 
+interface BuddyStub {
+  id: string;
+  screenname: string;
+}
+
 interface GroupChatWindowProps {
   roomId: string;
   roomName: string;
@@ -114,6 +119,7 @@ interface GroupChatWindowProps {
   }) => void;
   onRetryOutboxMessage?: (itemId: string) => void;
   inviteCode?: string | null;
+  buddies?: BuddyStub[];
   onBack: () => void;
   onLeave: () => void;
   onSignOff?: () => void;
@@ -169,6 +175,7 @@ export default function GroupChatWindow({
   onQueueRoomMessage,
   onRetryOutboxMessage,
   inviteCode = null,
+  buddies = [],
   onBack,
   onLeave,
   onSignOff,
@@ -215,6 +222,11 @@ export default function GroupChatWindow({
 
   const [isClosing, setIsClosing] = useState(false);
   const [relativeTimeTick, setRelativeTimeTick] = useState(0);
+
+  const [showInviteSheet, setShowInviteSheet] = useState(false);
+  const [selectedInviteIds, setSelectedInviteIds] = useState<Set<string>>(() => new Set());
+  const [isInviting, setIsInviting] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
   const seenReactionKeysRef = useRef(new Set<string>());
   const [newReactionKeys, setNewReactionKeys] = useState<Set<string>>(() => new Set());
 
@@ -222,6 +234,44 @@ export default function GroupChatWindow({
     setIsClosing(true);
     setTimeout(() => onBack(), 190);
   }, [onBack]);
+
+  const invitableBuddies = useMemo(() => {
+    const memberIds = new Set(participants.map((p) => p.userId));
+    return buddies.filter((b) => !memberIds.has(b.id));
+  }, [buddies, participants]);
+
+  const handleInviteConfirm = useCallback(async () => {
+    if (selectedInviteIds.size === 0 || isInviting) return;
+    setIsInviting(true);
+    setInviteError(null);
+    try {
+      const response = await fetch('/api/rooms/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomId, buddyIds: Array.from(selectedInviteIds) }),
+      });
+      const json = await response.json() as { success?: boolean; invited?: string[]; error?: string };
+      if (!response.ok || !json.success) {
+        setInviteError(json.error ?? 'Failed to invite buddies.');
+        return;
+      }
+      // Optimistically add invited buddies to the participants list.
+      const invitedScreennames = buddies.filter((b) => (json.invited ?? []).includes(b.id));
+      setParticipants((prev) => {
+        const existingIds = new Set(prev.map((p) => p.userId));
+        const additions = invitedScreennames
+          .filter((b) => !existingIds.has(b.id))
+          .map((b) => ({ userId: b.id, screenname: b.screenname, onlineAt: null }));
+        return [...prev, ...additions];
+      });
+      setShowInviteSheet(false);
+      setSelectedInviteIds(new Set());
+    } catch {
+      setInviteError('Network error. Please try again.');
+    } finally {
+      setIsInviting(false);
+    }
+  }, [buddies, isInviting, roomId, selectedInviteIds]);
 
   const swipeBack = useSwipeBack({ onSwipeBack: handleBack });
   const [isSending, setIsSending] = useState(false);
@@ -1415,6 +1465,22 @@ export default function GroupChatWindow({
                 </div>
 
                 <div className="mt-3 space-y-3">
+                  {/* Invite */}
+                  {invitableBuddies.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowInviteSheet(true);
+                        setSelectedInviteIds(new Set());
+                        setInviteError(null);
+                      }}
+                      className="ui-focus-ring ui-button-secondary ui-button-compact flex w-full items-center gap-2"
+                    >
+                      <AppIcon kind="add" className="h-3.5 w-3.5 shrink-0 text-[var(--rose)]" />
+                      <span className="font-mono text-[11px] uppercase tracking-[0.1em]">Invite a buddy</span>
+                    </button>
+                  ) : null}
+
                   {/* Members */}
                   <div className="rounded-[1rem] border border-white/60 bg-white/70 px-3 py-2 dark:border-slate-700 dark:bg-[#13100E]/55">
                     <p className="ui-section-kicker">
@@ -1504,6 +1570,108 @@ export default function GroupChatWindow({
               </div>
             ) : null}
           </div>
+
+          {/* Invite buddy picker sheet */}
+          {showInviteSheet ? (
+            <div
+              className="absolute inset-0 z-30 flex flex-col justify-end"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Invite buddies to room"
+            >
+              <button
+                type="button"
+                className="absolute inset-0 bg-black/40"
+                onClick={() => setShowInviteSheet(false)}
+                aria-label="Close invite sheet"
+              />
+              <div className="relative z-10 rounded-t-[1.75rem] bg-[var(--bg2)] px-4 pb-8 pt-5">
+                <div className="mb-1 flex items-center justify-between gap-3">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--rose)]">
+                    Invite to #{roomName}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowInviteSheet(false)}
+                    className="ui-focus-ring ui-conversation-action"
+                    aria-label="Close"
+                  >
+                    <AppIcon kind="close" className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+
+                {invitableBuddies.length === 0 ? (
+                  <p className="mt-4 text-center text-[13px] text-slate-400">
+                    All your buddies are already in this room.
+                  </p>
+                ) : (
+                  <ul className="mt-3 max-h-64 space-y-1 overflow-y-auto">
+                    {invitableBuddies.map((buddy) => {
+                      const selected = selectedInviteIds.has(buddy.id);
+                      return (
+                        <li key={buddy.id}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedInviteIds((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(buddy.id)) {
+                                  next.delete(buddy.id);
+                                } else {
+                                  next.add(buddy.id);
+                                }
+                                return next;
+                              });
+                            }}
+                            className={`ui-focus-ring flex w-full items-center gap-3 rounded-[0.875rem] px-3 py-2.5 text-left transition active:scale-[0.98] ${
+                              selected
+                                ? 'bg-[var(--rose)]/15'
+                                : 'bg-white/5 hover:bg-white/10'
+                            }`}
+                          >
+                            <span
+                              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition ${
+                                selected
+                                  ? 'border-[var(--rose)] bg-[var(--rose)]'
+                                  : 'border-slate-600'
+                              }`}
+                              aria-hidden="true"
+                            >
+                              {selected ? (
+                                <AppIcon kind="check" className="h-2.5 w-2.5 text-white" />
+                              ) : null}
+                            </span>
+                            <span className="truncate text-[13px] font-semibold text-slate-100">
+                              {buddy.screenname}
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+
+                {inviteError ? (
+                  <p className="mt-2 text-[11px] text-red-400">{inviteError}</p>
+                ) : null}
+
+                {invitableBuddies.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => void handleInviteConfirm()}
+                    disabled={selectedInviteIds.size === 0 || isInviting}
+                    className="ui-focus-ring ui-button-primary ui-button-compact mt-4 w-full justify-center disabled:opacity-40"
+                  >
+                    {isInviting
+                      ? 'Inviting…'
+                      : selectedInviteIds.size === 0
+                        ? 'Select buddies'
+                        : `Invite ${selectedInviteIds.size} ${selectedInviteIds.size === 1 ? 'buddy' : 'buddies'}`}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
 
           {/* Messages area */}
           <div
@@ -2110,7 +2278,7 @@ export default function GroupChatWindow({
             </p>
             <form
               onSubmit={handleSendMessage}
-              className="ui-compose-surface flex items-end gap-2 rounded-2xl border border-[#2A221A] bg-[#1E1812] px-3.5 py-2.5"
+              className="ui-compose-surface flex items-end gap-2 rounded-2xl px-3.5 py-2.5"
             >
               <label htmlFor={composerInputId} className="sr-only">
                 Message room {roomName}

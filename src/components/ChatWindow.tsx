@@ -2318,7 +2318,7 @@ export default function ChatWindow({
             </p>
             <form
               onSubmit={handleSubmit}
-              className="ui-compose-surface flex items-end gap-2 rounded-2xl border border-[#2A221A] bg-[#1E1812] px-3.5 py-2.5"
+              className="ui-compose-surface flex items-end gap-2 rounded-2xl px-3.5 py-2.5"
             >
               <label htmlFor={composerInputId} className="sr-only">
                 Message {buddyScreenname}

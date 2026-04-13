@@ -73,7 +73,7 @@ export default function ChatMediaGallerySheet({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-[#13100E]/30 backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/25 backdrop-blur-[2px]"
       onClick={onClose}
       onKeyDown={handleOverlayKeyDown}
     >

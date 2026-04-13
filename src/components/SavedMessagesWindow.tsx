@@ -133,7 +133,7 @@ export default function SavedMessagesWindow({
           ) : null}
 
           <div className="mx-3 mt-2" style={{ paddingBottom: composerInset }}>
-            <form onSubmit={handleSubmit} className="ui-compose-surface flex items-end gap-2 rounded-2xl border border-[#2A221A] bg-[#1E1812] px-3.5 py-2.5">
+            <form onSubmit={handleSubmit} className="ui-compose-surface flex items-end gap-2 rounded-2xl px-3.5 py-2.5">
               <label htmlFor="saved-message-input" className="sr-only">
                 New saved note
               </label>

@@ -32,6 +32,10 @@
       "destination": "/api/push/dispatch"
     },
     {
+      "source": "/api/rooms/invite",
+      "destination": "/api/rooms/invite"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

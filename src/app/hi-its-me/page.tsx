@@ -6455,49 +6455,6 @@ function HiItsMeContent() {
                   {awayModalError ? <p className="ui-note-error mt-2">{awayModalError}</p> : null}
 
                   <div className="ui-panel-card rounded-[1.55rem] px-4 py-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="ui-section-kicker">Presence</p>
-                        <p className="mt-2 text-[14px] font-semibold text-slate-800 dark:text-slate-100">
-                          {currentUserPresenceDetail}
-                        </p>
-                        <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-                          {selfStatusCopy}
-                        </p>
-                        {awaySinceAt ? (
-                          <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-                            Since {new Date(awaySinceAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </p>
-                        ) : null}
-                      </div>
-                      <div className="flex shrink-0 flex-col items-end gap-2">
-                        <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${currentUserPresenceChipClass}`}>
-                          {getPresenceLabel(currentUserPresenceState)}
-                        </span>
-                        <span className="ui-away-mood-pill" data-tone={activeAwayMood.tone}>
-                          {activeAwayMood.label}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="mt-3 grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => openAwayModal('away')}
-                        className="ui-focus-ring ui-button-secondary ui-button-compact justify-center"
-                      >
-                        Away message
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => openAwayModal('profile')}
-                        className="ui-focus-ring ui-button-secondary ui-button-compact justify-center"
-                      >
-                        Edit profile
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="ui-panel-card rounded-[1.55rem] px-4 py-4">
                     <p className="ui-section-kicker">Privacy & System</p>
                     <div className="mt-3 space-y-2">
                       <button
@@ -7123,7 +7080,7 @@ function HiItsMeContent() {
       </RetroWindow>
 
       {isRecoverySetupOpen && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#13100E]/60 p-4 backdrop-blur-[1px]">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4 backdrop-blur-[1px]">
           <div className="w-full max-w-md">
             <div className={xpModalFrameClass}>
               <div className={`${xpModalHeaderClass} mb-2`}>Finish Account Protection</div>
@@ -7218,7 +7175,7 @@ function HiItsMeContent() {
       )}
 
       {isAdminResetOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#13100E]/45 p-4 backdrop-blur-[1px]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-[1px]">
           <div className="w-full max-w-md">
             <div className={xpModalFrameClass}>
               <div className={`${xpModalHeaderClass} mb-2`}>Reset Account Access</div>
@@ -7378,7 +7335,7 @@ function HiItsMeContent() {
 
       {showAwayModal && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-[#13100E]/25 backdrop-blur-[2px]"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/20 backdrop-blur-[2px]"
           onClick={() => {
             setShowAwayModal(false);
             setShowRename(false);
@@ -7442,7 +7399,7 @@ function HiItsMeContent() {
                       presenceState={currentUserPresenceState}
                       size="lg"
                     />
-                    <span className="absolute inset-x-1 bottom-1 rounded-full bg-[#13100E]/85 px-2 py-1 text-center text-[10px] font-semibold uppercase tracking-wide text-white shadow-sm transition group-hover:bg-[#13100E]">
+                    <span className="absolute inset-x-1 bottom-1 rounded-full bg-black/75 px-2 py-1 text-center text-[10px] font-semibold uppercase tracking-wide text-white shadow-sm transition group-hover:bg-black/90">
                       Edit Photo
                     </span>
                   </label>
@@ -7745,7 +7702,7 @@ function HiItsMeContent() {
 
       {showSystemStatusSheet && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-[#13100E]/25 backdrop-blur-[2px]"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/20 backdrop-blur-[2px]"
           onClick={() => setShowSystemStatusSheet(false)}
         >
           <div
@@ -7813,7 +7770,7 @@ function HiItsMeContent() {
 
       {showPrivacySheet && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-[#13100E]/25 backdrop-blur-[2px]"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/20 backdrop-blur-[2px]"
           onClick={() => setShowPrivacySheet(false)}
         >
           <div
@@ -8070,11 +8027,11 @@ function HiItsMeContent() {
       />
 
       {isAppLocked ? (
-        <div className="pointer-events-auto fixed inset-0 z-[65] bg-[#13100E]/18 backdrop-blur-[10px]" aria-hidden="true" />
+        <div className="pointer-events-auto fixed inset-0 z-[65] bg-black/15 backdrop-blur-[10px]" aria-hidden="true" />
       ) : null}
 
       {showRoomsWindow && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#13100E]/45 p-4 backdrop-blur-[1px]">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4 backdrop-blur-[1px]">
           <div className="w-full max-w-sm">
             <div className={xpModalFrameClass}>
               <div className={`${xpModalHeaderClass} mb-2`}>Join a Room</div>
@@ -8117,7 +8074,7 @@ function HiItsMeContent() {
       )}
 
       {activePendingRequest && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#13100E]/50 p-4 backdrop-blur-[1px]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[1px]">
           <div className="w-full max-w-sm">
             <div className={xpModalFrameClass}>
               <div className={`${xpModalHeaderClass} mb-2`}>New Message Request</div>
@@ -8167,7 +8124,7 @@ function HiItsMeContent() {
       )}
 
       {showAddWindow && (
-        <div className="fixed inset-0 z-30 flex items-center justify-center bg-[#13100E]/45 p-4 backdrop-blur-[1px]">
+        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-4 backdrop-blur-[1px]">
           <div className="w-full max-w-md">
             <div className={xpModalFrameClass}>
               <div className={`${xpModalHeaderClass} mb-2`}>Add Buddy</div>
@@ -8247,7 +8204,7 @@ function HiItsMeContent() {
       )}
 
       {forwardingMessage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#13100E]/45 p-4 backdrop-blur-[1px]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-[1px]">
           <div className="w-full max-w-md">
             <div className={xpModalFrameClass}>
               <div className={`${xpModalHeaderClass} mb-2`}>Forward Message</div>
@@ -8479,6 +8436,7 @@ function HiItsMeContent() {
           onRetryOutboxMessage={handleRetryConversationOutboxMessage}
           onQueueRoomMessage={handleQueueRoomMessage}
           inviteCode={activeRoom.invite_code ?? null}
+          buddies={acceptedBuddies}
           onBack={handleBackFromRoom}
           onLeave={handleLeaveCurrentRoom}
           onSignOff={handleSignOff}

@@ -1517,6 +1517,37 @@ button:not(:disabled):active,
   --ui-shell-shadow-soft: 0 14px 34px rgba(0, 0, 0, 0.26), inset 0 0.5px 0 rgba(255, 255, 255, 0.04);
 }
 
+/* ── Light mode palette override ─────────────────────────────────── */
+html:not(.dark) {
+  --bg: #FAF6EF;
+  --bg2: #FFFFFF;
+  --bg3: #F0EBE3;
+  --bg4: #E8E0D5;
+  --text: #1A1A1A;
+  --muted: #6B6B6B;
+  --offline: #999999;
+
+  --color-ink-900: #1A1A1A;
+  --color-ink-700: #374151;
+  --color-ink-500: #6B6B6B;
+
+  --ui-shell-border: rgba(0, 0, 0, 0.09);
+  --ui-shell-border-subtle: rgba(0, 0, 0, 0.06);
+  --ui-shell-glass: rgba(255, 255, 255, 0.72);
+  --ui-shell-card: rgba(255, 255, 255, 0.88);
+  --ui-shell-muted: rgba(255, 255, 255, 0.56);
+  --ui-shell-shadow: 0 18px 44px rgba(15, 23, 42, 0.10), inset 0 0.5px 0 rgba(255, 255, 255, 0.55);
+  --ui-shell-shadow-soft: 0 10px 28px rgba(15, 23, 42, 0.07), inset 0 0.5px 0 rgba(255, 255, 255, 0.55);
+}
+
+html:not(.dark) body {
+  background:
+    radial-gradient(circle at 12% 10%, rgba(232, 96, 138, 0.07), transparent 26%),
+    radial-gradient(circle at 92% 8%, rgba(212, 150, 58, 0.06), transparent 24%),
+    linear-gradient(180deg, var(--bg3) 0%, var(--bg) 56%, var(--bg) 100%);
+  color: var(--text);
+}
+
 html,
 body {
   background-color: var(--bg);
