@@ -299,6 +299,124 @@ fileprivate func resolveSignedPushEnvironment() -> String? {
 @objc(HiItsMeBridgeViewController)
 class HiItsMeBridgeViewController: CAPBridgeViewController {
     weak var shellController: HiItsMeShellViewController?
+    private var hasInstalledMediaTrackingScript = false
+    private let mediaTrackingScript = #"""
+        (() => {
+            if (window.__himMediaCleanupInstalled) {
+                return;
+            }
+
+            const registry = new Set();
+            const safeCall = (fn) => {
+                try {
+                    fn();
+                } catch {}
+            };
+
+            const cleanElement = (element, removeFromRegistry = true) => {
+                if (!element) {
+                    return;
+                }
+
+                safeCall(() => element.pause());
+                safeCall(() => {
+                    if ("srcObject" in element) {
+                        element.srcObject = null;
+                    }
+                });
+                safeCall(() => element.removeAttribute("src"));
+                safeCall(() => {
+                    while (element.firstChild) {
+                        element.removeChild(element.firstChild);
+                    }
+                });
+                safeCall(() => element.load());
+
+                if (removeFromRegistry) {
+                    registry.delete(element);
+                }
+            };
+
+            const trackElement = (element) => {
+                if (!element || registry.has(element)) {
+                    return element;
+                }
+
+                safeCall(() => {
+                    element.disableRemotePlayback = true;
+                    element.playsInline = true;
+                });
+
+                registry.add(element);
+
+                const release = () => cleanElement(element);
+                safeCall(() => element.addEventListener("ended", release, { once: true }));
+                safeCall(() => element.addEventListener("error", release, { once: true }));
+
+                return element;
+            };
+
+            const cleanupAll = () => {
+                document.querySelectorAll("audio, video").forEach(trackElement);
+                Array.from(registry).forEach((element) => cleanElement(element));
+                return registry.size;
+            };
+
+            const NativeAudio = window.Audio;
+            if (typeof NativeAudio === "function") {
+                const WrappedAudio = function (...args) {
+                    return trackElement(new NativeAudio(...args));
+                };
+                WrappedAudio.prototype = NativeAudio.prototype;
+                Object.setPrototypeOf(WrappedAudio, NativeAudio);
+                window.Audio = WrappedAudio;
+            }
+
+            const nativePlay = HTMLMediaElement.prototype.play;
+            HTMLMediaElement.prototype.play = function (...args) {
+                trackElement(this);
+                return nativePlay.apply(this, args);
+            };
+
+            window.__himMediaCleanupInstalled = true;
+            window.__himTrackedMediaElements = registry;
+            window.__himCleanupMediaElements = cleanupAll;
+
+            ["pagehide", "beforeunload", "unload"].forEach((eventName) => {
+                window.addEventListener(eventName, cleanupAll, { passive: true });
+            });
+            document.addEventListener("visibilitychange", () => {
+                if (document.visibilityState === "hidden") {
+                    cleanupAll();
+                }
+            }, { passive: true });
+        })();
+        """#
+    private let mediaTeardownScript = """
+        (() => {
+            if (typeof window.__himCleanupMediaElements === "function") {
+                return window.__himCleanupMediaElements();
+            }
+
+            const mediaElements = Array.from(document.querySelectorAll("audio, video"));
+            for (const element of mediaElements) {
+                try { element.pause(); } catch {}
+                try {
+                    if ("srcObject" in element) {
+                        element.srcObject = null;
+                    }
+                } catch {}
+                try { element.removeAttribute("src"); } catch {}
+                try {
+                    while (element.firstChild) {
+                        element.removeChild(element.firstChild);
+                    }
+                } catch {}
+                try { element.load(); } catch {}
+            }
+            return mediaElements.length;
+        })();
+        """
 
     override func capacitorDidLoad() {
         super.capacitorDidLoad()
@@ -311,6 +429,44 @@ class HiItsMeBridgeViewController: CAPBridgeViewController {
         webView?.scrollView.contentInsetAdjustmentBehavior = .never
         webView?.backgroundColor = .clear
         webView?.isOpaque = false
+        installMediaTrackingIfNeeded()
+    }
+
+    func prepareForMediaShutdown() {
+        guard let webView else {
+            return
+        }
+
+        installMediaTrackingIfNeeded()
+        webView.evaluateJavaScript(mediaTeardownScript, completionHandler: nil)
+        webView.stopLoading()
+    }
+
+    func tearDownWebView() {
+        guard let webView else {
+            return
+        }
+
+        prepareForMediaShutdown()
+        webView.navigationDelegate = nil
+        webView.uiDelegate = nil
+        webView.scrollView.delegate = nil
+    }
+
+    private func installMediaTrackingIfNeeded() {
+        guard !hasInstalledMediaTrackingScript, let webView else {
+            return
+        }
+
+        hasInstalledMediaTrackingScript = true
+        let contentController = webView.configuration.userContentController
+        let userScript = WKUserScript(source: mediaTrackingScript, injectionTime: .atDocumentStart, forMainFrameOnly: true)
+        contentController.addUserScript(userScript)
+        webView.evaluateJavaScript(mediaTrackingScript, completionHandler: nil)
+    }
+
+    deinit {
+        tearDownWebView()
     }
 }
 
@@ -405,6 +561,7 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         selectedImage: UIImage(systemName: "person.crop.circle.fill")
     )
     private var chromeState = HiItsMeShellChromeState()
+    private var hasPreparedBridgeForShutdown = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -421,6 +578,7 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         configureTabBar()
         embedBridgeViewController()
         applyChromeState(chromeState, animated: false)
+        registerForApplicationLifecycleNotifications()
     }
 
     override func viewDidLayoutSubviews() {
@@ -433,6 +591,11 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
 
     override var preferredStatusBarStyle: UIStatusBarStyle {
         chromeState.isDark ? .lightContent : .darkContent
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+        prepareBridgeForShutdown()
     }
 
     fileprivate func applyChromeState(_ state: HiItsMeShellChromeState, animated: Bool = true) {
@@ -1095,6 +1258,52 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
 
     @objc private func handleOpenAdd() {
         dispatchAction(.openAdd)
+    }
+
+    private func registerForApplicationLifecycleNotifications() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleApplicationWillResignActive),
+            name: UIApplication.willResignActiveNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleApplicationDidEnterBackground),
+            name: UIApplication.didEnterBackgroundNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleApplicationWillTerminate),
+            name: UIApplication.willTerminateNotification,
+            object: nil
+        )
+    }
+
+    @objc private func handleApplicationWillResignActive() {
+        bridgeViewController.prepareForMediaShutdown()
+    }
+
+    @objc private func handleApplicationDidEnterBackground() {
+        bridgeViewController.prepareForMediaShutdown()
+    }
+
+    @objc private func handleApplicationWillTerminate() {
+        prepareBridgeForShutdown()
+    }
+
+    fileprivate func prepareBridgeForShutdown() {
+        guard !hasPreparedBridgeForShutdown else {
+            return
+        }
+
+        hasPreparedBridgeForShutdown = true
+        bridgeViewController.tearDownWebView()
+    }
+
+    fileprivate func prepareMediaForBackground() {
+        bridgeViewController.prepareForMediaShutdown()
     }
 }
 
@@ -2140,6 +2349,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func applicationDidEnterBackground(_ application: UIApplication) {
+        (window?.rootViewController as? HiItsMeShellViewController)?.prepareMediaForBackground()
     }
 
     func applicationWillEnterForeground(_ application: UIApplication) {
@@ -2149,6 +2359,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func applicationWillTerminate(_ application: UIApplication) {
+        (window?.rootViewController as? HiItsMeShellViewController)?.prepareBridgeForShutdown()
     }
 
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
