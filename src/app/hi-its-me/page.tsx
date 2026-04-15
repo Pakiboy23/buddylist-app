@@ -3566,8 +3566,8 @@ function HiItsMeContent() {
       }
 
       const senderNameFromBuddy =
-        buddyRows.find((buddy) => buddy.id === senderId)?.screenname ||
-        temporaryChatProfiles[senderId]?.screenname ||
+        buddyRowsRef.current.find((buddy) => buddy.id === senderId)?.screenname ||
+        temporaryChatProfilesRef.current[senderId]?.screenname ||
         pendingRequestsRef.current.find((request) => request.senderId === senderId)?.screenname ||
         'Buddy';
       const template = awayMessageRef.current.trim() || "I'm away right now. Leave me a message.";
@@ -3590,7 +3590,7 @@ function HiItsMeContent() {
       };
       setAwayReplyCooldowns(awayReplyCooldownRef.current);
     },
-    [buddyRows, temporaryChatProfiles, userId],
+    [userId],
   );
 
   useEffect(() => {
@@ -3791,7 +3791,7 @@ function HiItsMeContent() {
       const normalizedStatus = normalizeStatusLabel(newStatus);
       const wasAway = normalizeStatusLabel(userStatusRef.current) === AWAY_STATUS;
       const normalizedAwayMessage = (message ?? '').trim();
-      const nextAwayMessage = normalizedStatus === AWAY_STATUS ? normalizedAwayMessage : '';
+      const nextAwayMessage = normalizedAwayMessage;
       const trimmedStatusLine = (options?.statusLine ?? statusMsgRef.current).trim();
       const nextStatusMessage = trimmedStatusLine || composeStatusMessage(normalizedStatus);
       const nextBio = (options?.bio ?? profileBioRef.current).trim();
@@ -3924,7 +3924,8 @@ function HiItsMeContent() {
   ) => {
     setIsHeaderMenuOpen(false);
     setAwayModalMode(mode);
-    const matchingPreset = awayPresets.find((preset) => preset.message === awayMessage);
+    const currentAwayMessage = awayMessageRef.current;
+    const matchingPreset = awayPresets.find((preset) => preset.message === currentAwayMessage);
     if (matchingPreset) {
       setSelectedAwayPresetId(matchingPreset.id);
       setAwayLabelDraft(matchingPreset.label);
@@ -3932,11 +3933,11 @@ function HiItsMeContent() {
     } else {
       setSelectedAwayPresetId('__custom__');
       setAwayLabelDraft('');
-      setAwayText(awayMessage || DEFAULT_AWAY_PRESETS[0].message);
+      setAwayText(currentAwayMessage || DEFAULT_AWAY_PRESETS[0].message);
     }
     setSaveAwayPreset(false);
-    setProfileStatusDraft(statusMsg);
-    setProfileBioDraft(profileBio);
+    setProfileStatusDraft(statusMsgRef.current);
+    setProfileBioDraft(profileBioRef.current);
 
     if (!options?.preservePhotoDraft) {
       if (buddyIconPreviewUrl?.startsWith('blob:')) {
@@ -3949,7 +3950,7 @@ function HiItsMeContent() {
 
     setAwayModalError(null);
     setShowAwayModal(true);
-  }, [awayMessage, awayPresets, buddyIconPreviewUrl, profileBio, statusMsg]);
+  }, [awayPresets, buddyIconPreviewUrl]);
 
   const handleSelectBuddyIcon = useCallback((fileList: FileList | null) => {
     const nextFile = fileList?.[0] ?? null;
@@ -4072,12 +4073,7 @@ function HiItsMeContent() {
       }
 
       const statusToPersist = goAway ? AWAY_STATUS : userStatusRef.current;
-      const messageToPersist =
-        statusToPersist === AWAY_STATUS
-          ? goAway
-            ? trimmedMessage
-            : awayMessageRef.current
-          : null;
+      const messageToPersist = goAway ? trimmedMessage : awayMessageRef.current;
 
       const success = await updateStatus(statusToPersist, messageToPersist, {
         statusLine: trimmedStatusLine,
