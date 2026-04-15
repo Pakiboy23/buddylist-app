@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 
@@ -99,5 +99,5 @@ export function useAppRouter(): RouterLike {
     [navigate],
   );
 
-  return { push, replace };
+  return useMemo(() => ({ push, replace }), [push, replace]);
 }
