@@ -2986,9 +2986,9 @@ function HiItsMeContent() {
             updated.status_msg === null
           ) {
             const resolvedStatusState = resolveStatusFields({
-              status: updated.status ?? userStatus,
-              awayMessage: updated.away_message ?? awayMessage,
-              statusMessage: updated.status_msg ?? statusMsg,
+              status: updated.status ?? userStatusRef.current,
+              awayMessage: updated.away_message ?? awayMessageRef.current,
+              statusMessage: updated.status_msg ?? statusMsgRef.current,
             });
             setStatusMsg(resolvedStatusState.statusMessage);
             setUserStatus(resolvedStatusState.status);
@@ -3004,7 +3004,7 @@ function HiItsMeContent() {
     return () => {
       void supabase.removeChannel(usersChannel);
     };
-  }, [awayMessage, playSound, pushBuddyActivity, statusMsg, userId, userStatus]);
+  }, [playSound, pushBuddyActivity, userId]);
 
   useEffect(() => {
     if (!userId) {
@@ -6744,7 +6744,7 @@ function HiItsMeContent() {
                           <span />
                         </div>
                       ) : null}
-                      {isBootstrapping || (!isBootstrapping && isLoadingBuddies) ? (
+                      {(isBootstrapping || isLoadingBuddies) && buddyRows.length === 0 ? (
                         <div className="space-y-2 px-2 py-2 ui-fade-in">
                           {Array.from({ length: 5 }).map((_, idx) => (
                             <div key={idx} className="flex items-center gap-3 rounded-2xl px-2 py-2">
