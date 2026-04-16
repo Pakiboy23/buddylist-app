@@ -134,7 +134,7 @@ export function isNativeIosShell() {
 }
 
 export async function getNativePushEnvironment(): Promise<NativePushEnvironment | null> {
-  if (!isNativeIosShell()) {
+  if (!isNativeIosShell() || !Capacitor.isPluginAvailable('HiItsMeShell')) {
     return null;
   }
 
@@ -171,7 +171,7 @@ export async function getNativePushEnvironment(): Promise<NativePushEnvironment 
 }
 
 export async function publishNativeShellChromeState(state: NativeShellChromeState) {
-  if (!isNativeIosShell()) {
+  if (!isNativeIosShell() || !Capacitor.isPluginAvailable('HiItsMeShell')) {
     return;
   }
 

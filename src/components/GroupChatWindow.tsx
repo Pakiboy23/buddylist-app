@@ -25,6 +25,7 @@ import {
   getConversationClusterMeta,
 } from '@/lib/conversationPresentation';
 import { buildReactionMutationKey, summarizeReactionRows } from '@/lib/messageReactions';
+import { getAppApiUrl } from '@/lib/appApi';
 import { isNativeIosShell } from '@/lib/nativeShell';
 import { supabase } from '@/lib/supabase';
 import {
@@ -245,7 +246,7 @@ export default function GroupChatWindow({
     setIsInviting(true);
     setInviteError(null);
     try {
-      const response = await fetch('/api/rooms/invite', {
+      const response = await fetch(getAppApiUrl('/api/rooms/invite'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ roomId, buddyIds: Array.from(selectedInviteIds) }),

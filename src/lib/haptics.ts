@@ -11,7 +11,7 @@ async function getHapticsPlugin() {
     return hapticsPlugin;
   }
 
-  if (loadAttempted || !Capacitor.isNativePlatform()) {
+  if (loadAttempted || !Capacitor.isNativePlatform() || !Capacitor.isPluginAvailable('Haptics')) {
     return null;
   }
 

@@ -10,7 +10,7 @@ let loadAttempted = false;
 
 async function getBadgePlugin(): Promise<BadgePlugin | null> {
   if (badgePlugin) return badgePlugin;
-  if (loadAttempted || !Capacitor.isNativePlatform()) return null;
+  if (loadAttempted || !Capacitor.isNativePlatform() || !Capacitor.isPluginAvailable('Badge')) return null;
   loadAttempted = true;
 
   try {

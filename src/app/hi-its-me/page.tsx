@@ -1,4 +1,4 @@
-import { FormEvent, Suspense, lazy, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
+import { FormEvent, Suspense, lazy, memo, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import AppIcon from '@/components/AppIcon';
 import AppLockSheet from '@/components/AppLockSheet';
@@ -678,7 +678,191 @@ function buildAdminResetHandoff(screenname: string, ticket: string, expiresAt: s
   ].join('\n');
 }
 
+// ── DirectMessageRow ────────────────────────────────────────────────────────
+// Extracted as a memoized module-level component so React can bail out of
+// re-rendering rows whose data hasn't changed, even when the parent re-renders
+// due to an unrelated buddyRows reference change (e.g. a different buddy's
+// usersChannel realtime event).
+
+interface DirectMessageRowProps {
+  buddy: Buddy & { isOnline: boolean };
+  currentUserScreenname: string;
+  unreadCount: number;
+  isSelected: boolean;
+  conversationPreference: DmConversationPreference;
+  isBlocked: boolean;
+  recentActivity: BuddyActivityToast | null;
+  isTypingActive: boolean;
+  lastMessagePreview: string;
+  openBuddyProfile: (buddyId: string) => void;
+  handleOpenChat: (buddyId: string) => void;
+}
+
+function areDirectMessageRowPropsEqual(prev: DirectMessageRowProps, next: DirectMessageRowProps): boolean {
+  const pb = prev.buddy;
+  const nb = next.buddy;
+  return (
+    pb.id === nb.id &&
+    pb.screenname === nb.screenname &&
+    pb.status === nb.status &&
+    pb.isOnline === nb.isOnline &&
+    pb.away_message === nb.away_message &&
+    pb.status_msg === nb.status_msg &&
+    pb.idle_since === nb.idle_since &&
+    pb.last_active_at === nb.last_active_at &&
+    pb.buddy_icon_path === nb.buddy_icon_path &&
+    prev.currentUserScreenname === next.currentUserScreenname &&
+    prev.unreadCount === next.unreadCount &&
+    prev.isSelected === next.isSelected &&
+    prev.conversationPreference === next.conversationPreference &&
+    prev.isBlocked === next.isBlocked &&
+    prev.recentActivity === next.recentActivity &&
+    prev.isTypingActive === next.isTypingActive &&
+    prev.lastMessagePreview === next.lastMessagePreview &&
+    prev.openBuddyProfile === next.openBuddyProfile &&
+    prev.handleOpenChat === next.handleOpenChat
+  );
+}
+
+const DirectMessageRow = memo(function DirectMessageRow({
+  buddy,
+  currentUserScreenname,
+  unreadCount,
+  isSelected,
+  conversationPreference,
+  isBlocked,
+  recentActivity,
+  isTypingActive,
+  lastMessagePreview,
+  openBuddyProfile,
+  handleOpenChat,
+}: DirectMessageRowProps) {
+  const resolvedStatus = resolveStatusFields({
+    status: buddy.status,
+    awayMessage: buddy.away_message,
+    statusMessage: buddy.status_msg,
+  });
+  const awayLine = resolvedStatus.awayMessage
+    ? resolveAwayTemplate(resolvedStatus.awayMessage, buddy.screenname, currentUserScreenname)
+    : '';
+  const presenceState = resolvePresenceState({
+    isOnline: buddy.isOnline,
+    status: resolvedStatus.status,
+    idleSince: buddy.idle_since,
+  });
+  const presenceLabel = getPresenceLabel(presenceState);
+  const presenceDetail = getPresenceDetail({
+    state: presenceState,
+    awayMessage: awayLine,
+    statusMessage: resolvedStatus.statusMessage,
+    idleSince: buddy.idle_since,
+    lastActiveAt: buddy.last_active_at,
+  });
+
+  const showArrivalWave = recentActivity?.tone === 'online' || recentActivity?.tone === 'back';
+  const presenceToneClass =
+    presenceState === 'away'
+      ? 'text-[var(--gold)]'
+      : presenceState === 'idle'
+        ? 'text-[var(--lavender)]'
+        : presenceState === 'offline'
+          ? 'text-[var(--muted)]'
+          : 'text-[var(--green)]';
+
+  return (
+    <div
+      data-testid={`dm-row-${buddy.id}`}
+      data-unread-dm={unreadCount}
+      data-screenname={buddy.screenname}
+      data-active={isSelected ? 'true' : 'false'}
+      className="ui-list-row group text-left"
+    >
+      <button
+        type="button"
+        onClick={() => openBuddyProfile(buddy.id)}
+        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+      >
+        <ProfileAvatar
+          screenname={buddy.screenname}
+          buddyIconPath={buddy.buddy_icon_path}
+          presenceState={presenceState}
+          size="sm"
+        />
+        <div className="min-w-0 flex-1">
+          <p className={`ui-screenname truncate text-[13px] font-semibold leading-tight ${
+            isSelected ? 'text-[var(--rose)]' : 'text-slate-800 dark:text-slate-100'
+          }`}>
+            {buddy.screenname}
+          </p>
+          <div className="mt-0.5 flex flex-wrap items-center gap-1">
+            {conversationPreference.isPinned ? (
+              <span className="rounded-full border border-[rgba(232,96,138,0.16)] bg-[rgba(232,96,138,0.1)] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[var(--rose)]">
+                Pinned
+              </span>
+            ) : null}
+            {isBlocked ? (
+              <span className="rounded-full bg-red-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-red-500 dark:bg-red-500/15 dark:text-red-200">
+                Blocked
+              </span>
+            ) : null}
+            {conversationPreference.isMuted ? (
+              <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:bg-[#13100E] dark:text-slate-300">
+                Muted
+              </span>
+            ) : null}
+            {unreadCount > 0 ? (
+              <span className="rounded-full border border-[rgba(232,96,138,0.16)] bg-[rgba(232,96,138,0.1)] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[var(--rose)]">
+                Unread
+              </span>
+            ) : null}
+          </div>
+          <div className="mt-0.5 flex items-center gap-1.5">
+            <p className={`truncate text-[11px] font-semibold ${presenceToneClass}`}>
+              {presenceLabel}
+            </p>
+            {showArrivalWave ? (
+              <span className="ui-buddy-arrival-wave" aria-hidden="true" title={recentActivity?.message}>
+                <span />
+                <span />
+                <span />
+              </span>
+            ) : null}
+          </div>
+          <p className="truncate text-[11px] text-slate-400" title={recentActivity?.message || presenceDetail}>
+            {isTypingActive ? (
+              <span className="italic text-[var(--rose)]">typing…</span>
+            ) : (
+              lastMessagePreview || presenceDetail
+            )}
+          </p>
+        </div>
+      </button>
+
+      {unreadCount > 0 ? (
+        <span
+          data-testid={`dm-unread-${buddy.id}`}
+          aria-label={`Unread from ${buddy.screenname}: ${unreadCount}`}
+          className={`ui-unread-badge ml-1 flex min-w-[20px] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+            isSelected ? '' : 'aim-unread-badge-pulse'
+          }`}
+        >
+          {unreadCount}
+        </span>
+      ) : null}
+      <button
+        type="button"
+        onClick={() => (isBlocked ? openBuddyProfile(buddy.id) : handleOpenChat(buddy.id))}
+        className={`ui-focus-ring shrink-0 ${isSelected && !isBlocked ? 'ui-button-primary' : 'ui-button-secondary'} ui-button-compact`}
+      >
+        {isBlocked ? 'View' : 'IM'}
+      </button>
+    </div>
+  );
+}, areDirectMessageRowPropsEqual);
+// ── end DirectMessageRow ─────────────────────────────────────────────────────
+
 function HiItsMeContent() {
+  console.log('[build-marker] IM tab build', '2026-04-15-G');
   const [userId, setUserId] = useState<string | null>(null);
   const [screenname, setScreenname] = useState('Loading...');
   const [statusMsg, setStatusMsg] = useState(AVAILABLE_STATUS);
@@ -836,6 +1020,7 @@ function HiItsMeContent() {
   const lastDmTypingSentAtRef = useRef(0);
   const dmTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const outboxItemsRef = useRef<OutboxItem[]>([]);
+  const unreadDirectMessagesRef = useRef<Record<string, number>>({});
   const isFlushingOutboxRef = useRef(false);
   const appHiddenAtRef = useRef<number | null>(null);
   const attemptedBiometricUnlockRef = useRef(false);
@@ -877,6 +1062,10 @@ function HiItsMeContent() {
   useEffect(() => {
     blockedUserIdsRef.current = new Set(blockedUserIds);
   }, [blockedUserIds]);
+
+  useEffect(() => {
+    unreadDirectMessagesRef.current = unreadDirectMessages;
+  }, [unreadDirectMessages]);
 
   useEffect(() => {
     if (!showAwayModal || awayModalMode !== 'away' || typeof window === 'undefined') {
@@ -2709,7 +2898,7 @@ function HiItsMeContent() {
       setIsRecoverySetupOpen(!hasRecoveryCode);
 
       let adminFlag = false;
-      if (session.access_token) {
+      if (session.access_token && !isNativeIosShell()) {
         try {
           const adminResponse = await fetch(getAppApiUrl('/api/admin/me'), {
             method: 'GET',
@@ -2729,8 +2918,6 @@ function HiItsMeContent() {
         } catch (error) {
           console.error('Admin check via app API failed:', error);
         }
-      } else {
-        console.warn('Admin check skipped because the access token was missing.');
       }
 
       if (!adminFlag) {
@@ -2863,14 +3050,19 @@ function HiItsMeContent() {
     };
   }, [syncUnreadDirectFromServer, userId]);
 
+  const buddyIdList = useMemo(
+    () => buddyRows.map((b) => b.id).sort().join(','),
+    [buddyRows],
+  );
+
   useEffect(() => {
-    if (!userId) {
+    if (!userId || !buddyIdList) {
       return;
     }
 
     const usersChannel = supabase
-      .channel(`users:${userId}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'users' }, (payload) => {
+      .channel(`users:${userId}:${buddyIdList}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'users', filter: `id=in.(${buddyIdList})` }, (payload) => {
         const updated = payload.new as Partial<UserProfile> & { id?: string };
         if (!updated.id) {
           return;
@@ -2880,75 +3072,83 @@ function HiItsMeContent() {
         let buddyCameBack = false;
         let updatedBuddyScreenname = '';
         setBuddyRows((previous) => {
-          if (!previous.some((buddy) => buddy.id === updated.id)) {
+          const matched = previous.find((buddy) => buddy.id === updated.id);
+          if (!matched) {
             return previous;
           }
-          return previous.map((buddy) => {
-            if (buddy.id !== updated.id) {
-              return buddy;
-            }
 
-            const nextStatus =
-              typeof updated.status === 'string'
-                ? updated.status
-                : updated.status === null
+          const nextStatus =
+            typeof updated.status === 'string'
+              ? updated.status
+              : updated.status === null
+                ? null
+                : matched.status;
+          const wasAway = normalizeStatusLabel(matched.status) === AWAY_STATUS;
+          const isAway = normalizeStatusLabel(nextStatus) === AWAY_STATUS;
+          if (!wasAway && isAway) {
+            buddyWentAway = true;
+          } else if (wasAway && !isAway) {
+            buddyCameBack = true;
+          }
+
+          updatedBuddyScreenname =
+            typeof updated.screenname === 'string' && updated.screenname.trim()
+              ? updated.screenname
+              : matched.screenname;
+
+          const candidate: typeof matched = {
+            ...matched,
+            screenname: updatedBuddyScreenname,
+            status: nextStatus,
+            away_message:
+              typeof updated.away_message === 'string'
+                ? updated.away_message
+                : updated.away_message === null
                   ? null
-                  : buddy.status;
-            const wasAway = normalizeStatusLabel(buddy.status) === AWAY_STATUS;
-            const isAway = normalizeStatusLabel(nextStatus) === AWAY_STATUS;
-            if (!wasAway && isAway) {
-              buddyWentAway = true;
-            } else if (wasAway && !isAway) {
-              buddyCameBack = true;
-            }
+                  : matched.away_message,
+            status_msg:
+              typeof updated.status_msg === 'string'
+                ? updated.status_msg
+                : updated.status_msg === null
+                  ? null
+                  : matched.status_msg,
+            profile_bio:
+              typeof updated.profile_bio === 'string'
+                ? updated.profile_bio
+                : updated.profile_bio === null
+                  ? null
+                  : matched.profile_bio,
+            buddy_icon_path:
+              typeof updated.buddy_icon_path === 'string'
+                ? updated.buddy_icon_path
+                : updated.buddy_icon_path === null
+                  ? null
+                  : matched.buddy_icon_path,
+            idle_since:
+              typeof updated.idle_since === 'string'
+                ? updated.idle_since
+                : updated.idle_since === null
+                  ? null
+                  : matched.idle_since,
+            last_active_at:
+              typeof updated.last_active_at === 'string'
+                ? updated.last_active_at
+                : updated.last_active_at === null
+                  ? null
+                  : matched.last_active_at,
+          };
 
-            updatedBuddyScreenname =
-              typeof updated.screenname === 'string' && updated.screenname.trim()
-                ? updated.screenname
-                : buddy.screenname;
+          // Field-level equality guard: bail if nothing visible actually changed.
+          // Excludes last_active_at (heartbeat) — parent never creates new array for heartbeat-only writes.
+          const UI_FIELDS: Array<keyof typeof candidate> = [
+            'screenname', 'status', 'away_message', 'status_msg',
+            'profile_bio', 'buddy_icon_path', 'idle_since',
+          ];
+          if (UI_FIELDS.every((key) => Object.is(candidate[key], matched[key]))) {
+            return previous;
+          }
 
-            return {
-              ...buddy,
-              screenname: updatedBuddyScreenname,
-              status: nextStatus,
-              away_message:
-                typeof updated.away_message === 'string'
-                  ? updated.away_message
-                  : updated.away_message === null
-                    ? null
-                    : buddy.away_message,
-              status_msg:
-                typeof updated.status_msg === 'string'
-                  ? updated.status_msg
-                  : updated.status_msg === null
-                    ? null
-                    : buddy.status_msg,
-              profile_bio:
-                typeof updated.profile_bio === 'string'
-                  ? updated.profile_bio
-                  : updated.profile_bio === null
-                    ? null
-                    : buddy.profile_bio,
-              buddy_icon_path:
-                typeof updated.buddy_icon_path === 'string'
-                  ? updated.buddy_icon_path
-                  : updated.buddy_icon_path === null
-                    ? null
-                    : buddy.buddy_icon_path,
-              idle_since:
-                typeof updated.idle_since === 'string'
-                  ? updated.idle_since
-                  : updated.idle_since === null
-                    ? null
-                    : buddy.idle_since,
-              last_active_at:
-                typeof updated.last_active_at === 'string'
-                  ? updated.last_active_at
-                  : updated.last_active_at === null
-                    ? null
-                    : buddy.last_active_at,
-            };
-          });
+          return previous.map((buddy) => (buddy.id === updated.id ? candidate : buddy));
         });
 
         if (updated.id !== userId && acceptedBuddyIdsRef.current.has(updated.id)) {
@@ -3004,7 +3204,7 @@ function HiItsMeContent() {
     return () => {
       void supabase.removeChannel(usersChannel);
     };
-  }, [playSound, pushBuddyActivity, userId]);
+  }, [buddyIdList, playSound, pushBuddyActivity, userId]);
 
   useEffect(() => {
     if (!userId) {
@@ -3455,8 +3655,9 @@ function HiItsMeContent() {
 
   const openChatWindowForId = useCallback(
     (buddyId: string) => {
-      const hadUnread = (unreadDirectMessages[buddyId] ?? 0) > 0;
-      setInitialUnreadForActiveChat(unreadDirectMessages[buddyId] ?? 0);
+      const unread = unreadDirectMessagesRef.current;
+      const hadUnread = (unread[buddyId] ?? 0) > 0;
+      setInitialUnreadForActiveChat(unread[buddyId] ?? 0);
       setActiveDmTypingText(null);
       setBodyShellSection('im');
       setSelectedBuddyId(buddyId);
@@ -3467,7 +3668,7 @@ function HiItsMeContent() {
       replaceAppPathInPlace(buildHiItsMePath({ section: 'im', dmBuddyId: buddyId }));
       void loadConversation(buddyId);
     },
-    [clearUnreadDirectMessages, loadConversation, unreadDirectMessages],
+    [clearUnreadDirectMessages, loadConversation],
   );
 
   useEffect(() => {
@@ -3493,8 +3694,8 @@ function HiItsMeContent() {
 
       const senderName =
         (typeof payload.screenname === 'string' && payload.screenname.trim()) ||
-        buddyRows.find((buddy) => buddy.id === senderId)?.screenname ||
-        temporaryChatProfiles[senderId]?.screenname ||
+        buddyRowsRef.current.find((buddy) => buddy.id === senderId)?.screenname ||
+        temporaryChatProfilesRef.current[senderId]?.screenname ||
         'Buddy';
       setActiveDmTypingText(`${senderName} is typing...`);
 
@@ -3517,7 +3718,7 @@ function HiItsMeContent() {
       }
       void supabase.removeChannel(typingChannel);
     };
-  }, [activeChatBuddyId, buddyRows, temporaryChatProfiles, userId]);
+  }, [activeChatBuddyId, userId]);
 
   const sendDmTypingPulse = useCallback(() => {
     if (!userId || !activeChatBuddyId) {
@@ -4893,9 +5094,9 @@ function HiItsMeContent() {
     [handleAddBuddyById, openChatWindowForId, userId],
   );
 
-  const handleOpenChat = (buddyId: string) => {
+  const handleOpenChat = useCallback((buddyId: string) => {
     openChatWindowForId(buddyId);
-  };
+  }, [openChatWindowForId]);
 
   const openBuddyProfile = useCallback((buddyId: string) => {
     setProfileSheetError(null);
@@ -5873,114 +6074,6 @@ function HiItsMeContent() {
   const headerActionButtonClass =
     'ui-focus-ring ui-window-header-button min-h-[40px] px-3 text-[11px] font-semibold';
 
-  const renderDirectMessageRow = (buddy: (typeof acceptedBuddies)[number]) => {
-    const unreadDirectCount = unreadDirectMessages[buddy.id] ?? 0;
-    const isSelected = selectedBuddyId === buddy.id;
-    const presenceSummary = getBuddyPresenceSummary(buddy);
-    const conversationPreference = getDmPreference(dmPreferencesByBuddyId, buddy.id);
-    const isBlockedBuddy = blockedUserIds.includes(buddy.id);
-    const recentBuddyActivity = buddyActivityById.get(buddy.id) ?? null;
-    const showArrivalWave = recentBuddyActivity?.tone === 'online' || recentBuddyActivity?.tone === 'back';
-    const presenceToneClass =
-      presenceSummary.presenceState === 'away'
-        ? 'text-[var(--gold)]'
-        : presenceSummary.presenceState === 'idle'
-          ? 'text-[var(--lavender)]'
-          : presenceSummary.presenceState === 'offline'
-            ? 'text-[var(--muted)]'
-            : 'text-[var(--green)]';
-
-    return (
-      <div
-        key={buddy.id}
-        data-testid={`dm-row-${buddy.id}`}
-        data-unread-dm={unreadDirectCount}
-        data-screenname={buddy.screenname}
-        data-active={isSelected ? 'true' : 'false'}
-        className="ui-list-row group text-left"
-      >
-        <button
-          type="button"
-          onClick={() => openBuddyProfile(buddy.id)}
-          className="flex min-w-0 flex-1 items-center gap-3 text-left"
-        >
-          <ProfileAvatar
-            screenname={buddy.screenname}
-            buddyIconPath={buddy.buddy_icon_path}
-            presenceState={presenceSummary.presenceState}
-            size="sm"
-          />
-          <div className="min-w-0 flex-1">
-            <p className={`ui-screenname truncate text-[13px] font-semibold leading-tight ${
-              isSelected ? 'text-[var(--rose)]' : 'text-slate-800 dark:text-slate-100'
-            }`}>
-              {buddy.screenname}
-            </p>
-            <div className="mt-0.5 flex flex-wrap items-center gap-1">
-              {conversationPreference.isPinned ? (
-                <span className="rounded-full border border-[rgba(232,96,138,0.16)] bg-[rgba(232,96,138,0.1)] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[var(--rose)]">
-                  Pinned
-                </span>
-              ) : null}
-              {isBlockedBuddy ? (
-                <span className="rounded-full bg-red-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-red-500 dark:bg-red-500/15 dark:text-red-200">
-                  Blocked
-                </span>
-              ) : null}
-              {conversationPreference.isMuted ? (
-                <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:bg-[#13100E] dark:text-slate-300">
-                  Muted
-                </span>
-              ) : null}
-              {unreadDirectCount > 0 ? (
-                <span className="rounded-full border border-[rgba(232,96,138,0.16)] bg-[rgba(232,96,138,0.1)] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[var(--rose)]">
-                  Unread
-                </span>
-              ) : null}
-            </div>
-            <div className="mt-0.5 flex items-center gap-1.5">
-              <p className={`truncate text-[11px] font-semibold ${presenceToneClass}`}>
-                {presenceSummary.presenceLabel}
-              </p>
-              {showArrivalWave ? (
-                <span className="ui-buddy-arrival-wave" aria-hidden="true" title={recentBuddyActivity?.message}>
-                  <span />
-                  <span />
-                  <span />
-                </span>
-              ) : null}
-            </div>
-            <p className="truncate text-[11px] text-slate-400" title={recentBuddyActivity?.message || presenceSummary.presenceDetail}>
-              {activeDmTypingText && activeChatBuddyId === buddy.id ? (
-                <span className="italic text-[var(--rose)]">typing…</span>
-              ) : (
-                buddyLastMessagePreview[buddy.id] || presenceSummary.presenceDetail
-              )}
-            </p>
-          </div>
-        </button>
-
-        {unreadDirectCount > 0 ? (
-          <span
-            data-testid={`dm-unread-${buddy.id}`}
-            aria-label={`Unread from ${buddy.screenname}: ${unreadDirectCount}`}
-            className={`ui-unread-badge ml-1 flex min-w-[20px] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-              isSelected ? '' : 'aim-unread-badge-pulse'
-            }`}
-          >
-            {unreadDirectCount}
-          </span>
-        ) : null}
-        <button
-          type="button"
-          onClick={() => (isBlockedBuddy ? openBuddyProfile(buddy.id) : handleOpenChat(buddy.id))}
-          className={`ui-focus-ring shrink-0 ${isSelected && !isBlockedBuddy ? 'ui-button-primary' : 'ui-button-secondary'} ui-button-compact`}
-        >
-          {isBlockedBuddy ? 'View' : 'IM'}
-        </button>
-      </div>
-    );
-  };
   const renderSavedMessagesRow = () => (
     <div
       key="saved-messages"
@@ -6834,7 +6927,22 @@ function HiItsMeContent() {
                         </div>
                       ) : null}
 
-                      {!isBootstrapping && conversationFilter !== 'requests' && !showSplitPresenceSections && visibleDirectMessageRows.map((buddy) => renderDirectMessageRow(buddy))}
+                      {!isBootstrapping && conversationFilter !== 'requests' && !showSplitPresenceSections && visibleDirectMessageRows.map((buddy) => (
+                        <DirectMessageRow
+                          key={buddy.id}
+                          buddy={buddy}
+                          currentUserScreenname={screenname}
+                          unreadCount={unreadDirectMessages[buddy.id] ?? 0}
+                          isSelected={selectedBuddyId === buddy.id}
+                          conversationPreference={getDmPreference(dmPreferencesByBuddyId, buddy.id)}
+                          isBlocked={blockedUserIds.includes(buddy.id)}
+                          recentActivity={buddyActivityById.get(buddy.id) ?? null}
+                          isTypingActive={Boolean(activeDmTypingText && activeChatBuddyId === buddy.id)}
+                          lastMessagePreview={buddyLastMessagePreview[buddy.id] ?? ''}
+                          openBuddyProfile={openBuddyProfile}
+                          handleOpenChat={handleOpenChat}
+                        />
+                      ))}
 
                       {!isBootstrapping && conversationFilter !== 'requests' && showSplitPresenceSections ? (
                         <div className="space-y-3 px-2 pb-1">
@@ -6844,7 +6952,22 @@ function HiItsMeContent() {
                                 <span>{section.label}</span>
                                 <span className="ui-section-count">{section.buddies.length}</span>
                               </div>
-                              {section.buddies.map((buddy) => renderDirectMessageRow(buddy))}
+                              {section.buddies.map((buddy) => (
+                                <DirectMessageRow
+                                  key={buddy.id}
+                                  buddy={buddy}
+                                  currentUserScreenname={screenname}
+                                  unreadCount={unreadDirectMessages[buddy.id] ?? 0}
+                                  isSelected={selectedBuddyId === buddy.id}
+                                  conversationPreference={getDmPreference(dmPreferencesByBuddyId, buddy.id)}
+                                  isBlocked={blockedUserIds.includes(buddy.id)}
+                                  recentActivity={buddyActivityById.get(buddy.id) ?? null}
+                                  isTypingActive={Boolean(activeDmTypingText && activeChatBuddyId === buddy.id)}
+                                  lastMessagePreview={buddyLastMessagePreview[buddy.id] ?? ''}
+                                  openBuddyProfile={openBuddyProfile}
+                                  handleOpenChat={handleOpenChat}
+                                />
+                              ))}
                             </section>
                           ))}
                         </div>
