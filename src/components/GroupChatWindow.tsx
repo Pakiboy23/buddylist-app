@@ -26,6 +26,7 @@ import {
 } from '@/lib/conversationPresentation';
 import { buildReactionMutationKey, summarizeReactionRows } from '@/lib/messageReactions';
 import { getAppApiUrl } from '@/lib/appApi';
+import { getAccessTokenOrNull } from '@/lib/authClient';
 import { isNativeIosShell } from '@/lib/nativeShell';
 import { supabase } from '@/lib/supabase';
 import {
@@ -246,9 +247,17 @@ export default function GroupChatWindow({
     setIsInviting(true);
     setInviteError(null);
     try {
+      const accessToken = await getAccessTokenOrNull();
+      if (!accessToken) {
+        setInviteError('Not signed in. Please sign in and try again.');
+        return;
+      }
       const response = await fetch(getAppApiUrl('/api/rooms/invite'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({ roomId, buddyIds: Array.from(selectedInviteIds) }),
       });
       const json = await response.json() as { success?: boolean; invited?: string[]; error?: string };
