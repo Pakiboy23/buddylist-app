@@ -8544,6 +8544,7 @@ function HiItsMeContent() {
           key={activeRoom.id}
           roomId={activeRoom.id}
           roomName={activeRoom.name}
+          roomKey={activeRoom.room_key ?? null}
           currentUserId={userId}
           currentUserScreenname={screenname}
           currentUserBuddyIconPath={buddyIconPath}

@@ -25,7 +25,6 @@ import {
   getConversationClusterMeta,
 } from '@/lib/conversationPresentation';
 import { buildReactionMutationKey, summarizeReactionRows } from '@/lib/messageReactions';
-import { getAppApiUrl } from '@/lib/appApi';
 import { isNativeIosShell } from '@/lib/nativeShell';
 import { supabase } from '@/lib/supabase';
 import {
@@ -104,6 +103,7 @@ interface BuddyStub {
 interface GroupChatWindowProps {
   roomId: string;
   roomName: string;
+  roomKey?: string | null;
   currentUserId: string;
   currentUserScreenname: string;
   currentUserBuddyIconPath?: string | null;
@@ -165,6 +165,7 @@ function loadStoredRichTextFormat() {
 export default function GroupChatWindow({
   roomId,
   roomName,
+  roomKey = null,
   currentUserId,
   currentUserScreenname,
   currentUserBuddyIconPath = null,
@@ -242,25 +243,27 @@ export default function GroupChatWindow({
   }, [buddies, participants]);
 
   const handleInviteConfirm = useCallback(async () => {
-    if (selectedInviteIds.size === 0 || isInviting) return;
+    if (selectedInviteIds.size === 0 || isInviting || !roomKey) return;
     setIsInviting(true);
     setInviteError(null);
     try {
-      const response = await fetch(getAppApiUrl('/api/rooms/invite'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomId, buddyIds: Array.from(selectedInviteIds) }),
-      });
-      const json = await response.json() as { success?: boolean; invited?: string[]; error?: string };
-      if (!response.ok || !json.success) {
-        setInviteError(json.error ?? 'Failed to invite buddies.');
-        return;
+      const invitedIds: string[] = [];
+      for (const inviteeId of selectedInviteIds) {
+        const { error } = await supabase.rpc('invite_to_room', {
+          p_room_key: roomKey,
+          p_invitee_id: inviteeId,
+        });
+        if (error) {
+          setInviteError(error.message);
+          return;
+        }
+        invitedIds.push(inviteeId);
       }
       // Optimistically add invited buddies to the participants list.
-      const invitedScreennames = buddies.filter((b) => (json.invited ?? []).includes(b.id));
+      const invitedBuddies = buddies.filter((b) => invitedIds.includes(b.id));
       setParticipants((prev) => {
         const existingIds = new Set(prev.map((p) => p.userId));
-        const additions = invitedScreennames
+        const additions = invitedBuddies
           .filter((b) => !existingIds.has(b.id))
           .map((b) => ({ userId: b.id, screenname: b.screenname, onlineAt: null }));
         return [...prev, ...additions];
@@ -272,7 +275,7 @@ export default function GroupChatWindow({
     } finally {
       setIsInviting(false);
     }
-  }, [buddies, isInviting, roomId, selectedInviteIds]);
+  }, [buddies, isInviting, roomKey, selectedInviteIds]);
 
   const swipeBack = useSwipeBack({ onSwipeBack: handleBack });
   const [isSending, setIsSending] = useState(false);
