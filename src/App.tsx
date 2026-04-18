@@ -1,5 +1,6 @@
 import { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { Analytics } from '@vercel/analytics/react';
 import { ChatProvider } from '@/context/ChatContext';
 import PwaBootstrap from '@/components/PwaBootstrap';
 import NativeShellRouteSync from '@/components/NativeShellRouteSync';
@@ -30,6 +31,7 @@ export default function App() {
       <PwaBootstrap />
       <NativeShellRouteSync />
       <GlobalNotificationListener />
+      <Analytics />
     </ChatProvider>
   );
 }
