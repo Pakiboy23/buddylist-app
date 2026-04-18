@@ -1326,7 +1326,7 @@ export default function ChatWindow({
                         {buddyPresenceDetail}
                       </span>
                     </div>
-                    {buddyStatusLine ? (
+                    {buddyStatusLine && buddyStatusLine.toLowerCase() !== buddyPresenceDetail.toLowerCase() ? (
                       <p className="mt-0.5 truncate text-[12px] text-slate-500 dark:text-slate-400">{buddyStatusLine}</p>
                     ) : null}
                     {buddyStatusMessage ? (

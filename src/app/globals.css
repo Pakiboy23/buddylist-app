@@ -1497,6 +1497,7 @@ button:not(:disabled):active,
   --bg4: #302820;
   --text: #F7F0E8;
   --muted: #9C8E82;
+  --faint: #3A3028;
   --rose: #E8608A;
   --rose-dark: #B93A67;
   --gold: #D4963A;
@@ -1525,6 +1526,7 @@ html:not(.dark) {
   --bg4: #E8E0D5;
   --text: #1A1A1A;
   --muted: #6B6B6B;
+  --faint: #D4CEC6;
   --offline: #999999;
 
   --color-ink-900: #1A1A1A;
@@ -1677,7 +1679,7 @@ body.privacy-shield-active::after {
 .ui-modal-frame,
 .ui-sheet-surface {
   border-color: var(--ui-shell-border) !important;
-  background: rgba(29, 25, 22, 0.9) !important;
+  background: var(--ui-shell-glass) !important;
   box-shadow: var(--ui-shell-shadow-soft);
   color: var(--text);
 }
@@ -1698,21 +1700,21 @@ body.privacy-shield-active::after {
 .dark .ui-modal-frame,
 .dark .ui-sheet-surface {
   border-color: var(--ui-shell-border) !important;
-  background: rgba(29, 25, 22, 0.94) !important;
+  background: var(--ui-shell-glass) !important;
   color: var(--text);
 }
 
 .ui-compose-surface,
 .dark .ui-compose-surface {
-  background: #262118 !important;
-  border-color: #3A3028 !important;
+  background: var(--bg3) !important;
+  border-color: var(--faint) !important;
 }
 
 .ui-compose-surface input::placeholder,
 .ui-compose-surface textarea::placeholder,
 .dark .ui-compose-surface input::placeholder,
 .dark .ui-compose-surface textarea::placeholder {
-  color: #9C8E82 !important;
+  color: var(--muted) !important;
 }
 
 .ui-window-header,
