@@ -247,18 +247,34 @@ export default function GroupChatWindow({
     setIsInviting(true);
     setInviteError(null);
     try {
-      const invitedIds: string[] = [];
-      for (const inviteeId of selectedInviteIds) {
-        const { error } = await supabase.rpc('invite_to_room', {
-          p_room_key: roomKey,
-          p_invitee_id: inviteeId,
-        });
-        if (error) {
-          setInviteError(error.message);
-          return;
+      const inviteeIds = Array.from(selectedInviteIds);
+      const results = await Promise.allSettled(
+        inviteeIds.map((id) =>
+          supabase.rpc('invite_to_room', {
+            p_room_key: roomKey,
+            p_invitee_id: id,
+          }),
+        ),
+      );
+
+      const failures = results.filter(
+        (r) => r.status === 'rejected' || (r.status === 'fulfilled' && r.value.error),
+      );
+
+      if (failures.length > 0) {
+        const firstError = failures[0];
+        const message =
+          firstError.status === 'rejected'
+            ? String(firstError.reason)
+            : firstError.value.error!.message;
+        if (import.meta.env.DEV) {
+          console.error('[invite_to_room] RPC error:', message);
         }
-        invitedIds.push(inviteeId);
+        setInviteError(`Could not invite ${failures.length} buddy${failures.length > 1 ? 'ies' : ''}. ${message}`);
+        return;
       }
+
+      const invitedIds = inviteeIds.filter((_, i) => results[i].status === 'fulfilled');
       // Optimistically add invited buddies to the participants list.
       const invitedBuddies = buddies.filter((b) => invitedIds.includes(b.id));
       setParticipants((prev) => {
@@ -270,8 +286,12 @@ export default function GroupChatWindow({
       });
       setShowInviteSheet(false);
       setSelectedInviteIds(new Set());
-    } catch {
-      setInviteError('Network error. Please try again.');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      if (import.meta.env.DEV) {
+        console.error('[invite_to_room] Unexpected error:', message);
+      }
+      setInviteError(`Invite failed: ${message}`);
     } finally {
       setIsInviting(false);
     }
