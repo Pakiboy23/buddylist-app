@@ -135,7 +135,7 @@ export default function ChatMediaGallerySheet({
           <div className="mt-4 max-h-[min(68vh,44rem)] overflow-y-auto pr-1">
             {filteredItems.length === 0 ? (
               <div className="ui-empty-state min-h-[14rem] px-6">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#302820] text-[#E8608A]">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--bg4)] text-[#E8608A]">
                   <AppIcon kind="media" className="h-7 w-7" />
                 </div>
                 <div>
@@ -217,7 +217,7 @@ export default function ChatMediaGallerySheet({
                         className="rounded-[1.3rem] border border-white/70 bg-white/85 px-3 py-3 shadow-sm dark:border-slate-800 dark:bg-[#13100E]/55"
                       >
                         <div className="flex items-start gap-3">
-                          <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#302820] text-[#E8608A]">
+                          <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[var(--bg4)] text-[#E8608A]">
                             <AppIcon kind={kind === 'audio' ? 'mic' : 'attachment'} className="h-4 w-4" />
                           </div>
                           <div className="min-w-0 flex-1">

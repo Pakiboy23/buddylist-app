@@ -26,6 +26,7 @@ function applyThemeClass(mode: ThemeMode) {
   if (typeof document === 'undefined') return;
   const isDark = mode === 'dark' || (mode === 'system' && getSystemPrefersDark());
   document.documentElement.classList.toggle('dark', isDark);
+  document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
 }
 
 export function useTheme() {

@@ -1160,7 +1160,7 @@ export default function ChatWindow({
           href={data.publicUrl}
           target="_blank"
           rel="noreferrer"
-          className="ui-focus-ring block overflow-hidden rounded-[1rem] border border-white/30 bg-[#13100E]/5"
+          className="ui-focus-ring block overflow-hidden rounded-[1rem] border border-white/30 bg-[var(--bg)]/5"
           aria-label={`Open image attachment ${attachment.file_name}`}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1176,7 +1176,7 @@ export default function ChatWindow({
           controls
           preload="metadata"
           playsInline
-          className="block max-h-64 w-full rounded-[1rem] border border-white/30 bg-[#13100E]/20"
+          className="block max-h-64 w-full rounded-[1rem] border border-white/30 bg-[var(--bg)]/20"
           src={data.publicUrl}
         />
       );
@@ -1267,7 +1267,7 @@ export default function ChatWindow({
         title={`IM with ${buddyScreenname}`}
         variant="xp_shell"
         xpTitleText={`Instant Message — ${buddyScreenname}`}
-        xpSubtitleText={buddyPresenceDetail}
+        xpSubtitleText={undefined}
         headerActions={
           nativeShellActive ? undefined : (
             <>
@@ -1575,7 +1575,7 @@ export default function ChatWindow({
             )}
             {!isLoading && visibleMessages.length === 0 && (
               <div className="ui-empty-state h-full px-6 ui-fade-in">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#302820]">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--bg4)]">
                   <AppIcon kind="mail" className="h-7 w-7 text-blue-400" />
                 </div>
                 <div>
