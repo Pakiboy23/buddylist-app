@@ -283,6 +283,19 @@ export default function Home() {
       if (data.session) {
         setStatusMsg('Account created. Securing your account...');
         try {
+          // Seed public.users before saving the recovery code — the FK on
+          // account_recovery_codes requires this row to exist first.
+          await supabase.from('users').upsert(
+            {
+              id: data.session.user.id,
+              email: data.session.user.email ?? '',
+              screenname: trimmedScreenname,
+              status: 'available',
+              is_online: true,
+              last_active_at: new Date().toISOString(),
+            },
+            { onConflict: 'id' },
+          );
           await saveRecoveryCodeWithToken(data.session.access_token, signUpRecoveryCode.trim());
           clearPendingSignupRecoveryDraft(trimmedScreenname);
         } catch (error) {
