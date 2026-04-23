@@ -238,6 +238,18 @@ export default function Home() {
     }
 
     if (isSignUp) {
+      if (trimmedScreenname.length < 3) {
+        setStatusMsg('Screen Name must be at least 3 characters.');
+        return;
+      }
+      if (trimmedScreenname.length > 20) {
+        setStatusMsg('Screen Name must be 20 characters or fewer.');
+        return;
+      }
+      if (!/^[a-zA-Z0-9_.]+$/.test(trimmedScreenname)) {
+        setStatusMsg('Screen Name can only contain letters, numbers, underscores, and dots.');
+        return;
+      }
       const recoveryValidationError = validateSignUpRecoveryCode();
       if (recoveryValidationError) {
         setStatusMsg(recoveryValidationError);
