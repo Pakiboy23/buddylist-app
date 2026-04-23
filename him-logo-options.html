@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>H.I.M. — Logo Options</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=IBM+Plex+Mono:wght@400;700&family=DM+Serif+Display&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --rose:     #E8608A;
+      --gold:     #D4963A;
+      --lav:      #A78BFA;
+      --bg:       #13100E;
+      --bg2:      #1D1916;
+      --bg3:      #241F1A;
+      --muted:    #4A3C35;
+      --text:     #F5EDE0;
+    }
+
+    body {
+      background: #0A0806;
+      padding: 60px 32px 80px;
+      font-family: 'Space Grotesk', sans-serif;
+      display: flex;
+      flex-direction: column;
+      gap: 72px;
+    }
+
+    /* ── Section header ─────────────────────── */
+    .section-header {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 28px;
+    }
+    .section-label {
+      font-size: 10px;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-family: 'Space Grotesk', sans-serif;
+    }
+    .section-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text);
+      font-family: 'Space Grotesk', sans-serif;
+    }
+    .section-desc {
+      font-size: 13px;
+      color: #5A4C44;
+      font-family: 'Space Grotesk', sans-serif;
+      margin-top: 2px;
+    }
+
+    /* ── Lockup row ─────────────────────────── */
+    .lockup-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    /* ── Card shell ─────────────────────────── */
+    .card {
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.05);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      position: relative;
+      overflow: hidden;
+    }
+    .card-label {
+      font-size: 10px;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 14px;
+      font-family: 'Space Grotesk', sans-serif;
+    }
+    .card-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* ── Divider ────────────────────────────── */
+    .vdiv { width: 1px; background: rgba(255,255,255,0.06); align-self: stretch; }
+
+    /* ── Tagline shared ─────────────────────── */
+    .tl {
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    /* ── Stacked mark row (JS-positioned) ───── */
+    .sm-row {
+      position: relative;
+      width: 100%;
+    }
+    .sm-dot {
+      position: absolute;
+      border-radius: 50%;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+
+    /* ════════════════════════════════════════
+       OPTION A — SIGNAL
+       Space Grotesk, per-letter colors,
+       refined glow, clean
+    ════════════════════════════════════════ */
+    .a-bg {
+      background: linear-gradient(145deg, #1D1916, #13100E);
+    }
+    .a-bg::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse at 20% 20%, rgba(232,96,138,0.06) 0%, transparent 60%),
+        radial-gradient(ellipse at 80% 80%, rgba(167,139,250,0.05) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    /* Mark */
+    .a-mark-wrap {
+      width: 110px; height: 110px;
+      background: linear-gradient(145deg, #222019, #16130F);
+      border-radius: 24px;
+      border: 1px solid rgba(255,255,255,0.06);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      position: relative;
+      overflow: hidden;
+    }
+    .a-mark-wrap::before {
+      content: '';
+      position: absolute;
+      top: -20px; left: -10px;
+      width: 80px; height: 80px;
+      background: radial-gradient(circle, rgba(232,96,138,0.1) 0%, transparent 70%);
+    }
+    .a-mdot {
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      position: relative;
+      flex-shrink: 0;
+    }
+    .a-mdot::before {
+      content: '';
+      position: absolute;
+      inset: -5px;
+      border-radius: 50%;
+      opacity: 0.2;
+    }
+    .a-mdot-r { background: var(--rose); }
+    .a-mdot-r::before { background: var(--rose); }
+    .a-mdot-g { background: var(--gold); }
+    .a-mdot-g::before { background: var(--gold); }
+    .a-mdot-l { background: var(--lav); }
+    .a-mdot-l::before { background: var(--lav); }
+
+    /* Letters */
+    .a-letter {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: 86px;
+      line-height: 1;
+      letter-spacing: -2px;
+    }
+    .a-H { color: var(--rose); }
+    .a-I { color: var(--gold); }
+    .a-M { color: var(--lav); }
+
+    /* Separator dots */
+    .a-sep {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin: 0 8px;
+      position: relative;
+    }
+    .a-sep::before {
+      content: '';
+      position: absolute;
+      inset: -4px;
+      border-radius: 50%;
+      opacity: 0.2;
+    }
+    .a-sep-r { background: var(--rose); }
+    .a-sep-r::before { background: var(--rose); }
+    .a-sep-g { background: var(--gold); }
+    .a-sep-g::before { background: var(--gold); }
+    .a-sep-l { background: var(--lav); }
+    .a-sep-l::before { background: var(--lav); }
+
+    .a-wm { display: flex; align-items: center; line-height: 1; }
+    .a-tl { font-size: 11px; font-family: 'Space Grotesk', sans-serif; }
+
+    /* stacked mark dots */
+    .a-sm { width: 12px; height: 12px; }
+    .a-sm-r { background: var(--rose); }
+    .a-sm-r::before { background: var(--rose); }
+    .a-sm-g { background: var(--gold); }
+    .a-sm-g::before { background: var(--gold); }
+    .a-sm-l { background: var(--lav); }
+    .a-sm-l::before { background: var(--lav); }
+
+
+    /* ════════════════════════════════════════
+       OPTION B — PRESENCE
+       Space Grotesk, bold/expressive,
+       large dots, stronger halos
+    ════════════════════════════════════════ */
+    .b-bg {
+      background: linear-gradient(145deg, #1A1614, #0F0D0B);
+    }
+    .b-bg::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse at 10% 10%, rgba(232,96,138,0.12) 0%, transparent 55%),
+        radial-gradient(ellipse at 90% 90%, rgba(167,139,250,0.09) 0%, transparent 55%),
+        radial-gradient(ellipse at 50% 100%, rgba(212,150,58,0.07) 0%, transparent 50%);
+      pointer-events: none;
+    }
+
+    .b-mark-wrap {
+      width: 110px; height: 110px;
+      background: linear-gradient(145deg, #1C1916, #111009);
+      border-radius: 26px;
+      border: 1px solid rgba(255,255,255,0.04);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      position: relative;
+      overflow: hidden;
+    }
+    .b-mark-wrap::before {
+      content: '';
+      position: absolute;
+      top: -30px; left: -20px;
+      width: 100px; height: 100px;
+      background: radial-gradient(circle, rgba(232,96,138,0.14) 0%, transparent 70%);
+    }
+    .b-mark-wrap::after {
+      content: '';
+      position: absolute;
+      bottom: -20px; right: -10px;
+      width: 80px; height: 80px;
+      background: radial-gradient(circle, rgba(167,139,250,0.1) 0%, transparent 70%);
+    }
+    .b-mdot {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      position: relative;
+      flex-shrink: 0;
+      z-index: 1;
+    }
+    .b-mdot::before {
+      content: '';
+      position: absolute;
+      inset: -8px;
+      border-radius: 50%;
+      opacity: 0.25;
+      filter: blur(4px);
+    }
+    .b-mdot-r { background: var(--rose); box-shadow: 0 0 16px rgba(232,96,138,0.5); }
+    .b-mdot-r::before { background: var(--rose); }
+    .b-mdot-g { background: var(--gold); box-shadow: 0 0 16px rgba(212,150,58,0.45); }
+    .b-mdot-g::before { background: var(--gold); }
+    .b-mdot-l { background: var(--lav);  box-shadow: 0 0 16px rgba(167,139,250,0.45); }
+    .b-mdot-l::before { background: var(--lav); }
+
+    .b-letter {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: 96px;
+      line-height: 1;
+      letter-spacing: -3px;
+    }
+    .b-H { color: var(--rose); text-shadow: 0 0 40px rgba(232,96,138,0.3); }
+    .b-I { color: var(--gold); text-shadow: 0 0 40px rgba(212,150,58,0.28); }
+    .b-M { color: var(--lav);  text-shadow: 0 0 40px rgba(167,139,250,0.28); }
+
+    .b-sep {
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin: 0 6px;
+      position: relative;
+    }
+    .b-sep::before {
+      content: '';
+      position: absolute;
+      inset: -6px;
+      border-radius: 50%;
+      opacity: 0.25;
+      filter: blur(3px);
+    }
+    .b-sep-r { background: var(--rose); box-shadow: 0 0 10px rgba(232,96,138,0.4); }
+    .b-sep-r::before { background: var(--rose); }
+    .b-sep-g { background: var(--gold); box-shadow: 0 0 10px rgba(212,150,58,0.36); }
+    .b-sep-g::before { background: var(--gold); }
+    .b-sep-l { background: var(--lav);  box-shadow: 0 0 10px rgba(167,139,250,0.36); }
+    .b-sep-l::before { background: var(--lav); }
+
+    .b-wm { display: flex; align-items: center; line-height: 1; }
+    .b-tl { font-size: 11px; font-family: 'Space Grotesk', sans-serif; letter-spacing: 3px; }
+
+    .b-sm { width: 14px; height: 14px; }
+    .b-sm-r { background: var(--rose); box-shadow: 0 0 8px rgba(232,96,138,0.5); }
+    .b-sm-r::before { background: var(--rose); }
+    .b-sm-g { background: var(--gold); box-shadow: 0 0 8px rgba(212,150,58,0.45); }
+    .b-sm-g::before { background: var(--gold); }
+    .b-sm-l { background: var(--lav);  box-shadow: 0 0 8px rgba(167,139,250,0.45); }
+    .b-sm-l::before { background: var(--lav); }
+
+
+    /* ════════════════════════════════════════
+       OPTION C — TERMINAL
+       IBM Plex Mono, gradient left→right,
+       minimal dots, AIM-coded
+    ════════════════════════════════════════ */
+    .c-bg {
+      background: linear-gradient(145deg, #161210, #0E0C0A);
+    }
+    .c-bg::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 50% 0%, rgba(232,96,138,0.04) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    .c-mark-wrap {
+      width: 110px; height: 110px;
+      background: #111009;
+      border-radius: 22px;
+      border: 1px solid rgba(255,255,255,0.07);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      position: relative;
+    }
+    .c-mdot {
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .c-mdot-r { background: var(--rose); }
+    .c-mdot-g { background: var(--gold); }
+    .c-mdot-l { background: var(--lav); }
+
+    /* gradient clipping for text */
+    .c-grad-text {
+      background: linear-gradient(90deg, var(--rose) 0%, var(--gold) 50%, var(--lav) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .c-letter {
+      font-family: 'IBM Plex Mono', monospace;
+      font-weight: 700;
+      font-size: 78px;
+      line-height: 1;
+      letter-spacing: 4px;
+    }
+
+    .c-sep {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin: 0 4px;
+      background: rgba(245,237,224,0.15);
+    }
+
+    .c-wm { display: flex; align-items: center; line-height: 1; }
+    .c-tl {
+      font-size: 10px;
+      font-family: 'IBM Plex Mono', monospace;
+      letter-spacing: 4px;
+      color: #3A3028;
+    }
+
+    .c-sm { width: 8px; height: 8px; background: rgba(245,237,224,0.2); }
+
+  </style>
+</head>
+<body>
+
+
+<!-- ════════════ OPTION A — SIGNAL ════════════ -->
+<section>
+  <div class="section-header">
+    <span class="section-label">Option A</span>
+    <span class="section-title" style="color:var(--text);">Signal</span>
+    <span class="section-desc">Space Grotesk — per-letter color — refined glow — clean</span>
+  </div>
+
+  <div class="lockup-row">
+
+    <!-- App Logo -->
+    <div class="card-wrap">
+      <span class="card-label">App Logo</span>
+      <div class="card a-bg" style="padding: 0; width:110px; height:110px; border-radius:24px;">
+        <div class="a-mark-wrap" style="border:none; border-radius:24px; width:100%; height:100%;">
+          <div class="a-mdot a-mdot-r"></div>
+          <div class="a-mdot a-mdot-g"></div>
+          <div class="a-mdot a-mdot-l"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Wordmark -->
+    <div class="card-wrap">
+      <span class="card-label">Wordmark</span>
+      <div class="card a-bg" style="padding: 28px 40px 22px;">
+        <div class="a-wm">
+          <span class="a-letter a-H">H</span>
+          <div class="a-sep a-sep-r"></div>
+          <span class="a-letter a-I">I</span>
+          <div class="a-sep a-sep-g"></div>
+          <span class="a-letter a-M">M</span>
+          <div class="a-sep a-sep-l"></div>
+        </div>
+        <span class="tl a-tl" style="margin-top:10px;">Friendship · First</span>
+      </div>
+    </div>
+
+    <!-- Horizontal Lockup -->
+    <div class="card-wrap">
+      <span class="card-label">Horizontal Lockup</span>
+      <div class="card a-bg" style="padding: 28px 36px; flex-direction:row; gap:24px;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div class="a-mdot a-mdot-r"></div>
+          <div class="a-mdot a-mdot-g"></div>
+          <div class="a-mdot a-mdot-l"></div>
+        </div>
+        <div class="vdiv" style="height:36px;"></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+          <div class="a-wm">
+            <span class="a-letter a-H" style="font-size:60px;">H</span>
+            <div class="a-sep a-sep-r" style="width:9px;height:9px;margin:0 6px;"></div>
+            <span class="a-letter a-I" style="font-size:60px;">I</span>
+            <div class="a-sep a-sep-g" style="width:9px;height:9px;margin:0 6px;"></div>
+            <span class="a-letter a-M" style="font-size:60px;">M</span>
+            <div class="a-sep a-sep-l" style="width:9px;height:9px;margin:0 6px;"></div>
+          </div>
+          <span class="tl a-tl">Friendship · First</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stacked Lockup -->
+    <div class="card-wrap">
+      <span class="card-label">Stacked Lockup</span>
+      <div class="card a-bg" style="padding: 32px 40px 24px;" id="a-stacked">
+        <div class="sm-row" id="a-sm-row" style="height:24px; margin-bottom:4px;">
+          <div class="sm-dot a-sm a-sm-r" id="a-smd-r" style="width:12px;height:12px;"></div>
+          <div class="sm-dot a-sm a-sm-g" id="a-smd-g" style="width:12px;height:12px;"></div>
+          <div class="sm-dot a-sm a-sm-l" id="a-smd-l" style="width:12px;height:12px;"></div>
+        </div>
+        <div class="a-wm" id="a-wm-stacked">
+          <span class="a-letter a-H" id="a-lH">H</span>
+          <div class="a-sep a-sep-r" id="a-sR"></div>
+          <span class="a-letter a-I" id="a-lI">I</span>
+          <div class="a-sep a-sep-g" id="a-sG"></div>
+          <span class="a-letter a-M" id="a-lM">M</span>
+          <div class="a-sep a-sep-l" id="a-sL"></div>
+        </div>
+        <span class="tl a-tl" style="margin-top:10px;">Friendship · First</span>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- ════════════ OPTION B — PRESENCE ════════════ -->
+<section>
+  <div class="section-header">
+    <span class="section-label">Option B</span>
+    <span class="section-title" style="color:var(--text);">Presence</span>
+    <span class="section-desc">Space Grotesk — larger dots — glow halos — text shadows — more expressive</span>
+  </div>
+
+  <div class="lockup-row">
+
+    <!-- App Logo -->
+    <div class="card-wrap">
+      <span class="card-label">App Logo</span>
+      <div class="card b-bg" style="width:110px;height:110px;border-radius:26px;padding:0;">
+        <div class="b-mark-wrap" style="border:none;border-radius:26px;width:100%;height:100%;">
+          <div class="b-mdot b-mdot-r"></div>
+          <div class="b-mdot b-mdot-g"></div>
+          <div class="b-mdot b-mdot-l"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Wordmark -->
+    <div class="card-wrap">
+      <span class="card-label">Wordmark</span>
+      <div class="card b-bg" style="padding: 28px 40px 22px;">
+        <div class="b-wm">
+          <span class="b-letter b-H">H</span>
+          <div class="b-sep b-sep-r"></div>
+          <span class="b-letter b-I">I</span>
+          <div class="b-sep b-sep-g"></div>
+          <span class="b-letter b-M">M</span>
+          <div class="b-sep b-sep-l"></div>
+        </div>
+        <span class="tl b-tl" style="margin-top:10px; color:var(--muted);">Friendship · First</span>
+      </div>
+    </div>
+
+    <!-- Horizontal Lockup -->
+    <div class="card-wrap">
+      <span class="card-label">Horizontal Lockup</span>
+      <div class="card b-bg" style="padding: 28px 36px; flex-direction:row; gap:24px;">
+        <div style="display:flex;align-items:center;gap:9px;">
+          <div class="b-mdot b-mdot-r"></div>
+          <div class="b-mdot b-mdot-g"></div>
+          <div class="b-mdot b-mdot-l"></div>
+        </div>
+        <div class="vdiv" style="height:40px;"></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+          <div class="b-wm">
+            <span class="b-letter b-H" style="font-size:66px;">H</span>
+            <div class="b-sep b-sep-r" style="width:11px;height:11px;margin:0 5px;"></div>
+            <span class="b-letter b-I" style="font-size:66px;">I</span>
+            <div class="b-sep b-sep-g" style="width:11px;height:11px;margin:0 5px;"></div>
+            <span class="b-letter b-M" style="font-size:66px;">M</span>
+            <div class="b-sep b-sep-l" style="width:11px;height:11px;margin:0 5px;"></div>
+          </div>
+          <span class="tl b-tl" style="color:var(--muted);">Friendship · First</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stacked Lockup -->
+    <div class="card-wrap">
+      <span class="card-label">Stacked Lockup</span>
+      <div class="card b-bg" style="padding: 32px 40px 24px;" id="b-stacked">
+        <div class="sm-row" id="b-sm-row" style="height:26px; margin-bottom:4px;">
+          <div class="sm-dot b-sm b-sm-r" id="b-smd-r" style="width:14px;height:14px;"></div>
+          <div class="sm-dot b-sm b-sm-g" id="b-smd-g" style="width:14px;height:14px;"></div>
+          <div class="sm-dot b-sm b-sm-l" id="b-smd-l" style="width:14px;height:14px;"></div>
+        </div>
+        <div class="b-wm" id="b-wm-stacked">
+          <span class="b-letter b-H" id="b-lH">H</span>
+          <div class="b-sep b-sep-r" id="b-sR"></div>
+          <span class="b-letter b-I" id="b-lI">I</span>
+          <div class="b-sep b-sep-g" id="b-sG"></div>
+          <span class="b-letter b-M" id="b-lM">M</span>
+          <div class="b-sep b-sep-l" id="b-sL"></div>
+        </div>
+        <span class="tl b-tl" style="margin-top:10px; color:var(--muted);">Friendship · First</span>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- ════════════ OPTION C — TERMINAL ════════════ -->
+<section>
+  <div class="section-header">
+    <span class="section-label">Option C</span>
+    <span class="section-title" style="color:var(--text);">Terminal</span>
+    <span class="section-desc">IBM Plex Mono — left→right gradient — minimal dots — AIM-coded</span>
+  </div>
+
+  <div class="lockup-row">
+
+    <!-- App Logo -->
+    <div class="card-wrap">
+      <span class="card-label">App Logo</span>
+      <div class="card c-bg" style="width:110px;height:110px;border-radius:22px;padding:0;overflow:hidden;">
+        <div class="c-mark-wrap" style="border:none;border-radius:22px;width:100%;height:100%;">
+          <div class="c-mdot c-mdot-r"></div>
+          <div class="c-mdot c-mdot-g"></div>
+          <div class="c-mdot c-mdot-l"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Wordmark -->
+    <div class="card-wrap">
+      <span class="card-label">Wordmark</span>
+      <div class="card c-bg" style="padding: 28px 44px 22px;">
+        <div class="c-wm c-grad-text">
+          <span class="c-letter">H</span>
+          <div class="c-sep" style="-webkit-text-fill-color:initial; background:rgba(245,237,224,0.15); margin:0 6px;"></div>
+          <span class="c-letter">I</span>
+          <div class="c-sep" style="margin:0 6px;"></div>
+          <span class="c-letter">M</span>
+          <div class="c-sep" style="margin:0 6px;"></div>
+        </div>
+        <span class="tl c-tl" style="margin-top:12px;">friendship · first</span>
+      </div>
+    </div>
+
+    <!-- Horizontal Lockup -->
+    <div class="card-wrap">
+      <span class="card-label">Horizontal Lockup</span>
+      <div class="card c-bg" style="padding: 28px 36px; flex-direction:row; gap:24px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div class="c-mdot c-mdot-r"></div>
+          <div class="c-mdot c-mdot-g"></div>
+          <div class="c-mdot c-mdot-l"></div>
+        </div>
+        <div class="vdiv" style="height:36px;"></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+          <div class="c-wm c-grad-text">
+            <span class="c-letter" style="font-size:56px;">H</span>
+            <div class="c-sep" style="margin:0 5px;width:6px;height:6px;"></div>
+            <span class="c-letter" style="font-size:56px;">I</span>
+            <div class="c-sep" style="margin:0 5px;width:6px;height:6px;"></div>
+            <span class="c-letter" style="font-size:56px;">M</span>
+            <div class="c-sep" style="margin:0 5px;width:6px;height:6px;"></div>
+          </div>
+          <span class="tl c-tl">friendship · first</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stacked Lockup -->
+    <div class="card-wrap">
+      <span class="card-label">Stacked Lockup</span>
+      <div class="card c-bg" style="padding: 32px 44px 24px;" id="c-stacked">
+        <div class="sm-row" id="c-sm-row" style="height:22px; margin-bottom:6px;">
+          <div class="sm-dot c-sm c-mdot-r" id="c-smd-r" style="width:9px;height:9px;"></div>
+          <div class="sm-dot c-sm c-mdot-g" id="c-smd-g" style="width:9px;height:9px;"></div>
+          <div class="sm-dot c-sm c-mdot-l" id="c-smd-l" style="width:9px;height:9px;"></div>
+        </div>
+        <div class="c-wm c-grad-text" id="c-wm-stacked">
+          <span class="c-letter" id="c-lH">H</span>
+          <div class="c-sep" id="c-sR" style="margin:0 6px;"></div>
+          <span class="c-letter" id="c-lI">I</span>
+          <div class="c-sep" id="c-sG" style="margin:0 6px;"></div>
+          <span class="c-letter" id="c-lM">M</span>
+          <div class="c-sep" id="c-sL" style="margin:0 6px;"></div>
+        </div>
+        <span class="tl c-tl" style="margin-top:12px;">friendship · first</span>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+
+  <script>
+    // Generic stacked dot alignment
+    // dots sit: rose over rose-sep (left of I), gold over I, lavender over gold-sep (right of I)
+    function alignStackedDots(rowId, sepRId, lIId, sepGId, dotRId, dotGId, dotLId, dotSize) {
+      const row  = document.getElementById(rowId);
+      const sepR = document.getElementById(sepRId);
+      const lI   = document.getElementById(lIId);
+      const sepG = document.getElementById(sepGId);
+      const dotR = document.getElementById(dotRId);
+      const dotG = document.getElementById(dotGId);
+      const dotL = document.getElementById(dotLId);
+      if (!row || !sepR || !lI || !sepG) return;
+
+      const rowRect = row.getBoundingClientRect();
+      const half    = dotSize / 2;
+
+      function cx(el) {
+        const r = el.getBoundingClientRect();
+        return r.left + r.width / 2 - rowRect.left - half;
+      }
+
+      dotR.style.left = cx(sepR) + 'px';
+      dotG.style.left = cx(lI)   + 'px';
+      dotL.style.left = cx(sepG) + 'px';
+      dotR.style.top  = dotG.style.top = dotL.style.top =
+        ((row.clientHeight - dotSize) / 2) + 'px';
+    }
+
+    document.fonts.ready.then(() => {
+      alignStackedDots('a-sm-row','a-sR','a-lI','a-sG','a-smd-r','a-smd-g','a-smd-l', 12);
+      alignStackedDots('b-sm-row','b-sR','b-lI','b-sG','b-smd-r','b-smd-g','b-smd-l', 14);
+      alignStackedDots('c-sm-row','c-sR','c-lI','c-sG','c-smd-r','c-smd-g','c-smd-l',  9);
+    });
+  </script>
+</body>
+</html>

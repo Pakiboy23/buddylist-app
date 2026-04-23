@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>H.I.M. — Logo Concepts 3</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --rose: #E8608A;
+      --gold: #D4963A;
+      --lav:  #A78BFA;
+      --bg:   #0C0A08;
+      --text: #F5EDE0;
+      --dim:  #4A3C35;
+    }
+    body {
+      background: var(--bg);
+      padding: 64px 36px 100px;
+      display: flex;
+      flex-direction: column;
+      gap: 88px;
+      font-family: 'Space Grotesk', sans-serif;
+    }
+    .section-header { margin-bottom: 32px; }
+    .section-label  { font-size:10px; letter-spacing:4px; text-transform:uppercase; color:var(--dim); display:block; margin-bottom:4px; }
+    .section-title  { font-size:22px; font-weight:700; color:var(--text); display:block; margin-bottom:4px; }
+    .section-desc   { font-size:13px; color:#342A22; }
+    .lockup-row     { display:flex; align-items:flex-start; gap:16px; flex-wrap:wrap; }
+    .card-wrap      { display:flex; flex-direction:column; align-items:center; gap:10px; }
+    .card-label     { font-size:10px; letter-spacing:2.5px; text-transform:uppercase; color:var(--dim); }
+    .card           { border-radius:20px; border:1px solid rgba(255,255,255,0.05); display:flex; flex-direction:column; align-items:center; justify-content:center; position:relative; overflow:hidden; }
+    .vdiv           { width:1px; background:rgba(255,255,255,0.06); align-self:stretch; }
+  </style>
+</head>
+<body>
+
+
+<!-- ══════════════════════════════════════════════════
+     CONCEPT 1 — ORBIT
+     The mark is an orbital system. A center point with
+     three presences in motion around it. Your people
+     in your gravitational pull. The feeling of a group
+     chat that never stops.
+══════════════════════════════════════════════════ -->
+<section>
+  <div class="section-header">
+    <span class="section-label">Concept 1</span>
+    <span class="section-title">Orbit</span>
+    <span class="section-desc">Your people in your gravitational pull. Three presences in motion around a shared center. The group chat that's always going.</span>
+  </div>
+
+  <div class="lockup-row">
+
+    <!-- App Logo -->
+    <div class="card-wrap">
+      <span class="card-label">App Logo</span>
+      <div class="card" style="width:110px;height:110px;border-radius:26px;padding:0;background:linear-gradient(145deg,#1C1814,#110E0B);">
+        <svg viewBox="0 0 110 110" width="110" height="110" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="o-bg" cx="40%" cy="35%" r="70%">
+              <stop offset="0%" stop-color="#221C17"/>
+              <stop offset="100%" stop-color="#0F0C09"/>
+            </radialGradient>
+            <filter id="o-glow-r"><feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            <filter id="o-glow-g"><feGaussianBlur stdDeviation="3"   result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            <filter id="o-glow-l"><feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          </defs>
+          <rect width="110" height="110" rx="26" fill="url(#o-bg)"/>
+          <!-- Outer orbit ring -->
+          <circle cx="55" cy="55" r="34" fill="none" stroke="rgba(255,255,255,0.045)" stroke-width="1"/>
+          <!-- Inner orbit ring -->
+          <circle cx="55" cy="55" r="20" fill="none" stroke="rgba(255,255,255,0.035)" stroke-width="1"/>
+          <!-- Center presence -->
+          <circle cx="55" cy="55" r="5"  fill="#F5EDE0" opacity="0.55"/>
+          <!-- Rose — top right, outer orbit -->
+          <circle cx="55" cy="55" r="11" fill="#E8608A" fill-opacity="0.15" filter="url(#o-glow-r)" transform="translate(24,-20)"/>
+          <circle cx="79" cy="35" r="8.5" fill="#E8608A" filter="url(#o-glow-r)"/>
+          <!-- Gold — bottom, inner orbit -->
+          <circle cx="55" cy="55" r="9"  fill="#D4963A" fill-opacity="0.15" filter="url(#o-glow-g)" transform="translate(-3,22)"/>
+          <circle cx="52" cy="75" r="7"  fill="#D4963A" filter="url(#o-glow-g)"/>
+          <!-- Lavender — left, outer orbit -->
+          <circle cx="55" cy="55" r="10" fill="#A78BFA" fill-opacity="0.15" filter="url(#o-glow-l)" transform="translate(-30,4)"/>
+          <circle cx="23" cy="57" r="8"  fill="#A78BFA" filter="url(#o-glow-l)"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Wordmark -->
+    <div class="card-wrap">
+      <span class="card-label">Wordmark</span>
+      <div class="card" style="padding:32px 52px 26px; background:linear-gradient(145deg,#181411,#0E0B09); gap:20px;">
+        <svg viewBox="0 0 90 90" width="90" height="90" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <filter id="owm-r"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            <filter id="owm-g"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            <filter id="owm-l"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          </defs>
+          <circle cx="45" cy="45" r="28" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+          <circle cx="45" cy="45" r="16" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+          <circle cx="45" cy="45" r="4.5" fill="#F5EDE0" opacity="0.5"/>
+          <!-- Rose top-right -->
+          <circle cx="45" cy="45" r="9" fill="#E8608A" fill-opacity="0.15" filter="url(#owm-r)" transform="translate(19,-16)"/>
+          <circle cx="64" cy="29" r="7" fill="#E8608A" filter="url(#owm-r)"/>
+          <!-- Gold bottom -->
+          <circle cx="45" cy="45" r="7.5" fill="#D4963A" fill-opacity="0.15" filter="url(#owm-g)" transform="translate(-2,18)"/>
+          <circle cx="43" cy="62" r="5.5" fill="#D4963A" filter="url(#owm-g)"/>
+          <!-- Lav left -->
+          <circle cx="45" cy="45" r="8.5" fill="#A78BFA" fill-opacity="0.15" filter="url(#owm-l)" transform="translate(-24,3)"/>
+          <circle cx="19" cy="47" r="6.5" fill="#A78BFA" filter="url(#owm-l)"/>
+        </svg>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+          <span style="font-family:'Space Grotesk';font-weight:700;font-size:42px;color:var(--text);letter-spacing:-1px;line-height:1;">him</span>
+          <span style="font-family:'Space Grotesk';font-size:10px;letter-spacing:3.5px;text-transform:uppercase;color:var(--dim);">friendship · first</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Horizontal Lockup -->
+    <div class="card-wrap">
+      <span class="card-label">Horizontal Lockup</span>
+      <div class="card" style="padding:24px 32px;background:linear-gradient(145deg,#181411,#0E0B09);flex-direction:row;gap:20px;align-items:center;">
+        <svg viewBox="0 0 60 60" width="60" height="60" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <filter id="oh-r"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            <filter id="oh-g"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            <filter id="oh-l"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          </defs>
+          <circle cx="30" cy="30" r="20" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+          <circle cx="30" cy="30" r="3" fill="#F5EDE0" opacity="0.5"/>
+          <circle cx="30" cy="30" r="7" fill="#E8608A" fill-opacity="0.12" filter="url(#oh-r)" transform="translate(13,-11)"/>
+          <circle cx="43" cy="19" r="5.5" fill="#E8608A" filter="url(#oh-r)"/>
+          <circle cx="30" cy="30" r="5.5" fill="#D4963A" fill-opacity="0.12" filter="url(#oh-g)" transform="translate(-2,13)"/>
+          <circle cx="28" cy="43" r="4" fill="#D4963A" filter="url(#oh-g)"/>
+          <circle cx="30" cy="30" r="6" fill="#A78BFA" fill-opacity="0.12" filter="url(#oh-l)" transform="translate(-17,2)"/>
+          <circle cx="13" cy="32" r="4.5" fill="#A78BFA" filter="url(#oh-l)"/>
+        </svg>
+        <div class="vdiv" style="height:40px;"></div>
+        <div style="display:flex;flex-direction:column;align-items:flex-start;gap:4px;">
+          <span style="font-family:'Space Grotesk';font-weight:700;font-size:32px;color:var(--text);letter-spacing:-1px;line-height:1;">him</span>
+          <span style="font-family:'Space Grotesk';font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--dim);">friendship · first</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stacked Lockup -->
+    <div class="card-wrap">
+      <span class="card-label">Stacked Lockup</span>
+      <div class="card" style="padding:30px 48px 24px;background:linear-gradient(145deg,#181411,#0E0B09);gap:16px;">
+        <svg viewBox="0 0 80 80" width="80" height="80" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <filter id="os-r"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            <filter id="os-g"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            <filter id="os-l"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          </defs>
+          <circle cx="40" cy="40" r="26" fill="none" stroke="rgba(255,255,255,0.045)" stroke-width="1"/>
+          <circle cx="40" cy="40" r="15" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+          <circle cx="40" cy="40" r="4" fill="#F5EDE0" opacity="0.5"/>
+          <circle cx="40" cy="40" r="8.5" fill="#E8608A" fill-opacity="0.14" filter="url(#os-r)" transform="translate(17,-15)"/>
+          <circle cx="57" cy="25" r="7" fill="#E8608A" filter="url(#os-r)"/>
+          <circle cx="40" cy="40" r="7" fill="#D4963A" fill-opacity="0.14" filter="url(#os-g)" transform="translate(-2,16)"/>
+          <circle cx="38" cy="56" r="5.5" fill="#D4963A" filter="url(#os-g)"/>
+          <circle cx="40" cy="40" r="8" fill="#A78BFA" fill-opacity="0.14" filter="url(#os-l)" transform="translate(-21,2)"/>
+          <circle cx="17" cy="42" r="6" fill="#A78BFA" filter="url(#os-l)"/>
+        </svg>
+        <span style="font-family:'Space Grotesk';font-weight:700;font-size:38px;color:var(--text);letter-spacing:-1px;line-height:1;">him</span>
+        <span style="font-family:'Space Grotesk';font-size:10px;letter-spacing:3.5px;text-transform:uppercase;color:var(--dim);">friendship · first</span>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════════════════════════
+     CONCEPT 2 — AURA
+     A single pulse expanding outward. The feeling of
+     walking into a room and being seen. Warmth that
+     radiates. The glow of being somewhere you belong.
+══════════════════════════════════════════════════ -->
+<section>
+  <div class="section-header">
+    <span class="section-label">Concept 2</span>
+    <span class="section-title">Aura</span>
+    <span class="section-desc">The warmth of being seen. A single presence radiating outward. The feeling of walking into the right room after years of the wrong ones.</span>
+  </div>
+
+  <div class="lockup-row">
+
+    <!-- App Logo -->
+    <div class="card-wrap">
+      <span class="card-label">App Logo</span>
+      <div class="card" style="width:110px;height:110px;border-radius:26px;padding:0;background:#0F0C09;">
+        <svg viewBox="0 0 110 110" width="110" height="110" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="a-core" cx="50%" cy="50%" r="50%">
+              <stop offset="0%"   stop-color="#F5EDE0" stop-opacity="1"/>
+              <stop offset="100%" stop-color="#E8608A" stop-opacity="1"/>
+            </radialGradient>
+            <radialGradient id="a-ring1" cx="50%" cy="50%" r="50%">
+              <stop offset="0%"   stop-color="#E8608A" stop-opacity="0.35"/>
+              <stop offset="100%" stop-color="#E8608A" stop-opacity="0"/>
+            </radialGradient>
+            <radialGradient id="a-ring2" cx="50%" cy="50%" r="50%">
+              <stop offset="0%"   stop-color="#D4963A" stop-opacity="0.22"/>
+              <stop offset="100%" stop-color="#D4963A" stop-opacity="0"/>
+            </radialGradient>
+            <radialGradient id="a-ring3" cx="50%" cy="50%" r="50%">
+              <stop offset="0%"   stop-color="#A78BFA" stop-opacity="0.14"/>
+              <stop offset="100%" stop-color="#A78BFA" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+          <rect width="110" height="110" rx="26" fill="#0F0C09"/>
+          <!-- Outermost aura -->
+          <circle cx="55" cy="55" r="50" fill="url(#a-ring3)"/>
+          <!-- Mid aura -->
+          <circle cx="55" cy="55" r="38" fill="url(#a-ring2)"/>
+          <!-- Inner aura -->
+          <circle cx="55" cy="55" r="26" fill="url(#a-ring1)"/>
+          <!-- Core ring stroke -->
+          <circle cx="55" cy="55" r="13" fill="none" stroke="#E8608A" stroke-width="1" opacity="0.35"/>
+          <!-- Core -->
+          <circle cx="55" cy="55" r="10" fill="url(#a-core)"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Wordmark -->
+    <div class="card-wrap">
+      <span class="card-label">Wordmark</span>
+      <div class="card" style="padding:32px 52px 26px;background:linear-gradient(145deg,#161210,#0D0A08);gap:22px;">
+        <svg viewBox="0 0 90 90" width="90" height="90" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="awm-c" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#F5EDE0"/><stop offset="100%" stop-color="#E8608A"/></radialGradient>
+            <radialGradient id="awm-r1" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#E8608A" stop-opacity="0.3"/><stop offset="100%" stop-color="#E8608A" stop-opacity="0"/></radialGradient>
+            <radialGradient id="awm-r2" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#D4963A" stop-opacity="0.18"/><stop offset="100%" stop-color="#D4963A" stop-opacity="0"/></radialGradient>
+            <radialGradient id="awm-r3" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#A78BFA" stop-opacity="0.1"/><stop offset="100%" stop-color="#A78BFA" stop-opacity="0"/></radialGradient>
+          </defs>
+          <circle cx="45" cy="45" r="42" fill="url(#awm-r3)"/>
+          <circle cx="45" cy="45" r="32" fill="url(#awm-r2)"/>
+          <circle cx="45" cy="45" r="21" fill="url(#awm-r1)"/>
+          <circle cx="45" cy="45" r="10" fill="none" stroke="#E8608A" stroke-width="1" opacity="0.3"/>
+          <circle cx="45" cy="45" r="8"  fill="url(#awm-c)"/>
+        </svg>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+          <span style="font-family:'Space Grotesk';font-weight:700;font-size:42px;color:var(--text);letter-spacing:-1px;line-height:1;">him</span>
+          <span style="font-family:'Space Grotesk';font-size:10px;letter-spacing:3.5px;text-transform:uppercase;color:var(--dim);">friendship · first</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Horizontal Lockup -->
+    <div class="card-wrap">
+      <span class="card-label">Horizontal Lockup</span>
+      <div class="card" style="padding:24px 32px;background:linear-gradient(145deg,#161210,#0D0A08);flex-direction:row;gap:20px;align-items:center;">
+        <svg viewBox="0 0 56 56" width="56" height="56" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="ah-c" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#F5EDE0"/><stop offset="100%" stop-color="#E8608A"/></radialGradient>
+            <radialGradient id="ah-1" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#E8608A" stop-opacity="0.3"/><stop offset="100%" stop-color="#E8608A" stop-opacity="0"/></radialGradient>
+            <radialGradient id="ah-2" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#D4963A" stop-opacity="0.18"/><stop offset="100%" stop-color="#D4963A" stop-opacity="0"/></radialGradient>
+            <radialGradient id="ah-3" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#A78BFA" stop-opacity="0.1"/><stop offset="100%" stop-color="#A78BFA" stop-opacity="0"/></radialGradient>
+          </defs>
+          <circle cx="28" cy="28" r="27" fill="url(#ah-3)"/>
+          <circle cx="28" cy="28" r="20" fill="url(#ah-2)"/>
+          <circle cx="28" cy="28" r="13" fill="url(#ah-1)"/>
+          <circle cx="28" cy="28" r="6"  fill="none" stroke="#E8608A" stroke-width="1" opacity="0.3"/>
+          <circle cx="28" cy="28" r="5"  fill="url(#ah-c)"/>
+        </svg>
+        <div class="vdiv" style="height:40px;"></div>
+        <div style="display:flex;flex-direction:column;align-items:flex-start;gap:4px;">
+          <span style="font-family:'Space Grotesk';font-weight:700;font-size:32px;color:var(--text);letter-spacing:-1px;line-height:1;">him</span>
+          <span style="font-family:'Space Grotesk';font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--dim);">friendship · first</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stacked Lockup -->
+    <div class="card-wrap">
+      <span class="card-label">Stacked Lockup</span>
+      <div class="card" style="padding:28px 48px 22px;background:linear-gradient(145deg,#161210,#0D0A08);gap:16px;">
+        <svg viewBox="0 0 80 80" width="80" height="80" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="as-c" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#F5EDE0"/><stop offset="100%" stop-color="#E8608A"/></radialGradient>
+            <radialGradient id="as-1" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#E8608A" stop-opacity="0.3"/><stop offset="100%" stop-color="#E8608A" stop-opacity="0"/></radialGradient>
+            <radialGradient id="as-2" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#D4963A" stop-opacity="0.18"/><stop offset="100%" stop-color="#D4963A" stop-opacity="0"/></radialGradient>
+            <radialGradient id="as-3" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#A78BFA" stop-opacity="0.1"/><stop offset="100%" stop-color="#A78BFA" stop-opacity="0"/></radialGradient>
+          </defs>
+          <circle cx="40" cy="40" r="38" fill="url(#as-3)"/>
+          <circle cx="40" cy="40" r="29" fill="url(#as-2)"/>
+          <circle cx="40" cy="40" r="19" fill="url(#as-1)"/>
+          <circle cx="40" cy="40" r="9"  fill="none" stroke="#E8608A" stroke-width="1" opacity="0.3"/>
+          <circle cx="40" cy="40" r="7"  fill="url(#as-c)"/>
+        </svg>
+        <span style="font-family:'Space Grotesk';font-weight:700;font-size:38px;color:var(--text);letter-spacing:-1px;line-height:1;">him</span>
+        <span style="font-family:'Space Grotesk';font-size:10px;letter-spacing:3.5px;text-transform:uppercase;color:var(--dim);">friendship · first</span>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════════════════════════
+     CONCEPT 3 — ARCH
+     A threshold. An entrance. The specific warmth of
+     walking into a gay bar, a chat room, a group of
+     friends who were waiting for you. The arch as
+     invitation and belonging.
+══════════════════════════════════════════════════ -->
+<section>
+  <div class="section-header">
+    <span class="section-label">Concept 3</span>
+    <span class="section-title">Arch</span>
+    <span class="section-desc">A threshold. Walking through into somewhere that's yours. The specific feeling of a space — bar, room, group chat — built for you to exhale in.</span>
+  </div>
+
+  <div class="lockup-row">
+
+    <!-- App Logo -->
+    <div class="card-wrap">
+      <span class="card-label">App Logo</span>
+      <div class="card" style="width:110px;height:110px;border-radius:26px;padding:0;background:#0F0C09;">
+        <svg viewBox="0 0 110 110" width="110" height="110" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="arch-stroke" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%"   stop-color="#E8608A"/>
+              <stop offset="50%"  stop-color="#D4963A"/>
+              <stop offset="100%" stop-color="#A78BFA"/>
+            </linearGradient>
+            <radialGradient id="arch-glow" cx="50%" cy="75%" r="60%">
+              <stop offset="0%"   stop-color="#E8608A" stop-opacity="0.12"/>
+              <stop offset="100%" stop-color="#E8608A" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+          <rect width="110" height="110" rx="26" fill="#0F0C09"/>
+          <!-- Glow from inside the arch -->
+          <ellipse cx="55" cy="82" rx="36" ry="20" fill="url(#arch-glow)"/>
+          <!-- The arch: outer -->
+          <path d="M 22 84 L 22 52 A 33 33 0 0 1 88 52 L 88 84"
+                fill="none"
+                stroke="url(#arch-stroke)"
+                stroke-width="3.5"
+                stroke-linecap="round"/>
+          <!-- The arch: inner (thinner, faint) -->
+          <path d="M 32 84 L 32 54 A 23 23 0 0 1 78 54 L 78 84"
+                fill="none"
+                stroke="rgba(245,237,224,0.06)"
+                stroke-width="1"
+                stroke-linecap="round"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Wordmark -->
+    <div class="card-wrap">
+      <span class="card-label">Wordmark</span>
+      <div class="card" style="padding:32px 52px 28px;background:linear-gradient(145deg,#161210,#0D0A08);gap:18px;">
+        <svg viewBox="0 0 100 80" width="100" height="80" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="awm2-s" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%"   stop-color="#E8608A"/>
+              <stop offset="50%"  stop-color="#D4963A"/>
+              <stop offset="100%" stop-color="#A78BFA"/>
+            </linearGradient>
+            <radialGradient id="awm2-g" cx="50%" cy="85%" r="55%">
+              <stop offset="0%"   stop-color="#E8608A" stop-opacity="0.1"/>
+              <stop offset="100%" stop-color="#E8608A" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+          <ellipse cx="50" cy="72" rx="34" ry="14" fill="url(#awm2-g)"/>
+          <path d="M 10 72 L 10 40 A 40 40 0 0 1 90 40 L 90 72"
+                fill="none" stroke="url(#awm2-s)" stroke-width="3" stroke-linecap="round"/>
+          <path d="M 22 72 L 22 44 A 28 28 0 0 1 78 44 L 78 72"
+                fill="none" stroke="rgba(245,237,224,0.05)" stroke-width="1" stroke-linecap="round"/>
+        </svg>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+          <span style="font-family:'Space Grotesk';font-weight:700;font-size:42px;color:var(--text);letter-spacing:-1px;line-height:1;">him</span>
+          <span style="font-family:'Space Grotesk';font-size:10px;letter-spacing:3.5px;text-transform:uppercase;color:var(--dim);">friendship · first</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Horizontal Lockup -->
+    <div class="card-wrap">
+      <span class="card-label">Horizontal Lockup</span>
+      <div class="card" style="padding:24px 32px;background:linear-gradient(145deg,#161210,#0D0A08);flex-direction:row;gap:20px;align-items:center;">
+        <svg viewBox="0 0 56 56" width="56" height="56" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="ah2-s" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%"   stop-color="#E8608A"/>
+              <stop offset="50%"  stop-color="#D4963A"/>
+              <stop offset="100%" stop-color="#A78BFA"/>
+            </linearGradient>
+          </defs>
+          <path d="M 8 46 L 8 28 A 20 20 0 0 1 48 28 L 48 46"
+                fill="none" stroke="url(#ah2-s)" stroke-width="3" stroke-linecap="round"/>
+          <path d="M 16 46 L 16 30 A 12 12 0 0 1 40 30 L 40 46"
+                fill="none" stroke="rgba(245,237,224,0.05)" stroke-width="1" stroke-linecap="round"/>
+        </svg>
+        <div class="vdiv" style="height:40px;"></div>
+        <div style="display:flex;flex-direction:column;align-items:flex-start;gap:4px;">
+          <span style="font-family:'Space Grotesk';font-weight:700;font-size:32px;color:var(--text);letter-spacing:-1px;line-height:1;">him</span>
+          <span style="font-family:'Space Grotesk';font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--dim);">friendship · first</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stacked Lockup -->
+    <div class="card-wrap">
+      <span class="card-label">Stacked Lockup</span>
+      <div class="card" style="padding:28px 48px 22px;background:linear-gradient(145deg,#161210,#0D0A08);gap:16px;">
+        <svg viewBox="0 0 90 72" width="90" height="72" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="as2-s" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%"   stop-color="#E8608A"/>
+              <stop offset="50%"  stop-color="#D4963A"/>
+              <stop offset="100%" stop-color="#A78BFA"/>
+            </linearGradient>
+            <radialGradient id="as2-g" cx="50%" cy="90%" r="50%">
+              <stop offset="0%"   stop-color="#E8608A" stop-opacity="0.1"/>
+              <stop offset="100%" stop-color="#E8608A" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+          <ellipse cx="45" cy="66" rx="30" ry="12" fill="url(#as2-g)"/>
+          <path d="M 8 66 L 8 38 A 37 37 0 0 1 82 38 L 82 66"
+                fill="none" stroke="url(#as2-s)" stroke-width="3" stroke-linecap="round"/>
+          <path d="M 20 66 L 20 41 A 25 25 0 0 1 70 41 L 70 66"
+                fill="none" stroke="rgba(245,237,224,0.05)" stroke-width="1" stroke-linecap="round"/>
+        </svg>
+        <span style="font-family:'Space Grotesk';font-weight:700;font-size:38px;color:var(--text);letter-spacing:-1px;line-height:1;">him</span>
+        <span style="font-family:'Space Grotesk';font-size:10px;letter-spacing:3.5px;text-transform:uppercase;color:var(--dim);">friendship · first</span>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+
+</body>
+</html>

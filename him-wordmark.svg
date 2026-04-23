@@ -1,0 +1,98 @@
+<svg viewBox="0 0 400 140" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="H.I.M. — friendship-first social app for gay men">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@700&amp;display=swap');
+    </style>
+
+    <!-- Background gradient -->
+    <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1D1916"/>
+      <stop offset="100%" stop-color="#13100E"/>
+    </linearGradient>
+
+    <!-- Dot glow filters -->
+    <filter id="glow-r" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="4.5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="glow-g" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="4.5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="glow-l" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="4.5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="400" height="140" rx="22" fill="url(#bg-grad)"/>
+
+  <!-- Ambient color bleeds -->
+  <circle cx="55" cy="38" r="55" fill="#E8608A" fill-opacity="0.055"/>
+  <circle cx="345" cy="100" r="40" fill="#A78BFA" fill-opacity="0.045"/>
+  <circle cx="200" cy="140" r="50" fill="#D4963A" fill-opacity="0.030"/>
+
+  <!-- ─── LETTERS ─────────────────────────────────────── -->
+  <!-- H — Rose -->
+  <text
+    x="68"
+    y="96"
+    font-family="'Space Grotesk', 'Inter', system-ui, sans-serif"
+    font-weight="700"
+    font-size="82"
+    fill="#E8608A"
+    letter-spacing="-2">H</text>
+
+  <!-- Rose presence dot -->
+  <circle cx="142" cy="64" r="11" fill="#E8608A" fill-opacity="0.16" filter="url(#glow-r)"/>
+  <circle cx="142" cy="64" r="7.5" fill="#E8608A"/>
+
+  <!-- I — Gold -->
+  <text
+    x="160"
+    y="96"
+    font-family="'Space Grotesk', 'Inter', system-ui, sans-serif"
+    font-weight="700"
+    font-size="82"
+    fill="#D4963A"
+    letter-spacing="-2">I</text>
+
+  <!-- Gold presence dot -->
+  <circle cx="196" cy="64" r="11" fill="#D4963A" fill-opacity="0.16" filter="url(#glow-g)"/>
+  <circle cx="196" cy="64" r="7.5" fill="#D4963A"/>
+
+  <!-- M — Lavender -->
+  <text
+    x="214"
+    y="96"
+    font-family="'Space Grotesk', 'Inter', system-ui, sans-serif"
+    font-weight="700"
+    font-size="82"
+    fill="#A78BFA"
+    letter-spacing="-2">M</text>
+
+  <!-- Lavender trailing dot -->
+  <circle cx="293" cy="64" r="11" fill="#A78BFA" fill-opacity="0.16" filter="url(#glow-l)"/>
+  <circle cx="293" cy="64" r="7.5" fill="#A78BFA"/>
+
+  <!-- ─── TAGLINE ────────────────────────────────────── -->
+  <text
+    x="200"
+    y="122"
+    font-family="'Space Grotesk', 'Inter', system-ui, sans-serif"
+    font-weight="400"
+    font-size="11"
+    fill="#4A3C35"
+    text-anchor="middle"
+    letter-spacing="3.5">FRIENDSHIP · FIRST</text>
+</svg>

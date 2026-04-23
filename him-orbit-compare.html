@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>H.I.M. — Orbit Comparison</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --rose: #E8608A;
+      --gold: #D4963A;
+      --lav:  #A78BFA;
+      --dim:  #4A3C35;
+      --text: #F5EDE0;
+    }
+    body {
+      background: #0A0806;
+      padding: 60px 40px 100px;
+      font-family: 'Space Grotesk', sans-serif;
+      display: flex;
+      flex-direction: column;
+      gap: 72px;
+    }
+    .row-label {
+      font-size: 10px; letter-spacing: 4px;
+      text-transform: uppercase; color: var(--dim);
+      margin-bottom: 24px; display: block;
+    }
+    .row { display: flex; align-items: flex-start; gap: 24px; flex-wrap: wrap; }
+    .col { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+    .col-label {
+      font-size: 10px; letter-spacing: 2px;
+      text-transform: uppercase; color: #2E2620;
+    }
+    .mark-card {
+      border-radius: 26px;
+      border: 1px solid rgba(255,255,255,0.05);
+      overflow: hidden;
+    }
+    /* shared wordmark card */
+    .wm-card {
+      background: linear-gradient(145deg,#181411,#0E0B09);
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.05);
+      padding: 28px 44px 22px;
+      display: flex; flex-direction: column;
+      align-items: center; gap: 16px;
+    }
+    .him {
+      font-family: 'Space Grotesk', sans-serif;
+      line-height: 1;
+      letter-spacing: -1px;
+      color: var(--text);
+    }
+    .tagline {
+      font-size: 10px; letter-spacing: 3.5px;
+      text-transform: uppercase; color: var(--dim);
+    }
+
+    /* defs shared across SVGs via inline */
+    .section-divider {
+      width: 100%; height: 1px;
+      background: rgba(255,255,255,0.04);
+    }
+  </style>
+</head>
+<body>
+
+
+  <!-- ── Section 1: Mark comparison ─────────────────────── -->
+  <section>
+    <span class="row-label">Orbital arrangement — mark only</span>
+    <div class="row">
+
+      <!-- Equidistant: single ring, 120° apart -->
+      <div class="col">
+        <span class="col-label">Equidistant · single orbit</span>
+        <div class="mark-card">
+          <svg viewBox="0 0 110 110" width="110" height="110" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <radialGradient id="e-bg" cx="40%" cy="35%" r="70%">
+                <stop offset="0%" stop-color="#211D18"/><stop offset="100%" stop-color="#0F0C09"/>
+              </radialGradient>
+              <filter id="e-gr"><feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+              <filter id="e-gg"><feGaussianBlur stdDeviation="3"   result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+              <filter id="e-gl"><feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            </defs>
+            <rect width="110" height="110" rx="26" fill="url(#e-bg)"/>
+            <!-- Single orbit ring -->
+            <circle cx="55" cy="55" r="30" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+            <!-- Center -->
+            <circle cx="55" cy="55" r="4.5" fill="#F5EDE0" opacity="0.5"/>
+            <!-- Rose — top (270°) -->
+            <circle cx="55" cy="25" r="10"  fill="#E8608A" fill-opacity="0.15" filter="url(#e-gr)"/>
+            <circle cx="55" cy="25" r="7.5" fill="#E8608A" filter="url(#e-gr)"/>
+            <!-- Gold — bottom-right (30°) -->
+            <circle cx="80" cy="70" r="9"   fill="#D4963A" fill-opacity="0.15" filter="url(#e-gg)"/>
+            <circle cx="80" cy="70" r="6.5" fill="#D4963A" filter="url(#e-gg)"/>
+            <!-- Lav — bottom-left (150°) -->
+            <circle cx="30" cy="70" r="10"  fill="#A78BFA" fill-opacity="0.15" filter="url(#e-gl)"/>
+            <circle cx="30" cy="70" r="7.5" fill="#A78BFA" filter="url(#e-gl)"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Different radii: two rings, asymmetric positions -->
+      <div class="col">
+        <span class="col-label">Different radii · two orbits</span>
+        <div class="mark-card">
+          <svg viewBox="0 0 110 110" width="110" height="110" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <radialGradient id="d-bg" cx="40%" cy="35%" r="70%">
+                <stop offset="0%" stop-color="#211D18"/><stop offset="100%" stop-color="#0F0C09"/>
+              </radialGradient>
+              <filter id="d-gr"><feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+              <filter id="d-gg"><feGaussianBlur stdDeviation="3"   result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+              <filter id="d-gl"><feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            </defs>
+            <rect width="110" height="110" rx="26" fill="url(#d-bg)"/>
+            <!-- Outer orbit ring -->
+            <circle cx="55" cy="55" r="34" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+            <!-- Inner orbit ring -->
+            <circle cx="55" cy="55" r="20" fill="none" stroke="rgba(255,255,255,0.035)" stroke-width="1"/>
+            <!-- Center -->
+            <circle cx="55" cy="55" r="4.5" fill="#F5EDE0" opacity="0.5"/>
+            <!-- Rose — outer, top-right -->
+            <circle cx="79" cy="31" r="11"  fill="#E8608A" fill-opacity="0.15" filter="url(#d-gr)"/>
+            <circle cx="79" cy="31" r="8.5" fill="#E8608A" filter="url(#d-gr)"/>
+            <!-- Gold — inner, bottom -->
+            <circle cx="50" cy="75" r="9"   fill="#D4963A" fill-opacity="0.15" filter="url(#d-gg)"/>
+            <circle cx="50" cy="75" r="7"   fill="#D4963A" filter="url(#d-gg)"/>
+            <!-- Lav — outer, left -->
+            <circle cx="21" cy="57" r="10"  fill="#A78BFA" fill-opacity="0.15" filter="url(#d-gl)"/>
+            <circle cx="21" cy="57" r="8"   fill="#A78BFA" filter="url(#d-gl)"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Equidistant: two sizes, same ring -->
+      <div class="col">
+        <span class="col-label">Equidistant · varied dot size</span>
+        <div class="mark-card">
+          <svg viewBox="0 0 110 110" width="110" height="110" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <radialGradient id="v-bg" cx="40%" cy="35%" r="70%">
+                <stop offset="0%" stop-color="#211D18"/><stop offset="100%" stop-color="#0F0C09"/>
+              </radialGradient>
+              <filter id="v-gr"><feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+              <filter id="v-gg"><feGaussianBlur stdDeviation="4"   result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+              <filter id="v-gl"><feGaussianBlur stdDeviation="3"   result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            </defs>
+            <rect width="110" height="110" rx="26" fill="url(#v-bg)"/>
+            <circle cx="55" cy="55" r="30" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+            <circle cx="55" cy="55" r="4.5" fill="#F5EDE0" opacity="0.5"/>
+            <!-- Rose — top, mid size -->
+            <circle cx="55" cy="25" r="9"  fill="#E8608A" fill-opacity="0.15" filter="url(#v-gr)"/>
+            <circle cx="55" cy="25" r="7"  fill="#E8608A" filter="url(#v-gr)"/>
+            <!-- Gold — bottom-right, largest -->
+            <circle cx="80" cy="70" r="12" fill="#D4963A" fill-opacity="0.15" filter="url(#v-gg)"/>
+            <circle cx="80" cy="70" r="9"  fill="#D4963A" filter="url(#v-gg)"/>
+            <!-- Lav — bottom-left, smallest -->
+            <circle cx="30" cy="70" r="8"  fill="#A78BFA" fill-opacity="0.15" filter="url(#v-gl)"/>
+            <circle cx="30" cy="70" r="5.5" fill="#A78BFA" filter="url(#v-gl)"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Different radii: tighter, closer to center -->
+      <div class="col">
+        <span class="col-label">Different radii · tighter cluster</span>
+        <div class="mark-card">
+          <svg viewBox="0 0 110 110" width="110" height="110" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <radialGradient id="t-bg" cx="40%" cy="35%" r="70%">
+                <stop offset="0%" stop-color="#211D18"/><stop offset="100%" stop-color="#0F0C09"/>
+              </radialGradient>
+              <filter id="t-gr"><feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+              <filter id="t-gg"><feGaussianBlur stdDeviation="3"   result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+              <filter id="t-gl"><feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            </defs>
+            <rect width="110" height="110" rx="26" fill="url(#t-bg)"/>
+            <circle cx="55" cy="55" r="28" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+            <circle cx="55" cy="55" r="16" fill="none" stroke="rgba(255,255,255,0.035)" stroke-width="1"/>
+            <circle cx="55" cy="55" r="4.5" fill="#F5EDE0" opacity="0.5"/>
+            <!-- Rose — outer, upper-right -->
+            <circle cx="75" cy="33" r="10"  fill="#E8608A" fill-opacity="0.15" filter="url(#t-gr)"/>
+            <circle cx="75" cy="33" r="8"   fill="#E8608A" filter="url(#t-gr)"/>
+            <!-- Gold — inner, right -->
+            <circle cx="71" cy="60" r="8"   fill="#D4963A" fill-opacity="0.15" filter="url(#t-gg)"/>
+            <circle cx="71" cy="60" r="6"   fill="#D4963A" filter="url(#t-gg)"/>
+            <!-- Lav — outer, left -->
+            <circle cx="27" cy="55" r="10"  fill="#A78BFA" fill-opacity="0.15" filter="url(#t-gl)"/>
+            <circle cx="27" cy="55" r="8"   fill="#A78BFA" filter="url(#t-gl)"/>
+          </svg>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <div class="section-divider"></div>
+
+  <!-- ── Section 2: Wordmark weight comparison ───────────── -->
+  <section>
+    <span class="row-label">Wordmark weight — "him" (using different-radii mark)</span>
+    <div class="row">
+
+      <!-- Weight 300 -->
+      <div class="col">
+        <span class="col-label">Light · 300</span>
+        <div class="wm-card">
+          <svg viewBox="0 0 72 72" width="72" height="72" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <filter id="w3-r"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+              <filter id="w3-g"><feGaussianBlur stdDeviation="2"   result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+              <filter id="w3-l"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            </defs>
+            <circle cx="36" cy="36" r="22" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+            <circle cx="36" cy="36" r="13" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+            <circle cx="36" cy="36" r="3.5" fill="#F5EDE0" opacity="0.45"/>
+            <circle cx="52" cy="20" r="7"  fill="#E8608A" fill-opacity="0.14" filter="url(#w3-r)"/>
+            <circle cx="52" cy="20" r="5.5" fill="#E8608A" filter="url(#w3-r)"/>
+            <circle cx="33" cy="52" r="6"  fill="#D4963A" fill-opacity="0.14" filter="url(#w3-g)"/>
+            <circle cx="33" cy="52" r="4.5" fill="#D4963A" filter="url(#w3-g)"/>
+            <circle cx="14" cy="37" r="6.5" fill="#A78BFA" fill-opacity="0.14" filter="url(#w3-l)"/>
+            <circle cx="14" cy="37" r="5"   fill="#A78BFA" filter="url(#w3-l)"/>
+          </svg>
+          <span class="him" style="font-weight:300;font-size:40px;">him</span>
+          <span class="tagline">friendship · first</span>
+        </div>
+      </div>
+
+      <!-- Weight 400 -->
+      <div class="col">
+        <span class="col-label">Regular · 400</span>
+        <div class="wm-card">
+          <svg viewBox="0 0 72 72" width="72" height="72" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <filter id="w4-r"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+              <filter id="w4-g"><feGaussianBlur stdDeviation="2"   result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+              <filter id="w4-l"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            </defs>
+            <circle cx="36" cy="36" r="22" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+            <circle cx="36" cy="36" r="13" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+            <circle cx="36" cy="36" r="3.5" fill="#F5EDE0" opacity="0.45"/>
+            <circle cx="52" cy="20" r="7"  fill="#E8608A" fill-opacity="0.14" filter="url(#w4-r)"/>
+            <circle cx="52" cy="20" r="5.5" fill="#E8608A" filter="url(#w4-r)"/>
+            <circle cx="33" cy="52" r="6"  fill="#D4963A" fill-opacity="0.14" filter="url(#w4-g)"/>
+            <circle cx="33" cy="52" r="4.5" fill="#D4963A" filter="url(#w4-g)"/>
+            <circle cx="14" cy="37" r="6.5" fill="#A78BFA" fill-opacity="0.14" filter="url(#w4-l)"/>
+            <circle cx="14" cy="37" r="5"   fill="#A78BFA" filter="url(#w4-l)"/>
+          </svg>
+          <span class="him" style="font-weight:400;font-size:40px;">him</span>
+          <span class="tagline">friendship · first</span>
+        </div>
+      </div>
+
+      <!-- Weight 600 -->
+      <div class="col">
+        <span class="col-label">Semibold · 600</span>
+        <div class="wm-card">
+          <svg viewBox="0 0 72 72" width="72" height="72" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <filter id="w6-r"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+              <filter id="w6-g"><feGaussianBlur stdDeviation="2"   result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+              <filter id="w6-l"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            </defs>
+            <circle cx="36" cy="36" r="22" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+            <circle cx="36" cy="36" r="13" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+            <circle cx="36" cy="36" r="3.5" fill="#F5EDE0" opacity="0.45"/>
+            <circle cx="52" cy="20" r="7"  fill="#E8608A" fill-opacity="0.14" filter="url(#w6-r)"/>
+            <circle cx="52" cy="20" r="5.5" fill="#E8608A" filter="url(#w6-r)"/>
+            <circle cx="33" cy="52" r="6"  fill="#D4963A" fill-opacity="0.14" filter="url(#w6-g)"/>
+            <circle cx="33" cy="52" r="4.5" fill="#D4963A" filter="url(#w6-g)"/>
+            <circle cx="14" cy="37" r="6.5" fill="#A78BFA" fill-opacity="0.14" filter="url(#w6-l)"/>
+            <circle cx="14" cy="37" r="5"   fill="#A78BFA" filter="url(#w6-l)"/>
+          </svg>
+          <span class="him" style="font-weight:600;font-size:40px;">him</span>
+          <span class="tagline">friendship · first</span>
+        </div>
+      </div>
+
+      <!-- Weight 700 -->
+      <div class="col">
+        <span class="col-label">Bold · 700</span>
+        <div class="wm-card">
+          <svg viewBox="0 0 72 72" width="72" height="72" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <filter id="w7-r"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+              <filter id="w7-g"><feGaussianBlur stdDeviation="2"   result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+              <filter id="w7-l"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            </defs>
+            <circle cx="36" cy="36" r="22" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+            <circle cx="36" cy="36" r="13" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+            <circle cx="36" cy="36" r="3.5" fill="#F5EDE0" opacity="0.45"/>
+            <circle cx="52" cy="20" r="7"  fill="#E8608A" fill-opacity="0.14" filter="url(#w7-r)"/>
+            <circle cx="52" cy="20" r="5.5" fill="#E8608A" filter="url(#w7-r)"/>
+            <circle cx="33" cy="52" r="6"  fill="#D4963A" fill-opacity="0.14" filter="url(#w7-g)"/>
+            <circle cx="33" cy="52" r="4.5" fill="#D4963A" filter="url(#w7-g)"/>
+            <circle cx="14" cy="37" r="6.5" fill="#A78BFA" fill-opacity="0.14" filter="url(#w7-l)"/>
+            <circle cx="14" cy="37" r="5"   fill="#A78BFA" filter="url(#w7-l)"/>
+          </svg>
+          <span class="him" style="font-weight:700;font-size:40px;">him</span>
+          <span class="tagline">friendship · first</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+</body>
+</html>

@@ -1,0 +1,42 @@
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="H.I.M. app icon">
+  <defs>
+    <radialGradient id="bg" cx="38%" cy="32%" r="75%">
+      <stop offset="0%"   stop-color="#221C17"/>
+      <stop offset="100%" stop-color="#0F0C09"/>
+    </radialGradient>
+    <filter id="fr" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="16" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="fg" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="14" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="fl" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="16" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="116" fill="url(#bg)"/>
+
+  <!-- Outer orbit ring -->
+  <circle cx="256" cy="256" r="158" fill="none" stroke="rgba(255,255,255,0.055)" stroke-width="1.5"/>
+  <!-- Inner orbit ring -->
+  <circle cx="256" cy="256" r="93"  fill="none" stroke="rgba(255,255,255,0.035)" stroke-width="1.5"/>
+  <!-- Center presence -->
+  <circle cx="256" cy="256" r="21"  fill="#F5EDE0" opacity="0.5"/>
+
+  <!-- Rose — outer orbit, upper-right -->
+  <circle cx="368" cy="144" r="51"  fill="#E8608A" fill-opacity="0.16" filter="url(#fr)"/>
+  <circle cx="368" cy="144" r="40"  fill="#E8608A"/>
+
+  <!-- Gold — inner orbit, lower -->
+  <circle cx="233" cy="349" r="42"  fill="#D4963A" fill-opacity="0.16" filter="url(#fg)"/>
+  <circle cx="233" cy="349" r="33"  fill="#D4963A"/>
+
+  <!-- Lavender — outer orbit, left -->
+  <circle cx="98"  cy="265" r="47"  fill="#A78BFA" fill-opacity="0.16" filter="url(#fl)"/>
+  <circle cx="98"  cy="265" r="37"  fill="#A78BFA"/>
+</svg>

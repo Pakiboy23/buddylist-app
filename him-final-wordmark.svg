@@ -1,0 +1,63 @@
+<svg viewBox="0 0 480 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="H.I.M. wordmark">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600&amp;display=swap');
+    </style>
+    <radialGradient id="wm-bg" cx="38%" cy="32%" r="75%">
+      <stop offset="0%"   stop-color="#1A1613"/>
+      <stop offset="100%" stop-color="#0F0C09"/>
+    </radialGradient>
+    <filter id="wm-r" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="9" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="wm-g" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="7" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="wm-l" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="9" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="480" height="320" rx="28" fill="url(#wm-bg)"/>
+
+  <!-- Orbit mark — centered top half -->
+  <!-- Outer orbit -->
+  <circle cx="240" cy="120" r="72" fill="none" stroke="rgba(255,255,255,0.055)" stroke-width="1.5"/>
+  <!-- Inner orbit -->
+  <circle cx="240" cy="120" r="42" fill="none" stroke="rgba(255,255,255,0.035)" stroke-width="1.5"/>
+  <!-- Center -->
+  <circle cx="240" cy="120" r="9"  fill="#F5EDE0" opacity="0.5"/>
+  <!-- Rose — outer, upper-right -->
+  <circle cx="306" cy="67"  r="26" fill="#E8608A" fill-opacity="0.16" filter="url(#wm-r)"/>
+  <circle cx="306" cy="67"  r="20" fill="#E8608A"/>
+  <!-- Gold — inner, lower -->
+  <circle cx="230" cy="162" r="21" fill="#D4963A" fill-opacity="0.16" filter="url(#wm-g)"/>
+  <circle cx="230" cy="162" r="16" fill="#D4963A"/>
+  <!-- Lavender — outer, left -->
+  <circle cx="168" cy="128" r="24" fill="#A78BFA" fill-opacity="0.16" filter="url(#wm-l)"/>
+  <circle cx="168" cy="128" r="19" fill="#A78BFA"/>
+
+  <!-- Wordmark text -->
+  <text
+    x="240" y="240"
+    font-family="'Space Grotesk', sans-serif"
+    font-weight="600"
+    font-size="96"
+    fill="#F5EDE0"
+    text-anchor="middle"
+    letter-spacing="-1">him</text>
+
+  <!-- Tagline -->
+  <text
+    x="240" y="284"
+    font-family="'Space Grotesk', sans-serif"
+    font-weight="400"
+    font-size="14"
+    fill="#4A3C35"
+    text-anchor="middle"
+    letter-spacing="4">FRIENDSHIP · FIRST</text>
+</svg>

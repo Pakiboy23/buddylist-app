@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>H.I.M. — Logo Concepts 2</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;600;700&family=IBM+Plex+Mono:wght@400;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --rose: #E8608A;
+      --gold: #D4963A;
+      --lav:  #A78BFA;
+      --bg:   #0C0A08;
+      --card: #141109;
+      --muted:#4A3C35;
+      --text: #F5EDE0;
+      --dim:  #2A221A;
+    }
+    body {
+      background: var(--bg);
+      padding: 64px 36px 100px;
+      display: flex;
+      flex-direction: column;
+      gap: 88px;
+      font-family: 'Space Grotesk', sans-serif;
+    }
+
+    /* ── Shell ──────────────────── */
+    .section-label { font-size:10px; letter-spacing:4px; text-transform:uppercase; color:var(--muted); display:block; margin-bottom:4px; }
+    .section-title { font-size:22px; font-weight:700; color:var(--text); display:block; margin-bottom:4px; }
+    .section-desc  { font-size:13px; color:#342A22; }
+    .section-header { margin-bottom:32px; }
+
+    .lockup-row { display:flex; align-items:flex-start; gap:16px; flex-wrap:wrap; }
+    .card-wrap  { display:flex; flex-direction:column; align-items:center; gap:10px; }
+    .card-label { font-size:10px; letter-spacing:2.5px; text-transform:uppercase; color:var(--muted); }
+    .card       { border-radius:20px; border:1px solid rgba(255,255,255,0.05); position:relative; overflow:hidden; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+
+    .vdiv { width:1px; background:rgba(255,255,255,0.06); align-self:stretch; }
+
+
+
+    /* ═══════════════════════════════════════════════
+       CONCEPT 1 — ROSTER
+       Vertical buddy list. Dot on the left = status.
+       Letter on the right = name. IBM Plex Mono.
+       Three rows. AIM as the structural metaphor.
+    ═══════════════════════════════════════════════ */
+
+    .r-bg {
+      background: linear-gradient(150deg, #181411, #0E0B09);
+    }
+
+    /* App mark: 3 dots in a vertical column */
+    .r-mark {
+      width:110px; height:110px; border-radius:26px;
+      background: linear-gradient(150deg, #1C1814, #100D0B);
+      border:1px solid rgba(255,255,255,0.06);
+      display:flex; flex-direction:column;
+      align-items:center; justify-content:center; gap:14px;
+      position:relative; overflow:hidden;
+    }
+    .r-mark::before {
+      content:''; position:absolute;
+      top:-20px; left:-10px; width:80px; height:80px;
+      background:radial-gradient(circle, rgba(232,96,138,0.1) 0%, transparent 70%);
+    }
+    .r-mdot {
+      width:16px; height:16px; border-radius:50%;
+      position:relative; flex-shrink:0; z-index:1;
+    }
+    .r-mdot::before {
+      content:''; position:absolute; inset:-5px;
+      border-radius:50%; opacity:0.18;
+    }
+    .r-mdot-r { background:var(--rose); box-shadow:0 0 8px rgba(232,96,138,0.45); }
+    .r-mdot-r::before { background:var(--rose); }
+    .r-mdot-g { background:var(--gold); box-shadow:0 0 8px rgba(212,150,58,0.4); }
+    .r-mdot-g::before { background:var(--gold); }
+    .r-mdot-l { background:var(--lav);  box-shadow:0 0 8px rgba(167,139,250,0.4); }
+    .r-mdot-l::before { background:var(--lav); }
+
+    /* Roster wordmark rows */
+    .r-roster { display:flex; flex-direction:column; gap:6px; }
+    .r-row    { display:flex; align-items:center; gap:14px; }
+    .r-dot    { width:12px; height:12px; border-radius:50%; flex-shrink:0; position:relative; }
+    .r-dot::before { content:''; position:absolute; inset:-4px; border-radius:50%; opacity:0.2; }
+    .r-dot-r  { background:var(--rose); box-shadow:0 0 6px rgba(232,96,138,0.4); }
+    .r-dot-r::before { background:var(--rose); }
+    .r-dot-g  { background:var(--gold); box-shadow:0 0 6px rgba(212,150,58,0.36); }
+    .r-dot-g::before { background:var(--gold); }
+    .r-dot-l  { background:var(--lav);  box-shadow:0 0 6px rgba(167,139,250,0.36); }
+    .r-dot-l::before { background:var(--lav); }
+    .r-letter {
+      font-family:'IBM Plex Mono', monospace;
+      font-weight:700; font-size:72px; line-height:1;
+      color:var(--text);
+    }
+
+    /* small size for lockups */
+    .r-letter-sm { font-size:44px; }
+
+    .r-tl {
+      font-family:'IBM Plex Mono', monospace;
+      font-size:10px; letter-spacing:3px;
+      color:var(--muted); text-transform:lowercase;
+    }
+
+
+
+    /* ═══════════════════════════════════════════════
+       CONCEPT 2 — STATEMENT
+       "HIM." — one word, no separators.
+       Colored letters (H=rose, I=gold, M=lav).
+       Period is the mark device.
+       The app icon is a single oversized period/dot.
+    ═══════════════════════════════════════════════ */
+
+    .s-bg {
+      background: linear-gradient(145deg, #191512, #0F0C09);
+    }
+    .s-bg::before {
+      content:''; position:absolute; inset:0;
+      background:radial-gradient(ellipse at 30% 20%, rgba(232,96,138,0.06) 0%, transparent 55%);
+      pointer-events:none;
+    }
+
+    /* App mark: single large dot = the period */
+    .s-mark {
+      width:110px; height:110px; border-radius:26px;
+      background: linear-gradient(145deg, #1C1814, #111009);
+      border:1px solid rgba(255,255,255,0.05);
+      display:flex; align-items:center; justify-content:center;
+      position:relative; overflow:hidden;
+    }
+    .s-mark::before {
+      content:''; position:absolute; inset:0;
+      background:radial-gradient(circle at 50% 50%, rgba(232,96,138,0.12) 0%, transparent 65%);
+    }
+    .s-bigdot {
+      width:42px; height:42px; border-radius:50%;
+      background: conic-gradient(from 0deg, var(--rose) 0%, var(--gold) 40%, var(--lav) 80%, var(--rose) 100%);
+      box-shadow:
+        0 0 20px rgba(232,96,138,0.3),
+        0 0 40px rgba(212,150,58,0.2);
+      position:relative; z-index:1;
+    }
+
+    /* The wordmark: HIM. */
+    .s-word {
+      display:flex; align-items:flex-end; line-height:1;
+    }
+    .s-letter {
+      font-family:'Space Grotesk', sans-serif;
+      font-weight:700; font-size:92px; line-height:1;
+      letter-spacing:-3px;
+    }
+    .s-H { color:var(--rose); }
+    .s-I { color:var(--gold); }
+    .s-M { color:var(--lav);  }
+    /* Period — cream, not colored */
+    .s-period {
+      font-family:'Space Grotesk', sans-serif;
+      font-weight:700; font-size:92px; line-height:1;
+      letter-spacing:0;
+      color:#F5EDE0;
+      opacity:0.9;
+      margin-left:2px;
+    }
+
+    .s-tl {
+      font-family:'Space Grotesk', sans-serif;
+      font-size:11px; letter-spacing:3.5px;
+      text-transform:uppercase; color:var(--muted);
+    }
+
+    /* Horizontal lockup: period mark + wordmark */
+    .s-sm-mark {
+      width:36px; height:36px; border-radius:10px;
+      background:#111009;
+      border:1px solid rgba(255,255,255,0.06);
+      display:flex; align-items:center; justify-content:center;
+    }
+    .s-sm-dot {
+      width:16px; height:16px; border-radius:50%;
+      background: conic-gradient(from 0deg, var(--rose), var(--gold) 40%, var(--lav) 80%, var(--rose));
+    }
+
+
+
+    /* ═══════════════════════════════════════════════
+       CONCEPT 3 — TRIO
+       Three circles ARE the primary mark.
+       Different sizes — feels like people, not dots.
+       Type is secondary, small, below.
+       The circles carry the brand, not the letters.
+    ═══════════════════════════════════════════════ */
+
+    .t-bg {
+      background: linear-gradient(145deg, #161210, #0D0A08);
+    }
+    .t-bg::before {
+      content:''; position:absolute; inset:0;
+      background:
+        radial-gradient(ellipse at 20% 40%, rgba(232,96,138,0.07) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 60%, rgba(167,139,250,0.05) 0%, transparent 50%);
+      pointer-events:none;
+    }
+
+    /* App mark: three circles, different sizes, in a rounded square */
+    .t-mark {
+      width:110px; height:110px; border-radius:26px;
+      background: linear-gradient(145deg, #1A1613, #0F0C0A);
+      border:1px solid rgba(255,255,255,0.05);
+      display:flex; align-items:center; justify-content:center;
+      gap:8px; position:relative; overflow:hidden;
+    }
+    .t-mark::before {
+      content:''; position:absolute;
+      top:-30px; left:-20px; width:100px; height:100px;
+      background:radial-gradient(circle, rgba(232,96,138,0.08) 0%, transparent 70%);
+    }
+
+    /* Three circles: left smaller, center largest, right medium */
+    .t-c1 { /* rose — left, smallest */
+      width:28px; height:28px; border-radius:50%;
+      background:var(--rose);
+      box-shadow:0 0 14px rgba(232,96,138,0.4);
+      flex-shrink:0; z-index:1;
+    }
+    .t-c2 { /* gold — center, largest */
+      width:38px; height:38px; border-radius:50%;
+      background:var(--gold);
+      box-shadow:0 0 18px rgba(212,150,58,0.45);
+      flex-shrink:0; z-index:2;
+    }
+    .t-c3 { /* lavender — right, medium */
+      width:32px; height:32px; border-radius:50%;
+      background:var(--lav);
+      box-shadow:0 0 14px rgba(167,139,250,0.4);
+      flex-shrink:0; z-index:1;
+    }
+
+    /* The wordmark below the circles */
+    .t-wordmark {
+      display:flex; align-items:center; gap:10px;
+    }
+    .t-letter {
+      font-family:'Space Grotesk', sans-serif;
+      font-weight:300; font-size:26px;
+      letter-spacing:10px; color:#6B5B4E;
+      text-transform:uppercase;
+    }
+    .t-tl {
+      font-family:'Space Grotesk', sans-serif;
+      font-size:10px; letter-spacing:3px;
+      color:#2E2620; text-transform:uppercase;
+    }
+
+    /* Full wordmark version: big circles, small text below */
+    .t-wm-wrap {
+      display:flex; flex-direction:column; align-items:center; gap:16px;
+    }
+    .t-circles-lg {
+      display:flex; align-items:center; gap:12px;
+    }
+    .t-lc1 { width:52px; height:52px; border-radius:50%; background:var(--rose); box-shadow:0 0 20px rgba(232,96,138,0.35); flex-shrink:0; }
+    .t-lc2 { width:68px; height:68px; border-radius:50%; background:var(--gold); box-shadow:0 0 24px rgba(212,150,58,0.4);  flex-shrink:0; }
+    .t-lc3 { width:58px; height:58px; border-radius:50%; background:var(--lav);  box-shadow:0 0 20px rgba(167,139,250,0.35); flex-shrink:0; }
+
+    .t-wm-label {
+      display:flex; flex-direction:column; align-items:center; gap:4px;
+    }
+
+    /* Horizontal lockup circles */
+    .t-hc1 { width:22px; height:22px; border-radius:50%; background:var(--rose); box-shadow:0 0 10px rgba(232,96,138,0.4); flex-shrink:0; }
+    .t-hc2 { width:30px; height:30px; border-radius:50%; background:var(--gold); box-shadow:0 0 12px rgba(212,150,58,0.4); flex-shrink:0; }
+    .t-hc3 { width:25px; height:25px; border-radius:50%; background:var(--lav);  box-shadow:0 0 10px rgba(167,139,250,0.4); flex-shrink:0; }
+
+  </style>
+</head>
+<body>
+
+
+  <!-- ═══════ CONCEPT 1: ROSTER ═══════ -->
+  <section>
+    <div class="section-header">
+      <span class="section-label">Concept 1</span>
+      <span class="section-title">Roster</span>
+      <span class="section-desc">Vertical stack · dot + letter per row · IBM Plex Mono · buddy list as the literal structure · AIM as the form, not just the reference</span>
+    </div>
+
+    <div class="lockup-row">
+
+      <!-- App Logo -->
+      <div class="card-wrap">
+        <span class="card-label">App Logo</span>
+        <div class="card r-bg" style="width:110px;height:110px;border-radius:26px;padding:0;">
+          <div class="r-mark" style="border:none;border-radius:26px;width:100%;height:100%;">
+            <div class="r-mdot r-mdot-r"></div>
+            <div class="r-mdot r-mdot-g"></div>
+            <div class="r-mdot r-mdot-l"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Wordmark -->
+      <div class="card-wrap">
+        <span class="card-label">Wordmark</span>
+        <div class="card r-bg" style="padding:36px 48px 28px;">
+          <div class="r-roster">
+            <div class="r-row">
+              <div class="r-dot r-dot-r"></div>
+              <span class="r-letter">H</span>
+            </div>
+            <div class="r-row">
+              <div class="r-dot r-dot-g"></div>
+              <span class="r-letter">I</span>
+            </div>
+            <div class="r-row">
+              <div class="r-dot r-dot-l"></div>
+              <span class="r-letter">M</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Horizontal Lockup -->
+      <div class="card-wrap">
+        <span class="card-label">Horizontal Lockup</span>
+        <div class="card r-bg" style="padding:28px 36px; flex-direction:row; gap:24px;">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:10px;">
+            <div class="r-mdot r-mdot-r"></div>
+            <div class="r-mdot r-mdot-g"></div>
+            <div class="r-mdot r-mdot-l"></div>
+          </div>
+          <div class="vdiv"></div>
+          <div style="display:flex;flex-direction:column;justify-content:center;gap:2px;">
+            <div class="r-row">
+              <div class="r-dot r-dot-r" style="width:8px;height:8px;"></div>
+              <span class="r-letter r-letter-sm">H</span>
+            </div>
+            <div class="r-row">
+              <div class="r-dot r-dot-g" style="width:8px;height:8px;"></div>
+              <span class="r-letter r-letter-sm">I</span>
+            </div>
+            <div class="r-row">
+              <div class="r-dot r-dot-l" style="width:8px;height:8px;"></div>
+              <span class="r-letter r-letter-sm">M</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stacked Lockup -->
+      <div class="card-wrap">
+        <span class="card-label">Stacked Lockup</span>
+        <div class="card r-bg" style="padding:28px 48px 28px; gap:20px;">
+          <!-- Mark above -->
+          <div style="display:flex;align-items:center;gap:14px;">
+            <div class="r-mdot r-mdot-r"></div>
+            <div class="r-mdot r-mdot-g"></div>
+            <div class="r-mdot r-mdot-l"></div>
+          </div>
+          <!-- Divider -->
+          <div style="width:100%;height:1px;background:rgba(255,255,255,0.05);"></div>
+          <!-- Roster -->
+          <div class="r-roster">
+            <div class="r-row">
+              <div class="r-dot r-dot-r"></div>
+              <span class="r-letter">H</span>
+            </div>
+            <div class="r-row">
+              <div class="r-dot r-dot-g"></div>
+              <span class="r-letter">I</span>
+            </div>
+            <div class="r-row">
+              <div class="r-dot r-dot-l"></div>
+              <span class="r-letter">M</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+
+  <!-- ═══════ CONCEPT 2: STATEMENT ═══════ -->
+  <section>
+    <div class="section-header">
+      <span class="section-label">Concept 2</span>
+      <span class="section-title">Statement</span>
+      <span class="section-desc">HIM. — one word, no separators · colored letters, cream period · app icon is the period itself · reads as a declaration, not an acronym</span>
+    </div>
+
+    <div class="lockup-row">
+
+      <!-- App Logo -->
+      <div class="card-wrap">
+        <span class="card-label">App Logo</span>
+        <div class="card s-bg" style="width:110px;height:110px;border-radius:26px;padding:0;">
+          <div class="s-mark" style="border:none;border-radius:26px;width:100%;height:100%;">
+            <div class="s-bigdot"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Wordmark -->
+      <div class="card-wrap">
+        <span class="card-label">Wordmark</span>
+        <div class="card s-bg" style="padding:28px 48px 22px; gap:12px;">
+          <div class="s-word">
+            <span class="s-letter s-H">H</span>
+            <span class="s-letter s-I">I</span>
+            <span class="s-letter s-M">M</span>
+            <span class="s-period">.</span>
+          </div>
+          <span class="s-tl">Friendship · First</span>
+        </div>
+      </div>
+
+      <!-- Horizontal Lockup -->
+      <div class="card-wrap">
+        <span class="card-label">Horizontal Lockup</span>
+        <div class="card s-bg" style="padding:28px 36px; flex-direction:row; gap:22px; align-items:center;">
+          <div class="s-sm-mark">
+            <div class="s-sm-dot"></div>
+          </div>
+          <div class="vdiv" style="height:36px;"></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+            <div class="s-word">
+              <span class="s-letter s-H" style="font-size:62px;">H</span>
+              <span class="s-letter s-I" style="font-size:62px;">I</span>
+              <span class="s-letter s-M" style="font-size:62px;">M</span>
+              <span class="s-period"     style="font-size:62px;">.</span>
+            </div>
+            <span class="s-tl">Friendship · First</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stacked Lockup -->
+      <div class="card-wrap">
+        <span class="card-label">Stacked Lockup</span>
+        <div class="card s-bg" style="padding:32px 48px 24px; gap:16px;">
+          <div class="s-bigdot" style="width:32px;height:32px;"></div>
+          <div class="s-word">
+            <span class="s-letter s-H">H</span>
+            <span class="s-letter s-I">I</span>
+            <span class="s-letter s-M">M</span>
+            <span class="s-period">.</span>
+          </div>
+          <span class="s-tl">Friendship · First</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+
+  <!-- ═══════ CONCEPT 3: TRIO ═══════ -->
+  <section>
+    <div class="section-header">
+      <span class="section-label">Concept 3</span>
+      <span class="section-title">Trio</span>
+      <span class="section-desc">Circles are the mark · different sizes = different presences · type is small and secondary · the visual weight lives entirely in the circles</span>
+    </div>
+
+    <div class="lockup-row">
+
+      <!-- App Logo -->
+      <div class="card-wrap">
+        <span class="card-label">App Logo</span>
+        <div class="card t-bg" style="width:110px;height:110px;border-radius:26px;padding:0;">
+          <div class="t-mark" style="border:none;border-radius:26px;width:100%;height:100%;">
+            <div class="t-c1"></div>
+            <div class="t-c2"></div>
+            <div class="t-c3"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Wordmark -->
+      <div class="card-wrap">
+        <span class="card-label">Wordmark</span>
+        <div class="card t-bg" style="padding:36px 52px 30px;">
+          <div class="t-wm-wrap">
+            <div class="t-circles-lg">
+              <div class="t-lc1"></div>
+              <div class="t-lc2"></div>
+              <div class="t-lc3"></div>
+            </div>
+            <div class="t-wm-label">
+              <span class="t-letter">H · I · M</span>
+              <span class="t-tl">Friendship · First</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Horizontal Lockup -->
+      <div class="card-wrap">
+        <span class="card-label">Horizontal Lockup</span>
+        <div class="card t-bg" style="padding:28px 36px; flex-direction:row; gap:24px; align-items:center;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div class="t-hc1"></div>
+            <div class="t-hc2"></div>
+            <div class="t-hc3"></div>
+          </div>
+          <div class="vdiv" style="height:36px;"></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+            <span class="t-letter" style="font-size:20px;letter-spacing:8px;">H · I · M</span>
+            <span class="t-tl">Friendship · First</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stacked Lockup -->
+      <div class="card-wrap">
+        <span class="card-label">Stacked Lockup</span>
+        <div class="card t-bg" style="padding:36px 52px 28px; gap:20px;">
+          <div class="t-circles-lg">
+            <div class="t-lc1"></div>
+            <div class="t-lc2"></div>
+            <div class="t-lc3"></div>
+          </div>
+          <div class="t-wm-label">
+            <span class="t-letter">H · I · M</span>
+            <span class="t-tl" style="margin-top:4px;">Friendship · First</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+
+</body>
+</html>

@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>H.I.M. — Wordmark</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #13100E;
+      --bg2:      #1D1916;
+      --rose:     #E8608A;
+      --gold:     #D4963A;
+      --lavender: #A78BFA;
+      --muted:    #4A3C35;
+    }
+
+    body {
+      background: #0D0B09;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      gap: 52px;
+      padding: 52px 24px;
+      font-family: 'Space Grotesk', sans-serif;
+    }
+
+    .label {
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+    }
+
+    /* ── Card shell ──────────────────────────── */
+    .card {
+      background: linear-gradient(135deg, var(--bg2), var(--bg));
+      border-radius: 24px;
+      border: 1px solid rgba(255,255,255,0.04);
+      padding: 40px 56px 32px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      position: relative;
+      overflow: hidden;
+    }
+    .card::before {
+      content: '';
+      position: absolute;
+      top: -50px; left: -50px;
+      width: 200px; height: 200px;
+      background: radial-gradient(circle, rgba(232,96,138,0.07) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .card::after {
+      content: '';
+      position: absolute;
+      bottom: -40px; right: -40px;
+      width: 160px; height: 160px;
+      background: radial-gradient(circle, rgba(167,139,250,0.05) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    /* ── Letters ─────────────────────────────── */
+    .wordmark {
+      display: flex;
+      align-items: center;
+      line-height: 1;
+      position: relative;
+      z-index: 1;
+    }
+    .letter {
+      font-size: 88px;
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: -2px;
+    }
+    .letter-h  { color: var(--rose); }
+    .letter-i  { color: var(--gold); }
+    .letter-m  { color: var(--lavender); }
+
+    /* ── Inline separator dots ───────────────── */
+    .sep {
+      width: 13px;
+      height: 13px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin: 0 9px;
+      position: relative;
+      z-index: 1;
+    }
+    .sep::before {
+      content: '';
+      position: absolute;
+      inset: -5px;
+      border-radius: 50%;
+      opacity: 0.18;
+    }
+    .sep-rose      { background: var(--rose); }
+    .sep-rose::before    { background: var(--rose); }
+    .sep-gold      { background: var(--gold); }
+    .sep-gold::before    { background: var(--gold); }
+    .sep-lavender  { background: var(--lavender); }
+    .sep-lavender::before { background: var(--lavender); }
+
+    /* ── Mark dots (above letters in stacked) ── */
+    .mark-dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      position: absolute;
+      top: 0;
+    }
+    .mark-dot::before {
+      content: '';
+      position: absolute;
+      inset: -6px;
+      border-radius: 50%;
+      opacity: 0.18;
+    }
+    .mark-dot-rose     { background: var(--rose); }
+    .mark-dot-rose::before { background: var(--rose); }
+    .mark-dot-gold     { background: var(--gold); }
+    .mark-dot-gold::before { background: var(--gold); }
+    .mark-dot-lav      { background: var(--lavender); }
+    .mark-dot-lav::before { background: var(--lavender); }
+
+    /* ── Tagline ─────────────────────────────── */
+    .tagline {
+      font-size: 11px;
+      font-weight: 400;
+      letter-spacing: 3.5px;
+      color: var(--muted);
+      text-transform: uppercase;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ── Horizontal lockup ───────────────────── */
+    .horiz-lockup {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+    }
+    .mark-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .mark-row-dot {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      position: relative;
+    }
+    .mark-row-dot::before {
+      content: '';
+      position: absolute;
+      inset: -5px;
+      border-radius: 50%;
+      opacity: 0.16;
+    }
+    .mark-row-dot-r { background: var(--rose); }
+    .mark-row-dot-r::before { background: var(--rose); }
+    .mark-row-dot-g { background: var(--gold); }
+    .mark-row-dot-g::before { background: var(--gold); }
+    .mark-row-dot-l { background: var(--lavender); }
+    .mark-row-dot-l::before { background: var(--lavender); }
+    .divider {
+      width: 1px; height: 32px;
+      background: rgba(255,255,255,0.06);
+    }
+
+    /* ── Stacked lockup wrapper ──────────────── */
+    #stacked-card {
+      padding: 48px 56px 32px;
+    }
+    /* Mark dots row — sits above the wordmark, positions set by JS */
+    .stacked-mark {
+      position: relative;
+      width: 100%;
+      height: 28px;          /* space between dots and letters */
+      z-index: 1;
+      margin-bottom: 2px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Horizontal wordmark ─────────────────────── -->
+  <span class="label">Wordmark — horizontal</span>
+  <div class="card">
+    <div class="wordmark">
+      <span class="letter letter-h">H</span>
+      <div class="sep sep-rose"></div>
+      <span class="letter letter-i">I</span>
+      <div class="sep sep-gold"></div>
+      <span class="letter letter-m">M</span>
+      <div class="sep sep-lavender"></div>
+    </div>
+    <span class="tagline">Friendship · First</span>
+  </div>
+
+  <!-- ── Horizontal mark + wordmark lockup ──────── -->
+  <span class="label">Lockup — mark + wordmark horizontal</span>
+  <div class="card">
+    <div class="horiz-lockup">
+      <div class="mark-row">
+        <div class="mark-row-dot mark-row-dot-r"></div>
+        <div class="mark-row-dot mark-row-dot-g"></div>
+        <div class="mark-row-dot mark-row-dot-l"></div>
+      </div>
+      <div class="divider"></div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:10px;">
+        <div class="wordmark">
+          <span class="letter letter-h" style="font-size:66px;">H</span>
+          <div class="sep sep-rose" style="width:10px;height:10px;margin:0 7px;"></div>
+          <span class="letter letter-i" style="font-size:66px;">I</span>
+          <div class="sep sep-gold" style="width:10px;height:10px;margin:0 7px;"></div>
+          <span class="letter letter-m" style="font-size:66px;">M</span>
+          <div class="sep sep-lavender" style="width:10px;height:10px;margin:0 7px;"></div>
+        </div>
+        <span class="tagline">Friendship · First</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Stacked lockup ─────────────────────────── -->
+  <span class="label">Lockup — stacked</span>
+  <div class="card" id="stacked-card">
+
+    <!-- Mark dots: positioned by JS over letter centers -->
+    <div class="stacked-mark" id="stacked-mark">
+      <div class="mark-dot mark-dot-rose" id="mdot-r"></div>
+      <div class="mark-dot mark-dot-gold" id="mdot-g"></div>
+      <div class="mark-dot mark-dot-lav"  id="mdot-l"></div>
+    </div>
+
+    <!-- Wordmark -->
+    <div class="wordmark" id="stacked-wordmark">
+      <span class="letter letter-h" id="sl-h">H</span>
+      <div class="sep sep-rose"     id="sl-sep-r"></div>
+      <span class="letter letter-i" id="sl-i">I</span>
+      <div class="sep sep-gold"     id="sl-sep-g"></div>
+      <span class="letter letter-m" id="sl-m">M</span>
+      <div class="sep sep-lavender" id="sl-sep-l"></div>
+    </div>
+
+    <span class="tagline">Friendship · First</span>
+  </div>
+
+  <script>
+    // Wait for fonts to fully load before measuring
+    document.fonts.ready.then(() => {
+      const markEl = document.getElementById('stacked-mark');
+      const sepR   = document.getElementById('sl-sep-r'); // rose sep dot   (left of I)
+      const lI     = document.getElementById('sl-i');     // I letter       (center)
+      const sepG   = document.getElementById('sl-sep-g'); // gold sep dot   (right of I)
+      const dotR   = document.getElementById('mdot-r');
+      const dotG   = document.getElementById('mdot-g');
+      const dotL   = document.getElementById('mdot-l');
+
+      const markRect = markEl.getBoundingClientRect();
+      const DOT_HALF = 8; // half of mark-dot width (16px)
+
+      function centerOf(el) {
+        const r = el.getBoundingClientRect();
+        return r.left + r.width / 2 - markRect.left - DOT_HALF;
+      }
+
+      dotR.style.left = centerOf(sepR)  + 'px'; // rose   over rose-sep  (left of I)
+      dotG.style.left = centerOf(lI)    + 'px'; // gold   over I         (center)
+      dotL.style.left = centerOf(sepG)  + 'px'; // lav    over gold-sep  (right of I)
+
+      // Vertically center the dots in their row
+      dotR.style.top = dotG.style.top = dotL.style.top =
+        ((markEl.clientHeight - 16) / 2) + 'px';
+    });
+  </script>
+</body>
+</html>

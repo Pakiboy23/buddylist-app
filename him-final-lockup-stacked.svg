@@ -1,0 +1,63 @@
+<svg viewBox="0 0 360 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="H.I.M. stacked lockup">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600&amp;display=swap');
+    </style>
+    <radialGradient id="st-bg" cx="38%" cy="32%" r="75%">
+      <stop offset="0%"   stop-color="#1A1613"/>
+      <stop offset="100%" stop-color="#0F0C09"/>
+    </radialGradient>
+    <filter id="st-r" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="11" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="st-g" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="9" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="st-l" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="11" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="360" height="400" rx="28" fill="url(#st-bg)"/>
+
+  <!-- Mark — centered, upper half -->
+  <!-- Outer orbit -->
+  <circle cx="180" cy="160" r="92" fill="none" stroke="rgba(255,255,255,0.055)" stroke-width="1.5"/>
+  <!-- Inner orbit -->
+  <circle cx="180" cy="160" r="54" fill="none" stroke="rgba(255,255,255,0.035)" stroke-width="1.5"/>
+  <!-- Center -->
+  <circle cx="180" cy="160" r="12" fill="#F5EDE0" opacity="0.5"/>
+  <!-- Rose — outer, upper-right -->
+  <circle cx="264" cy="88"  r="33" fill="#E8608A" fill-opacity="0.16" filter="url(#st-r)"/>
+  <circle cx="264" cy="88"  r="26" fill="#E8608A"/>
+  <!-- Gold — inner, lower -->
+  <circle cx="170" cy="214" r="27" fill="#D4963A" fill-opacity="0.16" filter="url(#st-g)"/>
+  <circle cx="170" cy="214" r="21" fill="#D4963A"/>
+  <!-- Lavender — outer, left -->
+  <circle cx="88"  cy="168" r="30" fill="#A78BFA" fill-opacity="0.16" filter="url(#st-l)"/>
+  <circle cx="88"  cy="168" r="23" fill="#A78BFA"/>
+
+  <!-- Wordmark text -->
+  <text
+    x="180" y="316"
+    font-family="'Space Grotesk', sans-serif"
+    font-weight="600"
+    font-size="112"
+    fill="#F5EDE0"
+    text-anchor="middle"
+    letter-spacing="-1">him</text>
+
+  <!-- Tagline -->
+  <text
+    x="180" y="364"
+    font-family="'Space Grotesk', sans-serif"
+    font-weight="400"
+    font-size="13"
+    fill="#4A3C35"
+    text-anchor="middle"
+    letter-spacing="4">FRIENDSHIP · FIRST</text>
+</svg>

@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>H.I.M. — Logo Concepts</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --rose:  #E8608A;
+      --gold:  #D4963A;
+      --lav:   #A78BFA;
+      --muted: #4A3C35;
+      --text:  #F5EDE0;
+    }
+
+    body {
+      background: #080604;
+      padding: 64px 36px 96px;
+      display: flex;
+      flex-direction: column;
+      gap: 80px;
+    }
+
+    .section-header {
+      margin-bottom: 32px;
+    }
+    .section-label {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 10px;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: var(--muted);
+      display: block;
+      margin-bottom: 4px;
+    }
+    .section-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text);
+      display: block;
+      margin-bottom: 4px;
+    }
+    .section-desc {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 13px;
+      color: #3A3028;
+    }
+
+    .lockup-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .card-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    .card-label {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 10px;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .card {
+      border-radius: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .vdiv { width: 1px; background: rgba(255,255,255,0.06); align-self: stretch; }
+
+    /* stacked dot row */
+    .sm-row { position: relative; width: 100%; }
+    .sm-dot  { position: absolute; border-radius: 50%; top: 50%; transform: translateY(-50%); }
+
+
+
+    /* ═══════════════════════════════════════════
+       CONCEPT 1 — GLYPH
+       DM Serif Display · per-letter color
+       editorial · warm · unexpected serif tension
+    ═══════════════════════════════════════════ */
+
+    .g-bg {
+      background: linear-gradient(150deg, #1E1A16, #111009);
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+    .g-bg::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse at 15% 15%, rgba(232,96,138,0.07) 0%, transparent 55%),
+        radial-gradient(ellipse at 85% 85%, rgba(167,139,250,0.05) 0%, transparent 55%);
+      pointer-events: none;
+    }
+
+    /* Mark */
+    .g-mark {
+      width: 110px; height: 110px;
+      border-radius: 26px;
+      background: linear-gradient(150deg, #201C18, #141009);
+      border: 1px solid rgba(255,255,255,0.06);
+      display: flex; align-items: center; justify-content: center;
+      gap: 12px;
+      position: relative; overflow: hidden;
+    }
+    .g-mark::before {
+      content: '';
+      position: absolute;
+      top: -20px; left: -20px;
+      width: 90px; height: 90px;
+      background: radial-gradient(circle, rgba(232,96,138,0.09) 0%, transparent 70%);
+    }
+    .g-mdot {
+      width: 20px; height: 20px; border-radius: 50%;
+      flex-shrink: 0; z-index: 1;
+      position: relative;
+    }
+    .g-mdot::before {
+      content: ''; position: absolute; inset: -5px;
+      border-radius: 50%; opacity: 0.18;
+    }
+    .g-mdot-r { background: var(--rose); }
+    .g-mdot-r::before { background: var(--rose); }
+    .g-mdot-g { background: var(--gold); }
+    .g-mdot-g::before { background: var(--gold); }
+    .g-mdot-l { background: var(--lav); }
+    .g-mdot-l::before { background: var(--lav); }
+
+    /* Letters */
+    .g-letter {
+      font-family: 'DM Serif Display', serif;
+      font-size: 90px;
+      line-height: 1;
+      font-style: italic;
+    }
+    .g-H { color: var(--rose); }
+    .g-I { color: var(--gold); }
+    .g-M { color: var(--lav);  }
+
+    /* Seps — small refined circles */
+    .g-sep {
+      width: 11px; height: 11px; border-radius: 50%;
+      flex-shrink: 0; margin: 0 7px;
+      position: relative;
+    }
+    .g-sep::before {
+      content: ''; position: absolute; inset: -4px;
+      border-radius: 50%; opacity: 0.16;
+    }
+    .g-sep-r { background: var(--rose); }
+    .g-sep-r::before { background: var(--rose); }
+    .g-sep-g { background: var(--gold); }
+    .g-sep-g::before { background: var(--gold); }
+    .g-sep-l { background: var(--lav); }
+    .g-sep-l::before { background: var(--lav); }
+
+    .g-wm  { display: flex; align-items: center; line-height: 1; }
+    .g-tl  {
+      font-family: 'DM Serif Display', serif;
+      font-style: italic;
+      font-size: 13px;
+      letter-spacing: 1.5px;
+      color: #4A3C35;
+    }
+
+    /* stacked mark dots */
+    .g-sm { }
+    .g-sm-r { background: var(--rose); }
+    .g-sm-g { background: var(--gold); }
+    .g-sm-l { background: var(--lav); }
+
+
+
+    /* ═══════════════════════════════════════════
+       CONCEPT 2 — NEON
+       Space Grotesk · warm white letters
+       intense colored glow · dots as light sources
+       very different energy from "Presence"
+    ═══════════════════════════════════════════ */
+
+    .n-bg {
+      background: #06050400;
+      background: linear-gradient(145deg, #0E0B09, #07050300);
+      background: #0B0907;
+      border: 1px solid rgba(255,255,255,0.04);
+    }
+    .n-bg::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse at 20% 30%, rgba(232,96,138,0.1) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 70%, rgba(167,139,250,0.08) 0%, transparent 50%);
+      pointer-events: none;
+    }
+
+    /* Mark */
+    .n-mark {
+      width: 110px; height: 110px;
+      border-radius: 26px;
+      background: #090706;
+      border: 1px solid rgba(255,255,255,0.05);
+      display: flex; align-items: center; justify-content: center;
+      gap: 11px;
+      position: relative; overflow: hidden;
+    }
+    .n-mdot {
+      width: 20px; height: 20px; border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .n-mdot-r {
+      background: var(--rose);
+      box-shadow: 0 0 10px var(--rose), 0 0 22px rgba(232,96,138,0.7), 0 0 50px rgba(232,96,138,0.35);
+    }
+    .n-mdot-g {
+      background: var(--gold);
+      box-shadow: 0 0 10px var(--gold), 0 0 22px rgba(212,150,58,0.7), 0 0 50px rgba(212,150,58,0.35);
+    }
+    .n-mdot-l {
+      background: var(--lav);
+      box-shadow: 0 0 10px var(--lav), 0 0 22px rgba(167,139,250,0.7), 0 0 50px rgba(167,139,250,0.35);
+    }
+
+    /* Letters — warm white + colored glow */
+    .n-letter {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: 88px;
+      line-height: 1;
+      letter-spacing: -2px;
+      color: #F8EEE2;
+    }
+    .n-H {
+      text-shadow:
+        0 0 8px rgba(232,96,138,0.9),
+        0 0 20px rgba(232,96,138,0.6),
+        0 0 50px rgba(232,96,138,0.35);
+    }
+    .n-I {
+      text-shadow:
+        0 0 8px rgba(212,150,58,0.9),
+        0 0 20px rgba(212,150,58,0.6),
+        0 0 50px rgba(212,150,58,0.35);
+    }
+    .n-M {
+      text-shadow:
+        0 0 8px rgba(167,139,250,0.9),
+        0 0 20px rgba(167,139,250,0.6),
+        0 0 50px rgba(167,139,250,0.35);
+    }
+
+    /* Sep dots — intense neon orbs */
+    .n-sep {
+      width: 12px; height: 12px; border-radius: 50%;
+      flex-shrink: 0; margin: 0 8px;
+    }
+    .n-sep-r {
+      background: var(--rose);
+      box-shadow: 0 0 6px var(--rose), 0 0 14px rgba(232,96,138,0.6);
+    }
+    .n-sep-g {
+      background: var(--gold);
+      box-shadow: 0 0 6px var(--gold), 0 0 14px rgba(212,150,58,0.6);
+    }
+    .n-sep-l {
+      background: var(--lav);
+      box-shadow: 0 0 6px var(--lav), 0 0 14px rgba(167,139,250,0.6);
+    }
+
+    .n-wm { display: flex; align-items: center; line-height: 1; }
+    .n-tl {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 11px;
+      letter-spacing: 3.5px;
+      text-transform: uppercase;
+      color: #2A2218;
+    }
+
+    .n-sm-r {
+      background: var(--rose);
+      box-shadow: 0 0 5px var(--rose), 0 0 12px rgba(232,96,138,0.5);
+    }
+    .n-sm-g {
+      background: var(--gold);
+      box-shadow: 0 0 5px var(--gold), 0 0 12px rgba(212,150,58,0.5);
+    }
+    .n-sm-l {
+      background: var(--lav);
+      box-shadow: 0 0 5px var(--lav), 0 0 12px rgba(167,139,250,0.5);
+    }
+
+
+
+    /* ═══════════════════════════════════════════
+       CONCEPT 3 — WIRE
+       Space Grotesk · outlined letters · no fill
+       dots are the only solid color
+       structural · architectural · high contrast
+    ═══════════════════════════════════════════ */
+
+    .w-bg {
+      background: linear-gradient(145deg, #161311, #0C0A08);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    /* Mark — outlined circles */
+    .w-mark {
+      width: 110px; height: 110px;
+      border-radius: 24px;
+      background: #0F0C0A;
+      border: 1px solid rgba(255,255,255,0.06);
+      display: flex; align-items: center; justify-content: center;
+      gap: 12px;
+      position: relative; overflow: hidden;
+    }
+    .w-mdot {
+      width: 20px; height: 20px; border-radius: 50%;
+      flex-shrink: 0;
+      background: transparent;
+    }
+    .w-mdot-r { border: 2.5px solid var(--rose); }
+    .w-mdot-g { border: 2.5px solid var(--gold); }
+    .w-mdot-l { border: 2.5px solid var(--lav);  }
+
+    /* Letters — stroked outlines, no fill */
+    .w-letter {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: 90px;
+      line-height: 1;
+      letter-spacing: -2px;
+      color: transparent;
+    }
+    .w-H { -webkit-text-stroke: 1.8px var(--rose); }
+    .w-I { -webkit-text-stroke: 1.8px var(--gold); }
+    .w-M { -webkit-text-stroke: 1.8px var(--lav);  }
+
+    /* Sep dots — solid, full color — only solid elements */
+    .w-sep {
+      width: 11px; height: 11px; border-radius: 50%;
+      flex-shrink: 0; margin: 0 8px;
+    }
+    .w-sep-r { background: var(--rose); }
+    .w-sep-g { background: var(--gold); }
+    .w-sep-l { background: var(--lav);  }
+
+    .w-wm { display: flex; align-items: center; line-height: 1; }
+    .w-tl {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 11px;
+      letter-spacing: 3.5px;
+      text-transform: uppercase;
+      color: #2E2620;
+    }
+
+    .w-sm-r { background: var(--rose); }
+    .w-sm-g { background: var(--gold); }
+    .w-sm-l { background: var(--lav);  }
+
+  </style>
+</head>
+<body>
+
+
+  <!-- ═══════════ CONCEPT 1: GLYPH ═══════════ -->
+  <section>
+    <div class="section-header">
+      <span class="section-label">Concept 1</span>
+      <span class="section-title">Glyph</span>
+      <span class="section-desc">DM Serif Display italic · per-letter color · editorial tension between the serif letterform and the digital dot</span>
+    </div>
+
+    <div class="lockup-row">
+
+      <!-- App Logo -->
+      <div class="card-wrap">
+        <span class="card-label">App Logo</span>
+        <div class="card g-bg" style="width:110px;height:110px;border-radius:26px;padding:0;">
+          <div class="g-mark" style="border:none;width:100%;height:100%;border-radius:26px;">
+            <div class="g-mdot g-mdot-r"></div>
+            <div class="g-mdot g-mdot-g"></div>
+            <div class="g-mdot g-mdot-l"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Wordmark -->
+      <div class="card-wrap">
+        <span class="card-label">Wordmark</span>
+        <div class="card g-bg" style="padding:28px 44px 22px;">
+          <div class="g-wm">
+            <span class="g-letter g-H">H</span>
+            <div class="g-sep g-sep-r"></div>
+            <span class="g-letter g-I">I</span>
+            <div class="g-sep g-sep-g"></div>
+            <span class="g-letter g-M">M</span>
+            <div class="g-sep g-sep-l"></div>
+          </div>
+          <span class="g-tl" style="margin-top:10px;">friendship · first</span>
+        </div>
+      </div>
+
+      <!-- Horizontal Lockup -->
+      <div class="card-wrap">
+        <span class="card-label">Horizontal Lockup</span>
+        <div class="card g-bg" style="padding:26px 32px; flex-direction:row; gap:22px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div class="g-mdot g-mdot-r"></div>
+            <div class="g-mdot g-mdot-g"></div>
+            <div class="g-mdot g-mdot-l"></div>
+          </div>
+          <div class="vdiv" style="height:38px;"></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+            <div class="g-wm">
+              <span class="g-letter g-H" style="font-size:64px;">H</span>
+              <div class="g-sep g-sep-r" style="width:8px;height:8px;margin:0 5px;"></div>
+              <span class="g-letter g-I" style="font-size:64px;">I</span>
+              <div class="g-sep g-sep-g" style="width:8px;height:8px;margin:0 5px;"></div>
+              <span class="g-letter g-M" style="font-size:64px;">M</span>
+              <div class="g-sep g-sep-l" style="width:8px;height:8px;margin:0 5px;"></div>
+            </div>
+            <span class="g-tl">friendship · first</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stacked Lockup -->
+      <div class="card-wrap">
+        <span class="card-label">Stacked Lockup</span>
+        <div class="card g-bg" style="padding:30px 44px 24px;">
+          <div class="sm-row" id="g-sm-row" style="height:24px; margin-bottom:4px;">
+            <div class="sm-dot g-sm g-sm-r" id="g-smd-r" style="width:11px;height:11px;background:var(--rose);"></div>
+            <div class="sm-dot g-sm g-sm-g" id="g-smd-g" style="width:11px;height:11px;background:var(--gold);"></div>
+            <div class="sm-dot g-sm g-sm-l" id="g-smd-l" style="width:11px;height:11px;background:var(--lav);"></div>
+          </div>
+          <div class="g-wm">
+            <span class="g-letter g-H" id="g-lH">H</span>
+            <div class="g-sep g-sep-r" id="g-sR"></div>
+            <span class="g-letter g-I" id="g-lI">I</span>
+            <div class="g-sep g-sep-g" id="g-sG"></div>
+            <span class="g-letter g-M" id="g-lM">M</span>
+            <div class="g-sep g-sep-l" id="g-sL"></div>
+          </div>
+          <span class="g-tl" style="margin-top:10px;">friendship · first</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+
+  <!-- ═══════════ CONCEPT 2: NEON ═══════════ -->
+  <section>
+    <div class="section-header">
+      <span class="section-label">Concept 2</span>
+      <span class="section-title">Neon</span>
+      <span class="section-desc">Space Grotesk · warm white letters · per-letter colored glow · dots as light sources · feels like a sign, not a logo</span>
+    </div>
+
+    <div class="lockup-row">
+
+      <!-- App Logo -->
+      <div class="card-wrap">
+        <span class="card-label">App Logo</span>
+        <div class="card n-bg" style="width:110px;height:110px;border-radius:26px;padding:0;">
+          <div class="n-mark" style="border:none;width:100%;height:100%;border-radius:26px;">
+            <div class="n-mdot n-mdot-r"></div>
+            <div class="n-mdot n-mdot-g"></div>
+            <div class="n-mdot n-mdot-l"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Wordmark -->
+      <div class="card-wrap">
+        <span class="card-label">Wordmark</span>
+        <div class="card n-bg" style="padding:28px 44px 22px;">
+          <div class="n-wm">
+            <span class="n-letter n-H">H</span>
+            <div class="n-sep n-sep-r"></div>
+            <span class="n-letter n-I">I</span>
+            <div class="n-sep n-sep-g"></div>
+            <span class="n-letter n-M">M</span>
+            <div class="n-sep n-sep-l"></div>
+          </div>
+          <span class="n-tl" style="margin-top:10px;">Friendship · First</span>
+        </div>
+      </div>
+
+      <!-- Horizontal Lockup -->
+      <div class="card-wrap">
+        <span class="card-label">Horizontal Lockup</span>
+        <div class="card n-bg" style="padding:26px 32px; flex-direction:row; gap:22px;">
+          <div style="display:flex;align-items:center;gap:9px;">
+            <div class="n-mdot n-mdot-r"></div>
+            <div class="n-mdot n-mdot-g"></div>
+            <div class="n-mdot n-mdot-l"></div>
+          </div>
+          <div class="vdiv" style="height:38px;"></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+            <div class="n-wm">
+              <span class="n-letter n-H" style="font-size:64px;">H</span>
+              <div class="n-sep n-sep-r" style="width:9px;height:9px;margin:0 6px;"></div>
+              <span class="n-letter n-I" style="font-size:64px;">I</span>
+              <div class="n-sep n-sep-g" style="width:9px;height:9px;margin:0 6px;"></div>
+              <span class="n-letter n-M" style="font-size:64px;">M</span>
+              <div class="n-sep n-sep-l" style="width:9px;height:9px;margin:0 6px;"></div>
+            </div>
+            <span class="n-tl">Friendship · First</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stacked Lockup -->
+      <div class="card-wrap">
+        <span class="card-label">Stacked Lockup</span>
+        <div class="card n-bg" style="padding:30px 44px 24px;">
+          <div class="sm-row" id="n-sm-row" style="height:24px; margin-bottom:4px;">
+            <div class="sm-dot n-sm-r" id="n-smd-r" style="width:12px;height:12px;"></div>
+            <div class="sm-dot n-sm-g" id="n-smd-g" style="width:12px;height:12px;"></div>
+            <div class="sm-dot n-sm-l" id="n-smd-l" style="width:12px;height:12px;"></div>
+          </div>
+          <div class="n-wm">
+            <span class="n-letter n-H" id="n-lH">H</span>
+            <div class="n-sep n-sep-r" id="n-sR"></div>
+            <span class="n-letter n-I" id="n-lI">I</span>
+            <div class="n-sep n-sep-g" id="n-sG"></div>
+            <span class="n-letter n-M" id="n-lM">M</span>
+            <div class="n-sep n-sep-l" id="n-sL"></div>
+          </div>
+          <span class="n-tl" style="margin-top:10px;">Friendship · First</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+
+  <!-- ═══════════ CONCEPT 3: WIRE ═══════════ -->
+  <section>
+    <div class="section-header">
+      <span class="section-label">Concept 3</span>
+      <span class="section-title">Wire</span>
+      <span class="section-desc">Space Grotesk · outlined letters · no fill anywhere · dots are the only solid color — structural, high contrast, unexpected</span>
+    </div>
+
+    <div class="lockup-row">
+
+      <!-- App Logo -->
+      <div class="card-wrap">
+        <span class="card-label">App Logo</span>
+        <div class="card w-bg" style="width:110px;height:110px;border-radius:24px;padding:0;">
+          <div class="w-mark" style="border:none;width:100%;height:100%;border-radius:24px;">
+            <div class="w-mdot w-mdot-r"></div>
+            <div class="w-mdot w-mdot-g"></div>
+            <div class="w-mdot w-mdot-l"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Wordmark -->
+      <div class="card-wrap">
+        <span class="card-label">Wordmark</span>
+        <div class="card w-bg" style="padding:28px 44px 22px;">
+          <div class="w-wm">
+            <span class="w-letter w-H">H</span>
+            <div class="w-sep w-sep-r"></div>
+            <span class="w-letter w-I">I</span>
+            <div class="w-sep w-sep-g"></div>
+            <span class="w-letter w-M">M</span>
+            <div class="w-sep w-sep-l"></div>
+          </div>
+          <span class="w-tl" style="margin-top:10px;">Friendship · First</span>
+        </div>
+      </div>
+
+      <!-- Horizontal Lockup -->
+      <div class="card-wrap">
+        <span class="card-label">Horizontal Lockup</span>
+        <div class="card w-bg" style="padding:26px 32px; flex-direction:row; gap:22px;">
+          <div style="display:flex;align-items:center;gap:11px;">
+            <div class="w-mdot w-mdot-r"></div>
+            <div class="w-mdot w-mdot-g"></div>
+            <div class="w-mdot w-mdot-l"></div>
+          </div>
+          <div class="vdiv" style="height:36px;"></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+            <div class="w-wm">
+              <span class="w-letter w-H" style="font-size:64px;">H</span>
+              <div class="w-sep w-sep-r" style="width:9px;height:9px;margin:0 6px;"></div>
+              <span class="w-letter w-I" style="font-size:64px;">I</span>
+              <div class="w-sep w-sep-g" style="width:9px;height:9px;margin:0 6px;"></div>
+              <span class="w-letter w-M" style="font-size:64px;">M</span>
+              <div class="w-sep w-sep-l" style="width:9px;height:9px;margin:0 6px;"></div>
+            </div>
+            <span class="w-tl">Friendship · First</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stacked Lockup -->
+      <div class="card-wrap">
+        <span class="card-label">Stacked Lockup</span>
+        <div class="card w-bg" style="padding:30px 44px 24px;">
+          <div class="sm-row" id="w-sm-row" style="height:22px; margin-bottom:6px;">
+            <div class="sm-dot w-sm-r" id="w-smd-r" style="width:11px;height:11px;"></div>
+            <div class="sm-dot w-sm-g" id="w-smd-g" style="width:11px;height:11px;"></div>
+            <div class="sm-dot w-sm-l" id="w-smd-l" style="width:11px;height:11px;"></div>
+          </div>
+          <div class="w-wm">
+            <span class="w-letter w-H" id="w-lH">H</span>
+            <div class="w-sep w-sep-r" id="w-sR"></div>
+            <span class="w-letter w-I" id="w-lI">I</span>
+            <div class="w-sep w-sep-g" id="w-sG"></div>
+            <span class="w-letter w-M" id="w-lM">M</span>
+            <div class="w-sep w-sep-l" id="w-sL"></div>
+          </div>
+          <span class="w-tl" style="margin-top:10px;">Friendship · First</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+
+  <script>
+    function alignDots(rowId, sepRId, lIId, sepGId, rId, gId, lId, size) {
+      const row  = document.getElementById(rowId);
+      const sepR = document.getElementById(sepRId);
+      const lI   = document.getElementById(lIId);
+      const sepG = document.getElementById(sepGId);
+      const dotR = document.getElementById(rId);
+      const dotG = document.getElementById(gId);
+      const dotL = document.getElementById(lId);
+      if (!row || !sepR || !lI || !sepG) return;
+      const rect = row.getBoundingClientRect();
+      const half = size / 2;
+      const cx = el => {
+        const r = el.getBoundingClientRect();
+        return r.left + r.width / 2 - rect.left - half;
+      };
+      dotR.style.left = cx(sepR) + 'px';
+      dotG.style.left = cx(lI)   + 'px';
+      dotL.style.left = cx(sepG) + 'px';
+      const top = (row.clientHeight - size) / 2;
+      dotR.style.top = dotG.style.top = dotL.style.top = top + 'px';
+    }
+
+    document.fonts.ready.then(() => {
+      alignDots('g-sm-row','g-sR','g-lI','g-sG','g-smd-r','g-smd-g','g-smd-l', 11);
+      alignDots('n-sm-row','n-sR','n-lI','n-sG','n-smd-r','n-smd-g','n-smd-l', 12);
+      alignDots('w-sm-row','w-sR','w-lI','w-sG','w-smd-r','w-smd-g','w-smd-l', 11);
+    });
+  </script>
+
+</body>
+</html>
