@@ -367,11 +367,11 @@ async function dispatchRoomMessagePush(
     .eq('room_key', roomKey);
   if (participantError) throw new Error(participantError.message);
 
-  const recipientIds = Array.from(
+  const recipientIds: string[] = Array.from(
     new Set(
       (participantData ?? [])
-        .map((row) => (typeof row.user_id === 'string' ? row.user_id : ''))
-        .filter((userId) => userId && userId !== actorUserId),
+        .map((row: { user_id: unknown }) => (typeof row.user_id === 'string' ? row.user_id : ''))
+        .filter((userId: string) => userId && userId !== actorUserId),
     ),
   );
 

@@ -70,7 +70,7 @@ async function handlePost(request: Request): Promise<Response> {
   }
 
   const confirmedIds = new Set(
-    (relationships ?? []).map((row) =>
+    (relationships ?? []).map((row: { user_id: string; buddy_id: string }) =>
       row.user_id === user.id ? row.buddy_id : row.user_id,
     ),
   );
