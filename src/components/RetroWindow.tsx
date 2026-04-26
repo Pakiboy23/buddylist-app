@@ -43,7 +43,7 @@ export default function RetroWindow({
   if (variant === 'xp_shell' || variant === 'glass_shell') {
     return (
       <div
-        className={`flex h-[100dvh] w-full flex-col overflow-hidden bg-transparent text-[12px] text-slate-700 ${className ?? ''}`}
+        className={`flex h-[100dvh] w-full flex-col overflow-hidden bg-transparent text-[12px] text-slate-700 dark:text-slate-200 ${className ?? ''}`}
         style={style}
       >
         {hideHeader ? null : (

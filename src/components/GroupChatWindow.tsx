@@ -16,6 +16,7 @@ import {
   uploadChatMediaFile,
   validateChatMediaFile,
 } from '@/lib/chatMedia';
+import { getShareableInviteUrl } from '@/lib/appApi';
 import { hapticLight, hapticSuccess, hapticWarning } from '@/lib/haptics';
 import { useKeyboardViewport } from '@/hooks/useKeyboardViewport';
 import { useSwipeBack } from '@/hooks/useSwipeBack';
@@ -1568,7 +1569,7 @@ export default function GroupChatWindow({
                       type="button"
                       onClick={() => {
                         void navigator.clipboard
-                          .writeText(`${window.location.origin}/join/${inviteCode}`)
+                          .writeText(getShareableInviteUrl(inviteCode))
                           .then(() => {
                             setShareLinkCopied(true);
                             setTimeout(() => setShareLinkCopied(false), 2000);
@@ -1719,8 +1720,8 @@ export default function GroupChatWindow({
             )}
             {!isLoadingMessages && messages.length === 0 && (
               <div className="ui-empty-state h-full px-6 ui-fade-in">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-violet-50">
-                  <AppIcon kind="chat" className="h-7 w-7 text-violet-400" />
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-violet-50 dark:bg-violet-950/25">
+                  <AppIcon kind="chat" className="h-7 w-7 text-violet-400 dark:text-violet-300" />
                 </div>
                 <div>
                   <p className="text-[length:var(--ui-text-md)] font-semibold text-slate-500">No messages yet</p>
@@ -1852,7 +1853,7 @@ export default function GroupChatWindow({
                                 } ${
                                   isMine
                                     ? hasCustomStyling
-                                      ? `rounded-[1.35rem] border border-blue-200/80 bg-white/96 text-slate-900 shadow-[0_10px_24px_rgba(37,99,235,0.16)] ${clusterMeta.isLastInRun ? 'rounded-br-[8px] bubble-tail-out' : ''}`
+                                      ? `rounded-[1.35rem] border border-blue-200/80 bg-white/96 text-slate-900 shadow-[0_10px_24px_rgba(37,99,235,0.16)] dark:border-slate-600/60 dark:bg-[#1D1916]/95 dark:text-slate-100 ${clusterMeta.isLastInRun ? 'rounded-br-[8px] bubble-tail-out' : ''}`
                                       : `rounded-[1.35rem] bg-[#E8608A]/22 text-white shadow-[0_8px_22px_rgba(232,96,138,0.26)] ${clusterMeta.isLastInRun ? 'rounded-br-[7px] bubble-tail-out' : ''}`
                                     : `rounded-[1.35rem] border border-white/70 bg-white/85 text-slate-800 shadow-sm backdrop-blur-sm dark:border-slate-700/70 dark:bg-[#13100E]/70 dark:text-slate-100 ${clusterMeta.isLastInRun ? 'rounded-bl-[7px] bubble-tail-in' : ''} ${isMentioningCurrentUser ? 'border-amber-300/70 bg-amber-50/80 dark:border-amber-400/35 dark:bg-amber-950/25' : ''}`
                                 } ${isMatch ? 'ring-2 ring-amber-400' : ''} ${!isDeleted && !isEditing ? 'ui-focus-ring' : ''}`}
@@ -1866,7 +1867,7 @@ export default function GroupChatWindow({
                                       className={`ui-focus-ring w-full rounded-xl border bg-white/20 px-2.5 py-1.5 text-[length:var(--ui-text-sm)] ${
                                         isMine
                                           ? 'border-white/30 text-white placeholder-white/50'
-                                          : 'border-slate-200 text-slate-800'
+                                          : 'border-slate-200 text-slate-800 dark:border-slate-700 dark:text-slate-100'
                                       }`}
                                       maxLength={1500}
                                       autoFocus
@@ -1876,7 +1877,7 @@ export default function GroupChatWindow({
                                         type="button"
                                         onClick={cancelEditingMessage}
                                         className={`ui-focus-ring rounded-xl px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold ${
-                                          isMine ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                          isMine ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800/50 dark:text-slate-300 dark:hover:bg-slate-700/50'
                                         }`}
                                       >
                                         Cancel
@@ -2033,9 +2034,9 @@ export default function GroupChatWindow({
                         : 'text-slate-400';
                   const bubbleToneClass =
                     item.status === 'failed'
-                      ? 'border border-red-200/80 bg-red-50/90 text-red-950 shadow-[0_8px_24px_rgba(239,68,68,0.12)]'
+                      ? 'border border-red-200/80 bg-red-50/90 text-red-950 shadow-[0_8px_24px_rgba(239,68,68,0.12)] dark:border-red-500/30 dark:bg-red-950/25 dark:text-red-200'
                       : item.status === 'queued'
-                        ? 'border border-amber-200/80 bg-amber-50/90 text-amber-950 shadow-[0_8px_24px_rgba(245,158,11,0.12)]'
+                        ? 'border border-amber-200/80 bg-amber-50/90 text-amber-950 shadow-[0_8px_24px_rgba(245,158,11,0.12)] dark:border-amber-500/30 dark:bg-amber-950/25 dark:text-amber-200'
                         : 'bg-[#E8608A]/75 text-white shadow-[0_2px_8px_rgba(232,96,138,0.28)]';
 
                   return (

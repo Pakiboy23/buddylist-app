@@ -657,6 +657,22 @@ function formatAdminAuditEvent(eventType: string) {
     .join(' ');
 }
 
+function getSavedMessagePreviewText(content: string): string {
+  const plain = htmlToPlainText(content).trim();
+  if (!plain) {
+    return 'Saved keepsakes';
+  }
+  try {
+    const url = new URL(plain);
+    if (url.pathname.startsWith('/join/')) {
+      return 'Room invite';
+    }
+  } catch {
+    // not a URL — fall through
+  }
+  return plain;
+}
+
 function formatAuditUserLabel(screenname: string | null, userId: string | null) {
   if (screenname) {
     return screenname;
@@ -806,7 +822,7 @@ const DirectMessageRow = memo(function DirectMessageRow({
               </span>
             ) : null}
             {conversationPreference.isMuted ? (
-              <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:bg-[#13100E] dark:text-slate-300">
+              <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:bg-slate-800/60 dark:text-slate-300">
                 Muted
               </span>
             ) : null}
@@ -6096,7 +6112,7 @@ function HiItsMeContent() {
           <p className="truncate text-[11px] font-semibold text-[var(--rose)]">Private notes</p>
           <p className="truncate text-[11px] text-slate-400">
             {savedMessages[0]
-              ? htmlToPlainText(savedMessages[0].content).trim() || 'Saved keepsakes'
+              ? getSavedMessagePreviewText(savedMessages[0].content)
               : 'Save standout messages or jot down notes'}
           </p>
         </div>
@@ -7054,8 +7070,8 @@ function HiItsMeContent() {
                     <div className="px-2 pb-2 pt-3">
                       {activeRooms.length === 0 ? (
                         <div className="ui-empty-state px-4 py-8 ui-fade-in">
-                          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-violet-50">
-                            <AppIcon kind="chat" className="h-5 w-5 text-violet-400" />
+                          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-violet-50 dark:bg-violet-950/25">
+                            <AppIcon kind="chat" className="h-5 w-5 text-violet-400 dark:text-violet-300" />
                           </div>
                           <p className="text-[12px] text-slate-400">Join a room to start chatting.</p>
                         </div>

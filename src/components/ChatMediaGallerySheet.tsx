@@ -95,7 +95,7 @@ export default function ChatMediaGallerySheet({
             <h2 id={titleId} className="ui-sheet-title text-[length:var(--ui-text-lg)]">
               {title}
             </h2>
-            <p id={descriptionId} className="mt-0.5 text-[length:var(--ui-text-xs)] text-slate-500">
+            <p id={descriptionId} className="mt-0.5 text-[length:var(--ui-text-xs)] text-slate-500 dark:text-slate-400">
               Browse attachments, voice notes, and shared media in one place.
             </p>
           </div>
@@ -139,7 +139,7 @@ export default function ChatMediaGallerySheet({
                   <AppIcon kind="media" className="h-7 w-7" />
                 </div>
                 <div>
-                  <p className="text-[length:var(--ui-text-md)] font-semibold text-slate-500">No matches here yet</p>
+                  <p className="text-[length:var(--ui-text-md)] font-semibold text-slate-500 dark:text-slate-400">No matches here yet</p>
                   <p className="mt-0.5 text-[length:var(--ui-text-xs)] text-slate-400">
                     Shared media, voice notes, and files will collect here as the chat grows.
                   </p>

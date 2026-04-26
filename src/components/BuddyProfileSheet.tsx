@@ -201,7 +201,7 @@ export default function BuddyProfileSheet({
                 showStatusDot={showPresence}
               />
               <div className="min-w-0 flex-1">
-                <p className="ui-screenname truncate text-[length:var(--ui-text-xl)] font-semibold text-slate-800">
+                <p className="ui-screenname truncate text-[length:var(--ui-text-xl)] font-semibold text-slate-800 dark:text-slate-100">
                   {buddy.screenname}
                 </p>
                 {showPresence ? (
@@ -209,7 +209,7 @@ export default function BuddyProfileSheet({
                     <p className="text-[length:var(--ui-text-sm)] font-semibold text-[var(--rose)]">
                       {getPresenceLabel(buddy.presenceState)}
                     </p>
-                    <p className="mt-1 text-[length:var(--ui-text-sm)] text-slate-500">
+                    <p className="mt-1 text-[length:var(--ui-text-sm)] text-slate-500 dark:text-slate-400">
                       {buddy.presenceDetail}
                     </p>
                   </>
@@ -222,7 +222,7 @@ export default function BuddyProfileSheet({
                 <p className="text-[length:var(--ui-text-2xs)] font-semibold uppercase tracking-widest text-slate-400">
                   Status Line
                 </p>
-                <p className="mt-1 text-[length:var(--ui-text-md)] text-slate-700">{buddy.statusLine}</p>
+                <p className="mt-1 text-[length:var(--ui-text-md)] text-slate-700 dark:text-slate-200">{buddy.statusLine}</p>
               </div>
             ) : null}
 
@@ -242,7 +242,7 @@ export default function BuddyProfileSheet({
                 <p className="text-[length:var(--ui-text-2xs)] font-semibold uppercase tracking-widest text-slate-400">
                   Bio
                 </p>
-                <p className="mt-1 text-[length:var(--ui-text-md)] text-slate-700">
+                <p className="mt-1 text-[length:var(--ui-text-md)] text-slate-700 dark:text-slate-200">
                   {buddy.bio?.trim() || 'No profile bio yet.'}
                 </p>
               </div>
@@ -365,10 +365,10 @@ export default function BuddyProfileSheet({
                   className="ui-sheet-surface mx-4 w-full max-w-sm rounded-[1.6rem] p-5 shadow-xl"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <p className="text-[length:var(--ui-text-lg)] font-semibold text-slate-800">
+                  <p className="text-[length:var(--ui-text-lg)] font-semibold text-slate-800 dark:text-slate-100">
                     Remove {buddy.screenname}?
                   </p>
-                  <p className="mt-1.5 text-[length:var(--ui-text-sm)] text-slate-500">
+                  <p className="mt-1.5 text-[length:var(--ui-text-sm)] text-slate-500 dark:text-slate-400">
                     Remove {buddy.screenname} from your H.I.M. contacts?
                   </p>
                   <div className="mt-5 flex justify-end gap-2">
@@ -402,8 +402,8 @@ export default function BuddyProfileSheet({
                   <AppIcon kind="shield" className="h-4 w-4" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[length:var(--ui-text-sm)] font-semibold text-slate-800">Safety</p>
-                  <p className="mt-0.5 text-[length:var(--ui-text-xs)] text-slate-500">
+                  <p className="text-[length:var(--ui-text-sm)] font-semibold text-slate-800 dark:text-slate-100">Safety</p>
+                  <p className="mt-0.5 text-[length:var(--ui-text-xs)] text-slate-500 dark:text-slate-400">
                     Block unwanted contact or send a report if something feels off.
                   </p>
                 </div>

@@ -110,7 +110,7 @@ export default function IncomingMessageBanner({
               variant === 'dm'
                 ? 'bg-[#E8608A]/10 text-[#E8608A] dark:bg-[#E8608A]/15 dark:text-[#E8608A]'
                 : variant === 'room'
-                  ? 'bg-violet-50 text-violet-600 dark:bg-violet-100 dark:text-violet-200'
+                  ? 'bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-300'
                   : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-200'
             }`}
             aria-label={`Open ${variant === 'dm' ? 'conversation' : variant === 'room' ? 'room' : 'buddy update'} notification from ${senderName}`}
@@ -125,12 +125,12 @@ export default function IncomingMessageBanner({
             aria-label={`Open ${variant === 'dm' ? 'conversation' : variant === 'room' ? 'room' : 'buddy update'} from ${senderName}`}
           >
             <div className="flex items-baseline gap-1.5">
-              <span className="truncate text-[length:var(--ui-text-md)] font-semibold text-slate-800">{senderName}</span>
+              <span className="truncate text-[length:var(--ui-text-md)] font-semibold text-slate-800 dark:text-slate-100">{senderName}</span>
               {count > 1 ? (
                 <span className="shrink-0 text-[length:var(--ui-text-xs)] text-slate-400">{count} new</span>
               ) : null}
             </div>
-            <p className="truncate text-[length:var(--ui-text-sm)] text-slate-500">{messagePreview}</p>
+            <p className="truncate text-[length:var(--ui-text-sm)] text-slate-500 dark:text-slate-400">{messagePreview}</p>
           </button>
           {/* Dismiss button */}
           <button

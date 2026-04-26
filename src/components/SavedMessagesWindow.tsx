@@ -87,7 +87,7 @@ export default function SavedMessagesWindow({
                   <AppIcon kind="mail" className="h-7 w-7 text-blue-400" />
                 </div>
                 <div className="text-center">
-                  <p className="text-[length:var(--ui-text-md)] font-semibold text-slate-500">Nothing saved yet</p>
+                  <p className="text-[length:var(--ui-text-md)] font-semibold text-slate-500 dark:text-slate-400">Nothing saved yet</p>
                   <p className="mt-0.5 text-[length:var(--ui-text-xs)] text-slate-400">
                     Save standout messages here or write notes to yourself.
                   </p>

@@ -1716,7 +1716,7 @@ export default function ChatWindow({
                                   } ${
                                     isMine
                                       ? hasCustomStyling
-                                        ? `rounded-[1.35rem] border border-blue-200/80 bg-white/96 text-slate-900 shadow-[0_10px_24px_rgba(37,99,235,0.16)] ${
+                                        ? `rounded-[1.35rem] border border-blue-200/80 bg-white/96 text-slate-900 shadow-[0_10px_24px_rgba(37,99,235,0.16)] dark:border-slate-600/60 dark:bg-[#1D1916]/95 dark:text-slate-100 ${
                                             clusterMeta.isLastInRun ? 'rounded-br-[8px] bubble-tail-out' : ''
                                           }`
                                         : `rounded-[1.35rem] text-white shadow-[0_8px_22px_rgba(37,99,235,0.26)] ${
@@ -1737,7 +1737,7 @@ export default function ChatWindow({
                                         className={`ui-focus-ring w-full rounded-xl border bg-white/20 px-2.5 py-1.5 text-[length:var(--ui-text-sm)] ${
                                           isMine
                                             ? 'border-white/30 text-white placeholder-white/50'
-                                            : 'border-slate-200 text-slate-800'
+                                            : 'border-slate-200 text-slate-800 dark:border-slate-700 dark:text-slate-100'
                                         }`}
                                         maxLength={1000}
                                         autoFocus
@@ -1747,7 +1747,7 @@ export default function ChatWindow({
                                           type="button"
                                           onClick={cancelEditingMessage}
                                           className={`ui-focus-ring rounded-xl px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold ${
-                                            isMine ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                            isMine ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800/50 dark:text-slate-300 dark:hover:bg-slate-700/50'
                                           }`}
                                         >
                                           Cancel
@@ -1780,7 +1780,7 @@ export default function ChatWindow({
                                           className={`rounded-xl border px-2.5 py-1.5 text-[length:var(--ui-text-2xs)] ${
                                             isMine
                                               ? hasCustomStyling
-                                                ? 'border-slate-200 bg-slate-100/80 text-slate-500'
+                                                ? 'border-slate-200 bg-slate-100/80 text-slate-500 dark:border-slate-700 dark:bg-[#13100E]/65 dark:text-slate-300'
                                                 : 'border-white/20 bg-white/15 text-blue-100'
                                               : 'border-slate-200 bg-slate-100/80 text-slate-500 dark:border-slate-700 dark:bg-[#13100E]/65 dark:text-slate-300'
                                           }`}
@@ -1887,7 +1887,7 @@ export default function ChatWindow({
                                             setLongPressMessageId(null);
                                           }}
                                           disabled={isDeletingMessageId === message.id}
-                                          className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-red-500 hover:bg-red-50 disabled:opacity-60"
+                                          className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-red-500 hover:bg-red-50 disabled:opacity-60 dark:hover:bg-red-950/30"
                                           aria-label={`Delete message sent at ${metaTimeLabel}`}
                                         >
                                           {isDeletingMessageId === message.id ? '…' : 'Delete'}
@@ -1965,9 +1965,9 @@ export default function ChatWindow({
                         : 'text-slate-400';
                   const bubbleToneClass =
                     item.status === 'failed'
-                      ? 'border border-red-200/80 bg-red-50/90 text-red-950 shadow-[0_8px_24px_rgba(239,68,68,0.12)]'
+                      ? 'border border-red-200/80 bg-red-50/90 text-red-950 shadow-[0_8px_24px_rgba(239,68,68,0.12)] dark:border-red-500/30 dark:bg-red-950/25 dark:text-red-200'
                       : item.status === 'queued'
-                        ? 'border border-amber-200/80 bg-amber-50/90 text-amber-950 shadow-[0_8px_24px_rgba(245,158,11,0.12)]'
+                        ? 'border border-amber-200/80 bg-amber-50/90 text-amber-950 shadow-[0_8px_24px_rgba(245,158,11,0.12)] dark:border-amber-500/30 dark:bg-amber-950/25 dark:text-amber-200'
                         : 'bg-[#E8608A]/75 text-white shadow-[0_2px_8px_rgba(232,96,138,0.28)]';
 
                   return (
