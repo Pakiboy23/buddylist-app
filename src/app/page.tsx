@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { useAppRouter } from '@/lib/appNavigation';
 import AppIcon from '@/components/AppIcon';
 import HimWordmark from '@/components/HimWordmark';
@@ -11,6 +12,19 @@ import { supabase } from '@/lib/supabase';
 
 const SIGN_ON_SOUND = '/sounds/aol-welcome.mp3';
 const SIGN_ON_FALLBACK_SOUND = '/sounds/aim.mp3';
+
+// Where Supabase should send users after they click the password-reset email.
+// Native (iOS/Android via Capacitor) uses the custom URL scheme registered in
+// capacitor.config.ts (ios.scheme = 'HIM'). Web uses the canonical app URL
+// rather than window.location.origin so reset emails sent from a Vercel
+// preview still land users on production.
+const APP_WEB_URL = 'https://hiitsme-app.vercel.app';
+const NATIVE_RESET_PASSWORD_URL = 'HIM://reset-password';
+const WEB_RESET_PASSWORD_URL = `${APP_WEB_URL}/reset-password`;
+
+function getResetPasswordRedirectUrl(): string {
+  return Capacitor.isNativePlatform() ? NATIVE_RESET_PASSWORD_URL : WEB_RESET_PASSWORD_URL;
+}
 type AuthView = 'sign-on' | 'forgot-password';
 
 function subscribeToHydration() {
@@ -243,7 +257,7 @@ export default function Home() {
     setStatusMsg('Sending reset link...');
 
     const { error } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: getResetPasswordRedirectUrl(),
     });
 
     if (error) {
