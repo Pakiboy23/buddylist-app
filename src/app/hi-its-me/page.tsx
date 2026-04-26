@@ -111,11 +111,6 @@ import {
   getPresenceLabel,
   resolvePresenceState,
 } from '@/lib/presence';
-import { generateClientRecoveryCode, RECOVERY_CODE_MIN_LENGTH } from '@/lib/recoveryCode';
-import {
-  clearPendingSignupRecoveryDraft,
-  readPendingSignupRecoveryDraft,
-} from '@/lib/signupRecoveryDraft';
 import {
   applyDmStateEvent,
   mapRowsToUnreadDirectMessages,
@@ -690,7 +685,7 @@ function buildAdminResetHandoff(screenname: string, ticket: string, expiresAt: s
     `H.I.M. secure reset for ${screenname}`,
     `Ticket: ${ticket}`,
     `Expires: ${new Date(expiresAt).toLocaleString()}`,
-    'Open H.I.M., choose "Use reset ticket", then create a new password and recovery code.',
+    'Open H.I.M. and use this ticket to reset your password.',
   ].join('\n');
 }
 
@@ -947,14 +942,7 @@ function HiItsMeContent() {
   const [forwardError, setForwardError] = useState<string | null>(null);
   const [isForwardingToId, setIsForwardingToId] = useState<string | null>(null);
 
-  const [isRecoverySetupOpen, setIsRecoverySetupOpen] = useState(false);
-  const [recoveryCodeDraft, setRecoveryCodeDraft] = useState('');
-  const [recoveryCodeConfirmDraft, setRecoveryCodeConfirmDraft] = useState('');
-  const [recoverySetupError, setRecoverySetupError] = useState<string | null>(null);
-  const [recoverySetupFeedback, setRecoverySetupFeedback] = useState<string | null>(null);
-  const [isSavingRecoveryCode, setIsSavingRecoveryCode] = useState(false);
-
-  const [showAddWindow, setShowAddWindow] = useState(false);
+const [showAddWindow, setShowAddWindow] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -1042,7 +1030,6 @@ function HiItsMeContent() {
   const attemptedBiometricUnlockRef = useRef(false);
   const quickPhotoInputRef = useRef<HTMLInputElement | null>(null);
   const awayMessageFieldRef = useRef<HTMLTextAreaElement | null>(null);
-  const recoveryCodeInputRef = useRef<HTMLInputElement | null>(null);
   const adminResetInputRef = useRef<HTMLInputElement | null>(null);
   const playSound = useSoundPlayer();
   const { isDark, toggleDark } = useTheme();
@@ -1102,24 +1089,6 @@ function HiItsMeContent() {
 
     return () => window.cancelAnimationFrame(frameId);
   }, [awayModalMode, showAwayModal]);
-
-  useEffect(() => {
-    if (!isRecoverySetupOpen || typeof window === 'undefined') {
-      return;
-    }
-
-    const frameId = window.requestAnimationFrame(() => {
-      const field = recoveryCodeInputRef.current;
-      if (!field) {
-        return;
-      }
-
-      field.scrollIntoView({ block: 'center' });
-      field.focus();
-    });
-
-    return () => window.cancelAnimationFrame(frameId);
-  }, [isRecoverySetupOpen]);
 
   useEffect(() => {
     if (!isAdminResetOpen || typeof window === 'undefined') {
@@ -2871,47 +2840,6 @@ function HiItsMeContent() {
       lastActivityAtRef.current = Date.now();
       lastPresenceWriteAtRef.current = Date.now();
       setAwaySinceAt(resolvedStatusState.status === AWAY_STATUS ? new Date().toISOString() : null);
-      let hasRecoveryCode = true;
-      const { data: recoveryData, error: recoveryError } = await supabase
-        .from('account_recovery_codes')
-        .select('user_id')
-        .eq('user_id', session.user.id)
-        .maybeSingle();
-
-      if (recoveryError) {
-        console.error('Failed to check recovery code status:', recoveryError.message);
-      } else {
-        hasRecoveryCode = Boolean(recoveryData);
-      }
-
-      if (!hasRecoveryCode && session.access_token) {
-        const pendingRecoveryCode = readPendingSignupRecoveryDraft(resolvedScreenname);
-        if (pendingRecoveryCode) {
-          try {
-            const recoveryResponse = await fetch(getAppApiUrl('/api/auth/recovery/setup'), {
-              method: 'POST',
-              headers: {
-                'content-type': 'application/json',
-                authorization: `Bearer ${session.access_token}`,
-              },
-              body: JSON.stringify({ recoveryCode: pendingRecoveryCode }),
-            });
-
-            if (recoveryResponse.ok) {
-              hasRecoveryCode = true;
-              clearPendingSignupRecoveryDraft(resolvedScreenname);
-            } else {
-              const recoveryMessage = await readApiError(recoveryResponse);
-              setRecoverySetupError(recoveryMessage);
-            }
-          } catch (error) {
-            const message = error instanceof Error ? error.message : 'Could not finish recovery setup.';
-            setRecoverySetupError(message);
-          }
-        }
-      }
-
-      setIsRecoverySetupOpen(!hasRecoveryCode);
 
       let adminFlag = false;
       if (session.access_token && !isNativeIosShell()) {
@@ -4416,85 +4344,6 @@ function HiItsMeContent() {
     };
   }, [autoAwayMinutes, autoReturnOnActivity, isAutoAwayEnabled, persistIdleState, userId]);
 
-  const handleSaveRecoveryCode = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const trimmed = recoveryCodeDraft.trim();
-    const confirm = recoveryCodeConfirmDraft.trim();
-
-    if (!trimmed || !confirm) {
-      setRecoverySetupError('Enter and confirm your recovery code.');
-      setRecoverySetupFeedback(null);
-      return;
-    }
-
-    if (trimmed !== confirm) {
-      setRecoverySetupError('Recovery code entries do not match.');
-      setRecoverySetupFeedback(null);
-      return;
-    }
-
-    if (trimmed.length < RECOVERY_CODE_MIN_LENGTH) {
-      setRecoverySetupError(`Recovery code must be at least ${RECOVERY_CODE_MIN_LENGTH} characters.`);
-      setRecoverySetupFeedback(null);
-      return;
-    }
-
-    setIsSavingRecoveryCode(true);
-    setRecoverySetupError(null);
-    setRecoverySetupFeedback(null);
-
-    const accessToken = await getAccessToken();
-    if (!accessToken) {
-      setRecoverySetupError('Session expired. Please sign on again.');
-      setIsSavingRecoveryCode(false);
-      return;
-    }
-
-    let response: Response;
-    try {
-      response = await fetch(getAppApiUrl('/api/auth/recovery/setup'), {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ recoveryCode: trimmed }),
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Load failed';
-      setRecoverySetupError(message);
-      setIsSavingRecoveryCode(false);
-      return;
-    }
-
-    if (!response.ok) {
-      const errorMessage = await readApiError(response);
-      setRecoverySetupError(errorMessage);
-      setIsSavingRecoveryCode(false);
-      return;
-    }
-
-    setRecoveryCodeDraft('');
-    setRecoveryCodeConfirmDraft('');
-    setIsRecoverySetupOpen(false);
-    setIsSavingRecoveryCode(false);
-    clearPendingSignupRecoveryDraft(screennameRef.current);
-  };
-
-  const handleGenerateRecoveryCodeDraft = async () => {
-    const generated = generateClientRecoveryCode();
-    setRecoveryCodeDraft(generated);
-    setRecoveryCodeConfirmDraft(generated);
-    setRecoverySetupError(null);
-
-    try {
-      await navigator.clipboard.writeText(generated);
-      setRecoverySetupFeedback('Generated a secure recovery code and copied it to your clipboard.');
-    } catch {
-      setRecoverySetupFeedback('Generated a secure recovery code. Save it somewhere safe before you continue.');
-    }
-  };
-
   const loadAdminResetAuditData = useCallback(async (limit = 12) => {
     const accessToken = await getAccessToken();
     if (!accessToken) {
@@ -5854,7 +5703,6 @@ function HiItsMeContent() {
     setShowAddWindow(false);
     setShowRoomsWindow(false);
     setIsAdminResetOpen(false);
-    setIsRecoverySetupOpen(false);
 
     if (activeChatBuddyIdRef.current) {
       closeChatWindow();
@@ -6016,7 +5864,6 @@ function HiItsMeContent() {
           showPrivacySheet ||
           showSystemStatusSheet ||
           isAdminResetOpen ||
-          isRecoverySetupOpen ||
           showAwayModal ||
           showAddWindow ||
           showRoomsWindow
@@ -6033,9 +5880,7 @@ function HiItsMeContent() {
           ? 'System Status'
           : isAdminResetOpen
             ? 'Reset Account Access'
-            : isRecoverySetupOpen
-              ? 'Finish Account Protection'
-              : mainShellTitle);
+            : mainShellTitle);
   const nativeShellSubtitle =
     activeChatBuddy
       ? activeChatBuddyPresenceSummary?.presenceLabel || 'Direct message'
@@ -6049,9 +5894,7 @@ function HiItsMeContent() {
               ? chatSyncSummary
               : isAdminResetOpen
                 ? 'Recovery concierge'
-                : isRecoverySetupOpen
-                  ? 'Set your private recovery code'
-                  : mainShellSubtitle;
+                : mainShellSubtitle;
   const nativeShellCanGoBack = Boolean(
     activeChatBuddy ||
       activeRoom ||
@@ -6059,7 +5902,6 @@ function HiItsMeContent() {
       showPrivacySheet ||
       showSystemStatusSheet ||
       isAdminResetOpen ||
-      isRecoverySetupOpen ||
       showAwayModal ||
       isHeaderMenuOpen ||
       bodyShellSection !== 'profile',
@@ -7214,101 +7056,6 @@ function HiItsMeContent() {
         </div>
       </RetroWindow>
 
-      {isRecoverySetupOpen && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4 backdrop-blur-[1px]">
-          <div className="w-full max-w-md">
-            <div className={xpModalFrameClass}>
-              <div className={`${xpModalHeaderClass} mb-2`}>Finish Account Protection</div>
-              <form onSubmit={handleSaveRecoveryCode} className={xpModalBodyClass}>
-                <div className="ui-note-warning">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="font-semibold">Choose your private recovery code</p>
-                      <p className="mt-1">
-                        Keep it somewhere safe. You will need it if you ever forget your password.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => void handleGenerateRecoveryCodeDraft()}
-                      disabled={isSavingRecoveryCode}
-                      className="ui-focus-ring ui-button-secondary ui-button-compact shrink-0"
-                    >
-                      Generate
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label htmlFor="recovery-code-input" className="mb-1 block text-[12px] font-semibold text-slate-700 dark:text-slate-300">
-                    Recovery code
-                  </label>
-                  <input
-                    ref={recoveryCodeInputRef}
-                    id="recovery-code-input"
-                    value={recoveryCodeDraft}
-                    onChange={(event) => setRecoveryCodeDraft(event.target.value)}
-                    className={xpModalInputClass}
-                    placeholder="MY-SECRET-CODE-2026"
-                    minLength={RECOVERY_CODE_MIN_LENGTH}
-                    disabled={isSavingRecoveryCode}
-                    autoCapitalize="characters"
-                    autoCorrect="off"
-                    spellCheck={false}
-                  />
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="recovery-code-confirm-input"
-                    className="mb-1 block text-[12px] font-semibold text-slate-700 dark:text-slate-300"
-                  >
-                    Confirm recovery code
-                  </label>
-                  <input
-                    id="recovery-code-confirm-input"
-                    value={recoveryCodeConfirmDraft}
-                    onChange={(event) => setRecoveryCodeConfirmDraft(event.target.value)}
-                    className={xpModalInputClass}
-                    placeholder="Repeat your code"
-                    minLength={RECOVERY_CODE_MIN_LENGTH}
-                    disabled={isSavingRecoveryCode}
-                    autoCapitalize="characters"
-                    autoCorrect="off"
-                    spellCheck={false}
-                  />
-                </div>
-
-                {recoverySetupFeedback && (
-                  <p className="ui-note-success">{recoverySetupFeedback}</p>
-                )}
-
-                {recoverySetupError && (
-                  <p className="ui-note-error">{recoverySetupError}</p>
-                )}
-
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void handleSignOff()}
-                    className={xpModalButtonClass}
-                  >
-                    Sign Off
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSavingRecoveryCode}
-                    className={xpModalPrimaryButtonClass}
-                  >
-                    {isSavingRecoveryCode ? 'Saving...' : 'Save Recovery Code'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-
       {isAdminResetOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-[1px]">
           <div className="w-full max-w-md">
@@ -7368,7 +7115,7 @@ function HiItsMeContent() {
                     <p className="font-bold">Secure reset ready</p>
                     <p className="mt-1">
                       Share this with <span className="font-semibold">{adminResetScreenname.trim() || 'the member'}</span>.
-                      They will choose a fresh password and recovery code after redemption.
+                      They will choose a fresh password after redemption.
                     </p>
                     <p className="mt-1 break-all font-mono text-[13px] font-bold">{issuedAdminTicket.ticket}</p>
                     <p className="mt-1 text-[11px]">

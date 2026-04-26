@@ -4,29 +4,14 @@ import AppIcon from '@/components/AppIcon';
 import HimWordmark from '@/components/HimWordmark';
 import RetroWindow from '@/components/RetroWindow';
 import { waitForSessionOrNull } from '@/lib/authClient';
-import { getPrimaryAuthEmail, getSignInAuthEmailCandidates, isInvalidCredentialsError } from '@/lib/authIdentity';
-import { getAppApiUrl } from '@/lib/appApi';
+import { getSignInAuthEmailCandidates, isInvalidCredentialsError } from '@/lib/authIdentity';
 import { navigateAppPath } from '@/lib/appNavigation';
-import { generateClientRecoveryCode, RECOVERY_CODE_MIN_LENGTH } from '@/lib/recoveryCode';
-import {
-  clearPendingSignupRecoveryDraft,
-  savePendingSignupRecoveryDraft,
-} from '@/lib/signupRecoveryDraft';
 import { initSoundSystem, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
 
 const SIGN_ON_SOUND = '/sounds/aol-welcome.mp3';
 const SIGN_ON_FALLBACK_SOUND = '/sounds/aim.mp3';
-type AuthView = 'sign-on' | 'forgot-password' | 'redeem-ticket';
-
-interface ResetApiSuccess {
-  ok: boolean;
-  nextRecoveryCode?: string;
-}
-
-interface ApiErrorResponse {
-  error?: string;
-}
+type AuthView = 'sign-on' | 'forgot-password';
 
 function subscribeToHydration() {
   return () => {};
@@ -34,17 +19,12 @@ function subscribeToHydration() {
 
 export default function Home() {
   const [screenname, setScreenname] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const isHydrated = useSyncExternalStore(subscribeToHydration, () => true, () => false);
   const [authView, setAuthView] = useState<AuthView>('sign-on');
-  const [recoveryCode, setRecoveryCode] = useState('');
-  const [signUpRecoveryCode, setSignUpRecoveryCode] = useState('');
-  const [signUpRecoveryCodeConfirm, setSignUpRecoveryCodeConfirm] = useState('');
-  const [resetTicket, setResetTicket] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmNewPassword, setConfirmNewPassword] = useState('');
-  const [rotatedRecoveryCode, setRotatedRecoveryCode] = useState<string | null>(null);
+  const [resetSent, setResetSent] = useState(false);
   const [statusMsg, setStatusMsg] = useState('Welcome back. Enter your screen name and password.');
   const [isLoading, setIsLoading] = useState(false);
   const hasNavigatedRef = useRef(false);
@@ -58,25 +38,18 @@ export default function Home() {
         volume: 0.85,
         fallbackSrc: SIGN_ON_FALLBACK_SOUND,
       });
-      if (!played) {
-        return;
-      }
+      if (!played) return;
       await new Promise((resolve) => setTimeout(resolve, 220));
     } catch {
-      // Ignore playback failures.
+      // ignore playback failures
     }
   }, []);
 
   const routeToHiItsMe = useCallback(
     async (withSound: boolean) => {
-      if (hasNavigatedRef.current) {
-        return;
-      }
-
+      if (hasNavigatedRef.current) return;
       hasNavigatedRef.current = true;
-      if (withSound) {
-        await playSignOnSound();
-      }
+      if (withSound) await playSignOnSound();
       navigateAppPath(router, '/hi-its-me');
     },
     [playSignOnSound, router],
@@ -91,11 +64,7 @@ export default function Home() {
 
     const checkSession = async () => {
       const session = await waitForSessionOrNull();
-
-      if (!isMounted || !session) {
-        return;
-      }
-
+      if (!isMounted || !session) return;
       await routeToHiItsMe(false);
     };
     void checkSession();
@@ -103,14 +72,8 @@ export default function Home() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!session || event !== 'SIGNED_IN') {
-        return;
-      }
-
-      if (isCompletingSignUpProtectionRef.current) {
-        return;
-      }
-
+      if (!session || event !== 'SIGNED_IN') return;
+      if (isCompletingSignUpProtectionRef.current) return;
       void routeToHiItsMe(true);
     });
 
@@ -122,112 +85,35 @@ export default function Home() {
 
   const applyViewStatusMessage = (view: AuthView, signUpMode: boolean) => {
     if (view === 'forgot-password') {
-      setStatusMsg('Enter your recovery code and choose a new password.');
+      setStatusMsg('Enter the email linked to your account and we\'ll send a reset link.');
       return;
     }
-
-    if (view === 'redeem-ticket') {
-      setStatusMsg('Use your admin ticket to set a fresh password.');
-      return;
-    }
-
     setStatusMsg(
       signUpMode
-        ? 'Choose a screen name, password, and secret recovery code to create your account.'
+        ? 'Choose a screen name, email, and password to create your account.'
         : 'Welcome back. Enter your screen name and password.',
     );
   };
 
   const switchAuthView = (nextView: AuthView) => {
     setAuthView(nextView);
-    if (nextView !== 'sign-on') {
-      setIsSignUp(false);
-    }
-    setRotatedRecoveryCode(null);
+    if (nextView !== 'sign-on') setIsSignUp(false);
+    setResetSent(false);
     applyViewStatusMessage(nextView, isSignUp);
-  };
-
-  const resetRecoveryFields = () => {
-    setRecoveryCode('');
-    setResetTicket('');
-    setNewPassword('');
-    setConfirmNewPassword('');
-  };
-
-  const resetSignUpRecoveryFields = () => {
-    setSignUpRecoveryCode('');
-    setSignUpRecoveryCodeConfirm('');
   };
 
   const openSignUp = () => {
     setAuthView('sign-on');
     setIsSignUp(true);
-    setRotatedRecoveryCode(null);
+    setResetSent(false);
     applyViewStatusMessage('sign-on', true);
   };
 
   const returnToSignIn = () => {
     setAuthView('sign-on');
     setIsSignUp(false);
-    setRotatedRecoveryCode(null);
-    resetSignUpRecoveryFields();
+    setResetSent(false);
     applyViewStatusMessage('sign-on', false);
-  };
-
-  const readApiError = async (response: Response) => {
-    try {
-      const data = (await response.json()) as ApiErrorResponse;
-      return data.error ?? 'Request failed.';
-    } catch {
-      return 'Request failed.';
-    }
-  };
-
-  const saveRecoveryCodeWithToken = async (accessToken: string, recoverySecret: string) => {
-    const response = await fetch(getAppApiUrl('/api/auth/recovery/setup'), {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({ recoveryCode: recoverySecret }),
-    });
-
-    if (!response.ok) {
-      throw new Error(await readApiError(response));
-    }
-  };
-
-  const validateSignUpRecoveryCode = () => {
-    const trimmed = signUpRecoveryCode.trim();
-    const confirm = signUpRecoveryCodeConfirm.trim();
-
-    if (!trimmed || !confirm) {
-      return 'Create and confirm your secret recovery code.';
-    }
-
-    if (trimmed !== confirm) {
-      return 'Recovery code entries do not match.';
-    }
-
-    if (trimmed.length < RECOVERY_CODE_MIN_LENGTH) {
-      return `Recovery code must be at least ${RECOVERY_CODE_MIN_LENGTH} characters.`;
-    }
-
-    return null;
-  };
-
-  const handleGenerateSignUpRecoveryCode = async () => {
-    const generated = generateClientRecoveryCode();
-    setSignUpRecoveryCode(generated);
-    setSignUpRecoveryCodeConfirm(generated);
-
-    try {
-      await navigator.clipboard.writeText(generated);
-      setStatusMsg('Secure recovery code generated and copied. Save it somewhere safe.');
-    } catch {
-      setStatusMsg('Secure recovery code generated. Save it somewhere safe.');
-    }
   };
 
   const handleSignOn = async () => {
@@ -250,27 +136,24 @@ export default function Home() {
         setStatusMsg('Screen Name can only contain letters, numbers, underscores, and dots.');
         return;
       }
-      const recoveryValidationError = validateSignUpRecoveryCode();
-      if (recoveryValidationError) {
-        setStatusMsg(recoveryValidationError);
+      const trimmedEmail = email.trim().toLowerCase();
+      if (!trimmedEmail || !trimmedEmail.includes('@')) {
+        setStatusMsg('Please enter a valid email address.');
         return;
       }
     }
 
-    const authEmail = getPrimaryAuthEmail(trimmedScreenname);
     setIsLoading(true);
     setStatusMsg(isSignUp ? 'Creating account...' : 'Dialing in...');
 
     if (isSignUp) {
+      const trimmedEmail = email.trim().toLowerCase();
       isCompletingSignUpProtectionRef.current = true;
+
       const { data, error } = await supabase.auth.signUp({
-        email: authEmail,
+        email: trimmedEmail,
         password,
-        options: {
-          data: {
-            screenname: trimmedScreenname,
-          },
-        },
+        options: { data: { screenname: trimmedScreenname } },
       });
 
       if (error) {
@@ -281,208 +164,106 @@ export default function Home() {
       }
 
       if (data.session) {
-        setStatusMsg('Account created. Securing your account...');
-        try {
-          // Seed public.users before saving the recovery code — the FK on
-          // account_recovery_codes requires this row to exist first.
-          await supabase.from('users').upsert(
-            {
-              id: data.session.user.id,
-              email: data.session.user.email ?? '',
-              screenname: trimmedScreenname,
-              status: 'available',
-              is_online: true,
-              last_active_at: new Date().toISOString(),
-            },
-            { onConflict: 'id' },
-          );
-          await saveRecoveryCodeWithToken(data.session.access_token, signUpRecoveryCode.trim());
-          clearPendingSignupRecoveryDraft(trimmedScreenname);
-        } catch (error) {
-          await supabase.auth.signOut();
-          isCompletingSignUpProtectionRef.current = false;
-          setIsSignUp(false);
-          setPassword('');
-          setStatusMsg(
-            `Account created, but protection setup needs one more try: ${error instanceof Error ? error.message : 'Save failed.'}`,
-          );
-          setIsLoading(false);
-          return;
-        }
-
-        resetSignUpRecoveryFields();
+        await supabase.from('users').upsert(
+          {
+            id: data.session.user.id,
+            email: trimmedEmail,
+            screenname: trimmedScreenname,
+            status: 'available',
+            is_online: true,
+            last_active_at: new Date().toISOString(),
+          },
+          { onConflict: 'id' },
+        );
         isCompletingSignUpProtectionRef.current = false;
         setStatusMsg('Account created. Opening H.I.M....');
         await routeToHiItsMe(true);
       } else {
-        savePendingSignupRecoveryDraft(trimmedScreenname, signUpRecoveryCode.trim());
         isCompletingSignUpProtectionRef.current = false;
-        setStatusMsg('Account created. Check your email to confirm, then sign in here to finish saving your recovery code.');
+        setStatusMsg('Account created. Check your email to confirm, then sign in.');
       }
 
       setIsLoading(false);
       return;
     }
 
-    let signInError: Error | null = null;
-    for (const authEmail of getSignInAuthEmailCandidates(trimmedScreenname)) {
+    // Sign in: look up email by screenname for new-style accounts first
+    const { data: userData } = await supabase
+      .from('users')
+      .select('email')
+      .eq('screenname', trimmedScreenname)
+      .maybeSingle();
+
+    if (userData?.email) {
       const { error } = await supabase.auth.signInWithPassword({
-        email: authEmail,
+        email: userData.email,
         password,
       });
-
       if (!error) {
         setStatusMsg('Success! Opening H.I.M....');
         await routeToHiItsMe(true);
         setIsLoading(false);
         return;
       }
+    }
 
-      signInError = error;
-      if (!isInvalidCredentialsError(error.message)) {
-        break;
+    // Fall back to derived email for legacy accounts
+    let signInError: Error | null = null;
+    for (const authEmail of getSignInAuthEmailCandidates(trimmedScreenname)) {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: authEmail,
+        password,
+      });
+      if (!error) {
+        setStatusMsg('Success! Opening H.I.M....');
+        await routeToHiItsMe(true);
+        setIsLoading(false);
+        return;
       }
+      signInError = error;
+      if (!isInvalidCredentialsError(error.message)) break;
     }
 
     if (signInError) {
-      setStatusMsg(`Connection failed: ${isInvalidCredentialsError(signInError.message) ? 'Invalid login credentials.' : signInError.message}`);
-      setIsLoading(false);
-      return;
+      setStatusMsg(
+        `Connection failed: ${isInvalidCredentialsError(signInError.message) ? 'Invalid login credentials.' : signInError.message}`,
+      );
     }
-  };
-
-  const handleRecoveryReset = async () => {
-    const trimmedScreenname = screenname.trim();
-    if (!trimmedScreenname || !recoveryCode || !newPassword || !confirmNewPassword) {
-      setStatusMsg('Please fill in Screen Name, Recovery Code, and New Password.');
-      return;
-    }
-
-    if (newPassword !== confirmNewPassword) {
-      setStatusMsg('New password and confirmation do not match.');
-      return;
-    }
-
-    setIsLoading(true);
-    setStatusMsg('Verifying recovery code...');
-
-    let response: Response;
-    try {
-      response = await fetch(getAppApiUrl('/api/auth/recovery/reset'), {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          screenname: trimmedScreenname,
-          recoveryCode,
-          newPassword,
-        }),
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Load failed';
-      setStatusMsg(`Reset failed: ${message}`);
-      setIsLoading(false);
-      return;
-    }
-
-    if (!response.ok) {
-      const errorMessage = await readApiError(response);
-      setStatusMsg(`Reset failed: ${errorMessage}`);
-      setIsLoading(false);
-      return;
-    }
-
-    const payload = (await response.json()) as ResetApiSuccess;
-    setRotatedRecoveryCode(payload.nextRecoveryCode ?? null);
-    setPassword('');
-    setIsSignUp(false);
-    setAuthView('sign-on');
-    resetRecoveryFields();
-    setStatusMsg('Password reset complete. Save your new recovery code, then sign on.');
     setIsLoading(false);
   };
 
-  const handleTicketRedemption = async () => {
-    const trimmedScreenname = screenname.trim();
-    if (!trimmedScreenname || !resetTicket || !newPassword || !confirmNewPassword) {
-      setStatusMsg('Please fill in Screen Name, Ticket, and New Password.');
-      return;
-    }
-
-    if (newPassword !== confirmNewPassword) {
-      setStatusMsg('New password and confirmation do not match.');
+  const handleForgotPassword = async () => {
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!trimmedEmail || !trimmedEmail.includes('@')) {
+      setStatusMsg('Please enter the email address linked to your account.');
       return;
     }
 
     setIsLoading(true);
-    setStatusMsg('Redeeming reset ticket...');
+    setStatusMsg('Sending reset link...');
 
-    let response: Response;
-    try {
-      response = await fetch(getAppApiUrl('/api/auth/recovery/redeem-ticket'), {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          screenname: trimmedScreenname,
-          ticket: resetTicket,
-          newPassword,
-        }),
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Load failed';
-      setStatusMsg(`Ticket failed: ${message}`);
+    const { error } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+
+    if (error) {
+      setStatusMsg(`Reset failed: ${error.message}`);
       setIsLoading(false);
       return;
     }
 
-    if (!response.ok) {
-      const errorMessage = await readApiError(response);
-      setStatusMsg(`Ticket failed: ${errorMessage}`);
-      setIsLoading(false);
-      return;
-    }
-
-    const payload = (await response.json()) as ResetApiSuccess;
-    setRotatedRecoveryCode(payload.nextRecoveryCode ?? null);
-    setPassword('');
-    setIsSignUp(false);
-    setAuthView('sign-on');
-    resetRecoveryFields();
-    setStatusMsg('Ticket redeemed. Save your new recovery code, then sign on.');
+    setResetSent(true);
+    setStatusMsg('Check your email for a password reset link.');
     setIsLoading(false);
   };
 
   const handlePrimarySubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setRotatedRecoveryCode(null);
-
     if (authView === 'forgot-password') {
-      await handleRecoveryReset();
+      await handleForgotPassword();
       return;
     }
-
-    if (authView === 'redeem-ticket') {
-      await handleTicketRedemption();
-      return;
-    }
-
     await handleSignOn();
-  };
-
-  const copyRecoveryCode = async () => {
-    if (!rotatedRecoveryCode) {
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(rotatedRecoveryCode);
-      setStatusMsg('Recovery code copied.');
-    } catch {
-      setStatusMsg('Could not copy automatically. Please copy it manually.');
-    }
   };
 
   const normalizedStatusMsg = statusMsg.toLowerCase();
@@ -490,41 +271,37 @@ export default function Home() {
   const authTitle =
     authView === 'forgot-password'
       ? 'Reset password'
-      : authView === 'redeem-ticket'
-        ? 'Redeem ticket'
-        : isSignUp
-          ? 'Create account'
-          : 'Sign in';
+      : isSignUp
+        ? 'Create account'
+        : 'Sign in';
   const authDescription =
     authView === 'forgot-password'
-      ? 'Reset your password with your recovery code.'
-      : authView === 'redeem-ticket'
-        ? 'Use an admin-issued ticket to get back in.'
-        : isSignUp
-          ? 'Create your screen name, password, and private recovery code.'
-          : 'Sign in with your screen name and password.';
+      ? 'We\'ll send a reset link to your email.'
+      : isSignUp
+        ? 'Create your screen name, email, and password.'
+        : 'Sign in with your screen name and password.';
   const baselineStatusMsg =
     authView === 'forgot-password'
-      ? 'Enter your recovery code and choose a new password.'
-      : authView === 'redeem-ticket'
-        ? 'Use your admin ticket to set a fresh password.'
-        : isSignUp
-          ? 'Choose a screen name, password, and secret recovery code to create your account.'
-          : 'Welcome back. Enter your screen name and password.';
-  const statusClass = normalizedStatusMsg.includes('failed') || normalizedStatusMsg.includes('invalid') || normalizedStatusMsg.includes('please')
-    ? 'border-rose-200/80 bg-rose-50/90 text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200'
-    : normalizedStatusMsg.includes('success') || normalizedStatusMsg.includes('complete') || normalizedStatusMsg.includes('copied')
-      ? 'border-emerald-200/80 bg-emerald-50/90 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200'
-      : 'border-slate-200/80 bg-white/88 text-slate-600 dark:border-slate-700 dark:bg-[#13100E]/70 dark:text-slate-300';
+      ? 'Enter the email linked to your account and we\'ll send a reset link.'
+      : isSignUp
+        ? 'Choose a screen name, email, and password to create your account.'
+        : 'Welcome back. Enter your screen name and password.';
+  const statusClass =
+    normalizedStatusMsg.includes('failed') || normalizedStatusMsg.includes('invalid') || normalizedStatusMsg.includes('please')
+      ? 'border-rose-200/80 bg-rose-50/90 text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200'
+      : normalizedStatusMsg.includes('success') || normalizedStatusMsg.includes('complete') || normalizedStatusMsg.includes('copied') || normalizedStatusMsg.includes('check your email')
+        ? 'border-emerald-200/80 bg-emerald-50/90 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200'
+        : 'border-slate-200/80 bg-white/88 text-slate-600 dark:border-slate-700 dark:bg-[#13100E]/70 dark:text-slate-300';
   const fieldClass =
     'ui-focus-ring ui-auth-field min-h-[52px] w-full rounded-2xl px-4 py-3 text-[15px] font-medium';
   const secondaryActionClass =
     'ui-focus-ring ui-auth-secondary inline-flex min-h-[42px] items-center rounded-2xl px-3 text-[13px] font-semibold transition disabled:opacity-50';
   const authModeButtonClass = (active: boolean) =>
     `ui-focus-ring ui-auth-mode flex min-h-[46px] items-center justify-center rounded-[1.1rem] px-3 text-[13px] font-semibold transition ${active ? '' : 'hover:bg-white/5'}`;
-  const submitLabel = authView === 'forgot-password' ? 'Reset password' : authView === 'redeem-ticket' ? 'Redeem ticket' : isSignUp ? 'Create account' : 'Sign in';
+  const submitLabel =
+    authView === 'forgot-password' ? 'Send reset link' : isSignUp ? 'Create account' : 'Sign in';
   const busySubmitLabel =
-    authView === 'forgot-password' ? 'Resetting...' : authView === 'redeem-ticket' ? 'Redeeming...' : isSignUp ? 'Creating...' : 'Signing in...';
+    authView === 'forgot-password' ? 'Sending...' : isSignUp ? 'Creating...' : 'Signing in...';
   const shouldShowStatusCard = statusMsg !== baselineStatusMsg;
 
   return (
@@ -586,233 +363,124 @@ export default function Home() {
               ) : null}
 
               <div key={`${authView}-${isSignUp ? 'signup' : 'signin'}`} className="mt-5 space-y-4 ui-fade-in">
-                <div>
-                  <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-                    Screen name
-                  </label>
-                  <input
-                    type="text"
-                    value={screenname}
-                    onChange={(event) => setScreenname(event.target.value)}
-                    className={`${fieldClass} ui-screenname`}
-                    placeholder="e.g. sk8erboi99"
-                    disabled={isLoading}
-                    autoComplete="username"
-                    autoCapitalize="none"
-                    autoCorrect="off"
-                    spellCheck={false}
-                  />
-                </div>
 
-                {isSignOnView && (
-                  <div>
-                    <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-                      Password
-                    </label>
-                    <input
-                      type="password"
-                      value={password}
-                      onChange={(event) => setPassword(event.target.value)}
-                      className={fieldClass}
-                      placeholder={isSignUp ? 'Create a password' : 'Enter password'}
-                      disabled={isLoading}
-                      autoComplete={isSignUp ? 'new-password' : 'current-password'}
-                    />
-                  </div>
-                )}
-
-                {isSignOnView && isSignUp && (
-                  <div className="ui-auth-recovery rounded-[1.55rem] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--gold)]">
-                          Account Protection
-                        </p>
-                        <p className="mt-2 text-[13px] leading-5 text-slate-600 dark:text-slate-300">
-                          Create a secret recovery code now so you can reset your password later without admin help.
-                        </p>
+                {/* Forgot password: email only */}
+                {authView === 'forgot-password' ? (
+                  resetSent ? (
+                    <div className="flex flex-col items-center gap-3 py-4 text-center">
+                      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-950/30">
+                        <AppIcon kind="mail" className="h-7 w-7 text-emerald-500" />
                       </div>
-                        <button
-                          type="button"
-                          onClick={() => void handleGenerateSignUpRecoveryCode()}
-                          disabled={controlsDisabled}
-                          className="ui-focus-ring ui-auth-back inline-flex min-h-[38px] shrink-0 items-center rounded-full px-3 text-[12px] font-semibold transition disabled:opacity-50"
-                        >
-                          Generate
+                      <p className="text-[15px] font-semibold text-slate-800 dark:text-slate-100">Check your email</p>
+                      <p className="text-[13px] leading-5 text-slate-500 dark:text-slate-400">
+                        We sent a reset link to <strong>{email.trim().toLowerCase()}</strong>. Follow the link to set a new password.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={returnToSignIn}
+                        className={secondaryActionClass}
+                      >
+                        Back to sign in
                       </button>
                     </div>
-
-                    <div className="mt-4 space-y-4">
-                      <div>
-                        <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-                          Secret recovery code
-                        </label>
-                        <input
-                          type="text"
-                          value={signUpRecoveryCode}
-                          onChange={(event) => setSignUpRecoveryCode(event.target.value)}
-                          className={fieldClass}
-                          placeholder="MY-PRIVATE-CODE-2026"
-                          disabled={isLoading}
-                          autoCapitalize="characters"
-                          autoCorrect="off"
-                          spellCheck={false}
-                          minLength={RECOVERY_CODE_MIN_LENGTH}
-                        />
-                      </div>
-
-                      <div>
-                        <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-                          Confirm recovery code
-                        </label>
-                        <input
-                          type="text"
-                          value={signUpRecoveryCodeConfirm}
-                          onChange={(event) => setSignUpRecoveryCodeConfirm(event.target.value)}
-                          className={fieldClass}
-                          placeholder="Repeat your code"
-                          disabled={isLoading}
-                          autoCapitalize="characters"
-                          autoCorrect="off"
-                          spellCheck={false}
-                          minLength={RECOVERY_CODE_MIN_LENGTH}
-                        />
-                      </div>
-                    </div>
-
-                    <p className="mt-3 text-[12px] leading-5 text-slate-500 dark:text-slate-400">
-                      Only a secure hash is stored. If you generate one here, copy it somewhere safe before continuing.
-                    </p>
-                  </div>
-                )}
-
-                {authView === 'forgot-password' && (
-                  <>
+                  ) : (
                     <div>
                       <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-                        Recovery code
+                        Email address
+                      </label>
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(event) => setEmail(event.target.value)}
+                        className={fieldClass}
+                        placeholder="your@email.com"
+                        disabled={isLoading}
+                        autoComplete="email"
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                      />
+                    </div>
+                  )
+                ) : (
+                  <>
+                    {/* Screen name — shown for sign in and sign up */}
+                    <div>
+                      <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                        Screen name
                       </label>
                       <input
                         type="text"
-                        value={recoveryCode}
-                        onChange={(event) => setRecoveryCode(event.target.value)}
-                        className={fieldClass}
-                        placeholder="XXXXXX-XXXXXX-XXXXXX"
+                        value={screenname}
+                        onChange={(event) => setScreenname(event.target.value)}
+                        className={`${fieldClass} ui-screenname`}
+                        placeholder="e.g. sk8erboi99"
                         disabled={isLoading}
-                        autoCapitalize="characters"
+                        autoComplete="username"
+                        autoCapitalize="none"
                         autoCorrect="off"
                         spellCheck={false}
                       />
                     </div>
+
+                    {/* Email — sign up only */}
+                    {isSignUp && (
+                      <div>
+                        <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                          Email address
+                        </label>
+                        <input
+                          type="email"
+                          value={email}
+                          onChange={(event) => setEmail(event.target.value)}
+                          className={fieldClass}
+                          placeholder="your@email.com"
+                          disabled={isLoading}
+                          autoComplete="email"
+                          autoCapitalize="none"
+                          autoCorrect="off"
+                        />
+                      </div>
+                    )}
+
+                    {/* Password */}
                     <div>
                       <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-                        New password
+                        Password
                       </label>
                       <input
                         type="password"
-                        value={newPassword}
-                        onChange={(event) => setNewPassword(event.target.value)}
+                        value={password}
+                        onChange={(event) => setPassword(event.target.value)}
                         className={fieldClass}
-                        placeholder="Create new password"
+                        placeholder={isSignUp ? 'Create a password' : 'Enter password'}
                         disabled={isLoading}
-                        autoComplete="new-password"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-                        Confirm password
-                      </label>
-                      <input
-                        type="password"
-                        value={confirmNewPassword}
-                        onChange={(event) => setConfirmNewPassword(event.target.value)}
-                        className={fieldClass}
-                        placeholder="Confirm new password"
-                        disabled={isLoading}
-                        autoComplete="new-password"
+                        autoComplete={isSignUp ? 'new-password' : 'current-password'}
                       />
                     </div>
                   </>
                 )}
 
-                {authView === 'redeem-ticket' && (
-                  <>
-                    <div>
-                      <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-                        Admin ticket
-                      </label>
-                      <input
-                        type="text"
-                        value={resetTicket}
-                        onChange={(event) => setResetTicket(event.target.value)}
-                        className={fieldClass}
-                        placeholder="TKT-XXXX-XXXX-XXXX"
-                        disabled={isLoading}
-                        autoCapitalize="characters"
-                        autoCorrect="off"
-                        spellCheck={false}
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-                        New password
-                      </label>
-                      <input
-                        type="password"
-                        value={newPassword}
-                        onChange={(event) => setNewPassword(event.target.value)}
-                        className={fieldClass}
-                        placeholder="Create new password"
-                        disabled={isLoading}
-                        autoComplete="new-password"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-                        Confirm password
-                      </label>
-                      <input
-                        type="password"
-                        value={confirmNewPassword}
-                        onChange={(event) => setConfirmNewPassword(event.target.value)}
-                        className={fieldClass}
-                        placeholder="Confirm new password"
-                        disabled={isLoading}
-                        autoComplete="new-password"
-                      />
-                    </div>
-                  </>
+                {!resetSent && (
+                  <button
+                    type="submit"
+                    disabled={controlsDisabled}
+                    className="ui-focus-ring ui-auth-submit mt-2 min-h-[52px] w-full rounded-2xl px-4 py-3 text-[15px] font-semibold transition active:scale-[0.99] disabled:opacity-50"
+                  >
+                    {isLoading ? busySubmitLabel : submitLabel}
+                  </button>
                 )}
-
-                <button
-                  type="submit"
-                  disabled={controlsDisabled}
-                  className="ui-focus-ring ui-auth-submit mt-2 min-h-[52px] w-full rounded-2xl px-4 py-3 text-[15px] font-semibold transition active:scale-[0.99] disabled:opacity-50"
-                >
-                  {isLoading ? busySubmitLabel : submitLabel}
-                </button>
 
                 {isSignOnView ? (
                   <div className="flex flex-wrap items-center gap-1">
                     {!isSignUp ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => switchAuthView('forgot-password')}
-                          disabled={controlsDisabled}
-                          className={secondaryActionClass}
-                        >
-                          Forgot password?
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => switchAuthView('redeem-ticket')}
-                          disabled={controlsDisabled}
-                          className={secondaryActionClass}
-                        >
-                          Use reset ticket
-                        </button>
-                      </>
+                      <button
+                        type="button"
+                        onClick={() => switchAuthView('forgot-password')}
+                        disabled={controlsDisabled}
+                        className={secondaryActionClass}
+                      >
+                        Forgot password?
+                      </button>
                     ) : (
                       <button
                         type="button"
@@ -828,27 +496,11 @@ export default function Home() {
               </div>
             </section>
 
-            {shouldShowStatusCard ? (
+            {shouldShowStatusCard && !resetSent ? (
               <p role="status" aria-live="polite" className={`rounded-[1.4rem] border px-4 py-3 text-[13px] font-medium leading-6 shadow-sm ${statusClass}`}>
                 {statusMsg}
               </p>
             ) : null}
-
-            {rotatedRecoveryCode && (
-              <div className="rounded-[1.5rem] border border-amber-300 bg-amber-50 px-4 py-4 text-[13px] text-amber-900 shadow-sm dark:border-amber-500/35 dark:bg-amber-500/12 dark:text-amber-100">
-                <p className="font-semibold">Your recovery code was rotated. Save this before you continue.</p>
-                <p className="mt-2 break-all rounded-2xl bg-white/70 px-3 py-2 font-mono text-[14px] font-bold dark:bg-[#13100E]/60">
-                  {rotatedRecoveryCode}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => void copyRecoveryCode()}
-                  className="ui-focus-ring mt-3 inline-flex min-h-[42px] items-center rounded-2xl border border-amber-400 bg-amber-100 px-3.5 text-[13px] font-semibold text-amber-900 transition hover:bg-amber-200 dark:border-amber-400/40 dark:bg-amber-400/20 dark:text-amber-100 dark:hover:bg-amber-400/28"
-                >
-                  Copy recovery code
-                </button>
-              </div>
-            )}
 
           </form>
         </div>
