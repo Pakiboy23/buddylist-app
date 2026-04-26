@@ -38,7 +38,8 @@ public class LocalNotificationsHandler: NSObject, NotificationHandlerProtocol {
         return [
             .badge,
             .sound,
-            .alert
+            .list,
+            .banner
         ]
     }
 

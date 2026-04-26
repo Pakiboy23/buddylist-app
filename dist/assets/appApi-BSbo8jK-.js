@@ -1,1 +1,0 @@
-import{C as r}from"./index-DCurKfz9.js";const i="https://hiitsme-app.vercel.app",n=i.trim().replace(/\/+$/,""),a="https://hiitsme.app",o=a.trim().replace(/\/+$/,"");function s(t){const e=t.startsWith("/")?t:`/${t}`;return typeof window<"u"&&r.isNativePlatform()?`${n}${e}`:e}function I(t){return`${o}/join/${t}`}export{I as a,s as g};

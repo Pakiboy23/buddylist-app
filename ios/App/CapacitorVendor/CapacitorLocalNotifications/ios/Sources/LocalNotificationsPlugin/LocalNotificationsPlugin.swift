@@ -255,9 +255,7 @@ public class LocalNotificationsPlugin: CAPPlugin, CAPBridgedPlugin {
             content.threadIdentifier = threadIdentifier
         }
 
-        if let summaryArgument = notification["summaryArgument"] as? String {
-            content.summaryArgument = summaryArgument
-        }
+        // summaryArgument is deprecated/ignored on iOS 15+.
 
         if let sound = notification["sound"] as? String {
             content.sound = UNNotificationSound(named: UNNotificationSoundName(sound))
