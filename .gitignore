@@ -57,3 +57,6 @@ next-env.d.ts
 /android/app/.cxx/
 /android/local.properties
 /android/capacitor-cordova-android-plugins/
+
+# iOS build artifacts (Xcode derived data)
+/ios/build/
