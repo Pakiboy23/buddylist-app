@@ -6255,6 +6255,13 @@ const [showAddWindow, setShowAddWindow] = useState(false);
               >
                 <button
                   type="button"
+                  onClick={() => navigateAppPath(router, '/account')}
+                  className="ui-focus-ring ui-popover-item mt-0.5"
+                >
+                  Account
+                </button>
+                <button
+                  type="button"
                   onClick={openPrivacyControls}
                   className="ui-focus-ring ui-popover-item mt-0.5"
                 >
