@@ -50,7 +50,7 @@ describe('apiCors', () => {
   });
 
   it('adds CORS headers to JSON responses for native clients', async () => {
-    const request = new Request('https://hiitsme-app.vercel.app/api/auth/recovery/setup', {
+    const request = new Request('https://hiitsme-app.vercel.app/api/admin/me', {
       method: 'POST',
       headers: {
         origin: 'capacitor://localhost',

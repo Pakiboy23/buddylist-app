@@ -169,7 +169,6 @@ export default function ChatMediaGallerySheet({
                       >
                         <div className="aspect-square bg-slate-100 dark:bg-[#13100E]">
                           {kind === 'image' ? (
-                            /* eslint-disable-next-line @next/next/no-img-element */
                             <img
                               src={item.publicUrl}
                               alt={item.fileName}

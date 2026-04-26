@@ -95,7 +95,6 @@ export default function ProfileAvatar({
         {visibleIconUrl ? (
           // Remote buddy icons may come from arbitrary user-provided URLs.
           // `img` avoids Next/Image host allowlist requirements for these avatars.
-          /* eslint-disable-next-line @next/next/no-img-element */
           <img
             src={visibleIconUrl}
             alt={`${screenname} profile photo`}

@@ -9,6 +9,7 @@ import DeepLinkHandler from '@/components/DeepLinkHandler';
 
 // Pages — lazy-loaded for code splitting
 const LoginPage = lazy(() => import('@/app/page'));
+const ResetPasswordPage = lazy(() => import('@/app/reset-password/page'));
 const HiItsMePage = lazy(() => import('@/app/hi-its-me/page'));
 const RoomsPage = lazy(() => import('@/app/hi-its-me/rooms/page'));
 const NewRoomPage = lazy(() => import('@/app/hi-its-me/rooms/new/page'));
@@ -21,6 +22,7 @@ export default function App() {
       <Suspense fallback={null}>
         <Routes>
           <Route path="/" element={<LoginPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/hi-its-me" element={<HiItsMePage />} />
           <Route path="/hi-its-me/rooms" element={<RoomsPage />} />
           <Route path="/hi-its-me/rooms/new" element={<NewRoomPage />} />

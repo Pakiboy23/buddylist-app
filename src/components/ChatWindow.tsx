@@ -1163,7 +1163,6 @@ export default function ChatWindow({
           className="ui-focus-ring block overflow-hidden rounded-[1rem] border border-white/30 bg-[var(--bg)]/5"
           aria-label={`Open image attachment ${attachment.file_name}`}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={data.publicUrl} alt={attachment.file_name} className="max-h-64 w-full object-cover" />
         </a>
       );

@@ -4,11 +4,14 @@ import { useNavigate } from 'react-router-dom';
 
 function resolveDeepLinkPath(url: string): string | null {
   try {
-    const { pathname, search } = new URL(url);
+    const { pathname, search, hash } = new URL(url);
     if (!pathname || pathname === '/') {
       return null;
     }
-    return pathname + (search ?? '');
+    // Preserve the URL hash so flows that ship tokens in the fragment
+    // (e.g. Supabase password recovery: /reset-password#access_token=...&type=recovery)
+    // still receive them after the deep link resolves.
+    return pathname + (search ?? '') + (hash ?? '');
   } catch {
     return null;
   }
