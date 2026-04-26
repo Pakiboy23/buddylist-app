@@ -5,6 +5,7 @@ import { ChatProvider } from '@/context/ChatContext';
 import PwaBootstrap from '@/components/PwaBootstrap';
 import NativeShellRouteSync from '@/components/NativeShellRouteSync';
 import GlobalNotificationListener from '@/components/GlobalNotificationListener';
+import DeepLinkHandler from '@/components/DeepLinkHandler';
 
 // Pages — lazy-loaded for code splitting
 const LoginPage = lazy(() => import('@/app/page'));
@@ -30,6 +31,7 @@ export default function App() {
       </Suspense>
       <PwaBootstrap />
       <NativeShellRouteSync />
+      <DeepLinkHandler />
       <GlobalNotificationListener />
       <Analytics />
     </ChatProvider>

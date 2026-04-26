@@ -1,6 +1,7 @@
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import RetroWindow from '@/components/RetroWindow';
+import { getShareableInviteUrl } from '@/lib/appApi';
 import { supabase } from '@/lib/supabase';
 import { waitForSessionOrNull } from '@/lib/authClient';
 import { joinRoom } from './actions';
@@ -112,8 +113,7 @@ function RoomPreviewContent({ roomId }: { roomId: string }) {
 
   async function handleShare() {
     if (!preview?.invite_code) return;
-    const appUrl = (import.meta.env.VITE_APP_URL as string | undefined) ?? window.location.origin;
-    await navigator.clipboard.writeText(`${appUrl}/join/${preview.invite_code}`);
+    await navigator.clipboard.writeText(getShareableInviteUrl(preview.invite_code));
     setCopied(true);
     if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
     copyTimerRef.current = setTimeout(() => setCopied(false), 2000);

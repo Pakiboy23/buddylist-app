@@ -49,3 +49,11 @@ next-env.d.ts
 
 # generated artifacts
 /artifacts
+
+# Android build artifacts (keep android/ source, exclude build outputs)
+/android/app/build/
+/android/build/
+/android/.gradle/
+/android/app/.cxx/
+/android/local.properties
+/android/capacitor-cordova-android-plugins/
