@@ -7542,6 +7542,22 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                     aria-checked={saveAwayPreset}
                   />
                 </div>
+                {saveAwayPreset ? (
+                  <div>
+                    <label htmlFor="away-preset-label-input" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-widest text-slate-400">
+                      Preset label
+                    </label>
+                    <input
+                      id="away-preset-label-input"
+                      type="text"
+                      value={awayLabelDraft}
+                      onChange={(event) => setAwayLabelDraft(event.target.value)}
+                      className={xpModalInputClass}
+                      placeholder="e.g. lunch, focus, offline…"
+                      maxLength={40}
+                    />
+                  </div>
+                ) : null}
               </div>
 
               {isProfileSchemaUnavailable ? (
