@@ -6,11 +6,11 @@ export async function joinRoom(
   roomId: string,
   userId: string,
 ): Promise<{ success: true } | { error: string }> {
-  const supabase = createSupabaseAdminClient();
+  const admin = createSupabaseAdminClient();
 
-  const { data: room, error: roomError } = await supabase
-    .from('chat_rooms')
-    .select('room_key, name')
+  const { data: room, error: roomError } = await admin
+    .from('rooms')
+    .select('id, is_active')
     .eq('id', roomId)
     .single();
 
@@ -18,16 +18,35 @@ export async function joinRoom(
     return { error: 'Room not found.' };
   }
 
-  // Insert into user_active_rooms — the sync trigger writes to room_participants.
-  const { error } = await supabase.from('user_active_rooms').insert({
-    user_id: userId,
-    room_key: room.room_key,
-    room_name: room.name,
-    unread_count: 0,
-  });
+  if (!room.is_active) {
+    return { error: 'This room is not currently active.' };
+  }
 
-  // 23505 = unique_violation (already a member) — treat as success.
-  if (error && error.code !== '23505') {
+  const { error } = await admin.from('room_memberships').upsert(
+    { room_id: roomId, user_id: userId, last_seen_at: new Date().toISOString() },
+    { onConflict: 'room_id,user_id', ignoreDuplicates: false },
+  );
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  return { success: true };
+}
+
+export async function leaveRoom(
+  roomId: string,
+  userId: string,
+): Promise<{ success: true } | { error: string }> {
+  const admin = createSupabaseAdminClient();
+
+  const { error } = await admin
+    .from('room_memberships')
+    .delete()
+    .eq('room_id', roomId)
+    .eq('user_id', userId);
+
+  if (error) {
     return { error: error.message };
   }
 

@@ -2,21 +2,12 @@
 
 import { FormEvent, KeyboardEvent, type CSSProperties, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import AppIcon from '@/components/AppIcon';
-import { MessageReactionPicker, MessageReactionStrip } from '@/components/MessageReactions';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import RetroWindow from '@/components/RetroWindow';
 import RichTextToolbar from '@/components/RichTextToolbar';
 import SwipeActionFrame from '@/components/SwipeActionFrame';
 import type { OutboxItem } from '@/lib/outbox';
 import { getJSON, setJSON } from '@/lib/clientStorage';
-import {
-  CHAT_MEDIA_MAX_ATTACHMENTS,
-  type ChatMediaAttachmentRecord,
-  formatFileSize,
-  uploadChatMediaFile,
-  validateChatMediaFile,
-} from '@/lib/chatMedia';
-import { getShareableInviteUrl } from '@/lib/appApi';
 import { hapticLight, hapticSuccess, hapticWarning } from '@/lib/haptics';
 import { useKeyboardViewport } from '@/hooks/useKeyboardViewport';
 import { useSwipeBack } from '@/hooks/useSwipeBack';
@@ -25,7 +16,6 @@ import {
   formatConversationMetaTime,
   getConversationClusterMeta,
 } from '@/lib/conversationPresentation';
-import { buildReactionMutationKey, summarizeReactionRows } from '@/lib/messageReactions';
 import { isNativeIosShell } from '@/lib/nativeShell';
 import { supabase } from '@/lib/supabase';
 import {
@@ -55,13 +45,9 @@ import {
 interface RoomMessage {
   id: string;
   room_id: string;
-  sender_id: string;
-  content: string;
+  user_id: string;
+  body: string;
   created_at: string;
-  client_msg_id?: string | null;
-  edited_at?: string | null;
-  deleted_at?: string | null;
-  deleted_by?: string | null;
 }
 
 interface RoomParticipant {
@@ -86,16 +72,6 @@ interface RoomProfile {
   buddy_icon_path: string | null;
 }
 
-interface RoomMessageReactionRow {
-  message_id: string;
-  user_id: string;
-  emoji: string;
-}
-
-interface RoomMessageAttachmentRow extends ChatMediaAttachmentRecord {
-  message_id: string;
-}
-
 interface BuddyStub {
   id: string;
   screenname: string;
@@ -104,7 +80,6 @@ interface BuddyStub {
 interface GroupChatWindowProps {
   roomId: string;
   roomName: string;
-  roomKey?: string | null;
   currentUserId: string;
   currentUserScreenname: string;
   currentUserBuddyIconPath?: string | null;
@@ -120,7 +95,6 @@ interface GroupChatWindowProps {
     errorMessage?: string;
   }) => void;
   onRetryOutboxMessage?: (itemId: string) => void;
-  inviteCode?: string | null;
   buddies?: BuddyStub[];
   onBack: () => void;
   onLeave: () => void;
@@ -166,7 +140,6 @@ function loadStoredRichTextFormat() {
 export default function GroupChatWindow({
   roomId,
   roomName,
-  roomKey = null,
   currentUserId,
   currentUserScreenname,
   currentUserBuddyIconPath = null,
@@ -177,7 +150,6 @@ export default function GroupChatWindow({
   onDraftChange,
   onQueueRoomMessage,
   onRetryOutboxMessage,
-  inviteCode = null,
   buddies = [],
   onBack,
   onLeave,
@@ -203,22 +175,8 @@ export default function GroupChatWindow({
   const [showFormatting, setShowFormatting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showConversationMenu, setShowConversationMenu] = useState(false);
-  const [shareLinkCopied, setShareLinkCopied] = useState(false);
   const [showComposerTools, setShowComposerTools] = useState(false);
   const [mentioningMessageId, setMentioningMessageId] = useState<string | null>(null);
-  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
-  const [editDraft, setEditDraft] = useState('');
-  const [isSavingEdit, setIsSavingEdit] = useState(false);
-  const [isDeletingMessageId, setIsDeletingMessageId] = useState<string | null>(null);
-  const [longPressMessageId, setLongPressMessageId] = useState<string | null>(null);
-  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [reactionRows, setReactionRows] = useState<RoomMessageReactionRow[]>([]);
-  const [pendingReactionKeys, setPendingReactionKeys] = useState<Set<string>>(() => new Set());
-  const [attachmentRows, setAttachmentRows] = useState<RoomMessageAttachmentRow[]>([]);
-  const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
-  const [reactionError, setReactionError] = useState<string | null>(null);
-  const [attachmentError, setAttachmentError] = useState<string | null>(null);
-  const [attachmentLoadError, setAttachmentLoadError] = useState<string | null>(null);
   const [composerAreaHeight, setComposerAreaHeight] = useState(0);
   const [isComposerFocused, setIsComposerFocused] = useState(false);
   const [enableSupplementalRealtime, setEnableSupplementalRealtime] = useState(false);
@@ -230,8 +188,6 @@ export default function GroupChatWindow({
   const [selectedInviteIds, setSelectedInviteIds] = useState<Set<string>>(() => new Set());
   const [isInviting, setIsInviting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
-  const seenReactionKeysRef = useRef(new Set<string>());
-  const [newReactionKeys, setNewReactionKeys] = useState<Set<string>>(() => new Set());
 
   const handleBack = useCallback(() => {
     setIsClosing(true);
@@ -244,39 +200,27 @@ export default function GroupChatWindow({
   }, [buddies, participants]);
 
   const handleInviteConfirm = useCallback(async () => {
-    if (selectedInviteIds.size === 0 || isInviting || !roomKey) return;
+    if (selectedInviteIds.size === 0 || isInviting) return;
     setIsInviting(true);
     setInviteError(null);
     try {
-      const inviteeIds = Array.from(selectedInviteIds);
-      const results = await Promise.allSettled(
-        inviteeIds.map((id) =>
-          supabase.rpc('invite_to_room', {
-            p_room_key: roomKey,
-            p_invitee_id: id,
-          }),
-        ),
-      );
-
-      const failures = results.filter(
-        (r) => r.status === 'rejected' || (r.status === 'fulfilled' && r.value.error),
-      );
-
-      if (failures.length > 0) {
-        const firstError = failures[0];
-        const message =
-          firstError.status === 'rejected'
-            ? String(firstError.reason)
-            : firstError.value.error!.message;
-        if (import.meta.env.DEV) {
-          console.error('[invite_to_room] RPC error:', message);
-        }
-        setInviteError(`Could not invite ${failures.length} buddy${failures.length > 1 ? 'ies' : ''}. ${message}`);
+      const { getAccessTokenOrNull } = await import('@/lib/authClient');
+      const { getAppApiUrl } = await import('@/lib/appApi');
+      const token = await getAccessTokenOrNull();
+      const response = await fetch(getAppApiUrl('/api/rooms/invite'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ roomId, buddyIds: Array.from(selectedInviteIds) }),
+      });
+      const result = (await response.json()) as { invited?: string[]; error?: string };
+      if (!response.ok || result.error) {
+        setInviteError(result.error ?? 'Invite failed.');
         return;
       }
-
-      const invitedIds = inviteeIds.filter((_, i) => results[i].status === 'fulfilled');
-      // Optimistically add invited buddies to the participants list.
+      const invitedIds = result.invited ?? [];
       const invitedBuddies = buddies.filter((b) => invitedIds.includes(b.id));
       setParticipants((prev) => {
         const existingIds = new Set(prev.map((p) => p.userId));
@@ -288,22 +232,17 @@ export default function GroupChatWindow({
       setShowInviteSheet(false);
       setSelectedInviteIds(new Set());
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      if (import.meta.env.DEV) {
-        console.error('[invite_to_room] Unexpected error:', message);
-      }
-      setInviteError(`Invite failed: ${message}`);
+      setInviteError(err instanceof Error ? err.message : 'Invite failed.');
     } finally {
       setIsInviting(false);
     }
-  }, [buddies, isInviting, roomKey, selectedInviteIds]);
+  }, [buddies, isInviting, roomId, selectedInviteIds]);
 
   const swipeBack = useSwipeBack({ onSwipeBack: handleBack });
   const [isSending, setIsSending] = useState(false);
   const [hasLiveMessageSinceOpen, setHasLiveMessageSinceOpen] = useState(false);
   const [typingMap, setTypingMap] = useState<Record<string, string>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const attachmentInputRef = useRef<HTMLInputElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const composerAreaRef = useRef<HTMLDivElement>(null);
   const searchInputId = useId();
@@ -425,160 +364,6 @@ export default function GroupChatWindow({
     };
   }, []);
 
-  useEffect(() => {
-    const messageIds = messages.map((message) => message.id);
-    if (messageIds.length === 0) {
-      setReactionRows([]);
-      return;
-    }
-
-    let isCancelled = false;
-
-    const loadReactions = async () => {
-      const { data, error } = await supabase
-        .from('room_message_reactions')
-        .select('message_id,user_id,emoji')
-        .in('message_id', messageIds);
-
-      if (isCancelled) {
-        return;
-      }
-
-      if (error) {
-        setReactionError(error.message);
-        return;
-      }
-
-      setReactionError(null);
-      setReactionRows((data ?? []) as RoomMessageReactionRow[]);
-    };
-
-    void loadReactions();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [messages]);
-
-  useEffect(() => {
-    if (!enableSupplementalRealtime) {
-      return;
-    }
-
-    const messageIdSet = new Set(messages.map((message) => message.id));
-    if (messageIdSet.size === 0) {
-      return;
-    }
-
-    const channel = supabase
-      .channel(`room_message_reactions:${roomId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'room_message_reactions' }, (payload) => {
-        const incoming = payload.new as RoomMessageReactionRow;
-        if (!messageIdSet.has(incoming.message_id)) {
-          return;
-        }
-
-        setReactionRows((previous) =>
-          previous.some(
-            (row) =>
-              row.message_id === incoming.message_id && row.user_id === incoming.user_id && row.emoji === incoming.emoji,
-          )
-            ? previous
-            : [...previous, incoming],
-        );
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'room_message_reactions' }, (payload) => {
-        const deleted = payload.old as RoomMessageReactionRow;
-        if (!messageIdSet.has(deleted.message_id)) {
-          return;
-        }
-
-        setReactionRows((previous) =>
-          previous.filter(
-            (row) =>
-              !(
-                row.message_id === deleted.message_id &&
-                row.user_id === deleted.user_id &&
-                row.emoji === deleted.emoji
-              ),
-          ),
-        );
-      })
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [enableSupplementalRealtime, messages, roomId]);
-
-  useEffect(() => {
-    const messageIds = messages.map((message) => message.id);
-    if (messageIds.length === 0) {
-      setAttachmentRows([]);
-      return;
-    }
-
-    let isCancelled = false;
-    const loadAttachments = async () => {
-      const { data, error } = await supabase
-        .from('room_message_attachments')
-        .select('id,message_id,bucket,storage_path,file_name,mime_type,size_bytes')
-        .in('message_id', messageIds)
-        .order('created_at', { ascending: true });
-
-      if (isCancelled) {
-        return;
-      }
-
-      if (error) {
-        setAttachmentLoadError(error.message);
-        return;
-      }
-
-      setAttachmentLoadError(null);
-      setAttachmentRows((data ?? []) as RoomMessageAttachmentRow[]);
-    };
-
-    void loadAttachments();
-    return () => {
-      isCancelled = true;
-    };
-  }, [messages]);
-
-  useEffect(() => {
-    if (!enableSupplementalRealtime) {
-      return;
-    }
-
-    const messageIdSet = new Set(messages.map((message) => message.id));
-    if (messageIdSet.size === 0) {
-      return;
-    }
-
-    const channel = supabase
-      .channel(`room_message_attachments:${roomId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'room_message_attachments' }, (payload) => {
-        const incoming = payload.new as RoomMessageAttachmentRow;
-        if (!messageIdSet.has(incoming.message_id)) {
-          return;
-        }
-        setAttachmentRows((previous) =>
-          previous.some((attachment) => attachment.id === incoming.id) ? previous : [...previous, incoming],
-        );
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'room_message_attachments' }, (payload) => {
-        const deleted = payload.old as { id?: string };
-        if (typeof deleted.id !== 'string') {
-          return;
-        }
-        setAttachmentRows((previous) => previous.filter((attachment) => attachment.id !== deleted.id));
-      })
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [enableSupplementalRealtime, messages, roomId]);
 
   const ensureScreennames = useCallback(async (userIds: string[]) => {
     const uniqueUserIds = [...new Set(userIds.filter(Boolean))];
@@ -669,8 +454,8 @@ export default function GroupChatWindow({
   }, [composerAreaHeight, isKeyboardOpen, scrollToLatestMessage, viewportHeight]);
 
   useEffect(() => {
-    void clearUnreads(roomName);
-  }, [clearUnreads, roomName]);
+    void clearUnreads(roomId);
+  }, [clearUnreads, roomId]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -700,7 +485,7 @@ export default function GroupChatWindow({
       const loadedMessages = (data ?? []) as RoomMessage[];
       setMessages(loadedMessages);
       setIsLoadingMessages(false);
-      void ensureScreennames(loadedMessages.map((message) => message.sender_id));
+      void ensureScreennames(loadedMessages.map((message) => message.user_id));
     };
 
     void loadInitialMessages();
@@ -761,8 +546,8 @@ export default function GroupChatWindow({
           previous.some((message) => message.id === incoming.id) ? previous : [...previous, incoming],
         );
         setHasLiveMessageSinceOpen(true);
-        void clearUnreads(roomName);
-        void ensureScreennames([incoming.sender_id]);
+        void clearUnreads(roomId);
+        void ensureScreennames([incoming.user_id]);
       },
     );
 
@@ -842,64 +627,23 @@ export default function GroupChatWindow({
     };
   }, [clearUnreads, currentUserId, currentUserScreenname, ensureScreennames, roomId, roomName]);
 
-  const clearPendingAttachments = useCallback(() => {
-    setPendingAttachments([]);
-    if (attachmentInputRef.current) {
-      attachmentInputRef.current.value = '';
-    }
-  }, []);
-
-  const handleSelectAttachments = (files: FileList | null) => {
-    if (!files || files.length === 0) {
-      return;
-    }
-
-    const selected = Array.from(files);
-    const validationError = selected.map((file) => validateChatMediaFile(file)).find(Boolean);
-    if (validationError) {
-      setAttachmentError(validationError);
-      return;
-    }
-
-    setAttachmentError(null);
-    setShowComposerTools(true);
-    setPendingAttachments((previous) => {
-      const existingKeys = new Set(previous.map((file) => `${file.name}:${file.size}:${file.lastModified}`));
-      const combined = [...previous];
-      for (const file of selected) {
-        const key = `${file.name}:${file.size}:${file.lastModified}`;
-        if (!existingKeys.has(key)) {
-          combined.push(file);
-          existingKeys.add(key);
-        }
-      }
-      if (combined.length > CHAT_MEDIA_MAX_ATTACHMENTS) {
-        setAttachmentError(`Max ${CHAT_MEDIA_MAX_ATTACHMENTS} attachments per message.`);
-      }
-      return combined.slice(0, CHAT_MEDIA_MAX_ATTACHMENTS);
-    });
-  };
 
   const handleSendMessage = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmed = draft.trim();
-    if ((!trimmed && pendingAttachments.length === 0) || isSending) {
+    if (!trimmed || isSending) {
       return;
     }
 
     setIsSending(true);
     setError(null);
 
-    const formatted = trimmed
-      ? formatRichText(trimmed, format)
-      : pendingAttachments.length === 1
-        ? 'Sent an attachment.'
-        : 'Sent attachments.';
+    const formatted = formatRichText(trimmed, format);
     const clientMessageId = createClientMessageId();
     const { data, error: sendError } = await sendRoomMessageWithClientMessageId({
       roomId,
-      senderId: currentUserId,
-      content: formatted,
+      userId: currentUserId,
+      body: formatted,
       clientMessageId,
     });
 
@@ -907,7 +651,6 @@ export default function GroupChatWindow({
 
     if (sendError) {
       const retryableNetworkError =
-        pendingAttachments.length === 0 &&
         Boolean(trimmed) &&
         ((typeof navigator !== 'undefined' && !navigator.onLine) ||
           /network|fetch|offline|timeout/i.test(sendError.message));
@@ -928,46 +671,6 @@ export default function GroupChatWindow({
     }
 
     const insertedMessage = data as RoomMessage;
-    if (pendingAttachments.length > 0) {
-      const attachmentRowsToInsert: Array<{
-        message_id: string;
-        uploader_id: string;
-        bucket: string;
-        storage_path: string;
-        file_name: string;
-        mime_type: string;
-        size_bytes: number;
-      }> = [];
-
-      for (const file of pendingAttachments) {
-        try {
-          const uploaded = await uploadChatMediaFile({ userId: currentUserId, file });
-          attachmentRowsToInsert.push({
-            message_id: insertedMessage.id,
-            uploader_id: currentUserId,
-            bucket: uploaded.bucket,
-            storage_path: uploaded.storagePath,
-            file_name: uploaded.fileName,
-            mime_type: uploaded.mimeType,
-            size_bytes: uploaded.sizeBytes,
-          });
-        } catch (uploadError) {
-          const message =
-            uploadError instanceof Error ? uploadError.message : 'Attachment upload failed.';
-          setError(message);
-        }
-      }
-
-      if (attachmentRowsToInsert.length > 0) {
-        const { error: attachmentInsertError } = await supabase
-          .from('room_message_attachments')
-          .insert(attachmentRowsToInsert);
-        if (attachmentInsertError) {
-          setError(attachmentInsertError.message);
-        }
-      }
-    }
-
     setMessages((previous) =>
       previous.some((message) => message.id === insertedMessage.id)
         ? previous
@@ -977,8 +680,6 @@ export default function GroupChatWindow({
     setMentioningMessageId(null);
     setDraft('');
     onDraftChange?.('');
-    clearPendingAttachments();
-    setAttachmentError(null);
     if (typeof window !== 'undefined') {
       window.requestAnimationFrame(() => {
         focusComposer();
@@ -1008,7 +709,7 @@ export default function GroupChatWindow({
     }
 
     event.preventDefault();
-    if (isSending || (!draft.trim() && pendingAttachments.length === 0)) {
+    if (isSending || !draft.trim()) {
       return;
     }
 
@@ -1045,79 +746,6 @@ export default function GroupChatWindow({
     }
   };
 
-  const removePendingAttachment = (targetIndex: number) => {
-    setPendingAttachments((previous) => {
-      const next = previous.filter((_, index) => index !== targetIndex);
-      if (next.length === 0 && attachmentInputRef.current) {
-        attachmentInputRef.current.value = '';
-      }
-      return next;
-    });
-  };
-
-  const startEditingMessage = (message: RoomMessage) => {
-    if (message.sender_id !== currentUserId || message.deleted_at) {
-      return;
-    }
-
-    setEditingMessageId(message.id);
-    setEditDraft(htmlToPlainText(message.content));
-  };
-
-  const cancelEditingMessage = () => {
-    setEditingMessageId(null);
-    setEditDraft('');
-  };
-
-  const saveEditedMessage = async (messageId: string) => {
-    const trimmed = editDraft.trim();
-    if (!trimmed || isSavingEdit) {
-      return;
-    }
-
-    setIsSavingEdit(true);
-    const updatedContent = formatRichText(trimmed, DEFAULT_RICH_TEXT_FORMAT);
-    const { error } = await supabase
-      .from('room_messages')
-      .update({
-        content: updatedContent,
-        edited_at: new Date().toISOString(),
-      })
-      .eq('id', messageId)
-      .eq('sender_id', currentUserId);
-
-    setIsSavingEdit(false);
-    if (error) {
-      return;
-    }
-
-    cancelEditingMessage();
-  };
-
-  const softDeleteMessage = async (messageId: string) => {
-    if (isDeletingMessageId === messageId) {
-      return;
-    }
-
-    setIsDeletingMessageId(messageId);
-    const { error } = await supabase
-      .from('room_messages')
-      .update({
-        deleted_at: new Date().toISOString(),
-        deleted_by: currentUserId,
-      })
-      .eq('id', messageId)
-      .eq('sender_id', currentUserId);
-    setIsDeletingMessageId(null);
-
-    if (error) {
-      return;
-    }
-
-    if (editingMessageId === messageId) {
-      cancelEditingMessage();
-    }
-  };
 
   const toggleBold = () => {
     setFormat((previous) => ({ ...previous, bold: !previous.bold }));
@@ -1144,7 +772,7 @@ export default function GroupChatWindow({
   const toggleComposerFormatting = () => {
     setShowFormatting((previous) => {
       const next = !previous;
-      if (next && pendingAttachments.length === 0) {
+      if (next) {
         setShowComposerTools(false);
       }
       return next;
@@ -1152,15 +780,10 @@ export default function GroupChatWindow({
   };
 
   const startMentioningMessage = (message: RoomMessage) => {
-    if (message.deleted_at) {
-      return;
-    }
-
-    const senderName = screennameMap[message.sender_id] || 'Unknown User';
-    const mentionPrefix = message.sender_id === currentUserId ? '' : `@${senderName} `;
+    const senderName = screennameMap[message.user_id] || 'Unknown User';
+    const mentionPrefix = message.user_id === currentUserId ? '' : `@${senderName} `;
 
     setMentioningMessageId(message.id);
-    setLongPressMessageId(null);
     if (mentionPrefix) {
       setDraft((previous) => {
         if (previous.trimStart().toLowerCase().startsWith(mentionPrefix.trim().toLowerCase())) {
@@ -1181,68 +804,6 @@ export default function GroupChatWindow({
     setMentioningMessageId(null);
   };
 
-  const toggleReaction = useCallback(
-    async (messageId: string, emoji: string) => {
-      const mutationKey = buildReactionMutationKey(messageId, emoji);
-      if (pendingReactionKeys.has(mutationKey)) {
-        return;
-      }
-
-      const hasExistingReaction = reactionRows.some(
-        (row) => row.message_id === messageId && row.user_id === currentUserId && row.emoji === emoji,
-      );
-
-      setPendingReactionKeys((previous) => {
-        const next = new Set(previous);
-        next.add(mutationKey);
-        return next;
-      });
-      setReactionError(null);
-      setLongPressMessageId(null);
-      setReactionRows((previous) =>
-        hasExistingReaction
-          ? previous.filter(
-              (row) => !(row.message_id === messageId && row.user_id === currentUserId && row.emoji === emoji),
-            )
-          : [...previous, { message_id: messageId, user_id: currentUserId, emoji }],
-      );
-      void hapticLight();
-
-      const { error } = hasExistingReaction
-        ? await supabase
-            .from('room_message_reactions')
-            .delete()
-            .eq('message_id', messageId)
-            .eq('user_id', currentUserId)
-            .eq('emoji', emoji)
-        : await supabase.from('room_message_reactions').insert({
-            message_id: messageId,
-            user_id: currentUserId,
-            emoji,
-          });
-
-      setPendingReactionKeys((previous) => {
-        const next = new Set(previous);
-        next.delete(mutationKey);
-        return next;
-      });
-
-      if (!error) {
-        return;
-      }
-
-      setReactionRows((previous) =>
-        hasExistingReaction
-          ? [...previous, { message_id: messageId, user_id: currentUserId, emoji }]
-          : previous.filter(
-              (row) => !(row.message_id === messageId && row.user_id === currentUserId && row.emoji === emoji),
-            ),
-      );
-      setReactionError(error.message);
-      void hapticWarning();
-    },
-    [currentUserId, pendingReactionKeys, reactionRows],
-  );
 
   const xpTinyToolbarButtonClass = (active = false) =>
     `ui-focus-ring inline-flex h-7 min-w-7 items-center justify-center rounded-lg border px-1.5 text-[length:var(--ui-text-xs)] font-semibold text-slate-700 transition ${
@@ -1272,60 +833,10 @@ export default function GroupChatWindow({
     return `${resolvedTypingUsers[0]}, ${resolvedTypingUsers[1]} +${resolvedTypingUsers.length - 2} more typing...`;
   }, [resolvedTypingUsers]);
 
-  const reactionSummaryByMessageId = useMemo(
-    () => summarizeReactionRows(reactionRows, currentUserId),
-    [currentUserId, reactionRows],
-  );
-
-  useEffect(() => {
-    const seenReactionKeys = seenReactionKeysRef.current;
-    const newlyDiscoveredKeys: string[] = [];
-
-    for (const [messageId, entries] of reactionSummaryByMessageId) {
-      for (const entry of entries) {
-        const emoji = entry.emoji;
-        const reactionKey = `${messageId}-${emoji}`;
-        if (!seenReactionKeys.has(reactionKey)) {
-          seenReactionKeys.add(reactionKey);
-          newlyDiscoveredKeys.push(reactionKey);
-        }
-      }
-    }
-
-    if (newlyDiscoveredKeys.length === 0) {
-      return;
-    }
-
-    setNewReactionKeys((previous) => {
-      const next = new Set(previous);
-      newlyDiscoveredKeys.forEach((key) => next.add(key));
-      return next;
-    });
-
-    const clearTimer = setTimeout(() => {
-      setNewReactionKeys((previous) => {
-        const next = new Set(previous);
-        newlyDiscoveredKeys.forEach((key) => next.delete(key));
-        return next;
-      });
-    }, 950);
-
-    return () => clearTimeout(clearTimer);
-  }, [reactionSummaryByMessageId]);
-
-  const attachmentsByMessageId = useMemo(() => {
-    const grouped = new Map<string, RoomMessageAttachmentRow[]>();
-    for (const attachment of attachmentRows) {
-      const existing = grouped.get(attachment.message_id) ?? [];
-      existing.push(attachment);
-      grouped.set(attachment.message_id, existing);
-    }
-    return grouped;
-  }, [attachmentRows]);
   const richTextPresentationByMessageId = useMemo(() => {
     const presentation = new Map<string, ReturnType<typeof getRichTextPresentation>>();
     for (const message of messages) {
-      presentation.set(message.id, getRichTextPresentation(message.content));
+      presentation.set(message.id, getRichTextPresentation(message.body));
     }
     return presentation;
   }, [messages]);
@@ -1333,15 +844,7 @@ export default function GroupChatWindow({
     return new Map(messages.map((message) => [message.id, message] as const));
   }, [messages]);
   const mentioningMessage = mentioningMessageId ? messagesById.get(mentioningMessageId) ?? null : null;
-  const visibleOutboxItems = useMemo(() => {
-    const deliveredClientIds = new Set(
-      messages
-        .map((message) => message.client_msg_id)
-        .filter((clientMessageId): clientMessageId is string => Boolean(clientMessageId)),
-    );
-
-    return outboxItems.filter((item) => !deliveredClientIds.has(item.id));
-  }, [messages, outboxItems]);
+  const visibleOutboxItems = outboxItems;
 
   const normalizedInitialUnreadCount = Math.max(0, Math.floor(initialUnreadCount));
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
@@ -1352,7 +855,7 @@ export default function GroupChatWindow({
     }
 
     for (const message of messages) {
-      const plainText = htmlToPlainText(message.content).toLowerCase();
+      const plainText = htmlToPlainText(message.body).toLowerCase();
       matches.set(message.id, plainText.includes(normalizedSearchQuery));
     }
 
@@ -1378,11 +881,7 @@ export default function GroupChatWindow({
   const composerAreaStyle = {
     paddingBottom: isKeyboardOpen ? '0.75rem' : 'calc(env(safe-area-inset-bottom) + 0.75rem)',
   } satisfies CSSProperties;
-  const composerToolsExpanded = showComposerTools || pendingAttachments.length > 0;
-  const attachmentSummaryLabel =
-    pendingAttachments.length > 0
-      ? `${pendingAttachments.length} file${pendingAttachments.length === 1 ? '' : 's'} ready`
-      : null;
+  const composerToolsExpanded = showComposerTools;
 
   return (
     <div
@@ -1564,24 +1063,6 @@ export default function GroupChatWindow({
                     ) : null}
                   </div>
 
-                  {inviteCode ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void navigator.clipboard
-                          .writeText(getShareableInviteUrl(inviteCode))
-                          .then(() => {
-                            setShareLinkCopied(true);
-                            setTimeout(() => setShareLinkCopied(false), 2000);
-                          });
-                      }}
-                      className="ui-focus-ring ui-button-secondary ui-button-compact flex items-center gap-2"
-                      title="Copy invite link"
-                    >
-                      <AppIcon kind="link" className="h-3.5 w-3.5 shrink-0" />
-                      {shareLinkCopied ? 'Link copied!' : 'Share invite link'}
-                    </button>
-                  ) : null}
                   <button
                     type="button"
                     onClick={onLeave}
@@ -1735,33 +1216,24 @@ export default function GroupChatWindow({
               <div
                 className="flex flex-col gap-0.5"
                 onClick={() => {
-                  setLongPressMessageId(null);
                   setShowConversationMenu(false);
                 }}
               >
                 {messages.map((message, index) => {
-                  const senderName = screennameMap[message.sender_id] || 'Unknown User';
-                  const isMine = message.sender_id === currentUserId;
-                  const isDeleted = Boolean(message.deleted_at);
-                  const isEditing = editingMessageId === message.id;
+                  const senderName = screennameMap[message.user_id] || 'Unknown User';
+                  const isMine = message.user_id === currentUserId;
                   const isMatch = normalizedSearchQuery ? Boolean(messageMatches.get(message.id)) : false;
-                  const senderColorClass = isMine ? 'text-[var(--rose)]' : getStableSenderColorClass(message.sender_id);
-                  const plainMessageText = htmlToPlainText(message.content).toLowerCase();
+                  const senderColorClass = isMine ? 'text-[var(--rose)]' : getStableSenderColorClass(message.user_id);
+                  const plainMessageText = htmlToPlainText(message.body).toLowerCase();
                   const isMentioningCurrentUser =
                     !isMine && plainMessageText.includes(`@${currentUserScreenname.trim().toLowerCase()}`);
                   const timestampDate = new Date(message.created_at);
                   const fullTimestamp = timestampDate.toLocaleString();
-                  const reactionEntries = reactionSummaryByMessageId.get(String(message.id)) ?? [];
-                  const activeReactionEmojis = reactionEntries
-                    .filter((entry) => entry.reactedByMe)
-                    .map((entry) => entry.emoji);
-                  const messageAttachments = attachmentsByMessageId.get(message.id) ?? [];
                   const richTextPresentation = richTextPresentationByMessageId.get(message.id) ?? {
-                    html: sanitizeRichTextHtml(message.content),
+                    html: sanitizeRichTextHtml(message.body),
                     hasCustomStyling: false,
                   };
                   const hasCustomStyling = richTextPresentation.hasCustomStyling;
-                  const isEdited = Boolean(message.edited_at && !message.deleted_at);
                   void relativeTimeTick;
                   const clusterMeta = getConversationClusterMeta(messages, index);
                   const dividerLabel = formatConversationDividerLabel(message.created_at);
@@ -1770,7 +1242,7 @@ export default function GroupChatWindow({
                     clusterMeta.isFirstInRun ? (
                       <ProfileAvatar
                         screenname={senderName}
-                        buddyIconPath={buddyIconMap[message.sender_id] ?? null}
+                        buddyIconPath={buddyIconMap[message.user_id] ?? null}
                         tone="slate"
                         size="sm"
                         className="mb-1"
@@ -1800,34 +1272,12 @@ export default function GroupChatWindow({
                           {senderAvatar}
                           <SwipeActionFrame
                             align="start"
-                            enabled={!isMine && !isDeleted && !isEditing}
+                            enabled={!isMine}
                             label="Mention"
                             onTrigger={() => startMentioningMessage(message)}
                             className="max-w-[82%]"
                           >
-                            <div
-                              className="group relative focus:outline-none"
-                              tabIndex={!isDeleted && !isEditing ? 0 : undefined}
-                              onTouchStart={() => {
-                                if (isDeleted) return;
-                                longPressTimerRef.current = setTimeout(() => {
-                                  void hapticLight();
-                                  setLongPressMessageId(message.id);
-                                }, 500);
-                              }}
-                              onTouchEnd={() => {
-                                if (longPressTimerRef.current) {
-                                  clearTimeout(longPressTimerRef.current);
-                                  longPressTimerRef.current = null;
-                                }
-                              }}
-                              onTouchMove={() => {
-                                if (longPressTimerRef.current) {
-                                  clearTimeout(longPressTimerRef.current);
-                                  longPressTimerRef.current = null;
-                                }
-                              }}
-                            >
+                            <div className="group relative focus:outline-none" tabIndex={0}>
                               {!isMine && clusterMeta.isFirstInRun ? (
                                 <div className="mb-1 flex items-center gap-2 px-1">
                                   <span className={`ui-screenname text-[11px] font-semibold ${senderColorClass}`}>
@@ -1844,7 +1294,7 @@ export default function GroupChatWindow({
                               ) : null}
 
                               <div
-                                className={`relative msg-enter px-3 py-2 ${
+                                className={`relative msg-enter px-3 py-2 ui-focus-ring ${
                                   hasCustomStyling
                                     ? 'text-[length:var(--ui-text-lg)] leading-[1.48]'
                                     : 'text-[length:var(--ui-text-md)] leading-[1.42]'
@@ -1856,161 +1306,29 @@ export default function GroupChatWindow({
                                       ? `rounded-[1.35rem] border border-blue-200/80 bg-white/96 text-slate-900 shadow-[0_10px_24px_rgba(37,99,235,0.16)] dark:border-slate-600/60 dark:bg-[#1D1916]/95 dark:text-slate-100 ${clusterMeta.isLastInRun ? 'rounded-br-[8px] bubble-tail-out' : ''}`
                                       : `rounded-[1.35rem] bg-[#E8608A]/22 text-white shadow-[0_8px_22px_rgba(232,96,138,0.26)] ${clusterMeta.isLastInRun ? 'rounded-br-[7px] bubble-tail-out' : ''}`
                                     : `rounded-[1.35rem] border border-white/70 bg-white/85 text-slate-800 shadow-sm backdrop-blur-sm dark:border-slate-700/70 dark:bg-[#13100E]/70 dark:text-slate-100 ${clusterMeta.isLastInRun ? 'rounded-bl-[7px] bubble-tail-in' : ''} ${isMentioningCurrentUser ? 'border-amber-300/70 bg-amber-50/80 dark:border-amber-400/35 dark:bg-amber-950/25' : ''}`
-                                } ${isMatch ? 'ring-2 ring-amber-400' : ''} ${!isDeleted && !isEditing ? 'ui-focus-ring' : ''}`}
+                                } ${isMatch ? 'ring-2 ring-amber-400' : ''}`}
                               >
-                                {isEditing ? (
-                                  <div className="flex min-w-[200px] flex-col gap-2">
-                                    <input
-                                      value={editDraft}
-                                      onChange={(event) => setEditDraft(event.target.value)}
-                                      aria-label="Edit message"
-                                      className={`ui-focus-ring w-full rounded-xl border bg-white/20 px-2.5 py-1.5 text-[length:var(--ui-text-sm)] ${
-                                        isMine
-                                          ? 'border-white/30 text-white placeholder-white/50'
-                                          : 'border-slate-200 text-slate-800 dark:border-slate-700 dark:text-slate-100'
-                                      }`}
-                                      maxLength={1500}
-                                      autoFocus
-                                    />
-                                    <div className="flex justify-end gap-1.5">
-                                      <button
-                                        type="button"
-                                        onClick={cancelEditingMessage}
-                                        className={`ui-focus-ring rounded-xl px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold ${
-                                          isMine ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800/50 dark:text-slate-300 dark:hover:bg-slate-700/50'
-                                        }`}
-                                      >
-                                        Cancel
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => void saveEditedMessage(message.id)}
-                                        disabled={isSavingEdit || !editDraft.trim()}
-                                        className={`ui-focus-ring rounded-xl px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold disabled:opacity-60 ${
-                                          isMine ? 'bg-white/30 text-white hover:bg-white/40' : 'bg-[#E8608A] text-white hover:bg-[#B93A67]'
-                                        }`}
-                                      >
-                                        Save
-                                      </button>
-                                    </div>
-                                  </div>
-                                ) : isDeleted ? (
-                                  <span className="italic opacity-50">Message deleted</span>
-                                ) : (
-                                  <span
-                                    className={`aim-rich-html ${hasCustomStyling ? 'aim-rich-html--styled' : ''}`}
-                                    dangerouslySetInnerHTML={{ __html: richTextPresentation.html }}
-                                  />
-                                )}
-                                {isEdited && !isEditing ? (
-                                  <span className={`ml-1.5 text-[length:var(--ui-text-2xs)] ${
-                                    isMine ? (hasCustomStyling ? 'text-slate-400' : 'text-blue-200') : 'text-slate-400'
-                                  }`}>(edited)</span>
-                                ) : null}
+                                <span
+                                  className={`aim-rich-html ${hasCustomStyling ? 'aim-rich-html--styled' : ''}`}
+                                  dangerouslySetInnerHTML={{ __html: richTextPresentation.html }}
+                                />
                               </div>
 
-                              {!isDeleted && !isEditing ? (
-                                <div
-                                  data-swipe-ignore="true"
-                                  className={`absolute bottom-full right-0 z-10 mb-2 min-w-[15rem] rounded-2xl border border-white/70 bg-white/90 p-2 shadow-lg backdrop-blur-md ui-fade-in dark:border-slate-700/70 dark:bg-[#13100E]/88 ${
-                                    longPressMessageId === message.id ? 'flex' : 'hidden group-hover:flex group-focus-within:flex'
-                                  } flex-col gap-2`}
-                                >
-                                  <div className="space-y-1">
-                                    <p className="px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-                                      React
-                                    </p>
-                                    <MessageReactionPicker
-                                      activeEmojis={activeReactionEmojis}
-                                      disabledEmojis={activeReactionEmojis.filter((emoji) =>
-                                        pendingReactionKeys.has(buildReactionMutationKey(message.id, emoji)),
-                                      )}
-                                      onPick={(emoji) => {
-                                        void toggleReaction(message.id, emoji);
-                                      }}
-                                    />
-                                  </div>
-                                  <div className="flex flex-wrap items-center gap-1">
-                                    {!isMine ? (
-                                      <button
-                                        type="button"
-                                        onClick={() => startMentioningMessage(message)}
-                                        className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-[#13100E]"
-                                        aria-label={`Mention ${senderName} from message sent at ${metaTimeLabel}`}
-                                      >
-                                        Mention
-                                      </button>
-                                    ) : null}
-                                    {isMine ? (
-                                      <>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            startEditingMessage(message);
-                                            setLongPressMessageId(null);
-                                          }}
-                                          className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-[#13100E]"
-                                          aria-label={`Edit message sent at ${metaTimeLabel}`}
-                                        >
-                                          Edit
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            void softDeleteMessage(message.id);
-                                            setLongPressMessageId(null);
-                                          }}
-                                          disabled={isDeletingMessageId === message.id}
-                                          className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-red-500 hover:bg-red-50 disabled:opacity-60"
-                                          aria-label={`Delete message sent at ${metaTimeLabel}`}
-                                        >
-                                          {isDeletingMessageId === message.id ? '…' : 'Delete'}
-                                        </button>
-                                      </>
-                                    ) : null}
-                                  </div>
-                                </div>
-                              ) : null}
-
-                              {!isDeleted && reactionEntries.length > 0 ? (
-                                <MessageReactionStrip
-                                  align={isMine ? 'end' : 'start'}
-                                  animatedReactionKeys={newReactionKeys}
-                                  disabledReactionKeys={pendingReactionKeys}
-                                  entries={reactionEntries}
-                                  messageId={message.id}
-                                  onToggle={(emoji) => {
-                                    void toggleReaction(message.id, emoji);
-                                  }}
-                                />
-                              ) : null}
-
-                              {!isDeleted && messageAttachments.length > 0 ? (
-                                <div className={`-mt-1 mb-1 space-y-1 ${isMine ? 'text-right' : ''}`}>
-                                  {messageAttachments.map((attachment) => {
-                                    const { data } = supabase.storage
-                                      .from(attachment.bucket)
-                                      .getPublicUrl(attachment.storage_path);
-                                    return (
-                                      <a
-                                        key={attachment.id}
-                                        href={data.publicUrl}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className={`ui-focus-ring block rounded-lg text-[length:var(--ui-text-2xs)] underline ${isMine ? 'text-blue-200' : 'text-blue-600'}`}
-                                        title={attachment.storage_path}
-                                        aria-label={`Open attachment ${attachment.file_name}${attachment.size_bytes ? `, ${formatFileSize(attachment.size_bytes)}` : ''}`}
-                                      >
-                                        <span className="inline-flex items-center gap-1">
-                                          <AppIcon kind="attachment" className="h-3 w-3" />
-                                          <span>{attachment.file_name}</span>
-                                        </span>
-                                        {attachment.size_bytes ? ` (${formatFileSize(attachment.size_bytes)})` : ''}
-                                      </a>
-                                    );
-                                  })}
-                                </div>
-                              ) : null}
+                              <div
+                                data-swipe-ignore="true"
+                                className="absolute bottom-full right-0 z-10 mb-2 min-w-[10rem] hidden group-hover:flex group-focus-within:flex flex-col gap-1 rounded-2xl border border-white/70 bg-white/90 p-2 shadow-lg backdrop-blur-md dark:border-slate-700/70 dark:bg-[#13100E]/88"
+                              >
+                                {!isMine ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => startMentioningMessage(message)}
+                                    className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-[#13100E]"
+                                    aria-label={`Mention ${senderName}`}
+                                  >
+                                    Mention
+                                  </button>
+                                ) : null}
+                              </div>
                             </div>
                           </SwipeActionFrame>
                         </div>
@@ -2094,16 +1412,6 @@ export default function GroupChatWindow({
             )}
           </div>
 
-          {reactionError ? (
-            <p role="alert" className="mx-3 mt-1 text-[length:var(--ui-text-2xs)] text-red-600">
-              {reactionError}
-            </p>
-          ) : null}
-          {attachmentLoadError ? (
-            <p role="alert" className="mx-3 mt-1 text-[length:var(--ui-text-2xs)] text-red-600">
-              {attachmentLoadError}
-            </p>
-          ) : null}
           {error ? (
             <p role="alert" className="mx-3 mt-1 text-[length:var(--ui-text-2xs)] text-red-600">
               {error}
@@ -2130,12 +1438,10 @@ export default function GroupChatWindow({
               <div className="ui-compose-context-chip flex items-start justify-between gap-3 rounded-2xl px-3 py-2.5">
                 <div className="min-w-0">
                   <p className="text-[length:var(--ui-text-2xs)] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                    Mentioning {screennameMap[mentioningMessage.sender_id] || 'Unknown User'}
+                    Mentioning {screennameMap[mentioningMessage.user_id] || 'Unknown User'}
                   </p>
                   <p className="truncate text-[length:var(--ui-text-xs)] text-slate-600 dark:text-slate-200">
-                    {mentioningMessage.deleted_at
-                      ? 'Message deleted'
-                      : htmlToPlainText(mentioningMessage.content).trim() || 'Original message'}
+                    {htmlToPlainText(mentioningMessage.body).trim() || 'Original message'}
                   </p>
                 </div>
                 <button
@@ -2184,9 +1490,6 @@ export default function GroupChatWindow({
                 </button>
               </div>
               <div className="flex items-center gap-2">
-                {attachmentSummaryLabel ? (
-                  <span className="ui-compose-summary-pill">{attachmentSummaryLabel}</span>
-                ) : null}
                 {normalizedSearchQuery ? (
                   <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500">
                     {searchMatchCount} result{searchMatchCount === 1 ? '' : 's'}
@@ -2197,28 +1500,6 @@ export default function GroupChatWindow({
 
             {(composerToolsExpanded || showFormatting) ? (
               <div className="ui-toolbar-surface space-y-3 rounded-2xl px-3 py-3">
-                {composerToolsExpanded ? (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => attachmentInputRef.current?.click()}
-                      className={`${xpTinyToolbarButtonClass(pendingAttachments.length > 0)} h-8 gap-1.5 px-3`}
-                      aria-label={`Attach files to your message in room ${roomName}`}
-                    >
-                      <AppIcon kind="attachment" className="h-3.5 w-3.5" />
-                      <span>Attachment</span>
-                    </button>
-                    <input
-                      ref={attachmentInputRef}
-                      type="file"
-                      multiple
-                      onChange={(event) => handleSelectAttachments(event.target.files)}
-                      className="hidden"
-                      aria-label={`Choose attachments for room ${roomName}`}
-                    />
-                  </div>
-                ) : null}
-
                 {showFormatting ? (
                   <div className="space-y-2">
                     <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
@@ -2260,41 +1541,7 @@ export default function GroupChatWindow({
                   </div>
                 ) : null}
 
-                {pendingAttachments.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {pendingAttachments.map((file, index) => (
-                      <div
-                        key={`${file.name}-${file.size}-${file.lastModified}`}
-                        className="ui-compose-summary-pill inline-flex max-w-full items-center gap-2 rounded-full px-3 py-1.5"
-                      >
-                        <AppIcon kind="attachment" className="h-3 w-3 shrink-0" />
-                        <span className="truncate text-[length:var(--ui-text-2xs)]">
-                          {file.name}
-                          {` · ${formatFileSize(file.size)}`}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => removePendingAttachment(index)}
-                          className="ui-focus-ring shrink-0 rounded-full p-0.5 text-slate-400 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-200"
-                          aria-label={`Remove attachment ${file.name}`}
-                        >
-                          <AppIcon kind="close" className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-
-                {attachmentError ? (
-                  <p role="alert" className="text-[length:var(--ui-text-2xs)] text-red-600">
-                    {attachmentError}
-                  </p>
-                ) : null}
               </div>
-            ) : attachmentError ? (
-              <p role="alert" className="text-[length:var(--ui-text-2xs)] text-red-600">
-                {attachmentError}
-              </p>
             ) : null}
 
             {/* Pill compose input */}
@@ -2327,7 +1574,7 @@ export default function GroupChatWindow({
                 className="min-h-[24px] flex-1 resize-none rounded-xl bg-transparent text-[length:var(--ui-text-md)] text-white placeholder-[#6B5B4E] focus:outline-none focus:border-[#E8608A]"
                 style={composerTextStyle}
               />
-              {(draft.trim() || pendingAttachments.length > 0) ? (
+              {draft.trim() ? (
                 <button
                   type="submit"
                   disabled={isSending}

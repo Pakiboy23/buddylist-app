@@ -65,16 +65,12 @@ interface MessageInsert {
 interface RoomMessageInsert {
   id?: string | null;
   room_id?: string | null;
-  sender_id?: string | null;
-  content?: string | null;
+  user_id?: string | null;
+  body?: string | null;
 }
 
 interface UserProfileLookup {
   screenname: string | null;
-}
-
-interface ChatRoomLookup {
-  name: string | null;
 }
 
 interface PushNotificationData {
@@ -615,8 +611,8 @@ export default function GlobalNotificationListener() {
     }
 
     const { data: roomData, error } = await supabase
-      .from('chat_rooms')
-      .select('name')
+      .from('rooms')
+      .select('slug')
       .eq('id', roomId)
       .maybeSingle();
 
@@ -625,8 +621,8 @@ export default function GlobalNotificationListener() {
       return '';
     }
 
-    const room = roomData as ChatRoomLookup | null;
-    const resolvedRoom = normalizeRoomName(room?.name ?? '');
+    const room = roomData as { slug: string | null } | null;
+    const resolvedRoom = normalizeRoomName(room?.slug ?? '');
     if (!resolvedRoom) {
       return '';
     }
@@ -726,7 +722,7 @@ export default function GlobalNotificationListener() {
           }
 
           const incoming = payload.new as RoomMessageInsert;
-          const senderId = typeof incoming.sender_id === 'string' ? incoming.sender_id : '';
+          const senderId = typeof incoming.user_id === 'string' ? incoming.user_id : '';
           const roomId = typeof incoming.room_id === 'string' ? incoming.room_id : '';
           if (!senderId || !roomId || senderId === currentUser) {
             return;
@@ -750,7 +746,7 @@ export default function GlobalNotificationListener() {
               return;
             }
 
-            const previewText = normalizeTextContent(incoming.content, 'New room message.');
+            const previewText = normalizeTextContent(incoming.body, 'New room message.');
             const mentionToken = currentUserScreennameRef.current
               ? `@${currentUserScreennameRef.current}`
               : '';

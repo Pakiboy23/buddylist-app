@@ -1,42 +1,32 @@
 import { Suspense, useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import RetroWindow from '@/components/RetroWindow';
-import { getShareableInviteUrl } from '@/lib/appApi';
 import { supabase } from '@/lib/supabase';
 import { waitForSessionOrNull } from '@/lib/authClient';
-import { joinRoom } from './actions';
+import { joinRoom, leaveRoom } from './actions';
 
-interface RoomPreview {
+interface RoomDetail {
   id: string;
+  slug: string;
   name: string;
-  description: string | null;
-  tags: string[] | null;
-  room_type: string;
-  member_cap: number | null;
-  member_count: number;
-  buddy_overlap_count: number;
-  is_member: boolean;
-  invite_code?: string;
+  description: string;
+  kind: 'regional' | 'vibe';
+  is_active: boolean;
 }
 
-const ROOM_TYPE_LABELS: Record<string, string> = {
-  public: 'Public',
-  invite: 'Invite Only',
-  private: 'Private',
-};
+const KIND_LABEL: Record<string, string> = { regional: 'City', vibe: 'Vibe' };
 
 function RoomPreviewContent({ roomId }: { roomId: string }) {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const viaInvite = searchParams.get('via') === 'invite';
 
-  const [preview, setPreview] = useState<RoomPreview | null>(null);
+  const [room, setRoom] = useState<RoomDetail | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [isMember, setIsMember] = useState(false);
+  const [memberCount, setMemberCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isJoining, setIsJoining] = useState(false);
+  const [isLeaving, setIsLeaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [copied, setCopied] = useState(false);
-  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -48,85 +38,71 @@ function RoomPreviewContent({ roomId }: { roomId: string }) {
       }
       setUserId(session.user.id);
 
-      const { data, error: rpcError } = await supabase.rpc('get_room_preview', {
-        p_room_id: roomId,
-        p_user_id: session.user.id,
-      });
-
-      if (rpcError) {
-        setError('Could not load room. It may not exist or you may not have access.');
-        setIsLoading(false);
-        return;
-      }
-
-      const row = (Array.isArray(data) ? data[0] : data) as RoomPreview | undefined;
-      if (!row) {
-        setError('Room not found or access denied.');
-        setIsLoading(false);
-        return;
-      }
-
-      // Fetch invite_code when the user is a member (used for the share button).
-      if (row.is_member && row.room_type !== 'private') {
-        const { data: roomData } = await supabase
-          .from('chat_rooms')
-          .select('invite_code')
+      const [roomResult, membershipResult, countResult] = await Promise.all([
+        supabase
+          .from('rooms')
+          .select('id,slug,name,description,kind,is_active')
           .eq('id', roomId)
-          .maybeSingle();
-        if (roomData?.invite_code) {
-          row.invite_code = roomData.invite_code as string;
-        }
+          .single(),
+        supabase
+          .from('room_memberships')
+          .select('user_id')
+          .eq('room_id', roomId)
+          .eq('user_id', session.user.id)
+          .maybeSingle(),
+        supabase
+          .from('room_memberships')
+          .select('user_id', { count: 'exact', head: true })
+          .eq('room_id', roomId),
+      ]);
+
+      if (roomResult.error || !roomResult.data) {
+        setError('Room not found.');
+        setIsLoading(false);
+        return;
       }
 
-      setPreview(row);
+      setRoom(roomResult.data as RoomDetail);
+      setIsMember(Boolean(membershipResult.data));
+      setMemberCount(countResult.count ?? 0);
       setIsLoading(false);
     }
 
     void load();
   }, [roomId]);
 
-  // Auto-join for private rooms reached via an invite link.
-  useEffect(() => {
-    if (!viaInvite || !preview || preview.is_member || preview.room_type !== 'private' || !userId) {
-      return;
-    }
-    void joinRoom(preview.id, userId).then((result) => {
-      if ('success' in result) {
-        navigate(`/hi-its-me/rooms/${preview.id}`, { replace: true });
-      } else {
-        setError(result.error);
-      }
-    });
-  }, [viaInvite, preview, userId, navigate]);
-
   async function handleJoin() {
-    if (!userId || !preview) return;
+    if (!userId || !room) return;
     setIsJoining(true);
-    const result = await joinRoom(preview.id, userId);
+    const result = await joinRoom(room.id, userId);
     if ('error' in result) {
       setError(result.error);
       setIsJoining(false);
       return;
     }
-    navigate(`/hi-its-me/rooms/${preview.id}`);
+    setIsMember(true);
+    setMemberCount((c) => c + 1);
+    setIsJoining(false);
+    navigate(`/hi-its-me?tab=chat&room=${encodeURIComponent(room.slug)}`);
   }
 
-  async function handleShare() {
-    if (!preview?.invite_code) return;
-    await navigator.clipboard.writeText(getShareableInviteUrl(preview.invite_code));
-    setCopied(true);
-    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
-    copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
+  async function handleLeave() {
+    if (!userId || !room) return;
+    setIsLeaving(true);
+    const result = await leaveRoom(room.id, userId);
+    if ('error' in result) {
+      setError(result.error);
+      setIsLeaving(false);
+      return;
+    }
+    setIsMember(false);
+    setMemberCount((c) => Math.max(0, c - 1));
+    setIsLeaving(false);
   }
-
-  const canShare =
-    preview?.is_member &&
-    (preview.room_type === 'public' || preview.room_type === 'invite') &&
-    Boolean(preview.invite_code);
 
   return (
     <RetroWindow
-      title={preview?.name ?? 'Room'}
+      title={room?.name ?? 'Room'}
       showBackButton
       onBack={() => navigate('/hi-its-me/rooms')}
     >
@@ -140,81 +116,55 @@ function RoomPreviewContent({ roomId }: { roomId: string }) {
             {error}
           </p>
         </div>
-      ) : preview ? (
+      ) : room ? (
         <div className="space-y-4">
-          {/* Main info card */}
           <div className="ui-panel-card rounded-[1.6rem] px-4 py-4">
             <div className="flex items-start justify-between gap-3">
-              <h1 className="ui-screenname text-[length:var(--ui-text-xl)] font-semibold text-slate-800">
-                {preview.name}
+              <h1 className="ui-screenname text-[length:var(--ui-text-xl)] font-semibold text-slate-800 dark:text-slate-100">
+                {room.name}
               </h1>
               <span className="shrink-0 rounded-xl bg-slate-100 px-2.5 py-1 text-[length:var(--ui-text-2xs)] font-semibold uppercase tracking-widest text-slate-500 dark:bg-[#13100E] dark:text-slate-300">
-                {ROOM_TYPE_LABELS[preview.room_type] ?? preview.room_type}
+                {KIND_LABEL[room.kind] ?? room.kind}
               </span>
             </div>
-
-            {preview.description ? (
-              <p className="mt-2 text-[length:var(--ui-text-sm)] text-slate-600">
-                {preview.description}
+            {room.description ? (
+              <p className="mt-2 text-[length:var(--ui-text-sm)] text-slate-600 dark:text-slate-400">
+                {room.description}
               </p>
-            ) : null}
-
-            {preview.tags && preview.tags.length > 0 ? (
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {preview.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="rounded-lg bg-slate-100 px-2 py-0.5 text-[length:var(--ui-text-2xs)] font-medium text-slate-500 dark:bg-[#13100E] dark:text-slate-300"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
             ) : null}
           </div>
 
-          {/* Stats */}
           <div className="ui-panel-muted rounded-[1.4rem] px-4 py-3">
-            <p className="text-[length:var(--ui-text-sm)] text-slate-700">
-              <span className="font-semibold">{preview.member_count}</span>{' '}
-              {preview.member_count === 1 ? 'member' : 'members'}
-              {preview.member_cap ? ` · max ${preview.member_cap}` : null}
+            <p className="text-[length:var(--ui-text-sm)] text-slate-700 dark:text-slate-300">
+              <span className="font-semibold">{memberCount}</span>{' '}
+              {memberCount === 1 ? 'member' : 'members'}
             </p>
-            {preview.buddy_overlap_count > 0 ? (
-              <p className="mt-1 text-[length:var(--ui-text-sm)] text-[var(--rose)]">
-                <span className="font-semibold">{preview.buddy_overlap_count}</span> of your buddies{' '}
-                {preview.buddy_overlap_count === 1 ? 'is' : 'are'} here
-              </p>
-            ) : null}
           </div>
 
-          {/* Actions */}
           <div className="flex flex-wrap items-center justify-end gap-2">
-            {canShare ? (
-              <button
-                type="button"
-                onClick={() => void handleShare()}
-                className="ui-focus-ring ui-button-secondary rounded-2xl px-4 py-2.5 text-[length:var(--ui-text-md)]"
-              >
-                {copied ? 'Copied!' : 'Share Room'}
-              </button>
-            ) : null}
-
-            {preview.is_member ? (
-              <button
-                type="button"
-                onClick={() => navigate(`/hi-its-me/rooms/${preview.id}`)}
-                className="ui-focus-ring ui-button-primary rounded-2xl px-5 py-2.5 text-[length:var(--ui-text-md)]"
-              >
-                Open Room
-              </button>
-            ) : viaInvite && preview.room_type === 'private' ? (
-              <p className="text-[length:var(--ui-text-sm)] text-slate-400">Joining…</p>
+            {isMember ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void handleLeave()}
+                  disabled={isLeaving}
+                  className="ui-focus-ring ui-button-secondary rounded-2xl px-4 py-2.5 text-[length:var(--ui-text-md)] disabled:opacity-60"
+                >
+                  {isLeaving ? 'Leaving…' : 'Leave Room'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/hi-its-me?tab=chat&room=${encodeURIComponent(room.slug)}`)}
+                  className="ui-focus-ring ui-button-primary rounded-2xl px-5 py-2.5 text-[length:var(--ui-text-md)]"
+                >
+                  Open Room
+                </button>
+              </>
             ) : (
               <button
                 type="button"
-                onClick={handleJoin}
-                disabled={isJoining}
+                onClick={() => void handleJoin()}
+                disabled={isJoining || !room.is_active}
                 className="ui-focus-ring ui-button-primary rounded-2xl px-5 py-2.5 text-[length:var(--ui-text-md)] disabled:opacity-60"
               >
                 {isJoining ? 'Joining…' : 'Join Room'}

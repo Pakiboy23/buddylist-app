@@ -28,21 +28,16 @@ export interface DirectMessageRow {
 export interface RoomMessageRow {
   id: string;
   room_id: string;
-  sender_id: string;
-  content: string;
+  user_id: string;
+  body: string;
   created_at: string;
-  edited_at?: string | null;
-  deleted_at?: string | null;
-  deleted_by?: string | null;
-  client_msg_id?: string | null;
 }
 
 export const DIRECT_MESSAGE_SELECT_FIELDS =
   'id,sender_id,receiver_id,content,created_at,delivered_at,read_at,reply_to_message_id,forward_source_message_id,forward_source_sender_id,expires_at,preview_type,edited_at,deleted_at,deleted_by,client_msg_id';
 export const LEGACY_DIRECT_MESSAGE_SELECT_FIELDS =
   'id,sender_id,receiver_id,content,created_at,edited_at,deleted_at,deleted_by,client_msg_id';
-export const ROOM_MESSAGE_SELECT_FIELDS =
-  'id,room_id,sender_id,content,created_at,edited_at,deleted_at,deleted_by,client_msg_id';
+export const ROOM_MESSAGE_SELECT_FIELDS = 'id,room_id,user_id,body,created_at';
 
 function isClientMessageConflict(error: DatabaseErrorLike | null | undefined) {
   if (!error) {
@@ -145,42 +140,27 @@ export async function sendDirectMessageWithClientMessageId(input: {
 
 export async function sendRoomMessageWithClientMessageId(input: {
   roomId: string;
-  senderId: string;
-  content: string;
+  userId: string;
+  body: string;
   clientMessageId: string;
 }) {
   const { data, error } = await supabase
     .from('room_messages')
     .insert({
       room_id: input.roomId,
-      sender_id: input.senderId,
-      content: input.content,
-      client_msg_id: input.clientMessageId,
+      user_id: input.userId,
+      body: input.body,
     })
     .select(ROOM_MESSAGE_SELECT_FIELDS)
     .single();
 
-  if (!isClientMessageConflict(error)) {
-    if (!error && data?.id) {
-      dispatchRoomMessagePush(data.id);
-    }
-    return {
-      data: (data as RoomMessageRow | null) ?? null,
-      error,
-      reconciled: false,
-    };
+  if (!error && data?.id) {
+    dispatchRoomMessagePush(data.id);
   }
 
-  const { data: existing, error: lookupError } = await supabase
-    .from('room_messages')
-    .select(ROOM_MESSAGE_SELECT_FIELDS)
-    .eq('sender_id', input.senderId)
-    .eq('client_msg_id', input.clientMessageId)
-    .maybeSingle();
-
   return {
-    data: (existing as RoomMessageRow | null) ?? null,
-    error: lookupError ?? (existing ? null : error),
-    reconciled: Boolean(existing),
+    data: (data as RoomMessageRow | null) ?? null,
+    error,
+    reconciled: false,
   };
 }

@@ -1,46 +1,41 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import RetroWindow from '@/components/RetroWindow';
 import { supabase } from '@/lib/supabase';
 import RoomListClient from './RoomListClient';
 
-interface PublicRoom {
+export interface RoomRow {
   id: string;
+  slug: string;
   name: string;
-  description: string | null;
-  tags: string[] | null;
-  room_key: string;
-  member_count: number;
+  description: string;
+  kind: 'regional' | 'vibe';
+  region_code: string | null;
+  display_order: number;
 }
 
 export default function RoomsPage() {
-  const [rooms, setRooms] = useState<PublicRoom[]>([]);
+  const [rooms, setRooms] = useState<RoomRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     async function fetchRooms() {
-      const { data, error } = await supabase.rpc('get_public_rooms');
+      const { data, error } = await supabase
+        .from('rooms')
+        .select('id,slug,name,description,kind,region_code,display_order')
+        .eq('is_active', true)
+        .order('display_order', { ascending: true });
+
       if (error) {
-        console.error('get_public_rooms error:', error.message);
+        console.error('rooms fetch error:', error.message);
       }
-      setRooms((data ?? []) as PublicRoom[]);
+      setRooms((data ?? []) as RoomRow[]);
       setIsLoading(false);
     }
     void fetchRooms();
   }, []);
 
   return (
-    <RetroWindow
-      title="Chat Rooms"
-      headerActions={
-        <Link
-          to="/hi-its-me/rooms/new"
-          className="ui-focus-ring ui-button-primary rounded-xl px-3 py-1.5 text-[length:var(--ui-text-xs)] font-semibold"
-        >
-          Create Room
-        </Link>
-      }
-    >
+    <RetroWindow title="Chat Rooms">
       {isLoading ? <div className="h-20" /> : <RoomListClient rooms={rooms} />}
     </RetroWindow>
   );

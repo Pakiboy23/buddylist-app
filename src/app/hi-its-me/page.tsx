@@ -83,7 +83,6 @@ import {
   withProfileSchemaDefaults,
   withProfileSchemaDefaultsList,
 } from '@/lib/profileSchema';
-import { isChatRoomsRoomKeyMissingError } from '@/lib/roomSchema';
 import { hapticLight, hapticWarning, hapticSelection } from '@/lib/haptics';
 import { initSoundSystem, playFallbackTone, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
@@ -190,9 +189,8 @@ export interface TemporaryChatProfile {
 
 interface ChatRoom {
   id: string;
+  slug: string;
   name: string;
-  room_key?: string | null;
-  invite_code?: string | null;
 }
 
 interface AdminMeResponse {
@@ -960,7 +958,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   const [buddyActivityToasts, setBuddyActivityToasts] = useState<BuddyActivityToast[]>([]);
 
   const [showRoomsWindow, setShowRoomsWindow] = useState(false);
-  const [roomNameDraft, setRoomNameDraft] = useState('');
   const [roomFilterTag, setRoomFilterTag] = useState('all');
   const [roomJoinError, setRoomJoinError] = useState<string | null>(null);
   const [isJoiningRoom, setIsJoiningRoom] = useState(false);
@@ -1036,9 +1033,9 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   const router = useAppRouter();
   const [searchParams] = useSearchParams();
   const nativeShellActive = isNativeIosShell();
-  const roomKeySchemaUnavailableRef = useRef(false);
   const {
     activeRooms,
+    joinedRooms,
     unreadMessages,
     joinRoom,
     leaveRoom,
@@ -2169,8 +2166,8 @@ const [showAddWindow, setShowAddWindow] = useState(false);
 
         const { data, error } = await sendRoomMessageWithClientMessageId({
           roomId: item.targetId,
-          senderId: userId,
-          content: item.content,
+          userId,
+          body: item.content,
           clientMessageId: item.id,
         });
         if (error) {
@@ -2499,9 +2496,8 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     });
   }, []);
 
-  const updateRoomDraft = useCallback((roomName: string, draft: string) => {
-    const roomKey = normalizeRoomKey(roomName);
-    if (!roomKey) {
+  const updateRoomDraft = useCallback((roomId: string, draft: string) => {
+    if (!roomId) {
       return;
     }
 
@@ -2509,9 +2505,9 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       const nextRoomDrafts = { ...previous.rooms };
       const trimmedDraft = draft.slice(0, UI_MAX_DRAFT_LENGTH);
       if (trimmedDraft.trim().length === 0) {
-        delete nextRoomDrafts[roomKey];
+        delete nextRoomDrafts[roomId];
       } else {
-        nextRoomDrafts[roomKey] = trimmedDraft;
+        nextRoomDrafts[roomId] = trimmedDraft;
       }
       return {
         ...previous,
@@ -4923,7 +4919,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         dmTypingTimeoutRef.current = null;
       }
       if (activeRoom) {
-        replaceAppPathInPlace(`${HI_ITS_ME_PATH}?room=${encodeURIComponent(activeRoom.name)}`);
+        replaceAppPathInPlace(`${HI_ITS_ME_PATH}?room=${encodeURIComponent(activeRoom.slug)}`);
       } else {
         replaceAppPathInPlace(HI_ITS_ME_PATH);
       }
@@ -5253,241 +5249,53 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       : normalizeShellSection(searchParams.get(SHELL_SECTION_QUERY_KEY));
 
   const getUnreadCountForRoom = useCallback(
-    (roomName: string) => {
-      const normalized = normalizeRoomKey(roomName);
-      if (!normalized) {
-        return 0;
-      }
-
-      return Object.entries(unreadMessages).reduce((count, [key, value]) => {
-        if (normalizeRoomKey(key) === normalized) {
-          return count + value;
-        }
-        return count;
-      }, 0);
-    },
+    (roomId: string) => unreadMessages[roomId] ?? 0,
     [unreadMessages],
   );
 
-  const resolveRoomByName = useCallback(async (roomNameInput: string, allowCreate: boolean) => {
-    const roomName = roomNameInput.trim();
-    const roomKey = normalizeRoomKey(roomName);
-    if (!roomName) {
+  const resolveRoomBySlug = useCallback(async (slug: string) => {
+    const normalizedSlug = slug.trim().toLowerCase();
+    if (!normalizedSlug) {
       return null;
     }
 
-    let resolvedRoom: ChatRoom | null = null;
-
-    const normalizeChatRoomRecord = (room: Partial<ChatRoom> | null | undefined): ChatRoom | null => {
-      if (!room) {
-        return null;
-      }
-
-      const normalizedName = typeof room.name === 'string' ? room.name.trim() : '';
-      const roomId = typeof room.id === 'string' ? room.id : '';
-      if (!roomId || !normalizedName) {
-        return null;
-      }
-
-      return {
-        id: roomId,
-        name: normalizedName,
-        room_key: normalizeRoomKey(typeof room.room_key === 'string' ? room.room_key : normalizedName) || null,
-        invite_code: typeof room.invite_code === 'string' && room.invite_code ? room.invite_code : null,
-      };
-    };
-
-    const roomSelectFields = roomKeySchemaUnavailableRef.current ? 'id,name' : 'id,name,room_key,invite_code';
-
-    const existingRoomResult = await supabase
-      .from('chat_rooms')
-      .select(roomSelectFields)
-      .eq('name', roomName)
+    const { data, error } = await supabase
+      .from('rooms')
+      .select('id, slug, name')
+      .eq('slug', normalizedSlug)
+      .eq('is_active', true)
       .maybeSingle();
 
-    let existingRoom = normalizeChatRoomRecord((existingRoomResult.data as Partial<ChatRoom> | null) ?? null);
-    let existingRoomError = existingRoomResult.error;
-
-    if (isChatRoomsRoomKeyMissingError(existingRoomError)) {
-      roomKeySchemaUnavailableRef.current = true;
-      const fallbackRoomResult = await supabase
-        .from('chat_rooms')
-        .select('id,name')
-        .eq('name', roomName)
-        .maybeSingle();
-      existingRoom = normalizeChatRoomRecord((fallbackRoomResult.data as Partial<ChatRoom> | null) ?? null);
-      existingRoomError = fallbackRoomResult.error;
+    if (error || !data) {
+      return null;
     }
 
-    if (existingRoomError && existingRoomError.code !== 'PGRST116') {
-      throw new Error(existingRoomError.message);
-    }
-
-    if (existingRoom) {
-      resolvedRoom = existingRoom;
-    } else {
-      const caseInsensitiveRoomResult = await supabase
-        .from('chat_rooms')
-        .select(roomKeySchemaUnavailableRef.current ? 'id,name' : 'id,name,room_key')
-        .ilike('name', roomName)
-        .limit(1)
-        .maybeSingle();
-
-      let caseInsensitiveRoom = normalizeChatRoomRecord(
-        (caseInsensitiveRoomResult.data as Partial<ChatRoom> | null) ?? null,
-      );
-      let caseInsensitiveRoomError = caseInsensitiveRoomResult.error;
-
-      if (isChatRoomsRoomKeyMissingError(caseInsensitiveRoomError)) {
-        roomKeySchemaUnavailableRef.current = true;
-        const fallbackRoomResult = await supabase
-          .from('chat_rooms')
-          .select('id,name')
-          .ilike('name', roomName)
-          .limit(1)
-          .maybeSingle();
-        caseInsensitiveRoom = normalizeChatRoomRecord(
-          (fallbackRoomResult.data as Partial<ChatRoom> | null) ?? null,
-        );
-        caseInsensitiveRoomError = fallbackRoomResult.error;
-      }
-
-      if (caseInsensitiveRoomError && caseInsensitiveRoomError.code !== 'PGRST116') {
-        throw new Error(caseInsensitiveRoomError.message);
-      }
-
-      if (caseInsensitiveRoom) {
-        resolvedRoom = caseInsensitiveRoom;
-      }
-    }
-
-    if (!resolvedRoom && !roomKeySchemaUnavailableRef.current) {
-      const keyedRoomResult = await supabase
-        .from('chat_rooms')
-        .select('id,name,room_key')
-        .eq('room_key', roomKey)
-        .limit(1)
-        .maybeSingle();
-
-      let keyedRoom = normalizeChatRoomRecord((keyedRoomResult.data as Partial<ChatRoom> | null) ?? null);
-      let keyedRoomError = keyedRoomResult.error;
-
-      if (isChatRoomsRoomKeyMissingError(keyedRoomError)) {
-        roomKeySchemaUnavailableRef.current = true;
-        keyedRoom = null;
-        keyedRoomError = null;
-      }
-
-      if (keyedRoomError && keyedRoomError.code !== 'PGRST116') {
-        throw new Error(keyedRoomError.message);
-      }
-
-      if (keyedRoom) {
-        resolvedRoom = keyedRoom;
-      }
-    }
-
-    if (!resolvedRoom && allowCreate) {
-      const createdRoomResult = await supabase
-        .from('chat_rooms')
-        .insert(roomKeySchemaUnavailableRef.current ? { name: roomName } : { name: roomName, room_key: roomKey })
-        .select(roomKeySchemaUnavailableRef.current ? 'id,name' : 'id,name,room_key')
-        .single();
-
-      let createdRoom = normalizeChatRoomRecord((createdRoomResult.data as Partial<ChatRoom> | null) ?? null);
-      let createRoomError = createdRoomResult.error;
-
-      if (isChatRoomsRoomKeyMissingError(createRoomError)) {
-        roomKeySchemaUnavailableRef.current = true;
-        const fallbackCreateRoomResult = await supabase
-          .from('chat_rooms')
-          .insert({ name: roomName })
-          .select('id,name')
-          .single();
-        createdRoom = normalizeChatRoomRecord(
-          (fallbackCreateRoomResult.data as Partial<ChatRoom> | null) ?? null,
-        );
-        createRoomError = fallbackCreateRoomResult.error;
-      }
-
-      if (createRoomError && createRoomError.code !== '23505') {
-        throw new Error(createRoomError.message);
-      }
-
-      if (createdRoom) {
-        resolvedRoom = createdRoom;
-      }
-    }
-
-    if (!resolvedRoom && allowCreate) {
-      const racedRoomResult = roomKeySchemaUnavailableRef.current
-        ? await supabase
-            .from('chat_rooms')
-            .select('id,name')
-            .ilike('name', roomName)
-            .limit(1)
-            .maybeSingle()
-        : await supabase
-            .from('chat_rooms')
-            .select('id,name,room_key')
-            .eq('room_key', roomKey)
-            .maybeSingle();
-
-      let racedRoom = normalizeChatRoomRecord((racedRoomResult.data as Partial<ChatRoom> | null) ?? null);
-      let racedRoomError = racedRoomResult.error;
-
-      if (isChatRoomsRoomKeyMissingError(racedRoomError)) {
-        roomKeySchemaUnavailableRef.current = true;
-        const fallbackRacedRoomResult = await supabase
-          .from('chat_rooms')
-          .select('id,name')
-          .ilike('name', roomName)
-          .limit(1)
-          .maybeSingle();
-        racedRoom = normalizeChatRoomRecord((fallbackRacedRoomResult.data as Partial<ChatRoom> | null) ?? null);
-        racedRoomError = fallbackRacedRoomResult.error;
-      }
-
-      if (racedRoomError) {
-        throw new Error(racedRoomError.message);
-      }
-
-      resolvedRoom = racedRoom;
-    }
-
-    return resolvedRoom;
+    return {
+      id: data.id as string,
+      slug: data.slug as string,
+      name: data.name as string,
+    } satisfies ChatRoom;
   }, []);
 
   const openRoomView = useCallback(
     async (room: ChatRoom) => {
-      setInitialUnreadForActiveRoom(getUnreadCountForRoom(room.name));
+      setInitialUnreadForActiveRoom(getUnreadCountForRoom(room.id));
       setBodyShellSection('chat');
-      await joinRoom(room.name);
-      await clearUnreads(room.name);
+      await joinRoom(room.id, room.slug, room.name);
+      await clearUnreads(room.id);
       setActiveRoom(room);
-      replaceAppPathInPlace(buildHiItsMePath({ section: 'chat', roomName: room.name }));
+      replaceAppPathInPlace(buildHiItsMePath({ section: 'chat', roomName: room.slug }));
     },
     [clearUnreads, getUnreadCountForRoom, joinRoom],
   );
 
   const handleOpenActiveRoom = useCallback(
-    async (roomName: string) => {
-      if (!roomName.trim()) {
-        return;
-      }
-
+    async (room: ChatRoom) => {
       setRoomJoinError(null);
       setIsJoiningRoom(true);
 
       try {
-        const resolvedRoom = await resolveRoomByName(roomName, true);
-        if (!resolvedRoom) {
-          await leaveRoom(roomName);
-          setRoomJoinError('That room no longer exists.');
-          return;
-        }
-
-        await openRoomView(resolvedRoom);
+        await openRoomView(room);
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Could not open room right now.';
         setRoomJoinError(message);
@@ -5495,7 +5303,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         setIsJoiningRoom(false);
       }
     },
-    [leaveRoom, openRoomView, resolveRoomByName],
+    [openRoomView],
   );
 
   const handleBackFromRoom = useCallback(() => {
@@ -5505,15 +5313,14 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   }, []);
 
   const handleLeaveRoom = useCallback(
-    async (roomName: string) => {
-      const normalizedRoomName = roomName.trim();
-      if (!normalizedRoomName) {
+    async (roomId: string) => {
+      if (!roomId) {
         return;
       }
 
-      await leaveRoom(normalizedRoomName);
+      await leaveRoom(roomId);
 
-      if (activeRoom && sameRoom(activeRoom.name, normalizedRoomName)) {
+      if (activeRoom && activeRoom.id === roomId) {
         setInitialUnreadForActiveRoom(0);
         setActiveRoom(null);
         replaceAppPathInPlace(buildHiItsMePath({ section: 'chat' }));
@@ -5527,7 +5334,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       return;
     }
 
-    void handleLeaveRoom(activeRoom.name);
+    void handleLeaveRoom(activeRoom.id);
   }, [activeRoom, handleLeaveRoom]);
 
   useEffect(() => {
@@ -5541,7 +5348,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       return;
     }
 
-    if (activeRoom && sameRoom(activeRoom.name, requestedRoomName)) {
+    if (activeRoom && activeRoom.slug === requestedRoomName) {
       return;
     }
 
@@ -5549,14 +5356,14 @@ const [showAddWindow, setShowAddWindow] = useState(false);
 
     void (async () => {
       try {
-        const resolvedRoom = await resolveRoomByName(requestedRoomName, false);
+        const resolvedRoom = await resolveRoomBySlug(requestedRoomName);
         if (isCancelled || !resolvedRoom) {
           return;
         }
 
-        await joinRoom(resolvedRoom.name);
-        setInitialUnreadForActiveRoom(getUnreadCountForRoom(resolvedRoom.name));
-        await clearUnreads(resolvedRoom.name);
+        await joinRoom(resolvedRoom.id, resolvedRoom.slug, resolvedRoom.name);
+        setInitialUnreadForActiveRoom(getUnreadCountForRoom(resolvedRoom.id));
+        await clearUnreads(resolvedRoom.id);
         setActiveRoom(resolvedRoom);
       } catch (error) {
         if (isCancelled) {
@@ -5570,7 +5377,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     return () => {
       isCancelled = true;
     };
-  }, [activeRoom, clearUnreads, getUnreadCountForRoom, joinRoom, requestedRoomName, resolveRoomByName, userId]);
+  }, [activeRoom, clearUnreads, getUnreadCountForRoom, joinRoom, requestedRoomName, resolveRoomBySlug, userId]);
 
   useEffect(() => {
     if (!userId || !requestedDirectMessageUserId || requestedRoomName) {
@@ -5631,37 +5438,9 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     };
   }, [loadSingleUserProfile, openChatWindowForId, requestedDirectMessageUserId, requestedRoomName, userId]);
 
-  const handleJoinRoom = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!userId) {
-      return;
-    }
-
-    const roomName = roomNameDraft.trim();
-    if (!roomName) {
-      setRoomJoinError('Enter a room name to join.');
-      return;
-    }
-
-    setIsJoiningRoom(true);
-    setRoomJoinError(null);
-
-    try {
-      const resolvedRoom = await resolveRoomByName(roomName, true);
-      if (!resolvedRoom) {
-        setRoomJoinError('Could not join room right now.');
-        return;
-      }
-
-      await openRoomView(resolvedRoom);
-      setShowRoomsWindow(false);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Could not join room right now.';
-      setRoomJoinError(message);
-    } finally {
-      setIsJoiningRoom(false);
-    }
-  };
+  const handleBrowseRooms = useCallback(() => {
+    navigateAppPath(router, '/hi-its-me/rooms');
+  }, [router]);
 
   const closeChatWindow = useCallback(() => {
     setActiveChatBuddyId(null);
@@ -5676,7 +5455,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     setChatError(null);
     setIsChatLoading(false);
     if (activeRoom) {
-      replaceAppPathInPlace(buildHiItsMePath({ section: 'chat', roomName: activeRoom.name }));
+      replaceAppPathInPlace(buildHiItsMePath({ section: 'chat', roomName: activeRoom.slug }));
     } else {
       replaceAppPathInPlace(buildHiItsMePath({ section: bodyShellSection === 'profile' ? 'im' : bodyShellSection }));
     }
@@ -5723,11 +5502,8 @@ const [showAddWindow, setShowAddWindow] = useState(false);
 
   const openRoomsWindow = useCallback(() => {
     setRoomJoinError(null);
-    if (!roomNameDraft && activeRoom?.name) {
-      setRoomNameDraft(activeRoom.name);
-    }
     focusMainShellSection('chat');
-  }, [activeRoom?.name, focusMainShellSection, roomNameDraft]);
+  }, [focusMainShellSection]);
 
   const isCurrentUserAway = currentUserPresenceState === 'away';
   const isCurrentUserIdle = currentUserPresenceState === 'idle';
@@ -5801,8 +5577,8 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   if (pendingRequests.length > 0) {
     headerSummaryParts.push(`${pendingRequests.length} request${pendingRequests.length === 1 ? '' : 's'}`);
   }
-  if (activeRooms.length > 0) {
-    headerSummaryParts.push(`${activeRooms.length} room${activeRooms.length === 1 ? '' : 's'}`);
+  if (joinedRooms.length > 0) {
+    headerSummaryParts.push(`${joinedRooms.length} room${joinedRooms.length === 1 ? '' : 's'}`);
   }
   const hiItsMeHeaderSummary = headerSummaryParts.join(' · ');
   const totalUnreadDirectCount = Object.values(unreadDirectMessages).reduce((sum, count) => sum + count, 0);
@@ -5816,13 +5592,16 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   );
   const roomCards = useMemo(
     () =>
-      activeRooms.map((roomName) => ({
-        roomName,
-        meta: getHimRoomMeta(roomName),
+      joinedRooms.map((room) => ({
+        room,
+        meta: getHimRoomMeta(room.slug),
       })),
-    [activeRooms],
+    [joinedRooms],
   );
-  const roomFilterOptions = useMemo(() => buildRoomFilterOptions(activeRooms), [activeRooms]);
+  const roomFilterOptions = useMemo(
+    () => buildRoomFilterOptions(joinedRooms.map((r) => r.slug)),
+    [joinedRooms],
+  );
   const filteredRoomCards = useMemo(
     () =>
       roomCards.filter(
@@ -6195,7 +5974,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
           : 'border border-[rgba(78,201,122,0.18)] bg-[rgba(78,201,122,0.12)] text-[var(--green)]';
   const profileQuickStats = [
     { label: 'buddies', value: acceptedBuddies.length },
-    { label: 'rooms', value: activeRooms.length },
+    { label: 'rooms', value: joinedRooms.length },
     { label: 'saved', value: savedMessages.length },
   ];
 
@@ -6867,31 +6646,18 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                             Find your people, then join or create the room in one move.
                           </p>
                         </div>
-                        <span className="ui-section-count">{activeRooms.length}</span>
+                        <span className="ui-section-count">{joinedRooms.length}</span>
                       </div>
                     </div>
 
                     <div className="px-4 pt-3">
-                      <form onSubmit={handleJoinRoom} className="flex gap-2">
-                        <input
-                          id="room-name-input-inline"
-                          value={roomNameDraft}
-                          onChange={(event) => setRoomNameDraft(event.target.value)}
-                          className={xpModalInputClass}
-                          placeholder="cool_kids_club"
-                          maxLength={80}
-                        />
-                        <button
-                          type="submit"
-                          disabled={isJoiningRoom}
-                          className={`${xpModalPrimaryButtonClass} shrink-0`}
-                        >
-                          {isJoiningRoom ? 'Joining...' : 'Join'}
-                        </button>
-                      </form>
-                      <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-500">
-                        The room will be created automatically if it does not exist yet.
-                      </p>
+                      <button
+                        type="button"
+                        onClick={handleBrowseRooms}
+                        className={`${xpModalPrimaryButtonClass} w-full`}
+                      >
+                        Browse Rooms
+                      </button>
                       {roomJoinError ? (
                         <p className="mt-2 text-[11px] font-semibold text-red-600">{roomJoinError}</p>
                       ) : null}
@@ -6917,12 +6683,12 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                     ) : null}
 
                     <div className="px-2 pb-2 pt-3">
-                      {activeRooms.length === 0 ? (
+                      {joinedRooms.length === 0 ? (
                         <div className="ui-empty-state px-4 py-8 ui-fade-in">
                           <div className="flex h-11 w-11 items-center justify-center rounded-full bg-violet-50 dark:bg-violet-950/25">
                             <AppIcon kind="chat" className="h-5 w-5 text-violet-400 dark:text-violet-300" />
                           </div>
-                          <p className="text-[12px] text-slate-400">Join a room to start chatting.</p>
+                          <p className="text-[12px] text-slate-400">Browse and join a room to start chatting.</p>
                         </div>
                       ) : filteredRoomCards.length === 0 ? (
                         <div className="ui-empty-state px-4 py-8 ui-fade-in">
@@ -6932,18 +6698,18 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                           <p className="text-[12px] text-slate-400">No rooms match this vibe right now.</p>
                         </div>
                       ) : (
-                        filteredRoomCards.map(({ roomName, meta }) => {
-                          const unreadCount = getUnreadCountForRoom(roomName);
-                          const isRoomSelected = Boolean(activeRoom && sameRoom(activeRoom.name, roomName));
-                          const normalizedRoomKey = normalizeRoomKey(roomName);
+                        filteredRoomCards.map(({ room, meta }) => {
+                          const unreadCount = getUnreadCountForRoom(room.id);
+                          const isRoomSelected = Boolean(activeRoom && activeRoom.id === room.id);
+                          const normalizedRoomKey = normalizeRoomKey(room.slug);
 
                           return (
-                            <div key={roomName} className="flex items-center gap-2">
+                            <div key={room.id} className="flex items-center gap-2">
                               <button
                                 type="button"
-                                onClick={() => void handleOpenActiveRoom(roomName)}
+                                onClick={() => void handleOpenActiveRoom(room)}
                                 data-testid={`room-row-${normalizedRoomKey}`}
-                                data-room-name={roomName}
+                                data-room-name={room.name}
                                 data-room-unread={unreadCount}
                                 data-active={isRoomSelected ? 'true' : 'false'}
                                 data-live={meta.liveCount > 0 ? 'true' : 'false'}
@@ -6954,7 +6720,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center gap-2">
-                                    <p className="truncate text-[13px] font-semibold text-slate-800 dark:text-slate-100">{roomName}</p>
+                                    <p className="truncate text-[13px] font-semibold text-slate-800 dark:text-slate-100">{room.name}</p>
                                     <span className="ui-room-live-pill">
                                       <span className="ui-room-live-dot" />
                                       {meta.liveCount}
@@ -6972,7 +6738,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                                 {unreadCount > 0 ? (
                                   <span
                                     data-testid={`room-unread-${normalizedRoomKey}`}
-                                    aria-label={`Unread in ${roomName}: ${unreadCount}`}
+                                    aria-label={`Unread in ${room.name}: ${unreadCount}`}
                                     className={`ui-unread-badge flex min-w-[20px] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
                                       isRoomSelected ? '' : 'aim-unread-badge-pulse'
                                     }`}
@@ -6983,9 +6749,9 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                               </button>
                               <button
                                 type="button"
-                                onClick={() => void handleLeaveRoom(roomName)}
+                                onClick={() => void handleLeaveRoom(room.id)}
                                 className="ui-focus-ring ui-button-danger ui-button-compact flex h-8 w-8 shrink-0 p-0"
-                                aria-label={`Leave ${roomName}`}
+                                aria-label={`Leave ${room.name}`}
                                 title="Leave room"
                               >
                                 <AppIcon kind="close" className="h-3.5 w-3.5" />
@@ -7923,23 +7689,9 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4 backdrop-blur-[1px]">
           <div className="w-full max-w-sm">
             <div className={xpModalFrameClass}>
-              <div className={`${xpModalHeaderClass} mb-2`}>Join a Room</div>
-              <form onSubmit={handleJoinRoom} className="flex flex-col gap-3 px-2 pb-2 text-[11px]">
-                <label htmlFor="room-name-input" className="font-semibold text-slate-700 dark:text-slate-300">
-                  Room name
-                </label>
-                <input
-                  id="room-name-input"
-                  value={roomNameDraft}
-                  onChange={(event) => setRoomNameDraft(event.target.value)}
-                  className={xpModalInputClass}
-                  placeholder="cool_kids_club"
-                  maxLength={80}
-                />
-                <p className="text-[12px] text-slate-500">If the room does not exist yet, H.I.M. will create it.</p>
-                {roomJoinError && (
-                  <p className="ui-note-error">{roomJoinError}</p>
-                )}
+              <div className={`${xpModalHeaderClass} mb-2`}>Chat Rooms</div>
+              <div className="flex flex-col gap-3 px-2 pb-2 text-[11px]">
+                <p className="text-[12px] text-slate-500">Browse and join rooms to start chatting.</p>
                 <div className="flex justify-end gap-2">
                   <button
                     type="button"
@@ -7949,14 +7701,14 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                     Cancel
                   </button>
                   <button
-                    type="submit"
-                    disabled={isJoiningRoom}
+                    type="button"
+                    onClick={handleBrowseRooms}
                     className={xpModalPrimaryButtonClass}
                   >
-                    {isJoiningRoom ? 'Joining...' : 'Join'}
+                    Browse Rooms
                   </button>
                 </div>
-              </form>
+              </div>
             </div>
           </div>
         </div>
@@ -8314,18 +8066,16 @@ const [showAddWindow, setShowAddWindow] = useState(false);
           key={activeRoom.id}
           roomId={activeRoom.id}
           roomName={activeRoom.name}
-          roomKey={activeRoom.room_key ?? null}
           currentUserId={userId}
           currentUserScreenname={screenname}
           currentUserBuddyIconPath={buddyIconPath}
           initialUnreadCount={initialUnreadForActiveRoom}
-          initialDraft={draftCache.rooms[normalizeRoomKey(activeRoom.name)] ?? ''}
+          initialDraft={draftCache.rooms[activeRoom.id] ?? ''}
           outboxItems={activeRoomOutboxItems}
           reloadToken={activeRoomReloadToken}
-          onDraftChange={(draft) => updateRoomDraft(activeRoom.name, draft)}
+          onDraftChange={(draft) => updateRoomDraft(activeRoom.id, draft)}
           onRetryOutboxMessage={handleRetryConversationOutboxMessage}
           onQueueRoomMessage={handleQueueRoomMessage}
-          inviteCode={activeRoom.invite_code ?? null}
           buddies={acceptedBuddies}
           onBack={handleBackFromRoom}
           onLeave={handleLeaveCurrentRoom}
