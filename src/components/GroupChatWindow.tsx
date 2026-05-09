@@ -9,7 +9,7 @@ import SwipeActionFrame from '@/components/SwipeActionFrame';
 import type { OutboxItem } from '@/lib/outbox';
 import { getJSON, setJSON } from '@/lib/clientStorage';
 import { hapticLight, hapticSuccess, hapticWarning } from '@/lib/haptics';
-import { sendOrAcceptBuddyRequest } from '@/lib/buddyRequest';
+import { sendOrAcceptBuddyRequest, type BuddyRequestStatus } from '@/lib/buddyRequest';
 import { useKeyboardViewport } from '@/hooks/useKeyboardViewport';
 import { useSwipeBack } from '@/hooks/useSwipeBack';
 import {
@@ -203,10 +203,13 @@ export default function GroupChatWindow({
   const [inviteError, setInviteError] = useState<string | null>(null);
 
   const [rosterMembers, setRosterMembers] = useState<RosterMember[]>([]);
+  const [isRosterInitialLoading, setIsRosterInitialLoading] = useState(true);
+  const rosterLoadedOnceRef = useRef(false);
   const [rosterProfileId, setRosterProfileId] = useState<string | null>(null);
   const [rosterProfile, setRosterProfile] = useState<RosterProfile | null>(null);
   const [isLoadingRosterProfile, setIsLoadingRosterProfile] = useState(false);
   const [rosterProfileFeedback, setRosterProfileFeedback] = useState<string | null>(null);
+  const [rosterProfileStatus, setRosterProfileStatus] = useState<BuddyRequestStatus | null>(null);
   const [isAddingRosterBuddy, setIsAddingRosterBuddy] = useState(false);
 
   const handleBack = useCallback(() => {
@@ -466,6 +469,10 @@ export default function GroupChatWindow({
     const rows = (data ?? []) as RosterMember[];
     setRosterMembers(rows);
     void ensureScreennames(rows.map((r) => r.user_id));
+    if (!rosterLoadedOnceRef.current) {
+      rosterLoadedOnceRef.current = true;
+      setIsRosterInitialLoading(false);
+    }
   }, [roomId, ensureScreennames]);
 
   const openRosterProfile = useCallback(async (userId: string) => {
@@ -473,6 +480,7 @@ export default function GroupChatWindow({
     setRosterProfileId(userId);
     setRosterProfile(null);
     setRosterProfileFeedback(null);
+    setRosterProfileStatus(null);
     setIsLoadingRosterProfile(true);
     try {
       const { data } = await supabase
@@ -500,8 +508,10 @@ export default function GroupChatWindow({
     try {
       const result = await sendOrAcceptBuddyRequest(currentUserId, userId);
       setRosterProfileFeedback(result.feedback);
+      setRosterProfileStatus(result.status);
     } catch {
       setRosterProfileFeedback('Could not send buddy request right now.');
+      setRosterProfileStatus('error');
     } finally {
       setIsAddingRosterBuddy(false);
     }
@@ -1028,7 +1038,7 @@ export default function GroupChatWindow({
         title={`#${roomName}`}
         variant="xp_shell"
         xpTitleText={`#${roomName}`}
-        xpSubtitleText={`${participants.length} participant${participants.length === 1 ? '' : 's'}`}
+        xpSubtitleText={`${rosterMembers.length} active`}
         headerActions={
           nativeShellActive ? undefined : (
             <>
@@ -1076,7 +1086,7 @@ export default function GroupChatWindow({
                         #{roomName}
                       </span>
                       <span className="text-[11px] font-semibold text-[var(--gold)]">
-                        {participants.length} online
+                        {rosterMembers.length} active
                       </span>
                     </div>
                     <p className="mt-0.5 truncate text-[12px] text-slate-500 dark:text-slate-400">
@@ -1144,38 +1154,51 @@ export default function GroupChatWindow({
                       Active now{rosterMembers.length > 0 ? ` · ${rosterMembers.length}` : ''}
                     </p>
                     <ul className="mt-2 space-y-0.5">
-                      {rosterMembers.map((member) => {
-                        const screenname = screennameMap[member.user_id] || 'Unknown User';
-                        const isMe = member.user_id === currentUserId;
-                        return (
-                          <li key={member.user_id}>
-                            {isMe ? (
-                              <div className="flex items-center gap-2 px-1 py-1">
-                                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--green)]" aria-hidden="true" />
-                                <span className="truncate text-[12px] font-semibold text-slate-800 dark:text-slate-100">
-                                  {screenname}
-                                  <span className="ml-1 font-normal text-slate-400 dark:text-slate-500">(You)</span>
-                                </span>
-                              </div>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => void openRosterProfile(member.user_id)}
-                                className="ui-focus-ring flex w-full items-center gap-2 rounded-xl px-1 py-1 text-left transition hover:bg-slate-100/60 active:scale-[0.98] dark:hover:bg-white/5"
-                              >
-                                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--green)]" aria-hidden="true" />
-                                <span className="truncate text-[12px] font-semibold text-slate-800 dark:text-slate-100">
-                                  {screenname}
-                                </span>
-                                <AppIcon kind="chevron" className="ml-auto h-3 w-3 shrink-0 rotate-[-90deg] text-slate-400" />
-                              </button>
-                            )}
-                          </li>
-                        );
-                      })}
-                      {rosterMembers.length === 0 ? (
-                        <li className="py-1 text-[12px] text-slate-400 dark:text-slate-500">No recent activity yet.</li>
-                      ) : null}
+                      {isRosterInitialLoading ? (
+                        <>
+                          {[0, 1, 2].map((i) => (
+                            <li key={i} className="flex items-center gap-2 px-1 py-1">
+                              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-slate-200 dark:bg-slate-700" />
+                              <div className="ui-skeleton h-3 rounded-full" style={{ width: `${48 + i * 16}%` }} />
+                            </li>
+                          ))}
+                        </>
+                      ) : (
+                        <>
+                          {rosterMembers.map((member) => {
+                            const screenname = screennameMap[member.user_id] || 'Unknown User';
+                            const isMe = member.user_id === currentUserId;
+                            return (
+                              <li key={member.user_id}>
+                                {isMe ? (
+                                  <div className="flex items-center gap-2 px-1 py-1">
+                                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--green)]" aria-hidden="true" />
+                                    <span className="truncate text-[12px] font-semibold text-slate-800 dark:text-slate-100">
+                                      {screenname}
+                                      <span className="ml-1 font-normal text-slate-400 dark:text-slate-500">(You)</span>
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => void openRosterProfile(member.user_id)}
+                                    className="ui-focus-ring flex w-full items-center gap-2 rounded-xl px-1 py-1 text-left transition hover:bg-slate-100/60 active:scale-[0.98] dark:hover:bg-white/5"
+                                  >
+                                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--green)]" aria-hidden="true" />
+                                    <span className="truncate text-[12px] font-semibold text-slate-800 dark:text-slate-100">
+                                      {screenname}
+                                    </span>
+                                    <AppIcon kind="chevron" className="ml-auto h-3 w-3 shrink-0 rotate-[-90deg] text-slate-400" />
+                                  </button>
+                                )}
+                              </li>
+                            );
+                          })}
+                          {rosterMembers.length === 0 ? (
+                            <li className="py-1 text-[12px] text-slate-400 dark:text-slate-500">No recent activity yet.</li>
+                          ) : null}
+                        </>
+                      )}
                     </ul>
                   </div>
                   {/* Search */}
@@ -1345,6 +1368,7 @@ export default function GroupChatWindow({
                   setRosterProfileId(null);
                   setRosterProfile(null);
                   setRosterProfileFeedback(null);
+                  setRosterProfileStatus(null);
                 }}
                 aria-label="Close profile"
               />
@@ -1359,6 +1383,7 @@ export default function GroupChatWindow({
                       setRosterProfileId(null);
                       setRosterProfile(null);
                       setRosterProfileFeedback(null);
+                      setRosterProfileStatus(null);
                     }}
                     className="ui-focus-ring ui-conversation-action"
                     aria-label="Close profile"
@@ -1390,10 +1415,18 @@ export default function GroupChatWindow({
                     <button
                       type="button"
                       onClick={() => void handleAddRosterBuddy(rosterProfile.id)}
-                      disabled={isAddingRosterBuddy || rosterProfileFeedback !== null}
+                      disabled={isAddingRosterBuddy || rosterProfileStatus !== null}
                       className="ui-focus-ring ui-button-primary ui-button-compact w-full justify-center disabled:opacity-40"
                     >
-                      {isAddingRosterBuddy ? 'Sending…' : 'Add to Buddylist'}
+                      {isAddingRosterBuddy
+                        ? 'Sending…'
+                        : rosterProfileStatus === 'already_accepted'
+                          ? 'Already in H.I.M. contacts'
+                          : rosterProfileStatus === 'already_sent'
+                            ? 'Request Pending'
+                            : rosterProfileStatus === 'sent' || rosterProfileStatus === 'accepted_incoming'
+                              ? 'Request Sent'
+                              : 'Add to Buddylist'}
                     </button>
                   </div>
                 ) : (
