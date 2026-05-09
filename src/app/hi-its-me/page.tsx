@@ -130,6 +130,8 @@ import {
   type NativeShellPrivacyState,
 } from '@/lib/nativeShell';
 import RetroWindow from '@/components/RetroWindow';
+import BrowsePanel from '@/components/BrowsePanel';
+import SearchPanel from '@/components/SearchPanel';
 import { useChatContext } from '@/context/ChatContext';
 import {
   ABUSE_REPORT_CATEGORY_OPTIONS,
@@ -950,6 +952,9 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   const [isBlockingBuddyId, setIsBlockingBuddyId] = useState<string | null>(null);
   const [isReportingBuddyId, setIsReportingBuddyId] = useState<string | null>(null);
   const [bodyShellSection, setBodyShellSection] = useState<ShellSection>('profile');
+  const [chatSubSection, setChatSubSection] = useState<'rooms' | 'browse' | 'search'>('rooms');
+  const [isDiscoverable, setIsDiscoverable] = useState(true);
+  const [isSavingDiscoverable, setIsSavingDiscoverable] = useState(false);
   const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(false);
   const [profileSheetBuddyId, setProfileSheetBuddyId] = useState<string | null>(null);
   const [profileSheetError, setProfileSheetError] = useState<string | null>(null);
@@ -1768,6 +1773,19 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     },
     [privacySettings, userId],
   );
+
+  const toggleDiscoverable = useCallback(async () => {
+    if (!userId || isSavingDiscoverable) return;
+    const next = !isDiscoverable;
+    setIsDiscoverable(next);
+    setIsSavingDiscoverable(true);
+    const { error } = await supabase.from('users').update({ discoverable: next }).eq('id', userId);
+    if (error) {
+      console.error('Failed to update discoverable:', error.message);
+      setIsDiscoverable(!next);
+    }
+    setIsSavingDiscoverable(false);
+  }, [isDiscoverable, isSavingDiscoverable, userId]);
 
   const openAppLockSetup = useCallback(() => {
     setAppLockMode('setup');
@@ -2831,6 +2849,14 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       setAwayMessage(resolvedStatusState.awayMessage);
       setProfileBio(existingProfile?.profile_bio?.trim() || '');
       setBuddyIconPath(existingProfile?.buddy_icon_path ?? null);
+      void supabase
+        .from('users')
+        .select('discoverable')
+        .eq('id', session.user.id)
+        .maybeSingle()
+        .then(({ data }) => {
+          setIsDiscoverable((data as { discoverable?: boolean | null } | null)?.discoverable ?? true);
+        });
       setIdleSinceAt(null);
       setLastActiveAt(existingProfile?.last_active_at ?? new Date().toISOString());
       lastActivityAtRef.current = Date.now();
@@ -6640,16 +6666,44 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                     <div className="px-4 pt-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="ui-section-kicker">Rooms</p>
-                          <p className="mt-1 text-[16px] font-semibold text-slate-800 dark:text-slate-100">Chat Rooms</p>
-                          <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-                            Find your people, then join or create the room in one move.
+                          <p className="ui-section-kicker">
+                            {chatSubSection === 'rooms' ? 'Rooms' : chatSubSection === 'browse' ? 'Browse' : 'Search'}
+                          </p>
+                          <p className="mt-1 text-[16px] font-semibold text-slate-800 dark:text-slate-100">
+                            {chatSubSection === 'rooms' ? 'Chat Rooms' : chatSubSection === 'browse' ? 'People' : 'Find People'}
                           </p>
                         </div>
-                        <span className="ui-section-count">{joinedRooms.length}</span>
+                        {chatSubSection === 'rooms' ? <span className="ui-section-count">{joinedRooms.length}</span> : null}
+                      </div>
+
+                      {/* Sub-nav: Rooms | Browse | Search */}
+                      <div className="mt-3 flex gap-1.5">
+                        {(['rooms', 'browse', 'search'] as const).map((section) => (
+                          <button
+                            key={section}
+                            type="button"
+                            onClick={() => setChatSubSection(section)}
+                            className="ui-focus-ring ui-room-filter-chip capitalize"
+                            data-active={chatSubSection === section ? 'true' : 'false'}
+                          >
+                            {section === 'rooms' ? 'Rooms' : section === 'browse' ? 'Browse' : 'Search'}
+                          </button>
+                        ))}
                       </div>
                     </div>
 
+                    {chatSubSection === 'browse' ? (
+                      <div className="px-2 pb-2 pt-3">
+                        <BrowsePanel currentUserId={userId ?? ''} />
+                      </div>
+                    ) : chatSubSection === 'search' ? (
+                      <div className="px-2 pb-2 pt-3">
+                        <SearchPanel currentUserId={userId ?? ''} />
+                      </div>
+                    ) : null}
+
+                    {chatSubSection === 'rooms' ? (
+                    <>
                     <div className="px-4 pt-3">
                       <button
                         type="button"
@@ -6761,6 +6815,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                         })
                       )}
                     </div>
+                    </>) : null}
                   </section>
                 </div>
               ) : null}
@@ -7451,6 +7506,24 @@ const [showAddWindow, setShowAddWindow] = useState(false);
               {trustSafetyError ? (
                 <p className="ui-note-error text-[12px] font-semibold">{trustSafetyError}</p>
               ) : null}
+              <div className="ui-panel-card rounded-2xl px-4 py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Appear in Browse &amp; Search</p>
+                    <p className="text-[11px] text-slate-400">Let others find your profile in the Browse and Search surfaces. Your away message is shown publicly.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void toggleDiscoverable()}
+                    disabled={isSavingDiscoverable}
+                    className={`ios-toggle ${isDiscoverable ? 'on' : ''} disabled:opacity-50`}
+                    role="switch"
+                    aria-checked={isDiscoverable}
+                    aria-label="Appear in Browse and Search"
+                  />
+                </div>
+              </div>
+
               <div className="ui-panel-card rounded-2xl px-4 py-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
