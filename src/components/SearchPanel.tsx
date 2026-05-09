@@ -19,7 +19,18 @@ export default function SearchPanel({ currentUserId }: SearchPanelProps) {
   const [isSearching, setIsSearching] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const blockedIdsRef = useRef<string[]>([]);
   const inputId = useId();
+
+  useEffect(() => {
+    void supabase
+      .from('blocked_users')
+      .select('blocked_id')
+      .eq('blocker_id', currentUserId)
+      .then(({ data }) => {
+        blockedIdsRef.current = (data ?? []).map((r) => (r as { blocked_id: string }).blocked_id);
+      });
+  }, [currentUserId]);
 
   const runSearch = useCallback(async (query: string) => {
     if (!query.trim()) {
@@ -27,7 +38,7 @@ export default function SearchPanel({ currentUserId }: SearchPanelProps) {
       return;
     }
     setIsSearching(true);
-    const { data } = await supabase
+    let q = supabase
       .from('users')
       .select('id,screenname,away_message')
       .eq('discoverable', true)
@@ -35,6 +46,10 @@ export default function SearchPanel({ currentUserId }: SearchPanelProps) {
       .ilike('screenname', `${query.trim()}%`)
       .order('screenname', { ascending: true })
       .limit(30);
+    if (blockedIdsRef.current.length > 0) {
+      q = q.not('id', 'in', `(${blockedIdsRef.current.join(',')})`);
+    }
+    const { data } = await q;
     setResults((data ?? []) as SearchUser[]);
     setIsSearching(false);
   }, [currentUserId]);

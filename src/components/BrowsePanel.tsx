@@ -36,12 +36,23 @@ export default function BrowsePanel({ currentUserId }: BrowsePanelProps) {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const loadedOnceRef = useRef(false);
+  const blockedIdsRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    void supabase
+      .from('blocked_users')
+      .select('blocked_id')
+      .eq('blocker_id', currentUserId)
+      .then(({ data }) => {
+        blockedIdsRef.current = (data ?? []).map((r) => (r as { blocked_id: string }).blocked_id);
+      });
+  }, [currentUserId]);
 
   const fetchPage = useCallback(async (pageOffset: number, replace: boolean) => {
     if (replace) setIsLoading(true);
     else setIsLoadingMore(true);
 
-    const { data } = await supabase
+    let query = supabase
       .from('users')
       .select('id,screenname,away_message,last_active_at')
       .eq('discoverable', true)
@@ -50,6 +61,12 @@ export default function BrowsePanel({ currentUserId }: BrowsePanelProps) {
       .neq('id', currentUserId)
       .order('last_active_at', { ascending: false, nullsFirst: false })
       .range(pageOffset, pageOffset + PAGE_SIZE - 1);
+
+    if (blockedIdsRef.current.length > 0) {
+      query = query.not('id', 'in', `(${blockedIdsRef.current.join(',')})`);
+    }
+
+    const { data } = await query;
 
     const rows = (data ?? []) as BrowseUser[];
 
