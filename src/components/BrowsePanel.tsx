@@ -108,7 +108,7 @@ export default function BrowsePanel({ currentUserId }: BrowsePanelProps) {
           <div className="flex h-11 w-11 items-center justify-center rounded-full bg-violet-50 dark:bg-violet-950/25">
             <AppIcon kind="buddy" className="h-5 w-5 text-violet-400 dark:text-violet-300" />
           </div>
-          <p className="text-[12px] text-slate-400">No one's posted a status yet. Check back soon.</p>
+          <p className="text-[12px] text-slate-400">No one&rsquo;s posted a status yet. Check back soon.</p>
         </div>
       ) : (
         <>
@@ -156,7 +156,7 @@ export default function BrowsePanel({ currentUserId }: BrowsePanelProps) {
               {isLoadingMore ? 'Loading…' : 'Load more'}
             </button>
           ) : (
-            <p className="mt-4 text-center text-[11px] text-slate-400">That's everyone for now.</p>
+            <p className="mt-4 text-center text-[11px] text-slate-400">That&rsquo;s everyone for now.</p>
           )}
         </>
       )}
