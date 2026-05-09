@@ -9,6 +9,7 @@ import SwipeActionFrame from '@/components/SwipeActionFrame';
 import type { OutboxItem } from '@/lib/outbox';
 import { getJSON, setJSON } from '@/lib/clientStorage';
 import { hapticLight, hapticSuccess, hapticWarning } from '@/lib/haptics';
+import { sendOrAcceptBuddyRequest } from '@/lib/buddyRequest';
 import { useKeyboardViewport } from '@/hooks/useKeyboardViewport';
 import { useSwipeBack } from '@/hooks/useSwipeBack';
 import {
@@ -48,6 +49,18 @@ interface RoomMessage {
   user_id: string;
   body: string;
   created_at: string;
+}
+
+interface RosterMember {
+  user_id: string;
+  last_seen_at: string;
+}
+
+interface RosterProfile {
+  id: string;
+  screenname: string;
+  awayMessage: string | null;
+  bio: string | null;
 }
 
 interface RoomParticipant {
@@ -188,6 +201,13 @@ export default function GroupChatWindow({
   const [selectedInviteIds, setSelectedInviteIds] = useState<Set<string>>(() => new Set());
   const [isInviting, setIsInviting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
+
+  const [rosterMembers, setRosterMembers] = useState<RosterMember[]>([]);
+  const [rosterProfileId, setRosterProfileId] = useState<string | null>(null);
+  const [rosterProfile, setRosterProfile] = useState<RosterProfile | null>(null);
+  const [isLoadingRosterProfile, setIsLoadingRosterProfile] = useState(false);
+  const [rosterProfileFeedback, setRosterProfileFeedback] = useState<string | null>(null);
+  const [isAddingRosterBuddy, setIsAddingRosterBuddy] = useState(false);
 
   const handleBack = useCallback(() => {
     setIsClosing(true);
@@ -435,6 +455,58 @@ export default function GroupChatWindow({
     });
   }, [currentUserBuddyIconPath, currentUserId, currentUserScreenname]);
 
+  const loadRoster = useCallback(async () => {
+    const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const { data } = await supabase
+      .from('room_memberships')
+      .select('user_id, last_seen_at')
+      .eq('room_id', roomId)
+      .gte('last_seen_at', cutoff)
+      .order('last_seen_at', { ascending: false });
+    const rows = (data ?? []) as RosterMember[];
+    setRosterMembers(rows);
+    void ensureScreennames(rows.map((r) => r.user_id));
+  }, [roomId, ensureScreennames]);
+
+  const openRosterProfile = useCallback(async (userId: string) => {
+    if (userId === currentUserId) return;
+    setRosterProfileId(userId);
+    setRosterProfile(null);
+    setRosterProfileFeedback(null);
+    setIsLoadingRosterProfile(true);
+    try {
+      const { data } = await supabase
+        .from('users')
+        .select('id, screenname, away_message, profile_bio')
+        .eq('id', userId)
+        .maybeSingle();
+      if (data) {
+        setRosterProfile({
+          id: data.id as string,
+          screenname: ((data.screenname as string) ?? '').trim() || screennameMapRef.current[userId] || 'Unknown User',
+          awayMessage: (data.away_message as string | null) || null,
+          bio: (data.profile_bio as string | null) || null,
+        });
+      }
+    } finally {
+      setIsLoadingRosterProfile(false);
+    }
+  }, [currentUserId]);
+
+  const handleAddRosterBuddy = useCallback(async (userId: string) => {
+    if (isAddingRosterBuddy) return;
+    setIsAddingRosterBuddy(true);
+    setRosterProfileFeedback(null);
+    try {
+      const result = await sendOrAcceptBuddyRequest(currentUserId, userId);
+      setRosterProfileFeedback(result.feedback);
+    } catch {
+      setRosterProfileFeedback('Could not send buddy request right now.');
+    } finally {
+      setIsAddingRosterBuddy(false);
+    }
+  }, [currentUserId, isAddingRosterBuddy]);
+
   useEffect(() => {
     scrollToLatestMessage();
   }, [messages, scrollToLatestMessage]);
@@ -456,6 +528,29 @@ export default function GroupChatWindow({
   useEffect(() => {
     void clearUnreads(roomId);
   }, [clearUnreads, roomId]);
+
+  // 30s last_seen_at heartbeat — final update fires on unmount
+  useEffect(() => {
+    const updateLastSeen = () => {
+      void supabase
+        .from('room_memberships')
+        .update({ last_seen_at: new Date().toISOString() })
+        .eq('room_id', roomId)
+        .eq('user_id', currentUserId);
+    };
+    const intervalId = setInterval(updateLastSeen, 30_000);
+    return () => {
+      clearInterval(intervalId);
+      updateLastSeen();
+    };
+  }, [currentUserId, roomId]);
+
+  // Roster — initial load + 60s refresh to expire departed members
+  useEffect(() => {
+    void loadRoster();
+    const intervalId = setInterval(() => void loadRoster(), 60_000);
+    return () => clearInterval(intervalId);
+  }, [loadRoster]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -563,6 +658,44 @@ export default function GroupChatWindow({
         setMessages((previous) =>
           previous.map((message) => (message.id === updated.id ? { ...message, ...updated } : message)),
         );
+      },
+    );
+
+    // Roster: refresh on membership changes (client-side room filter, same as messages)
+    roomChannel.on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'room_memberships' },
+      (payload) => {
+        const row = payload.new as { room_id?: string; user_id?: string; last_seen_at?: string };
+        if (row.room_id !== roomId) return;
+        void loadRoster();
+      },
+    );
+    roomChannel.on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'room_memberships' },
+      (payload) => {
+        const row = payload.new as { room_id?: string; user_id?: string; last_seen_at?: string };
+        if (row.room_id !== roomId || !row.user_id || !row.last_seen_at) return;
+        const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+        setRosterMembers((prev) => {
+          const next = prev.filter((m) => m.user_id !== row.user_id);
+          if (row.last_seen_at! >= cutoff) {
+            next.push({ user_id: row.user_id!, last_seen_at: row.last_seen_at! });
+            next.sort((a, b) => b.last_seen_at.localeCompare(a.last_seen_at));
+          }
+          return next;
+        });
+        void ensureScreennames([row.user_id]);
+      },
+    );
+    roomChannel.on(
+      'postgres_changes',
+      { event: 'DELETE', schema: 'public', table: 'room_memberships' },
+      (payload) => {
+        const row = payload.old as { room_id?: string; user_id?: string };
+        if (row.room_id !== roomId) return;
+        setRosterMembers((prev) => prev.filter((m) => m.user_id !== row.user_id));
       },
     );
 
@@ -1005,25 +1138,43 @@ export default function GroupChatWindow({
                     </button>
                   ) : null}
 
-                  {/* Members */}
+                  {/* Members — roster driven by last_seen_at (5-min window) */}
                   <div className="rounded-[1rem] border border-white/60 bg-white/70 px-3 py-2 dark:border-slate-700 dark:bg-[#13100E]/55">
                     <p className="ui-section-kicker">
-                      Members{participants.length > 0 ? ` · ${participants.length}` : ''}
+                      Active now{rosterMembers.length > 0 ? ` · ${rosterMembers.length}` : ''}
                     </p>
-                    <ul className="mt-2 space-y-1.5">
-                      {participants.map((participant) => (
-                        <li key={participant.userId} className="flex items-center gap-2">
-                          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--green)]" aria-hidden="true" />
-                          <span className="truncate text-[12px] font-semibold text-slate-800 dark:text-slate-100">
-                            {participant.screenname}
-                            {participant.userId === currentUserId ? (
-                              <span className="ml-1 font-normal text-slate-400 dark:text-slate-500">(You)</span>
-                            ) : null}
-                          </span>
-                        </li>
-                      ))}
-                      {participants.length === 0 ? (
-                        <li className="text-[12px] text-slate-400 dark:text-slate-500">No one else here yet.</li>
+                    <ul className="mt-2 space-y-0.5">
+                      {rosterMembers.map((member) => {
+                        const screenname = screennameMap[member.user_id] || 'Unknown User';
+                        const isMe = member.user_id === currentUserId;
+                        return (
+                          <li key={member.user_id}>
+                            {isMe ? (
+                              <div className="flex items-center gap-2 px-1 py-1">
+                                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--green)]" aria-hidden="true" />
+                                <span className="truncate text-[12px] font-semibold text-slate-800 dark:text-slate-100">
+                                  {screenname}
+                                  <span className="ml-1 font-normal text-slate-400 dark:text-slate-500">(You)</span>
+                                </span>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => void openRosterProfile(member.user_id)}
+                                className="ui-focus-ring flex w-full items-center gap-2 rounded-xl px-1 py-1 text-left transition hover:bg-slate-100/60 active:scale-[0.98] dark:hover:bg-white/5"
+                              >
+                                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--green)]" aria-hidden="true" />
+                                <span className="truncate text-[12px] font-semibold text-slate-800 dark:text-slate-100">
+                                  {screenname}
+                                </span>
+                                <AppIcon kind="chevron" className="ml-auto h-3 w-3 shrink-0 rotate-[-90deg] text-slate-400" />
+                              </button>
+                            )}
+                          </li>
+                        );
+                      })}
+                      {rosterMembers.length === 0 ? (
+                        <li className="py-1 text-[12px] text-slate-400 dark:text-slate-500">No recent activity yet.</li>
                       ) : null}
                     </ul>
                   </div>
@@ -1175,6 +1326,79 @@ export default function GroupChatWindow({
                         : `Invite ${selectedInviteIds.size} ${selectedInviteIds.size === 1 ? 'buddy' : 'buddies'}`}
                   </button>
                 ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          {/* Roster profile sheet */}
+          {rosterProfileId ? (
+            <div
+              className="absolute inset-0 z-30 flex flex-col justify-end"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Member profile"
+            >
+              <button
+                type="button"
+                className="absolute inset-0 bg-black/40"
+                onClick={() => {
+                  setRosterProfileId(null);
+                  setRosterProfile(null);
+                  setRosterProfileFeedback(null);
+                }}
+                aria-label="Close profile"
+              />
+              <div className="relative z-10 rounded-t-[1.75rem] bg-[var(--bg2)] px-4 pb-8 pt-5">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--rose)]">
+                    Member
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRosterProfileId(null);
+                      setRosterProfile(null);
+                      setRosterProfileFeedback(null);
+                    }}
+                    className="ui-focus-ring ui-conversation-action"
+                    aria-label="Close profile"
+                  >
+                    <AppIcon kind="close" className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+
+                {isLoadingRosterProfile ? (
+                  <div className="space-y-3 py-4">
+                    <div className="ui-skeleton mx-auto h-5 w-32 rounded-full" />
+                    <div className="ui-skeleton h-4 w-full rounded-full" />
+                    <div className="ui-skeleton h-4 w-3/4 rounded-full" />
+                  </div>
+                ) : rosterProfile ? (
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-[22px] font-bold text-slate-100">{rosterProfile.screenname}</p>
+                      {rosterProfile.awayMessage ? (
+                        <p className="mt-1 text-[13px] italic text-slate-400">&ldquo;{rosterProfile.awayMessage}&rdquo;</p>
+                      ) : null}
+                      {rosterProfile.bio ? (
+                        <p className="mt-2 text-[13px] leading-relaxed text-slate-300">{rosterProfile.bio}</p>
+                      ) : null}
+                    </div>
+                    {rosterProfileFeedback ? (
+                      <p className="text-[12px] font-semibold text-[var(--green)]">{rosterProfileFeedback}</p>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => void handleAddRosterBuddy(rosterProfile.id)}
+                      disabled={isAddingRosterBuddy || rosterProfileFeedback !== null}
+                      className="ui-focus-ring ui-button-primary ui-button-compact w-full justify-center disabled:opacity-40"
+                    >
+                      {isAddingRosterBuddy ? 'Sending…' : 'Add to Buddylist'}
+                    </button>
+                  </div>
+                ) : (
+                  <p className="py-4 text-center text-[13px] text-slate-400">Could not load profile.</p>
+                )}
               </div>
             </div>
           ) : null}
