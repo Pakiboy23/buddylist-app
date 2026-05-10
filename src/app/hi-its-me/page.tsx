@@ -5343,8 +5343,8 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   const handleBackFromRoom = useCallback(() => {
     setInitialUnreadForActiveRoom(0);
     setActiveRoom(null);
-    replaceAppPathInPlace(buildHiItsMePath({ section: 'chat' }));
-  }, []);
+    navigateAppPath(router, buildHiItsMePath({ section: 'chat' }), { replace: true });
+  }, [router]);
 
   const handleLeaveRoom = useCallback(
     async (roomId: string) => {
@@ -5357,10 +5357,10 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       if (activeRoom && activeRoom.id === roomId) {
         setInitialUnreadForActiveRoom(0);
         setActiveRoom(null);
-        replaceAppPathInPlace(buildHiItsMePath({ section: 'chat' }));
+        navigateAppPath(router, buildHiItsMePath({ section: 'chat' }), { replace: true });
       }
     },
-    [activeRoom, leaveRoom],
+    [activeRoom, leaveRoom, router],
   );
 
   const handleLeaveCurrentRoom = useCallback(() => {
