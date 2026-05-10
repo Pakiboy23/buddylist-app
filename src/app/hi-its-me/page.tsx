@@ -3239,8 +3239,16 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       hasPresenceSyncedRef.current = true;
     });
 
-    presenceChannel.subscribe((status) => {
+    presenceChannel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
+        // Sync JWT to the WebSocket before tracking — in Capacitor the HTTP and
+        // WebSocket sessions can diverge, causing presence to be silently rejected.
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          await supabase.realtime.setAuth(session.access_token);
+        }
         void presenceChannel.track({
           user_id: userId,
           online_at: new Date().toISOString(),
