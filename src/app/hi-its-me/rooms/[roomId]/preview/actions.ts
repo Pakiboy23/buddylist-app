@@ -1,9 +1,16 @@
 import { supabase } from '@/lib/supabase';
+import { waitForSessionOrNull } from '@/lib/authClient';
 
 export async function joinRoom(
   roomId: string,
   userId: string,
 ): Promise<{ success: true } | { error: string }> {
+  // Re-verify session here in case the JWT was being refreshed when the user tapped Join.
+  const session = await waitForSessionOrNull();
+  if (!session || session.user.id !== userId) {
+    return { error: 'Session expired. Please sign in again.' };
+  }
+
   const { data: room, error: roomError } = await supabase
     .from('rooms')
     .select('id, is_active')
