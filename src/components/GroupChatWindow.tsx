@@ -228,9 +228,9 @@ export default function GroupChatWindow({
     setInviteError(null);
     try {
       const { getAccessTokenOrNull } = await import('@/lib/authClient');
-      const { getAppApiUrl } = await import('@/lib/appApi');
+      const { getEdgeFunctionUrl } = await import('@/lib/appApi');
       const token = await getAccessTokenOrNull();
-      const response = await fetch(getAppApiUrl('/api/rooms/invite'), {
+      const response = await fetch(getEdgeFunctionUrl('rooms-invite'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

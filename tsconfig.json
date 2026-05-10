@@ -18,5 +18,5 @@
     }
   },
   "include": ["**/*.ts", "**/*.tsx", "**/*.mts"],
-  "exclude": ["node_modules", "dist", ".next", "native-web", "android", "ios"]
+  "exclude": ["node_modules", "dist", ".next", "native-web", "android", "ios", "supabase/functions"]
 }

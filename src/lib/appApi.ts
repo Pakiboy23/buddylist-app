@@ -27,3 +27,9 @@ export function getAppApiUrl(path: string) {
 export function getShareableInviteUrl(inviteCode: string) {
   return `${SHARE_ORIGIN}/join/${inviteCode}`;
 }
+
+const SUPABASE_URL = ((import.meta.env.VITE_SUPABASE_URL as string | undefined) ?? '').trim().replace(/\/+$/, '');
+
+export function getEdgeFunctionUrl(name: string): string {
+  return `${SUPABASE_URL}/functions/v1/${name}`;
+}

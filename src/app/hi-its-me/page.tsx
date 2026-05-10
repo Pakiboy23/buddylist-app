@@ -18,7 +18,7 @@ import {
   type AwayMoodId,
 } from '@/lib/himArtDirection';
 import { getAccessTokenOrNull, waitForSessionOrNull } from '@/lib/authClient';
-import { getAppApiUrl } from '@/lib/appApi';
+import { getAppApiUrl, getEdgeFunctionUrl } from '@/lib/appApi';
 import { navigateAppPath, replaceAppPathInPlace, useAppRouter } from '@/lib/appNavigation';
 import {
   aggregateBuddyRelationships,
@@ -2866,7 +2866,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       let adminFlag = false;
       if (session.access_token && !isNativeIosShell()) {
         try {
-          const adminResponse = await fetch(getAppApiUrl('/api/admin/me'), {
+          const adminResponse = await fetch(getEdgeFunctionUrl('admin-me'), {
             method: 'GET',
             cache: 'no-store',
             headers: {

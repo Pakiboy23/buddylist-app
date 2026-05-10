@@ -1,6 +1,4 @@
-'use client';
-
-import { getAppApiUrl } from '@/lib/appApi';
+import { getEdgeFunctionUrl } from '@/lib/appApi';
 import { getAccessTokenOrNull } from '@/lib/authClient';
 
 type PushDispatchPayload =
@@ -16,7 +14,7 @@ async function sendPushDispatch(payload: PushDispatchPayload) {
   }
 
   try {
-    const response = await fetch(getAppApiUrl('/api/push/dispatch'), {
+    const response = await fetch(getEdgeFunctionUrl('push-dispatch'), {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
