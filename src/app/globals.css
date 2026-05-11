@@ -1801,14 +1801,12 @@ body.privacy-shield-active::after {
   color: var(--text);
 }
 
-.ui-window-header-button,
 .dark .ui-window-header-button {
   border-color: rgba(247, 240, 232, 0.12);
   background: rgba(38, 33, 24, 0.78);
   color: var(--text);
 }
 
-.ui-window-header-button:hover,
 .dark .ui-window-header-button:hover {
   background: rgba(232, 96, 138, 0.14);
   color: #fff;
@@ -1819,7 +1817,11 @@ body.privacy-shield-active::after {
   color: var(--text);
 }
 
-.ui-popover-item:hover,
+.ui-popover-item:hover {
+  background: rgba(232, 96, 138, 0.12);
+  color: var(--rose);
+}
+
 .dark .ui-popover-item:hover {
   background: rgba(232, 96, 138, 0.14);
   color: #fff;
@@ -2039,7 +2041,11 @@ body.privacy-shield-active::after {
   color: var(--rose);
 }
 
-.ui-button-quiet:hover,
+.ui-button-quiet:hover {
+  background: rgba(232, 96, 138, 0.1);
+  color: var(--rose);
+}
+
 .dark .ui-button-quiet:hover {
   background: rgba(232, 96, 138, 0.12);
   color: #fff;
@@ -2061,7 +2067,12 @@ body.privacy-shield-active::after {
   color: var(--text);
 }
 
-.ui-note-error,
+.ui-note-error {
+  border-color: rgba(232, 96, 138, 0.28);
+  background: rgba(232, 96, 138, 0.08);
+  color: var(--rose);
+}
+
 .dark .ui-note-error {
   border-color: rgba(232, 96, 138, 0.28);
   background: rgba(89, 24, 44, 0.34);
@@ -2139,8 +2150,8 @@ body.privacy-shield-active::after {
   bottom: -0.55rem;
   transform: translateX(-50%);
   border-radius: 999px;
-  border: 1px solid rgba(247, 240, 232, 0.12);
-  background: rgba(19, 16, 14, 0.92);
+  border: 1px solid var(--faint);
+  background: var(--bg3);
   padding: 0.18rem 0.52rem;
   font-family: var(--font-screenname), "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
   font-size: 8px;
@@ -2168,9 +2179,9 @@ body.privacy-shield-active::after {
 }
 
 .ui-profile-away-box {
-  border: 1px solid rgba(247, 240, 232, 0.08);
+  border: 1px solid var(--faint);
   border-radius: 1rem;
-  background: rgba(19, 16, 14, 0.72);
+  background: var(--ui-shell-glass);
   padding: 0.9rem 0.95rem;
   position: relative;
   overflow: hidden;
@@ -2222,16 +2233,16 @@ body.privacy-shield-active::after {
 .ui-profile-stat-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  border: 1px solid rgba(247, 240, 232, 0.08);
+  border: 1px solid var(--faint);
   border-radius: 1rem;
-  background: rgba(19, 16, 14, 0.48);
+  background: var(--ui-shell-glass);
   overflow: hidden;
 }
 
 .ui-profile-stat {
   padding: 0.85rem 0.35rem 0.8rem;
   text-align: center;
-  border-right: 1px solid rgba(247, 240, 232, 0.08);
+  border-right: 1px solid var(--faint);
 }
 
 .ui-profile-stat:last-child {
