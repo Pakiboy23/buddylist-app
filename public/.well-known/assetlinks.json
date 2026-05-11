@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.hiitsme.app",
+      "sha256_cert_fingerprints": [
+        "44:41:FE:FC:0D:BC:7A:BB:57:D6:37:12:57:1A:0B:05:24:33:4A:29:E2:01:4F:40:E1:9F:C7:A5:0E:1B:B8:8F"
+      ]
+    }
+  }
+]

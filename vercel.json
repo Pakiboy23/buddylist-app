@@ -2,6 +2,21 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "framework": null,
+  "redirects": [
+    {
+      "source": "/why.html",
+      "destination": "https://him.samaan.tech/why.html",
+      "permanent": true
+    }
+  ],
+  "headers": [
+    {
+      "source": "/.well-known/apple-app-site-association",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json" }
+      ]
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/admin/me",
@@ -14,6 +29,10 @@
     {
       "source": "/api/rooms/invite",
       "destination": "/api/rooms/invite"
+    },
+    {
+      "source": "/.well-known/(.*)",
+      "destination": "/.well-known/$1"
     },
     {
       "source": "/(.*)",
