@@ -1817,7 +1817,11 @@ body.privacy-shield-active::after {
   color: var(--text);
 }
 
-.ui-popover-item:hover,
+.ui-popover-item:hover {
+  background: rgba(232, 96, 138, 0.12);
+  color: var(--rose);
+}
+
 .dark .ui-popover-item:hover {
   background: rgba(232, 96, 138, 0.14);
   color: #fff;
@@ -2037,7 +2041,11 @@ body.privacy-shield-active::after {
   color: var(--rose);
 }
 
-.ui-button-quiet:hover,
+.ui-button-quiet:hover {
+  background: rgba(232, 96, 138, 0.1);
+  color: var(--rose);
+}
+
 .dark .ui-button-quiet:hover {
   background: rgba(232, 96, 138, 0.12);
   color: #fff;
@@ -2059,7 +2067,12 @@ body.privacy-shield-active::after {
   color: var(--text);
 }
 
-.ui-note-error,
+.ui-note-error {
+  border-color: rgba(232, 96, 138, 0.28);
+  background: rgba(232, 96, 138, 0.08);
+  color: var(--rose);
+}
+
 .dark .ui-note-error {
   border-color: rgba(232, 96, 138, 0.28);
   background: rgba(89, 24, 44, 0.34);
