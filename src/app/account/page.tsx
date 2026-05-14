@@ -83,6 +83,10 @@ export default function AccountPage() {
     navigateAppPath(router, '/hi-its-me');
   }, [router]);
 
+  const handleDeleteAccount = useCallback(() => {
+    navigateAppPath(router, '/account/delete');
+  }, [router]);
+
   const handleEmailSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmed = newEmail.trim().toLowerCase();
@@ -299,6 +303,25 @@ export default function AccountPage() {
               </p>
             ) : null}
           </form>
+
+          <div className={`${sectionClass} space-y-3 border border-red-200/60 dark:border-red-500/30`}>
+            <div>
+              <h2 className="text-[16px] font-semibold text-red-700 dark:text-red-300">
+                Delete account
+              </h2>
+              <p className="mt-1 text-[13px] leading-5 text-slate-500 dark:text-slate-400">
+                Permanently erase your profile, messages, buddies, and sign-in. This cannot be undone.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleDeleteAccount}
+              className="ui-focus-ring min-h-[48px] w-full rounded-2xl bg-red-600 px-4 py-2.5 text-[14px] font-semibold text-white transition active:scale-[0.99] hover:bg-red-700"
+              data-testid="account-delete-cta"
+            >
+              Delete account
+            </button>
+          </div>
         </div>
       </RetroWindow>
     </main>

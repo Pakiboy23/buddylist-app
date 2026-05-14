@@ -11,6 +11,7 @@ import DeepLinkHandler from '@/components/DeepLinkHandler';
 const LoginPage = lazy(() => import('@/app/page'));
 const ResetPasswordPage = lazy(() => import('@/app/reset-password/page'));
 const AccountPage = lazy(() => import('@/app/account/page'));
+const DeleteAccountPage = lazy(() => import('@/app/account/delete/page'));
 const HiItsMePage = lazy(() => import('@/app/hi-its-me/page'));
 const RoomsPage = lazy(() => import('@/app/hi-its-me/rooms/page'));
 const NewRoomPage = lazy(() => import('@/app/hi-its-me/rooms/new/page'));
@@ -25,6 +26,7 @@ export default function App() {
           <Route path="/" element={<LoginPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/account" element={<AccountPage />} />
+          <Route path="/account/delete" element={<DeleteAccountPage />} />
           <Route path="/hi-its-me" element={<HiItsMePage />} />
           <Route path="/hi-its-me/rooms" element={<RoomsPage />} />
           <Route path="/hi-its-me/rooms/new" element={<NewRoomPage />} />
