@@ -6333,7 +6333,7 @@ function HiItsMeContent() {
       : currentUserPresenceState === 'idle'
         ? 'border border-[rgba(232,162,58,0.18)] bg-[rgba(232,162,58,0.12)] text-[var(--lavender)]'
         : currentUserPresenceState === 'offline'
-          ? 'border border-[rgba(156,142,130,0.18)] bg-[rgba(156,142,130,0.12)] text-[var(--muted)]'
+          ? 'border border-[rgba(140,143,170,0.18)] bg-[rgba(140,143,170,0.12)] text-[var(--muted)]'
           : 'border border-[rgba(78,201,122,0.18)] bg-[rgba(78,201,122,0.12)] text-[var(--green)]';
   const profileQuickStats = [
     { label: 'buddies', value: acceptedBuddies.length },
@@ -8471,7 +8471,7 @@ function HiItsMeContent() {
               key={item.id}
               className={`rounded-2xl border px-3 py-2 text-[12px] shadow-[0_16px_34px_rgba(0,0,0,0.32)] backdrop-blur-xl ${
                 item.tone === 'offline'
-                  ? 'border-[rgba(156,142,130,0.22)] bg-[rgba(29,25,22,0.94)] text-[var(--muted)]'
+                  ? 'border-[rgba(140,143,170,0.22)] bg-[rgba(21,26,48,0.94)] text-[var(--muted)]'
                   : item.tone === 'away'
                     ? 'border-[rgba(212,150,58,0.24)] bg-[rgba(44,31,15,0.92)] text-[var(--gold)]'
                     : item.tone === 'back'

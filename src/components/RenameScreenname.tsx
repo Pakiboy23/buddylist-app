@@ -212,7 +212,7 @@ export default function RenameScreenname({
         onClick={(event) => event.stopPropagation()}
         style={{
           background: '#151A30',
-          border: '1px solid #3A3028',
+          border: '1px solid #2A2F45',
           borderRadius: '20px',
           boxShadow: '0 24px 80px rgba(0, 0, 0, 0.35)',
           color: '#F7F1EC',
@@ -291,7 +291,7 @@ export default function RenameScreenname({
               autoComplete="off"
               style={{
                 background: '#15110F',
-                border: `1px solid ${isFocused ? '#E8A23A' : '#3A3028'}`,
+                border: `1px solid ${isFocused ? '#E8A23A' : '#2A2F45'}`,
                 borderRadius: '14px',
                 color: '#F7F1EC',
                 fontFamily: '"IBM Plex Mono", monospace',
@@ -358,7 +358,7 @@ export default function RenameScreenname({
               onClick={onClose}
               style={{
                 background: 'transparent',
-                border: '1px solid #3A3028',
+                border: '1px solid #2A2F45',
                 borderRadius: '14px',
                 color: '#F7F1EC',
                 cursor: 'pointer',

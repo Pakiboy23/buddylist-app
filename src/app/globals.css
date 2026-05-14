@@ -969,7 +969,7 @@ html.dark body {
 }
 
 .dark .ui-list-row:hover {
-  background: rgba(38, 33, 24, 0.9);
+  background: var(--ui-shell-card);
 }
 
 .dark .ui-list-row[data-active='true'] {
@@ -1136,8 +1136,8 @@ html.dark body {
 }
 
 .dark .ui-filter-chip {
-  border-color: rgba(247, 240, 232, 0.1);
-  background: rgba(19, 16, 14, 0.72);
+  border-color: rgba(242, 230, 208, 0.1);
+  background: var(--ui-shell-muted);
   color: var(--muted);
 }
 
@@ -1722,7 +1722,7 @@ body.privacy-shield-active::after {
 .ui-modal-frame,
 .ui-sheet-surface {
   border-color: var(--ui-shell-border) !important;
-  background: rgba(29, 25, 22, 0.9) !important;
+  background: var(--ui-shell-card) !important;
   box-shadow: var(--ui-shell-shadow-soft);
   color: var(--text);
 }
@@ -1743,14 +1743,14 @@ body.privacy-shield-active::after {
 .dark .ui-modal-frame,
 .dark .ui-sheet-surface {
   border-color: var(--ui-shell-border) !important;
-  background: rgba(29, 25, 22, 0.94) !important;
+  background: var(--ui-shell-card) !important;
   color: var(--text);
 }
 
 .ui-compose-surface,
 .dark .ui-compose-surface {
   background: #1A1F3A !important;
-  border-color: #3A3028 !important;
+  border-color: #2A2F45 !important;
 }
 
 .ui-compose-surface input::placeholder,
@@ -1825,8 +1825,8 @@ body.privacy-shield-active::after {
 
 .ui-window-header-button,
 .dark .ui-window-header-button {
-  border-color: rgba(247, 240, 232, 0.12);
-  background: rgba(38, 33, 24, 0.78);
+  border-color: rgba(242, 230, 208, 0.12);
+  background: var(--ui-shell-glass);
   color: var(--text);
 }
 
@@ -1860,8 +1860,8 @@ body.privacy-shield-active::after {
 .ui-modal-select,
 .dark .ui-modal-input,
 .dark .ui-modal-select {
-  border-color: rgba(247, 240, 232, 0.1);
-  background: rgba(19, 16, 14, 0.78) !important;
+  border-color: rgba(242, 230, 208, 0.1);
+  background: var(--ui-shell-glass) !important;
   color: var(--text) !important;
 }
 
@@ -1872,8 +1872,8 @@ body.privacy-shield-active::after {
 
 .ui-sheet-close,
 .dark .ui-sheet-close {
-  border-color: rgba(247, 240, 232, 0.12);
-  background: rgba(38, 33, 24, 0.86);
+  border-color: rgba(242, 230, 208, 0.12);
+  background: var(--ui-shell-card);
   color: var(--muted);
 }
 
@@ -1909,8 +1909,8 @@ body.privacy-shield-active::after {
 
 .ui-list-row:hover,
 .dark .ui-list-row:hover {
-  border-color: rgba(247, 240, 232, 0.08);
-  background: rgba(38, 33, 24, 0.9);
+  border-color: rgba(242, 230, 208, 0.08);
+  background: var(--ui-shell-card);
 }
 
 .ui-list-row[data-active='true'],
@@ -1923,8 +1923,8 @@ body.privacy-shield-active::after {
 .dark .ui-status-chip,
 .ui-message-divider,
 .dark .ui-message-divider {
-  border-color: rgba(247, 240, 232, 0.08);
-  background: rgba(38, 33, 24, 0.82);
+  border-color: rgba(242, 230, 208, 0.08);
+  background: var(--ui-shell-glass);
   color: var(--muted);
 }
 
@@ -1933,14 +1933,14 @@ body.privacy-shield-active::after {
 }
 
 .ui-section-header {
-  border: 1px solid rgba(247, 240, 232, 0.08);
-  background: rgba(38, 33, 24, 0.72);
+  border: 1px solid rgba(242, 230, 208, 0.08);
+  background: var(--ui-shell-glass);
   letter-spacing: 0.12em;
 }
 
 .ui-section-header:hover,
 .dark .ui-section-header:hover {
-  background: rgba(38, 33, 24, 0.94);
+  background: var(--ui-shell-card);
 }
 
 .ui-section-header[data-tone='online'] {
@@ -1964,15 +1964,15 @@ body.privacy-shield-active::after {
 
 .ui-section-count,
 .dark .ui-section-count {
-  border-color: rgba(247, 240, 232, 0.08);
-  background: rgba(19, 16, 14, 0.82);
+  border-color: rgba(242, 230, 208, 0.08);
+  background: var(--ui-shell-glass);
   color: inherit;
 }
 
 .ui-filter-chip,
 .dark .ui-filter-chip {
-  border-color: rgba(247, 240, 232, 0.1);
-  background: rgba(19, 16, 14, 0.72);
+  border-color: rgba(242, 230, 208, 0.1);
+  background: var(--ui-shell-muted);
   color: var(--muted);
 }
 
@@ -2002,14 +2002,14 @@ body.privacy-shield-active::after {
 
 .ui-button-secondary,
 .dark .ui-button-secondary {
-  border-color: rgba(247, 240, 232, 0.08);
-  background: rgba(38, 33, 24, 0.86);
+  border-color: rgba(242, 230, 208, 0.08);
+  background: var(--ui-shell-card);
   color: var(--text);
 }
 
 .ui-button-secondary:hover,
 .dark .ui-button-secondary:hover {
-  background: rgba(247, 240, 232, 0.06);
+  background: rgba(242, 230, 208, 0.06);
 }
 
 .ui-button-quiet,
@@ -2029,8 +2029,8 @@ body.privacy-shield-active::after {
 .dark .ui-note-info,
 .ui-note-success,
 .dark .ui-note-success {
-  border-color: rgba(247, 240, 232, 0.08);
-  background: rgba(38, 33, 24, 0.82);
+  border-color: rgba(242, 230, 208, 0.08);
+  background: var(--ui-shell-glass);
   color: var(--text);
 }
 
@@ -2084,7 +2084,7 @@ body.privacy-shield-active::after {
   position: relative;
   padding: 0.45rem;
   border-radius: 1.5rem;
-  box-shadow: 0 0 0 1px rgba(247, 240, 232, 0.04);
+  box-shadow: 0 0 0 1px rgba(242, 230, 208, 0.04);
 }
 
 .ui-profile-avatar-button::before {
@@ -2112,8 +2112,8 @@ body.privacy-shield-active::after {
   bottom: -0.55rem;
   transform: translateX(-50%);
   border-radius: 999px;
-  border: 1px solid rgba(247, 240, 232, 0.12);
-  background: rgba(19, 16, 14, 0.92);
+  border: 1px solid rgba(242, 230, 208, 0.12);
+  background: rgba(15, 20, 36, 0.92);
   padding: 0.18rem 0.52rem;
   font-family: var(--font-screenname), "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
   font-size: 8px;
@@ -2141,9 +2141,9 @@ body.privacy-shield-active::after {
 }
 
 .ui-profile-away-box {
-  border: 1px solid rgba(247, 240, 232, 0.08);
+  border: 1px solid rgba(242, 230, 208, 0.08);
   border-radius: 1rem;
-  background: rgba(19, 16, 14, 0.72);
+  background: var(--ui-shell-muted);
   padding: 0.9rem 0.95rem;
   position: relative;
   overflow: hidden;
@@ -2195,16 +2195,16 @@ body.privacy-shield-active::after {
 .ui-profile-stat-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  border: 1px solid rgba(247, 240, 232, 0.08);
+  border: 1px solid rgba(242, 230, 208, 0.08);
   border-radius: 1rem;
-  background: rgba(19, 16, 14, 0.48);
+  background: rgba(15, 20, 36, 0.48);
   overflow: hidden;
 }
 
 .ui-profile-stat {
   padding: 0.85rem 0.35rem 0.8rem;
   text-align: center;
-  border-right: 1px solid rgba(247, 240, 232, 0.08);
+  border-right: 1px solid rgba(242, 230, 208, 0.08);
 }
 
 .ui-profile-stat:last-child {
@@ -2277,14 +2277,14 @@ body.privacy-shield-active::after {
   justify-content: center;
   min-height: 1.7rem;
   border-radius: 999px;
-  border: 1px solid rgba(247, 240, 232, 0.12);
+  border: 1px solid rgba(242, 230, 208, 0.12);
   padding: 0.18rem 0.72rem;
   font-family: var(--font-screenname), "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
   font-size: 10px;
   letter-spacing: 0.04em;
   text-transform: lowercase;
   color: var(--muted);
-  background: rgba(19, 16, 14, 0.56);
+  background: rgba(15, 20, 36, 0.56);
 }
 
 .ui-my-status-chip[data-tone='rose'] {
@@ -2312,8 +2312,8 @@ body.privacy-shield-active::after {
 }
 
 .ui-my-status-chip[data-tone='ghost'] {
-  border-color: rgba(247, 240, 232, 0.08);
-  background: rgba(19, 16, 14, 0.36);
+  border-color: rgba(242, 230, 208, 0.08);
+  background: rgba(15, 20, 36, 0.36);
   color: var(--muted);
 }
 
@@ -2332,9 +2332,9 @@ body.privacy-shield-active::after {
 
 .ui-room-filter-chip {
   flex-shrink: 0;
-  border: 1px solid rgba(247, 240, 232, 0.1);
+  border: 1px solid rgba(242, 230, 208, 0.1);
   border-radius: 999px;
-  background: rgba(19, 16, 14, 0.72);
+  background: var(--ui-shell-muted);
   color: var(--muted);
   padding: 0.35rem 0.75rem;
   font-family: var(--font-screenname), "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
@@ -2410,7 +2410,7 @@ body.privacy-shield-active::after {
   display: inline-flex;
   align-items: center;
   border-radius: 999px;
-  border: 1px solid rgba(247, 240, 232, 0.1);
+  border: 1px solid rgba(242, 230, 208, 0.1);
   padding: 0.15rem 0.48rem;
   font-family: var(--font-screenname), "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
   font-size: 9px;
@@ -2443,8 +2443,8 @@ body.privacy-shield-active::after {
 }
 
 .ui-room-tag[data-tone='ghost'] {
-  border-color: rgba(247, 240, 232, 0.08);
-  background: rgba(19, 16, 14, 0.3);
+  border-color: rgba(242, 230, 208, 0.08);
+  background: rgba(15, 20, 36, 0.3);
   color: var(--muted);
 }
 
@@ -2504,7 +2504,7 @@ body.privacy-shield-active::after {
   display: inline-flex;
   align-items: center;
   border-radius: 999px;
-  border: 1px solid rgba(247, 240, 232, 0.1);
+  border: 1px solid rgba(242, 230, 208, 0.1);
   padding: 0.18rem 0.52rem;
   font-family: var(--font-screenname), "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
   font-size: 9px;
@@ -2545,8 +2545,8 @@ body.privacy-shield-active::after {
   gap: 0.3rem;
   cursor: pointer;
   border-radius: 1rem;
-  border: 1px solid rgba(247, 240, 232, 0.08);
-  background: rgba(19, 16, 14, 0.72);
+  border: 1px solid rgba(242, 230, 208, 0.08);
+  background: var(--ui-shell-muted);
   color: var(--muted);
   transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease, color 140ms ease;
 }
@@ -2594,7 +2594,7 @@ body.privacy-shield-active::after {
 
 .ui-away-preview-card {
   border: 1px solid rgba(232, 162, 58, 0.22);
-  background: rgba(19, 16, 14, 0.9);
+  background: rgba(15, 20, 36, 0.9);
   box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.03);
 }
 
@@ -2717,7 +2717,7 @@ body.privacy-shield-active::after {
 }
 
 .presence-dot-offline {
-  background: #3A3028 !important;
+  background: #2A2F45 !important;
   box-shadow: none;
 }
 
@@ -2762,8 +2762,8 @@ body.privacy-shield-active::after {
 .aim-buddy-wave span:nth-child(3) { animation-delay: 180ms; }
 
 .aim-room-tag-chip {
-  border: 1px solid rgba(247, 240, 232, 0.12);
-  background: rgba(38, 33, 24, 0.9);
+  border: 1px solid rgba(242, 230, 208, 0.12);
+  background: var(--ui-shell-card);
   color: var(--gold);
   border-radius: 9999px;
   font-size: 10px;
@@ -2787,13 +2787,13 @@ body.privacy-shield-active::after {
 }
 
 .aim-mood-chip {
-  border: 1px solid rgba(247, 240, 232, 0.12);
+  border: 1px solid rgba(242, 230, 208, 0.12);
   border-radius: 9999px;
   padding: 0.3rem 0.72rem;
   font-size: 11px;
   font-weight: 600;
   color: var(--muted);
-  background: rgba(38, 33, 24, 0.8);
+  background: rgba(26, 31, 58, 0.8);
 }
 
 .aim-mood-chip[data-active='true'] {
@@ -2810,12 +2810,12 @@ body.privacy-shield-active::after {
   background:
     radial-gradient(circle at 12% 14%, rgba(232, 162, 58, 0.18), transparent 22%),
     radial-gradient(circle at 84% 84%, rgba(232, 162, 58, 0.14), transparent 24%),
-    linear-gradient(180deg, var(--bg2) 0%, var(--bg) 58%, #0d0a08 100%);
+    linear-gradient(180deg, var(--bg2) 0%, var(--bg) 58%, #0F1424 100%);
 }
 
 .ui-auth-card {
-  border: 1px solid rgba(247, 240, 232, 0.1);
-  background: rgba(29, 25, 22, 0.86);
+  border: 1px solid rgba(242, 230, 208, 0.1);
+  background: var(--ui-shell-card);
   color: var(--text);
   box-shadow: 0 20px 42px rgba(0, 0, 0, 0.34);
 }
@@ -2829,8 +2829,8 @@ body.privacy-shield-active::after {
 }
 
 .ui-auth-back {
-  border: 1px solid rgba(247, 240, 232, 0.08);
-  background: rgba(38, 33, 24, 0.86);
+  border: 1px solid rgba(242, 230, 208, 0.08);
+  background: var(--ui-shell-card);
   color: var(--muted);
 }
 
@@ -2850,8 +2850,8 @@ body.privacy-shield-active::after {
 }
 
 .ui-auth-field {
-  border: 1px solid rgba(247, 240, 232, 0.08);
-  background: rgba(19, 16, 14, 0.76);
+  border: 1px solid rgba(242, 230, 208, 0.08);
+  background: rgba(15, 20, 36, 0.76);
   color: var(--text);
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.18);
 }
@@ -2996,8 +2996,8 @@ body.privacy-shield-active::after {
   width: 3rem;
   align-items: center;
   border-radius: 9999px;
-  border: 1px solid rgba(247, 240, 232, 0.1);
-  background: rgba(19, 16, 14, 0.84);
+  border: 1px solid rgba(242, 230, 208, 0.1);
+  background: rgba(15, 20, 36, 0.84);
   transition: background-color 140ms ease, border-color 140ms ease;
 }
 

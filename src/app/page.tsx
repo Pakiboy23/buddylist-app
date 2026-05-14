@@ -538,7 +538,7 @@ export default function Home() {
               </div>
 
               {isSignOnView ? (
-                <div className="mt-5 grid grid-cols-2 gap-2 rounded-[1.4rem] border border-white/8 bg-[rgba(19,16,14,0.72)] p-1">
+                <div className="mt-5 grid grid-cols-2 gap-2 rounded-[1.4rem] border border-white/8 bg-[rgba(15,20,36,0.72)] p-1">
                   <button
                     type="button"
                     onClick={returnToSignIn}
