@@ -128,10 +128,10 @@ export default function ResetPasswordPage() {
   const normalizedStatus = statusMsg.toLowerCase();
   const statusClass =
     normalizedStatus.includes('failed') || normalizedStatus.includes('invalid') || normalizedStatus.includes('do not match') || normalizedStatus.includes('must be')
-      ? 'border-rose-200/80 bg-rose-50/90 text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200'
+      ? 'border-amber-200/80 bg-amber-50/90 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200'
       : normalizedStatus.includes('updated') || normalizedStatus.includes('success')
         ? 'border-emerald-200/80 bg-emerald-50/90 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200'
-        : 'border-slate-200/80 bg-white/88 text-slate-600 dark:border-slate-700 dark:bg-[#13100E]/70 dark:text-slate-300';
+        : 'border-slate-200/80 bg-white/88 text-slate-600 dark:border-slate-700 dark:bg-[#0F1424]/70 dark:text-slate-300';
 
   return (
     <main className="ui-auth-shell relative h-[100dvh] overflow-hidden">
@@ -176,8 +176,8 @@ export default function ResetPasswordPage() {
                 </div>
               ) : phase === 'invalid' ? (
                 <div className="mt-5 flex flex-col items-center gap-3 py-4 text-center">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-50 dark:bg-rose-950/30">
-                    <AppIcon kind="shield" className="h-7 w-7 text-rose-500" />
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-50 dark:bg-amber-950/30">
+                    <AppIcon kind="shield" className="h-7 w-7 text-amber-500" />
                   </div>
                   <p className="text-[15px] font-semibold text-slate-800 dark:text-slate-100">Link not valid</p>
                   <p className="text-[13px] leading-5 text-slate-500 dark:text-slate-400">{statusMsg}</p>

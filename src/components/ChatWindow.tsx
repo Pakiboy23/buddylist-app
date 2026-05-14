@@ -1188,7 +1188,7 @@ export default function ChatWindow({
           className={`rounded-[1rem] border px-3 py-2 ${
             options.isMine
               ? 'border-white/20 bg-white/10'
-              : 'border-slate-200 bg-slate-100/80 dark:border-slate-700 dark:bg-[#13100E]/70'
+              : 'border-slate-200 bg-slate-100/80 dark:border-slate-700 dark:bg-[#0F1424]/70'
           }`}
         >
           <div className="mb-2 flex items-center gap-2">
@@ -1227,8 +1227,8 @@ export default function ChatWindow({
   const xpTinyToolbarButtonClass = (active = false) =>
     `ui-focus-ring inline-flex h-7 min-w-7 items-center justify-center rounded-lg border px-1.5 text-[length:var(--ui-text-xs)] font-semibold text-slate-700 transition ${
       active
-        ? 'border-[#E8608A]/40 bg-[#E8608A]/10 text-[#E8608A] shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:border-[#E8608A]/30 dark:bg-[#E8608A]/15 dark:text-[#E8608A]'
-        : 'border-slate-200 bg-white/80 hover:bg-white dark:border-slate-700 dark:bg-[#13100E]/65 dark:text-slate-200 dark:hover:bg-[#13100E]'
+        ? 'border-[#E8A23A]/40 bg-[#E8A23A]/10 text-[#E8A23A] shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:border-[#E8A23A]/30 dark:bg-[#E8A23A]/15 dark:text-[#E8A23A]'
+        : 'border-slate-200 bg-white/80 hover:bg-white dark:border-slate-700 dark:bg-[#0F1424]/65 dark:text-slate-200 dark:hover:bg-[#0F1424]'
     }`;
   const presenceToneClass =
     buddyPresenceState === 'away'
@@ -1378,7 +1378,7 @@ export default function ChatWindow({
                 </div>
 
                 <div className="mt-3 space-y-3">
-                  <div className="rounded-[1rem] border border-white/60 bg-white/70 px-3 py-2 dark:border-slate-700 dark:bg-[#13100E]/55">
+                  <div className="rounded-[1rem] border border-white/60 bg-white/70 px-3 py-2 dark:border-slate-700 dark:bg-[#0F1424]/55">
                     <label htmlFor={searchInputId} className="ui-section-kicker">Search</label>
                     <div className="mt-2 flex items-center gap-2">
                       <AppIcon kind="search" className="h-3.5 w-3.5 shrink-0 text-slate-400" />
@@ -1451,7 +1451,7 @@ export default function ChatWindow({
                     </button>
                   </div>
 
-                  <div className="rounded-[1rem] border border-white/60 bg-white/70 px-3 py-2 dark:border-slate-700 dark:bg-[#13100E]/55">
+                  <div className="rounded-[1rem] border border-white/60 bg-white/70 px-3 py-2 dark:border-slate-700 dark:bg-[#0F1424]/55">
                     <div className="flex items-center justify-between gap-2">
                       <span className="ui-section-kicker">Disappearing messages</span>
                       <div className="relative">
@@ -1465,7 +1465,7 @@ export default function ChatWindow({
                           {disappearingTimerShortLabel}
                         </button>
                         {showDisappearingMenu ? (
-                          <div className="absolute right-0 top-[calc(100%+0.35rem)] z-10 min-w-[10rem] rounded-[1.1rem] border border-white/70 bg-white/95 p-1.5 shadow-[0_16px_36px_rgba(15,23,42,0.18)] backdrop-blur-md dark:border-slate-800 dark:bg-[#13100E]/95">
+                          <div className="absolute right-0 top-[calc(100%+0.35rem)] z-10 min-w-[10rem] rounded-[1.1rem] border border-white/70 bg-white/95 p-1.5 shadow-[0_16px_36px_rgba(15,23,42,0.18)] backdrop-blur-md dark:border-slate-800 dark:bg-[#0F1424]/95">
                             {DISAPPEARING_TIMER_OPTIONS.map((option) => (
                               <button
                                 key={option ?? 'off'}
@@ -1477,7 +1477,7 @@ export default function ChatWindow({
                                 className={`ui-focus-ring flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-[length:var(--ui-text-xs)] font-semibold ${
                                   disappearingTimerSeconds === option
                                     ? 'bg-blue-500 text-white'
-                                    : 'text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-[#13100E]'
+                                    : 'text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-[#0F1424]'
                                 }`}
                               >
                                 <span>{option ? formatDisappearingTimerLabel(option) : 'Off'}</span>
@@ -1491,7 +1491,7 @@ export default function ChatWindow({
                   </div>
 
                   {onChangeTheme ? (
-                    <div className="rounded-[1rem] border border-white/60 bg-white/70 px-3 py-2 dark:border-slate-700 dark:bg-[#13100E]/55">
+                    <div className="rounded-[1rem] border border-white/60 bg-white/70 px-3 py-2 dark:border-slate-700 dark:bg-[#0F1424]/55">
                       <span className="ui-section-kicker">Theme</span>
                       <div className="mt-2 flex items-center gap-1.5">
                         {([
@@ -1518,7 +1518,7 @@ export default function ChatWindow({
                   ) : null}
 
                   {onChangeWallpaper ? (
-                    <div className="rounded-[1rem] border border-white/60 bg-white/70 px-3 py-2 dark:border-slate-700 dark:bg-[#13100E]/55">
+                    <div className="rounded-[1rem] border border-white/60 bg-white/70 px-3 py-2 dark:border-slate-700 dark:bg-[#0F1424]/55">
                       <span className="ui-section-kicker">Wallpaper</span>
                       <div className="mt-2 flex flex-wrap items-center gap-1.5">
                         {([
@@ -1715,13 +1715,13 @@ export default function ChatWindow({
                                   } ${
                                     isMine
                                       ? hasCustomStyling
-                                        ? `rounded-[1.35rem] border border-blue-200/80 bg-white/96 text-slate-900 shadow-[0_10px_24px_rgba(37,99,235,0.16)] dark:border-slate-600/60 dark:bg-[#1D1916]/95 dark:text-slate-100 ${
+                                        ? `rounded-[1.35rem] border border-blue-200/80 bg-white/96 text-slate-900 shadow-[0_10px_24px_rgba(232,162,58,0.16)] dark:border-slate-600/60 dark:bg-[#151A30]/95 dark:text-slate-100 ${
                                             clusterMeta.isLastInRun ? 'rounded-br-[8px] bubble-tail-out' : ''
                                           }`
-                                        : `rounded-[1.35rem] text-white shadow-[0_8px_22px_rgba(37,99,235,0.26)] ${
+                                        : `rounded-[1.35rem] text-white shadow-[0_8px_22px_rgba(232,162,58,0.26)] ${
                                             clusterMeta.isLastInRun ? 'rounded-br-[7px] bubble-tail-out' : ''
                                           }`
-                                      : `rounded-[1.35rem] border border-white/70 bg-white/85 text-slate-800 shadow-sm backdrop-blur-sm dark:border-slate-700/70 dark:bg-[#13100E]/70 dark:text-slate-100 ${
+                                      : `rounded-[1.35rem] border border-white/70 bg-white/85 text-slate-800 shadow-sm backdrop-blur-sm dark:border-slate-700/70 dark:bg-[#0F1424]/70 dark:text-slate-100 ${
                                           clusterMeta.isLastInRun ? 'rounded-bl-[7px] bubble-tail-in' : ''
                                         }`
                                   } ${isMatch ? 'ring-2 ring-amber-400' : ''} ${!isDeleted && !isEditing ? 'ui-focus-ring' : ''}`}
@@ -1756,7 +1756,7 @@ export default function ChatWindow({
                                           onClick={() => void saveEditedMessage(message.id)}
                                           disabled={isSavingEdit || !editDraft.trim()}
                                           className={`ui-focus-ring rounded-xl px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold disabled:opacity-60 ${
-                                            isMine ? 'bg-white/30 text-white hover:bg-white/40' : 'bg-[#E8608A] text-white hover:bg-[#B93A67]'
+                                            isMine ? 'bg-white/30 text-white hover:bg-white/40' : 'bg-[#E8A23A] text-white hover:bg-[#C8861F]'
                                           }`}
                                         >
                                           Save
@@ -1779,9 +1779,9 @@ export default function ChatWindow({
                                           className={`rounded-xl border px-2.5 py-1.5 text-[length:var(--ui-text-2xs)] ${
                                             isMine
                                               ? hasCustomStyling
-                                                ? 'border-slate-200 bg-slate-100/80 text-slate-500 dark:border-slate-700 dark:bg-[#13100E]/65 dark:text-slate-300'
+                                                ? 'border-slate-200 bg-slate-100/80 text-slate-500 dark:border-slate-700 dark:bg-[#0F1424]/65 dark:text-slate-300'
                                                 : 'border-white/20 bg-white/15 text-blue-100'
-                                              : 'border-slate-200 bg-slate-100/80 text-slate-500 dark:border-slate-700 dark:bg-[#13100E]/65 dark:text-slate-300'
+                                              : 'border-slate-200 bg-slate-100/80 text-slate-500 dark:border-slate-700 dark:bg-[#0F1424]/65 dark:text-slate-300'
                                           }`}
                                         >
                                           <p className="font-semibold">
@@ -1813,7 +1813,7 @@ export default function ChatWindow({
                               {!isDeleted && !isEditing ? (
                                 <div
                                   data-swipe-ignore="true"
-                                  className={`absolute bottom-full right-0 z-10 mb-2 min-w-[15rem] rounded-2xl border border-white/70 bg-white/90 p-2 shadow-lg backdrop-blur-md ui-fade-in dark:border-slate-700/70 dark:bg-[#13100E]/88 ${
+                                  className={`absolute bottom-full right-0 z-10 mb-2 min-w-[15rem] rounded-2xl border border-white/70 bg-white/90 p-2 shadow-lg backdrop-blur-md ui-fade-in dark:border-slate-700/70 dark:bg-[#0F1424]/88 ${
                                     longPressMessageId === message.id ? 'flex' : 'hidden group-hover:flex group-focus-within:flex'
                                   } flex-col gap-2`}
                                 >
@@ -1835,7 +1835,7 @@ export default function ChatWindow({
                                     <button
                                       type="button"
                                       onClick={() => startReplyingToMessage(message)}
-                                      className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-[#13100E]"
+                                      className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-[#0F1424]"
                                       aria-label={`Reply to message sent at ${metaTimeLabel}`}
                                     >
                                       Reply
@@ -1847,7 +1847,7 @@ export default function ChatWindow({
                                           onForwardMessage(message);
                                           setLongPressMessageId(null);
                                         }}
-                                        className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-[#13100E]"
+                                        className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-[#0F1424]"
                                         aria-label={`Forward message sent at ${metaTimeLabel}`}
                                       >
                                         Forward
@@ -1860,7 +1860,7 @@ export default function ChatWindow({
                                           onSaveMessage(message);
                                           setLongPressMessageId(null);
                                         }}
-                                        className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-[#13100E]"
+                                        className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-[#0F1424]"
                                         aria-label={`Save message sent at ${metaTimeLabel}`}
                                       >
                                         Save
@@ -1874,7 +1874,7 @@ export default function ChatWindow({
                                             startEditingMessage(message);
                                             setLongPressMessageId(null);
                                           }}
-                                          className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-[#13100E]"
+                                          className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-[#0F1424]"
                                           aria-label={`Edit message sent at ${metaTimeLabel}`}
                                         >
                                           Edit
@@ -1967,7 +1967,7 @@ export default function ChatWindow({
                       ? 'border border-red-200/80 bg-red-50/90 text-red-950 shadow-[0_8px_24px_rgba(239,68,68,0.12)] dark:border-red-500/30 dark:bg-red-950/25 dark:text-red-200'
                       : item.status === 'queued'
                         ? 'border border-amber-200/80 bg-amber-50/90 text-amber-950 shadow-[0_8px_24px_rgba(245,158,11,0.12)] dark:border-amber-500/30 dark:bg-amber-950/25 dark:text-amber-200'
-                        : 'bg-[#E8608A]/75 text-white shadow-[0_2px_8px_rgba(232,96,138,0.28)]';
+                        : 'bg-[#E8A23A]/75 text-white shadow-[0_2px_8px_rgba(232,162,58,0.28)]';
 
                   return (
                     <div key={`outbox-${item.id}`} className="flex flex-col">
@@ -2243,7 +2243,7 @@ export default function ChatWindow({
                 ) : null}
 
                 {isRecordingVoiceNote ? (
-                  <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/60 bg-white/65 px-3 py-2 dark:border-slate-700 dark:bg-[#13100E]/55">
+                  <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/60 bg-white/65 px-3 py-2 dark:border-slate-700 dark:bg-[#0F1424]/55">
                     <div className="flex items-center gap-2">
                       <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
                       <div>
@@ -2338,7 +2338,7 @@ export default function ChatWindow({
                 rows={1}
                 maxLength={1000}
                 aria-describedby={composerHelpId}
-                className="min-h-[24px] flex-1 resize-none rounded-xl bg-transparent text-[length:var(--ui-text-md)] text-white placeholder-[#6B5B4E] focus:outline-none focus:border-[#E8608A]"
+                className="min-h-[24px] flex-1 resize-none rounded-xl bg-transparent text-[length:var(--ui-text-md)] text-white placeholder-[#6B5B4E] focus:outline-none focus:border-[#E8A23A]"
                 style={composerTextStyle}
               />
               {(draft.trim() || pendingAttachments.length > 0) ? (

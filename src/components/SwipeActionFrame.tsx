@@ -141,7 +141,7 @@ export default function SwipeActionFrame({
         aria-hidden="true"
       >
         <div
-          className="inline-flex items-center gap-1.5 rounded-full border border-[#E8608A]/40 bg-[#E8608A]/12 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#E8608A] dark:border-[#E8608A]/25 dark:bg-[#E8608A]/12 dark:text-[#E8608A]"
+          className="inline-flex items-center gap-1.5 rounded-full border border-[#E8A23A]/40 bg-[#E8A23A]/12 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#E8A23A] dark:border-[#E8A23A]/25 dark:bg-[#E8A23A]/12 dark:text-[#E8A23A]"
           style={indicatorStyle}
         >
           <SwipeArrow align={align} />

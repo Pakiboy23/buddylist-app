@@ -47,8 +47,8 @@ function PinRow({ label, value, active, helperText, onPress }: PinRowProps) {
       onClick={onPress}
       className={`ui-focus-ring w-full rounded-[1.4rem] border px-4 py-3 text-left transition ${
         active
-          ? 'border-rose-400/70 bg-[rgba(232,96,138,0.12)] shadow-[0_12px_30px_rgba(232,96,138,0.18)]'
-          : 'border-white/75 bg-white/78 dark:border-slate-800 dark:bg-[#13100E]/45'
+          ? 'border-amber-400/70 bg-[rgba(232,162,58,0.12)] shadow-[0_12px_30px_rgba(232,162,58,0.18)]'
+          : 'border-white/75 bg-white/78 dark:border-slate-800 dark:bg-[#0F1424]/45'
       }`}
       aria-label={`${label}. ${value.length} of ${PIN_SLOT_COUNT} digits entered.`}
     >
@@ -69,8 +69,8 @@ function PinRow({ label, value, active, helperText, onPress }: PinRowProps) {
                   isFilled
                     ? 'border-slate-900 bg-slate-900 dark:border-slate-100 dark:bg-slate-100'
                     : active
-                      ? 'border-rose-300/70 bg-[rgba(232,96,138,0.16)]'
-                      : 'border-slate-200 bg-white/30 dark:border-slate-700 dark:bg-[#13100E]/40'
+                      ? 'border-amber-300/70 bg-[rgba(232,162,58,0.16)]'
+                      : 'border-slate-200 bg-white/30 dark:border-slate-700 dark:bg-[#0F1424]/40'
                 }`}
               />
             );
@@ -282,7 +282,7 @@ export default function AppLockSheet({
           {mode === 'setup' ? (
             <div className="ui-panel-card rounded-[1.4rem] px-4 py-3">
               <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 dark:bg-[#13100E] dark:text-slate-300">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 dark:bg-[#0F1424] dark:text-slate-300">
                   <AppIcon kind="clock" className="h-4 w-4" />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -302,8 +302,8 @@ export default function AppLockSheet({
                       onClick={() => onAutoLockSecondsChange(value)}
                       className={`ui-focus-ring rounded-full border px-3 py-2 text-[11px] font-semibold transition ${
                         selected
-                          ? 'border-rose-500/70 bg-[linear-gradient(180deg,#E8608A_0%,#B93A67_100%)] text-white shadow-[0_12px_30px_rgba(232,96,138,0.24)]'
-                          : 'border-white/75 bg-white/78 text-slate-600 dark:border-slate-800 dark:bg-[#13100E]/45 dark:text-slate-300'
+                          ? 'border-amber-500/70 bg-[linear-gradient(180deg,#E8A23A_0%,#C8861F_100%)] text-white shadow-[0_12px_30px_rgba(232,162,58,0.24)]'
+                          : 'border-white/75 bg-white/78 text-slate-600 dark:border-slate-800 dark:bg-[#0F1424]/45 dark:text-slate-300'
                       }`}
                     >
                       {formatAppLockTimeoutLabel(value)}
@@ -315,7 +315,7 @@ export default function AppLockSheet({
           ) : null}
 
           {errorMessage ? (
-            <div className="rounded-[1.4rem] border border-rose-200/80 bg-rose-50/95 px-4 py-3 text-[12px] text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
+            <div className="rounded-[1.4rem] border border-amber-200/80 bg-amber-50/95 px-4 py-3 text-[12px] text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
               {errorMessage}
             </div>
           ) : null}
@@ -327,7 +327,7 @@ export default function AppLockSheet({
                   key={digit}
                   type="button"
                   onClick={() => appendDigit(digit)}
-                  className="ui-focus-ring flex h-14 items-center justify-center rounded-[1.25rem] border border-white/80 bg-white/82 text-[20px] font-semibold text-slate-800 shadow-[0_12px_24px_rgba(15,23,42,0.08)] transition hover:-translate-y-[1px] dark:border-slate-800 dark:bg-[#13100E]/45 dark:text-slate-100"
+                  className="ui-focus-ring flex h-14 items-center justify-center rounded-[1.25rem] border border-white/80 bg-white/82 text-[20px] font-semibold text-slate-800 shadow-[0_12px_24px_rgba(15,23,42,0.08)] transition hover:-translate-y-[1px] dark:border-slate-800 dark:bg-[#0F1424]/45 dark:text-slate-100"
                   aria-label={`Digit ${digit}`}
                 >
                   {digit}
@@ -339,7 +339,7 @@ export default function AppLockSheet({
                     type="button"
                     onClick={onUseBiometrics}
                     disabled={isBiometricAuthenticating}
-                    className="ui-focus-ring flex h-14 w-full items-center justify-center rounded-[1.25rem] border border-rose-300/40 bg-[rgba(232,96,138,0.12)] px-2 text-[11px] font-semibold text-[var(--rose)] transition disabled:opacity-60"
+                    className="ui-focus-ring flex h-14 w-full items-center justify-center rounded-[1.25rem] border border-amber-300/40 bg-[rgba(232,162,58,0.12)] px-2 text-[11px] font-semibold text-[var(--rose)] transition disabled:opacity-60"
                   >
                     {isBiometricAuthenticating ? 'Checking...' : biometricLabel}
                   </button>
@@ -348,7 +348,7 @@ export default function AppLockSheet({
               <button
                 type="button"
                 onClick={() => appendDigit('0')}
-                className="ui-focus-ring flex h-14 items-center justify-center rounded-[1.25rem] border border-white/80 bg-white/82 text-[20px] font-semibold text-slate-800 shadow-[0_12px_24px_rgba(15,23,42,0.08)] transition hover:-translate-y-[1px] dark:border-slate-800 dark:bg-[#13100E]/45 dark:text-slate-100"
+                className="ui-focus-ring flex h-14 items-center justify-center rounded-[1.25rem] border border-white/80 bg-white/82 text-[20px] font-semibold text-slate-800 shadow-[0_12px_24px_rgba(15,23,42,0.08)] transition hover:-translate-y-[1px] dark:border-slate-800 dark:bg-[#0F1424]/45 dark:text-slate-100"
                 aria-label="Digit 0"
               >
                 0
@@ -356,7 +356,7 @@ export default function AppLockSheet({
               <button
                 type="button"
                 onClick={removeDigit}
-                className="ui-focus-ring flex h-14 items-center justify-center rounded-[1.25rem] border border-white/80 bg-white/82 px-3 text-[12px] font-semibold text-slate-500 shadow-[0_12px_24px_rgba(15,23,42,0.08)] transition hover:-translate-y-[1px] dark:border-slate-800 dark:bg-[#13100E]/45 dark:text-slate-300"
+                className="ui-focus-ring flex h-14 items-center justify-center rounded-[1.25rem] border border-white/80 bg-white/82 px-3 text-[12px] font-semibold text-slate-500 shadow-[0_12px_24px_rgba(15,23,42,0.08)] transition hover:-translate-y-[1px] dark:border-slate-800 dark:bg-[#0F1424]/45 dark:text-slate-300"
               >
                 Delete
               </button>

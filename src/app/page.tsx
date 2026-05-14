@@ -302,10 +302,10 @@ export default function Home() {
         : 'Welcome back. Enter your screen name and password.';
   const statusClass =
     normalizedStatusMsg.includes('failed') || normalizedStatusMsg.includes('invalid') || normalizedStatusMsg.includes('please')
-      ? 'border-rose-200/80 bg-rose-50/90 text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200'
+      ? 'border-amber-200/80 bg-amber-50/90 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200'
       : normalizedStatusMsg.includes('success') || normalizedStatusMsg.includes('complete') || normalizedStatusMsg.includes('copied') || normalizedStatusMsg.includes('check your email')
         ? 'border-emerald-200/80 bg-emerald-50/90 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200'
-        : 'border-slate-200/80 bg-white/88 text-slate-600 dark:border-slate-700 dark:bg-[#13100E]/70 dark:text-slate-300';
+        : 'border-slate-200/80 bg-white/88 text-slate-600 dark:border-slate-700 dark:bg-[#0F1424]/70 dark:text-slate-300';
   const fieldClass =
     'ui-focus-ring ui-auth-field min-h-[52px] w-full rounded-2xl px-4 py-3 text-[15px] font-medium';
   const secondaryActionClass =
@@ -354,7 +354,7 @@ export default function Home() {
               </div>
 
               {isSignOnView ? (
-                <div className="mt-5 grid grid-cols-2 gap-2 rounded-[1.4rem] border border-white/8 bg-[rgba(19,16,14,0.72)] p-1">
+                <div className="mt-5 grid grid-cols-2 gap-2 rounded-[1.4rem] border border-white/8 bg-[rgba(15, 20, 36,0.72)] p-1">
                   <button
                     type="button"
                     onClick={returnToSignIn}

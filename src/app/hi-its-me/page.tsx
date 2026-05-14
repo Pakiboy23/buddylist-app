@@ -807,7 +807,7 @@ const DirectMessageRow = memo(function DirectMessageRow({
           </p>
           <div className="mt-0.5 flex flex-wrap items-center gap-1">
             {conversationPreference.isPinned ? (
-              <span className="rounded-full border border-[rgba(232,96,138,0.16)] bg-[rgba(232,96,138,0.1)] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[var(--rose)]">
+              <span className="rounded-full border border-[rgba(232,162,58,0.16)] bg-[rgba(232,162,58,0.1)] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[var(--rose)]">
                 Pinned
               </span>
             ) : null}
@@ -822,7 +822,7 @@ const DirectMessageRow = memo(function DirectMessageRow({
               </span>
             ) : null}
             {unreadCount > 0 ? (
-              <span className="rounded-full border border-[rgba(232,96,138,0.16)] bg-[rgba(232,96,138,0.1)] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[var(--rose)]">
+              <span className="rounded-full border border-[rgba(232,162,58,0.16)] bg-[rgba(232,162,58,0.1)] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[var(--rose)]">
                 Unread
               </span>
             ) : null}
@@ -6000,9 +6000,9 @@ const [showAddWindow, setShowAddWindow] = useState(false);
           : 'text-[var(--green)]';
   const currentUserPresenceChipClass =
     currentUserPresenceState === 'away'
-      ? 'border border-[rgba(212,150,58,0.18)] bg-[rgba(212,150,58,0.12)] text-[var(--gold)]'
+      ? 'border border-[rgba(232,162,58,0.18)] bg-[rgba(232,162,58,0.12)] text-[var(--gold)]'
       : currentUserPresenceState === 'idle'
-        ? 'border border-[rgba(167,139,250,0.18)] bg-[rgba(167,139,250,0.12)] text-[var(--lavender)]'
+        ? 'border border-[rgba(232,162,58,0.18)] bg-[rgba(232,162,58,0.12)] text-[var(--lavender)]'
         : currentUserPresenceState === 'offline'
           ? 'border border-[rgba(156,142,130,0.18)] bg-[rgba(156,142,130,0.12)] text-[var(--muted)]'
           : 'border border-[rgba(78,201,122,0.18)] bg-[rgba(78,201,122,0.12)] text-[var(--green)]';
@@ -6248,7 +6248,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                             <span className={`h-1.5 w-1.5 rounded-full ${
                               syncState === 'error' ? 'bg-red-400' :
                               isChatSyncBusy ? 'bg-amber-400 animate-pulse' :
-                              pendingOutboxCount > 0 ? 'bg-[#D4963A]' :
+                              pendingOutboxCount > 0 ? 'bg-[#E8A23A]' :
                               'bg-emerald-400'
                             }`} />
                             <span className="truncate">
@@ -6261,7 +6261,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                                     : 'System status'}
                             </span>
                           </div>
-                          <span className="shrink-0 rounded-full border border-white/70 bg-white/80 px-2 py-0.5 text-[10px] font-semibold text-slate-500 dark:border-slate-700 dark:bg-[#13100E]/70 dark:text-slate-300">
+                          <span className="shrink-0 rounded-full border border-white/70 bg-white/80 px-2 py-0.5 text-[10px] font-semibold text-slate-500 dark:border-slate-700 dark:bg-[#0F1424]/70 dark:text-slate-300">
                             Details
                           </span>
                         </button>
@@ -6311,7 +6311,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                       {searchError ? <p className="ui-note-error mt-2">{searchError}</p> : null}
 
                       {(isSearching || searchTerm.trim() !== '' || searchResults.length > 0) ? (
-                        <div className="mt-3 max-h-56 overflow-y-auto rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-[inset_0_1px_1px_rgba(15,23,42,0.05)] dark:border-slate-700 dark:bg-[#13100E]/50">
+                        <div className="mt-3 max-h-56 overflow-y-auto rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-[inset_0_1px_1px_rgba(15,23,42,0.05)] dark:border-slate-700 dark:bg-[#0F1424]/50">
                           {isSearching ? (
                             <p className="p-2 text-sm italic text-slate-500">Searching screen names...</p>
                           ) : null}
@@ -6527,7 +6527,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
 
                       {!isBootstrapping && !isLoadingBuddies && acceptedBuddies.length === 0 && conversationFilter !== 'requests' ? (
                         <div className="ui-empty-state px-6 py-10 ui-fade-in">
-                          <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[rgba(232,96,138,0.16)] bg-[rgba(232,96,138,0.12)]">
+                          <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[rgba(232,162,58,0.16)] bg-[rgba(232,162,58,0.12)]">
                             <AppIcon kind="smile" className="h-8 w-8 text-[var(--rose)]" />
                           </div>
                           <div className="text-center">
@@ -6551,7 +6551,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                       {!isBootstrapping && conversationFilter === 'requests' ? (
                         pendingRequests.length === 0 ? (
                           <div className="ui-empty-state px-6 py-10 ui-fade-in">
-                            <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[rgba(212,150,58,0.16)] bg-[rgba(212,150,58,0.12)]">
+                            <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[rgba(232,162,58,0.16)] bg-[rgba(232,162,58,0.12)]">
                               <AppIcon kind="mail" className="h-8 w-8 text-[var(--gold)]" />
                             </div>
                             <div className="text-center">
@@ -6593,7 +6593,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
 
                       {!isBootstrapping && conversationFilter !== 'requests' && filteredDirectMessageBuddies.length === 0 && acceptedBuddies.length > 0 ? (
                         <div className="ui-empty-state px-6 py-10 ui-fade-in">
-                          <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[rgba(167,139,250,0.16)] bg-[rgba(167,139,250,0.12)]">
+                          <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[rgba(232,162,58,0.16)] bg-[rgba(232,162,58,0.12)]">
                             <AppIcon kind="chat" className="h-6 w-6 text-[var(--lavender)]" />
                           </div>
                           <div className="text-center">
@@ -6754,7 +6754,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                         </div>
                       ) : filteredRoomCards.length === 0 ? (
                         <div className="ui-empty-state px-4 py-8 ui-fade-in">
-                          <div className="flex h-11 w-11 items-center justify-center rounded-full border border-[rgba(232,96,138,0.16)] bg-[rgba(232,96,138,0.12)]">
+                          <div className="flex h-11 w-11 items-center justify-center rounded-full border border-[rgba(232,162,58,0.16)] bg-[rgba(232,162,58,0.12)]">
                             <AppIcon kind="chat" className="h-5 w-5 text-[var(--rose)]" />
                           </div>
                           <p className="text-[12px] text-slate-400">No rooms match this vibe right now.</p>
@@ -6777,7 +6777,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                                 data-live={meta.liveCount > 0 ? 'true' : 'false'}
                                 className="ui-list-row ui-room-card flex-1 text-left"
                               >
-                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[0.9rem] border border-[rgba(212,150,58,0.18)] bg-[rgba(212,150,58,0.14)] text-[13px] font-bold text-[var(--gold)]">
+                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[0.9rem] border border-[rgba(232,162,58,0.18)] bg-[rgba(232,162,58,0.14)] text-[13px] font-bold text-[var(--gold)]">
                                   #
                                 </div>
                                 <div className="min-w-0 flex-1">
@@ -7151,7 +7151,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                 ) : null}
 
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <label className={`ui-focus-ring inline-flex items-center rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 shadow-sm dark:border-slate-700 dark:bg-[#13100E]/70 dark:text-slate-200 ${isProfileSchemaUnavailable ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-slate-50 dark:hover:bg-[#13100E]'}`}>
+                  <label className={`ui-focus-ring inline-flex items-center rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 shadow-sm dark:border-slate-700 dark:bg-[#0F1424]/70 dark:text-slate-200 ${isProfileSchemaUnavailable ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-slate-50 dark:hover:bg-[#0F1424]'}`}>
                     Upload Profile Photo
                     <input
                       type="file"
@@ -7246,8 +7246,8 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                       }}
                       className={`ui-focus-ring rounded-full border px-3 py-1 text-[11px] font-semibold transition active:scale-95 ${
                         selectedAwayPresetId === preset.id
-                          ? 'border-rose-400/70 bg-[linear-gradient(180deg,#E8608A_0%,#B93A67_100%)] text-white'
-                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-[#13100E]/70 dark:text-slate-200 dark:hover:bg-[#13100E]'
+                          ? 'border-amber-400/70 bg-[linear-gradient(180deg,#E8A23A_0%,#C8861F_100%)] text-white'
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-[#0F1424]/70 dark:text-slate-200 dark:hover:bg-[#0F1424]'
                       }`}
                     >
                       {preset.label}
@@ -7258,8 +7258,8 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                     onClick={() => { setSelectedAwayPresetId('__custom__'); setAwayText(''); setAwayLabelDraft(''); }}
                     className={`ui-focus-ring rounded-full border px-3 py-1 text-[11px] font-semibold transition active:scale-95 ${
                       selectedAwayPresetId === '__custom__'
-                        ? 'border-rose-400/70 bg-[linear-gradient(180deg,#E8608A_0%,#B93A67_100%)] text-white'
-                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-[#13100E]/70 dark:text-slate-200 dark:hover:bg-[#13100E]'
+                        ? 'border-amber-400/70 bg-[linear-gradient(180deg,#E8A23A_0%,#C8861F_100%)] text-white'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-[#0F1424]/70 dark:text-slate-200 dark:hover:bg-[#0F1424]'
                     }`}
                   >
                     Custom…
@@ -7634,7 +7634,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                 {appLockSettings.enabled ? (
                   <div className="mt-3 space-y-3">
                     {biometricAvailability.isAvailable ? (
-                      <div className="flex items-center justify-between gap-3 rounded-[1rem] border border-white/70 bg-white/75 px-3 py-3 dark:border-slate-800 dark:bg-[#13100E]/55">
+                      <div className="flex items-center justify-between gap-3 rounded-[1rem] border border-white/70 bg-white/75 px-3 py-3 dark:border-slate-800 dark:bg-[#0F1424]/55">
                         <div>
                           <p className="text-[12px] font-semibold text-slate-700 dark:text-slate-100">
                             Use {biometricAvailability.label}
@@ -7675,8 +7675,8 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                               }
                               className={`ui-focus-ring rounded-full border px-3 py-2 text-[11px] font-semibold transition ${
                                 selected
-                                  ? 'border-rose-500/70 bg-[linear-gradient(180deg,#E8608A_0%,#B93A67_100%)] text-white shadow-[0_12px_30px_rgba(232,96,138,0.24)]'
-                                  : 'border-white/75 bg-white/78 text-slate-600 dark:border-slate-800 dark:bg-[#13100E]/45 dark:text-slate-300'
+                                  ? 'border-amber-500/70 bg-[linear-gradient(180deg,#E8A23A_0%,#C8861F_100%)] text-white shadow-[0_12px_30px_rgba(232,162,58,0.24)]'
+                                  : 'border-white/75 bg-white/78 text-slate-600 dark:border-slate-800 dark:bg-[#0F1424]/45 dark:text-slate-300'
                               }`}
                             >
                               {formatAppLockTimeoutLabel(value)}
@@ -7701,7 +7701,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                       return (
                         <div
                           key={blockedUserId}
-                          className="flex items-center justify-between gap-3 rounded-[1rem] border border-white/70 bg-white/75 px-3 py-2 dark:border-slate-800 dark:bg-[#13100E]/55"
+                          className="flex items-center justify-between gap-3 rounded-[1rem] border border-white/70 bg-white/75 px-3 py-2 dark:border-slate-800 dark:bg-[#0F1424]/55"
                         >
                           <div className="min-w-0">
                             <p className="ui-screenname truncate text-[12px] font-semibold text-slate-700 dark:text-slate-100">
@@ -7868,7 +7868,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
 
                 {searchError && <p className="ui-note-error">{searchError}</p>}
 
-                <div className="max-h-56 overflow-y-auto rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-[inset_0_1px_1px_rgba(15,23,42,0.05)] dark:border-slate-700 dark:bg-[#13100E]/50">
+                <div className="max-h-56 overflow-y-auto rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-[inset_0_1px_1px_rgba(15,23,42,0.05)] dark:border-slate-700 dark:bg-[#0F1424]/50">
                   {isSearching && (
                     <p className="p-2 text-sm italic text-slate-500">Searching screen names...</p>
                   )}
@@ -7953,7 +7953,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                   <span className="ui-button-secondary ui-button-compact">{isForwardingToId === 'saved' ? '…' : 'Save'}</span>
                 </button>
 
-                <div className="max-h-64 overflow-y-auto rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-[inset_0_1px_1px_rgba(15,23,42,0.05)] dark:border-slate-700 dark:bg-[#13100E]/50">
+                <div className="max-h-64 overflow-y-auto rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-[inset_0_1px_1px_rgba(15,23,42,0.05)] dark:border-slate-700 dark:bg-[#0F1424]/50">
                   {sortedDirectMessageBuddies.map((buddy) => (
                     <button
                       key={buddy.id}
@@ -8074,11 +8074,11 @@ const [showAddWindow, setShowAddWindow] = useState(false);
               key={item.id}
               className={`rounded-2xl border px-3 py-2 text-[12px] shadow-[0_16px_34px_rgba(0,0,0,0.32)] backdrop-blur-xl ${
                 item.tone === 'offline'
-                  ? 'border-[rgba(156,142,130,0.22)] bg-[rgba(29,25,22,0.94)] text-[var(--muted)]'
+                  ? 'border-[rgba(156,142,130,0.22)] bg-[rgba(21, 26, 48,0.94)] text-[var(--muted)]'
                   : item.tone === 'away'
-                    ? 'border-[rgba(212,150,58,0.24)] bg-[rgba(44,31,15,0.92)] text-[var(--gold)]'
+                    ? 'border-[rgba(232,162,58,0.24)] bg-[rgba(44,31,15,0.92)] text-[var(--gold)]'
                     : item.tone === 'back'
-                      ? 'border-[rgba(167,139,250,0.26)] bg-[rgba(42,31,58,0.92)] text-[var(--lavender)]'
+                      ? 'border-[rgba(232,162,58,0.26)] bg-[rgba(42,31,58,0.92)] text-[var(--lavender)]'
                       : 'border-[rgba(78,201,122,0.24)] bg-[rgba(17,37,27,0.92)] text-[var(--green)]'
               }`}
             >
