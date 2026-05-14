@@ -29,7 +29,7 @@ export default function RoomListClient({ rooms }: { rooms: RoomRow[] }) {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Filter by name or tag…"
-        className="ui-focus-ring w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-[length:var(--ui-text-sm)] text-slate-700 placeholder-slate-400 dark:border-slate-700 dark:bg-[#13100E] dark:text-slate-100 dark:placeholder-slate-500"
+        className="ui-focus-ring w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-[length:var(--ui-text-sm)] text-slate-700 placeholder-slate-400 dark:border-slate-700 dark:bg-[#0F1424] dark:text-slate-100 dark:placeholder-slate-500"
       />
 
       {filtered.length === 0 ? (
@@ -55,7 +55,7 @@ export default function RoomListClient({ rooms }: { rooms: RoomRow[] }) {
                       {room.tags.map((tag) => (
                         <span
                           key={tag}
-                          className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[length:var(--ui-text-2xs)] font-medium text-slate-500 dark:bg-[#13100E] dark:text-slate-300"
+                          className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[length:var(--ui-text-2xs)] font-medium text-slate-500 dark:bg-[#0F1424] dark:text-slate-300"
                         >
                           {tag}
                         </span>

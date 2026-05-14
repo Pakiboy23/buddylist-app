@@ -487,10 +487,10 @@ export default function Home() {
           ? 'Choose a screen name, password, and secret recovery code to create your account.'
           : 'Welcome back. Enter your screen name and password.';
   const statusClass = normalizedStatusMsg.includes('failed') || normalizedStatusMsg.includes('invalid') || normalizedStatusMsg.includes('please')
-    ? 'border-rose-200/80 bg-rose-50/90 text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200'
+    ? 'border-amber-200/80 bg-amber-50/90 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200'
     : normalizedStatusMsg.includes('success') || normalizedStatusMsg.includes('complete') || normalizedStatusMsg.includes('copied')
       ? 'border-emerald-200/80 bg-emerald-50/90 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200'
-      : 'border-slate-200/80 bg-white/88 text-slate-600 dark:border-slate-700 dark:bg-[#13100E]/70 dark:text-slate-300';
+      : 'border-slate-200/80 bg-white/88 text-slate-600 dark:border-slate-700 dark:bg-[#0F1424]/70 dark:text-slate-300';
   const fieldClass =
     'ui-focus-ring ui-auth-field min-h-[52px] w-full rounded-2xl px-4 py-3 text-[15px] font-medium';
   const secondaryActionClass =
@@ -812,7 +812,7 @@ export default function Home() {
             {rotatedRecoveryCode && (
               <div className="rounded-[1.5rem] border border-amber-300 bg-amber-50 px-4 py-4 text-[13px] text-amber-900 shadow-sm dark:border-amber-500/35 dark:bg-amber-500/12 dark:text-amber-100">
                 <p className="font-semibold">Your recovery code was rotated. Save this before you continue.</p>
-                <p className="mt-2 break-all rounded-2xl bg-white/70 px-3 py-2 font-mono text-[14px] font-bold dark:bg-[#13100E]/60">
+                <p className="mt-2 break-all rounded-2xl bg-white/70 px-3 py-2 font-mono text-[14px] font-bold dark:bg-[#0F1424]/60">
                   {rotatedRecoveryCode}
                 </p>
                 <button

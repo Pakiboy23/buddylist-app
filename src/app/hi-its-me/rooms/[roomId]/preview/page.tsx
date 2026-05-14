@@ -148,7 +148,7 @@ function RoomPreviewContent({ roomId }: { roomId: string }) {
               <h1 className="ui-screenname text-[length:var(--ui-text-xl)] font-semibold text-slate-800">
                 {preview.name}
               </h1>
-              <span className="shrink-0 rounded-xl bg-slate-100 px-2.5 py-1 text-[length:var(--ui-text-2xs)] font-semibold uppercase tracking-widest text-slate-500 dark:bg-[#13100E] dark:text-slate-300">
+              <span className="shrink-0 rounded-xl bg-slate-100 px-2.5 py-1 text-[length:var(--ui-text-2xs)] font-semibold uppercase tracking-widest text-slate-500 dark:bg-[#0F1424] dark:text-slate-300">
                 {ROOM_TYPE_LABELS[preview.room_type] ?? preview.room_type}
               </span>
             </div>
@@ -164,7 +164,7 @@ function RoomPreviewContent({ roomId }: { roomId: string }) {
                 {preview.tags.map((tag) => (
                   <span
                     key={tag}
-                    className="rounded-lg bg-slate-100 px-2 py-0.5 text-[length:var(--ui-text-2xs)] font-medium text-slate-500 dark:bg-[#13100E] dark:text-slate-300"
+                    className="rounded-lg bg-slate-100 px-2 py-0.5 text-[length:var(--ui-text-2xs)] font-medium text-slate-500 dark:bg-[#0F1424] dark:text-slate-300"
                   >
                     {tag}
                   </span>

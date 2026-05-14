@@ -211,7 +211,7 @@ export default function RenameScreenname({
       <div
         onClick={(event) => event.stopPropagation()}
         style={{
-          background: '#1D1916',
+          background: '#151A30',
           border: '1px solid #3A3028',
           borderRadius: '20px',
           boxShadow: '0 24px 80px rgba(0, 0, 0, 0.35)',
@@ -291,7 +291,7 @@ export default function RenameScreenname({
               autoComplete="off"
               style={{
                 background: '#15110F',
-                border: `1px solid ${isFocused ? '#E8608A' : '#3A3028'}`,
+                border: `1px solid ${isFocused ? '#E8A23A' : '#3A3028'}`,
                 borderRadius: '14px',
                 color: '#F7F1EC',
                 fontFamily: '"IBM Plex Mono", monospace',
@@ -318,7 +318,7 @@ export default function RenameScreenname({
             {error ? (
               <p
                 style={{
-                  color: '#E8608A',
+                  color: '#E8A23A',
                   fontFamily: 'Nunito, sans-serif',
                   fontSize: '13px',
                   fontWeight: 700,
@@ -375,7 +375,7 @@ export default function RenameScreenname({
               type="submit"
               disabled={isConfirmDisabled}
               style={{
-                background: '#E8608A',
+                background: '#E8A23A',
                 border: 'none',
                 borderRadius: '14px',
                 color: 'white',

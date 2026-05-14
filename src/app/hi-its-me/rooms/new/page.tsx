@@ -134,7 +134,7 @@ export default function NewRoomPage() {
             onBlur={(e) => void checkNameUnique(e.target.value)}
             maxLength={80}
             placeholder="e.g. Late Night Vibes"
-            className="ui-focus-ring w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-[length:var(--ui-text-sm)] text-slate-700 placeholder-slate-400 dark:border-slate-700 dark:bg-[#13100E] dark:text-slate-100 dark:placeholder-slate-500"
+            className="ui-focus-ring w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-[length:var(--ui-text-sm)] text-slate-700 placeholder-slate-400 dark:border-slate-700 dark:bg-[#0F1424] dark:text-slate-100 dark:placeholder-slate-500"
           />
           {nameError ? (
             <p role="alert" className="mt-1 text-[length:var(--ui-text-xs)] text-red-500">
@@ -154,7 +154,7 @@ export default function NewRoomPage() {
             maxLength={200}
             rows={2}
             placeholder="What's this room about?"
-            className="ui-focus-ring w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-[length:var(--ui-text-sm)] text-slate-700 placeholder-slate-400 dark:border-slate-700 dark:bg-[#13100E] dark:text-slate-100 dark:placeholder-slate-500"
+            className="ui-focus-ring w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-[length:var(--ui-text-sm)] text-slate-700 placeholder-slate-400 dark:border-slate-700 dark:bg-[#0F1424] dark:text-slate-100 dark:placeholder-slate-500"
           />
           <p className="mt-0.5 text-right text-[length:var(--ui-text-2xs)] text-slate-400">
             {description.length}/200
@@ -176,7 +176,7 @@ export default function NewRoomPage() {
                   key={tag}
                   type="button"
                   onClick={() => removeTag(tag)}
-                  className="ui-focus-ring flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-0.5 text-[length:var(--ui-text-2xs)] font-medium text-slate-600 dark:bg-[#13100E] dark:text-slate-300"
+                  className="ui-focus-ring flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-0.5 text-[length:var(--ui-text-2xs)] font-medium text-slate-600 dark:bg-[#0F1424] dark:text-slate-300"
                   aria-label={`Remove tag ${tag}`}
                 >
                   {tag}
@@ -193,7 +193,7 @@ export default function NewRoomPage() {
             onBlur={addTag}
             disabled={tags.length >= MAX_TAGS}
             placeholder={tags.length >= MAX_TAGS ? 'Max tags reached' : 'music, gaming, chill…'}
-            className="ui-focus-ring w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-[length:var(--ui-text-sm)] text-slate-700 placeholder-slate-400 disabled:opacity-50 dark:border-slate-700 dark:bg-[#13100E] dark:text-slate-100 dark:placeholder-slate-500"
+            className="ui-focus-ring w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-[length:var(--ui-text-sm)] text-slate-700 placeholder-slate-400 disabled:opacity-50 dark:border-slate-700 dark:bg-[#0F1424] dark:text-slate-100 dark:placeholder-slate-500"
           />
         </div>
 
@@ -245,7 +245,7 @@ export default function NewRoomPage() {
             min={2}
             max={10000}
             placeholder="e.g. 50"
-            className="ui-focus-ring w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-[length:var(--ui-text-sm)] text-slate-700 placeholder-slate-400 dark:border-slate-700 dark:bg-[#13100E] dark:text-slate-100 dark:placeholder-slate-500"
+            className="ui-focus-ring w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-[length:var(--ui-text-sm)] text-slate-700 placeholder-slate-400 dark:border-slate-700 dark:bg-[#0F1424] dark:text-slate-100 dark:placeholder-slate-500"
           />
         </div>
 

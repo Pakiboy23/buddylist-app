@@ -83,7 +83,7 @@ export default function SavedMessagesWindow({
           <div className="ui-chat-log mx-3 mt-3 min-h-0 flex-1 overflow-y-auto rounded-2xl px-3 py-3">
             {visibleEntries.length === 0 ? (
               <div className="ui-empty-state h-full px-6 ui-fade-in">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#302820]">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#1F2547]">
                   <AppIcon kind="mail" className="h-7 w-7 text-blue-400" />
                 </div>
                 <div className="text-center">
@@ -144,7 +144,7 @@ export default function SavedMessagesWindow({
                 placeholder="Write a note to yourself…"
                 rows={1}
                 maxLength={4000}
-                className="min-h-[24px] flex-1 resize-none rounded-xl bg-transparent text-[length:var(--ui-text-md)] text-white placeholder-[#6B5B4E] focus:outline-none focus:border-[#E8608A]"
+                className="min-h-[24px] flex-1 resize-none rounded-xl bg-transparent text-[length:var(--ui-text-md)] text-white placeholder-[#6B5B4E] focus:outline-none focus:border-[#E8A23A]"
               />
               {draft.trim() ? (
                 <button
