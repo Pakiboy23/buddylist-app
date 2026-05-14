@@ -951,8 +951,8 @@ export default function GroupChatWindow({
   const xpTinyToolbarButtonClass = (active = false) =>
     `ui-focus-ring inline-flex h-7 min-w-7 items-center justify-center rounded-lg border px-1.5 text-[length:var(--ui-text-xs)] font-semibold text-slate-700 transition ${
       active
-        ? 'border-[#E8608A]/40 bg-[#E8608A]/10 text-[#E8608A] shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:border-[#E8608A]/30 dark:bg-[#E8608A]/15 dark:text-[#E8608A]'
-        : 'border-slate-200 bg-white/80 hover:bg-white dark:border-slate-700 dark:bg-[#13100E]/65 dark:text-slate-200 dark:hover:bg-[#13100E]'
+        ? 'border-[#E8A23A]/40 bg-[#E8A23A]/10 text-[#E8A23A] shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:border-[#E8A23A]/30 dark:bg-[#E8A23A]/15 dark:text-[#E8A23A]'
+        : 'border-slate-200 bg-white/80 hover:bg-white dark:border-slate-700 dark:bg-[#0F1424]/65 dark:text-slate-200 dark:hover:bg-[#0F1424]'
     }`;
 
   const resolvedTypingUsers = useMemo(() => {
@@ -1077,7 +1077,7 @@ export default function GroupChatWindow({
             >
               <div className="flex items-start gap-3">
                 <div className="min-w-0 flex flex-1 items-center gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[rgba(212,150,58,0.18)] bg-[rgba(212,150,58,0.14)] text-[15px] font-bold text-[var(--gold)]">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[rgba(232,162,58,0.18)] bg-[rgba(232,162,58,0.14)] text-[15px] font-bold text-[var(--gold)]">
                     #
                   </div>
                   <div className="min-w-0 flex-1">
@@ -1149,7 +1149,7 @@ export default function GroupChatWindow({
                   ) : null}
 
                   {/* Members — roster driven by last_seen_at (5-min window) */}
-                  <div className="rounded-[1rem] border border-white/60 bg-white/70 px-3 py-2 dark:border-slate-700 dark:bg-[#13100E]/55">
+                  <div className="rounded-[1rem] border border-white/60 bg-white/70 px-3 py-2 dark:border-slate-700 dark:bg-[#0F1424]/55">
                     <p className="ui-section-kicker">
                       Active now{rosterMembers.length > 0 ? ` · ${rosterMembers.length}` : ''}
                     </p>
@@ -1202,7 +1202,7 @@ export default function GroupChatWindow({
                     </ul>
                   </div>
                   {/* Search */}
-                  <div className="rounded-[1rem] border border-white/60 bg-white/70 px-3 py-2 dark:border-slate-700 dark:bg-[#13100E]/55">
+                  <div className="rounded-[1rem] border border-white/60 bg-white/70 px-3 py-2 dark:border-slate-700 dark:bg-[#0F1424]/55">
                     <label htmlFor={searchInputId} className="ui-section-kicker">Search</label>
                     <div className="mt-2 flex items-center gap-2">
                       <AppIcon kind="search" className="h-3.5 w-3.5 shrink-0 text-slate-400" />
@@ -1560,9 +1560,9 @@ export default function GroupChatWindow({
                                 } ${
                                   isMine
                                     ? hasCustomStyling
-                                      ? `rounded-[1.35rem] border border-blue-200/80 bg-white/96 text-slate-900 shadow-[0_10px_24px_rgba(37,99,235,0.16)] dark:border-slate-600/60 dark:bg-[#1D1916]/95 dark:text-slate-100 ${clusterMeta.isLastInRun ? 'rounded-br-[8px] bubble-tail-out' : ''}`
-                                      : `rounded-[1.35rem] bg-[#E8608A]/22 text-white shadow-[0_8px_22px_rgba(232,96,138,0.26)] ${clusterMeta.isLastInRun ? 'rounded-br-[7px] bubble-tail-out' : ''}`
-                                    : `rounded-[1.35rem] border border-white/70 bg-white/85 text-slate-800 shadow-sm backdrop-blur-sm dark:border-slate-700/70 dark:bg-[#13100E]/70 dark:text-slate-100 ${clusterMeta.isLastInRun ? 'rounded-bl-[7px] bubble-tail-in' : ''} ${isMentioningCurrentUser ? 'border-amber-300/70 bg-amber-50/80 dark:border-amber-400/35 dark:bg-amber-950/25' : ''}`
+                                      ? `rounded-[1.35rem] border border-blue-200/80 bg-white/96 text-slate-900 shadow-[0_10px_24px_rgba(232,162,58,0.16)] dark:border-slate-600/60 dark:bg-[#151A30]/95 dark:text-slate-100 ${clusterMeta.isLastInRun ? 'rounded-br-[8px] bubble-tail-out' : ''}`
+                                      : `rounded-[1.35rem] bg-[#E8A23A]/22 text-white shadow-[0_8px_22px_rgba(232,162,58,0.26)] ${clusterMeta.isLastInRun ? 'rounded-br-[7px] bubble-tail-out' : ''}`
+                                    : `rounded-[1.35rem] border border-white/70 bg-white/85 text-slate-800 shadow-sm backdrop-blur-sm dark:border-slate-700/70 dark:bg-[#0F1424]/70 dark:text-slate-100 ${clusterMeta.isLastInRun ? 'rounded-bl-[7px] bubble-tail-in' : ''} ${isMentioningCurrentUser ? 'border-amber-300/70 bg-amber-50/80 dark:border-amber-400/35 dark:bg-amber-950/25' : ''}`
                                 } ${isMatch ? 'ring-2 ring-amber-400' : ''}`}
                               >
                                 <span
@@ -1573,13 +1573,13 @@ export default function GroupChatWindow({
 
                               <div
                                 data-swipe-ignore="true"
-                                className="absolute bottom-full right-0 z-10 mb-2 min-w-[10rem] hidden group-hover:flex group-focus-within:flex flex-col gap-1 rounded-2xl border border-white/70 bg-white/90 p-2 shadow-lg backdrop-blur-md dark:border-slate-700/70 dark:bg-[#13100E]/88"
+                                className="absolute bottom-full right-0 z-10 mb-2 min-w-[10rem] hidden group-hover:flex group-focus-within:flex flex-col gap-1 rounded-2xl border border-white/70 bg-white/90 p-2 shadow-lg backdrop-blur-md dark:border-slate-700/70 dark:bg-[#0F1424]/88"
                               >
                                 {!isMine ? (
                                   <button
                                     type="button"
                                     onClick={() => startMentioningMessage(message)}
-                                    className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-[#13100E]"
+                                    className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-[#0F1424]"
                                     aria-label={`Mention ${senderName}`}
                                   >
                                     Mention
@@ -1612,7 +1612,7 @@ export default function GroupChatWindow({
                       ? 'border border-red-200/80 bg-red-50/90 text-red-950 shadow-[0_8px_24px_rgba(239,68,68,0.12)] dark:border-red-500/30 dark:bg-red-950/25 dark:text-red-200'
                       : item.status === 'queued'
                         ? 'border border-amber-200/80 bg-amber-50/90 text-amber-950 shadow-[0_8px_24px_rgba(245,158,11,0.12)] dark:border-amber-500/30 dark:bg-amber-950/25 dark:text-amber-200'
-                        : 'bg-[#E8608A]/75 text-white shadow-[0_2px_8px_rgba(232,96,138,0.28)]';
+                        : 'bg-[#E8A23A]/75 text-white shadow-[0_2px_8px_rgba(232,162,58,0.28)]';
 
                   return (
                     <div key={`outbox-${item.id}`} className="flex flex-col">
@@ -1828,7 +1828,7 @@ export default function GroupChatWindow({
                 rows={1}
                 maxLength={1500}
                 aria-describedby={composerHelpId}
-                className="min-h-[24px] flex-1 resize-none rounded-xl bg-transparent text-[length:var(--ui-text-md)] text-white placeholder-[#6B5B4E] focus:outline-none focus:border-[#E8608A]"
+                className="min-h-[24px] flex-1 resize-none rounded-xl bg-transparent text-[length:var(--ui-text-md)] text-white placeholder-[#6B5B4E] focus:outline-none focus:border-[#E8A23A]"
                 style={composerTextStyle}
               />
               {draft.trim() ? (

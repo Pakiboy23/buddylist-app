@@ -144,7 +144,7 @@ export default function SavedMessagesWindow({
                 placeholder="Write a note to yourself…"
                 rows={1}
                 maxLength={4000}
-                className="min-h-[24px] flex-1 resize-none rounded-xl bg-transparent text-[length:var(--ui-text-md)] text-white placeholder-[#6B5B4E] focus:outline-none focus:border-[#E8608A]"
+                className="min-h-[24px] flex-1 resize-none rounded-xl bg-transparent text-[length:var(--ui-text-md)] text-white placeholder-[#6B5B4E] focus:outline-none focus:border-[#E8A23A]"
               />
               {draft.trim() ? (
                 <button

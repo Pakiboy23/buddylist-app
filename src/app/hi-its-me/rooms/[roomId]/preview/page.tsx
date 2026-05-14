@@ -123,7 +123,7 @@ function RoomPreviewContent({ roomId }: { roomId: string }) {
               <h1 className="ui-screenname text-[length:var(--ui-text-xl)] font-semibold text-slate-800 dark:text-slate-100">
                 {room.name}
               </h1>
-              <span className="shrink-0 rounded-xl bg-slate-100 px-2.5 py-1 text-[length:var(--ui-text-2xs)] font-semibold uppercase tracking-widest text-slate-500 dark:bg-[#13100E] dark:text-slate-300">
+              <span className="shrink-0 rounded-xl bg-slate-100 px-2.5 py-1 text-[length:var(--ui-text-2xs)] font-semibold uppercase tracking-widest text-slate-500 dark:bg-[#0F1424] dark:text-slate-300">
                 {KIND_LABEL[room.kind] ?? room.kind}
               </span>
             </div>

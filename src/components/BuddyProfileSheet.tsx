@@ -398,7 +398,7 @@ export default function BuddyProfileSheet({
           {hasSafetyActions ? (
             <div className="ui-panel-card rounded-[1.4rem] px-4 py-3">
               <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 dark:bg-[#13100E] dark:text-slate-300">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 dark:bg-[#0F1424] dark:text-slate-300">
                   <AppIcon kind="shield" className="h-4 w-4" />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -452,7 +452,7 @@ export default function BuddyProfileSheet({
               </div>
 
               {showReportForm ? (
-                <div className="mt-3 space-y-3 rounded-[1.2rem] border border-slate-200/80 bg-white/80 px-3 py-3 dark:border-slate-800 dark:bg-[#13100E]/50">
+                <div className="mt-3 space-y-3 rounded-[1.2rem] border border-slate-200/80 bg-white/80 px-3 py-3 dark:border-slate-800 dark:bg-[#0F1424]/50">
                   <div>
                     <label className="mb-1 block text-[length:var(--ui-text-2xs)] font-semibold uppercase tracking-[0.12em] text-slate-400">
                       Category
@@ -460,7 +460,7 @@ export default function BuddyProfileSheet({
                     <select
                       value={reportCategory}
                       onChange={(event) => setReportCategory(event.target.value as AbuseReportCategory)}
-                      className="ui-focus-ring w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[length:var(--ui-text-sm)] text-slate-700 dark:border-slate-700 dark:bg-[#13100E] dark:text-slate-100"
+                      className="ui-focus-ring w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[length:var(--ui-text-sm)] text-slate-700 dark:border-slate-700 dark:bg-[#0F1424] dark:text-slate-100"
                     >
                       {ABUSE_REPORT_CATEGORY_OPTIONS.map((option) => (
                         <option key={option.value} value={option.value}>
@@ -482,7 +482,7 @@ export default function BuddyProfileSheet({
                       rows={3}
                       maxLength={1200}
                       placeholder="Add details to help with review."
-                      className="ui-focus-ring w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[length:var(--ui-text-sm)] text-slate-700 placeholder-slate-400 dark:border-slate-700 dark:bg-[#13100E] dark:text-slate-100 dark:placeholder-slate-500"
+                      className="ui-focus-ring w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[length:var(--ui-text-sm)] text-slate-700 placeholder-slate-400 dark:border-slate-700 dark:bg-[#0F1424] dark:text-slate-100 dark:placeholder-slate-500"
                     />
                   </div>
                   <div className="flex justify-end">
