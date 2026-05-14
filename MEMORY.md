@@ -6,10 +6,10 @@ Memory health: 8/10
 H.I.M. (`hiitsme`) — retro AIM-style mobile-first messaging app. Vite + React 19 + React Router v7 web app, deployed on Vercel (web) and wrapped via Capacitor 8 for iOS + Android. Supabase for auth/Postgres/realtime. README "Stack" section is **stale** — still says Next.js 16, but the app migrated to Vite/React Router in commit `5ec1d04`.
 
 ## Where We Left Off
-- **Current task:** Midnight design system migration (PR #31)
-- **Status:** PR open, build passing, awaiting visual QA in browser + iOS sim
-- **Next immediate step:** Verify rendered output against checklist (light/dark stone vs. midnight, amber CTAs, wordmark, online pip, privacy shield, status bar). Then iterate on visual fixes or generate native icon/splash artwork.
-- **Open question:** When will brand artwork (amber lamp glyph + splash) be ready so `npm run ios:assets` can run? Currently deferred.
+- **Current task:** Midnight design system migration — **SHIPPED to main** (PR #32 + #33 + #34 all merged)
+- **Status:** Web is live with the new palette. Native bundles synced. MEMORY.md tracked.
+- **Next immediate step:** Check Xcode Cloud in App Store Connect for the auto-archive build of main; promote to TestFlight if successful. Otherwise: provide brand artwork (amber lamp glyph + splash) so `npm run ios:assets` can run, then archive.
+- **Open question:** None blocking. Brand artwork is the only thing gating native release.
 
 ## Completed (last 10 commits)
 - 2026-05-xx `e534dc7` Send auth token with room invite request
@@ -24,10 +24,10 @@ H.I.M. (`hiitsme`) — retro AIM-style mobile-first messaging app. Vite + React 
 - Earlier: AIM-style shell polish, HIM design system, social graph + room discovery, push notifications
 
 ## Active Work
-- [ ] **PR #31 visual QA** — verify Midnight migration renders correctly in light/dark, iOS sim, Android device
-- [ ] Generate brand artwork (amber lamp glyph) so `npm run ios:assets` can regenerate iOS icons; Android mipmaps need direct replacement
-- [ ] Follow-up PR after PR #31 merges: delete `--rose`, `--rose-dark`, `--gold`, `--lavender` deprecation aliases from `globals.css` (kept for 1 release as safety net)
-- [ ] Resolve pre-existing uncommitted iOS asset regenerations (`dist/`, `ios/App/App/public/assets/*` deltas — routine `ios:sync` output, not in PR #31)
+- [ ] Check Xcode Cloud auto-archive of main; promote to TestFlight from App Store Connect
+- [ ] Generate brand artwork (amber lamp glyph + splash) so `npm run ios:assets` can regenerate iOS icons; Android mipmaps need direct replacement
+- [ ] Fix `capacitor.config.ts` `webDir: 'dist'` vs `scripts/ios-release-preflight.mjs` expecting `'native-web'` mismatch — one-line config bug
+- [ ] Follow-up PR (after ~2 weeks clean prod): delete `--rose`, `--rose-dark`, `--gold`, `--lavender` deprecation aliases from `globals.css`
 - [ ] Update README "Stack" section — still references Next.js 16
 
 ## Blockers
@@ -74,7 +74,7 @@ H.I.M. (`hiitsme`) — retro AIM-style mobile-first messaging app. Vite + React 
 ## Session Log
 | Session | Date | Summary |
 |---------|------|---------|
-| 1 | 2026-05-14 | Memory bank initialized via recovery mode; executed full Midnight design system migration → PR #31 (19 files, +394/-349). Build passes. Native asset regen deferred. |
+| 1 | 2026-05-14 | Recovery mode init. Midnight migration shipped via PR #32 (22 files), iOS+Android bundle resync via PR #33 (86 files), MEMORY.md tracked via PR #34. PR #31 closed (stale base). nvm default set to v22 (Capacitor CLI requirement). Obsolete local commit `e534dc7` skipped during rebase — its room-invite auth fix was superseded by the Edge Function migration on origin/main. Preflight `webDir` mismatch flagged for follow-up. |
 
 ## User Preferences
 - Concise, direct responses; no trailing summaries
