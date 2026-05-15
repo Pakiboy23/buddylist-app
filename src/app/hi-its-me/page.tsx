@@ -5,6 +5,7 @@ import AppLockSheet from '@/components/AppLockSheet';
 import HiItsMeTabIcon from '@/components/HiItsMeTabIcon';
 import type { ChatMessage } from '@/components/ChatWindow';
 import BuddyProfileSheet from '@/components/BuddyProfileSheet';
+import MessageReportSheet, { type MessageReportSubmission } from '@/components/MessageReportSheet';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import RenameScreenname from '@/components/RenameScreenname';
 import SavedMessagesWindow from '@/components/SavedMessagesWindow';
@@ -941,6 +942,17 @@ function HiItsMeContent() {
   const [forwardingMessage, setForwardingMessage] = useState<ChatMessage | null>(null);
   const [forwardError, setForwardError] = useState<string | null>(null);
   const [isForwardingToId, setIsForwardingToId] = useState<string | null>(null);
+  const [reportTarget, setReportTarget] = useState<
+    | {
+        targetUserId: string;
+        targetScreenname: string;
+        sourceMessageId: number | null;
+        messagePreview: string | null;
+      }
+    | null
+  >(null);
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [reportSubmitError, setReportSubmitError] = useState<string | null>(null);
 
 const [showAddWindow, setShowAddWindow] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -2075,6 +2087,93 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         ABUSE_REPORT_CATEGORY_OPTIONS.find((option) => option.value === payload.category)?.label ?? 'Report';
       setProfileSheetFeedback(`${categoryLabel} report sent. Thanks for flagging it.`);
       return true;
+    },
+    [userId],
+  );
+
+  const openReportSheetForDmMessage = useCallback(
+    (message: ChatMessage, senderScreenname: string) => {
+      setReportSubmitError(null);
+      setReportTarget({
+        targetUserId: message.sender_id,
+        targetScreenname: senderScreenname,
+        sourceMessageId: message.id,
+        messagePreview: htmlToPlainText(message.content).trim(),
+      });
+    },
+    [],
+  );
+
+  const openReportSheetForRoomMessage = useCallback(
+    (payload: {
+      messageId: string;
+      senderId: string;
+      senderScreenname: string;
+      contentPreview: string;
+    }) => {
+      setReportSubmitError(null);
+      setReportTarget({
+        targetUserId: payload.senderId,
+        targetScreenname: payload.senderScreenname,
+        sourceMessageId: null,
+        messagePreview: payload.contentPreview,
+      });
+    },
+    [],
+  );
+
+  const handleSubmitMessageReport = useCallback(
+    async (submission: MessageReportSubmission) => {
+      if (!userId || !reportTarget) {
+        return;
+      }
+
+      setReportSubmitting(true);
+      setReportSubmitError(null);
+
+      const { error } = await supabase.from('abuse_reports').insert({
+        reporter_id: userId,
+        target_user_id: reportTarget.targetUserId,
+        source_message_id: reportTarget.sourceMessageId,
+        category: submission.category,
+        details: submission.details || null,
+      });
+
+      setReportSubmitting(false);
+
+      if (error) {
+        const message = isTrustSafetySchemaMissingError(error)
+          ? 'Run trust_safety_slice.sql to enable blocking and reporting.'
+          : error.message;
+        setReportSubmitError(message);
+        return;
+      }
+
+      setReportTarget(null);
+    },
+    [reportTarget, userId],
+  );
+
+  const handleBlockUserById = useCallback(
+    async (targetUserId: string) => {
+      if (!userId || !targetUserId || userId === targetUserId) {
+        return;
+      }
+      setIsBlockingBuddyId(targetUserId);
+      const { error } = await supabase.from('blocked_users').upsert(
+        { blocker_id: userId, blocked_id: targetUserId },
+        { onConflict: 'blocker_id,blocked_id' },
+      );
+      setIsBlockingBuddyId(null);
+      if (error) {
+        setTrustSafetyError(
+          isTrustSafetySchemaMissingError(error)
+            ? 'Run trust_safety_slice.sql to enable blocking and reporting.'
+            : error.message,
+        );
+        return;
+      }
+      setBlockedUserIds((previous) => (previous.includes(targetUserId) ? previous : [...previous, targetUserId]));
     },
     [userId],
   );
@@ -8123,6 +8222,9 @@ const [showAddWindow, setShowAddWindow] = useState(false);
             onSetDisappearingTimer={handleSetDisappearingTimerForActiveChat}
             onForwardMessage={handleBeginForwardMessage}
             onSaveMessage={handleSaveDirectMessage}
+            onReportMessage={(message) =>
+              openReportSheetForDmMessage(message, activeChatBuddy.screenname)
+            }
             onClose={closeChatWindow}
             onSignOff={handleSignOff}
             onOpenProfile={() => openBuddyProfile(activeChatBuddy.id)}
@@ -8161,8 +8263,34 @@ const [showAddWindow, setShowAddWindow] = useState(false);
           onBack={handleBackFromRoom}
           onLeave={handleLeaveCurrentRoom}
           onSignOff={handleSignOff}
+          blockedUserIds={blockedUserIds}
+          onReportRoomMessage={openReportSheetForRoomMessage}
+          onBlockRoomUser={(payload) => {
+            void handleBlockUserById(payload.userId);
+          }}
         />
       )}
+
+      <MessageReportSheet
+        key={reportTarget ? `${reportTarget.targetUserId}:${reportTarget.sourceMessageId ?? 'profile'}` : 'closed'}
+        isOpen={Boolean(reportTarget)}
+        context={
+          reportTarget
+            ? {
+                targetScreenname: reportTarget.targetScreenname,
+                messagePreview: reportTarget.messagePreview,
+              }
+            : null
+        }
+        isSubmitting={reportSubmitting}
+        errorMessage={reportSubmitError}
+        onClose={() => {
+          if (reportSubmitting) return;
+          setReportTarget(null);
+          setReportSubmitError(null);
+        }}
+        onSubmit={handleSubmitMessageReport}
+      />
     </main>
   );
 }

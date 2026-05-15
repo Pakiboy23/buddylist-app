@@ -100,6 +100,7 @@ interface ChatWindowProps {
   onSetDisappearingTimer?: (seconds: number | null) => void;
   onForwardMessage?: (message: ChatMessage) => void;
   onSaveMessage?: (message: ChatMessage) => void;
+  onReportMessage?: (message: ChatMessage) => void;
   onClose: () => void;
   onSignOff?: () => void;
   onOpenProfile?: () => void;
@@ -217,6 +218,7 @@ export default function ChatWindow({
   onSetDisappearingTimer,
   onForwardMessage,
   onSaveMessage,
+  onReportMessage,
   onClose,
   onSignOff,
   onOpenProfile,
@@ -1309,6 +1311,7 @@ export default function ChatWindow({
                   aria-label={
                     onOpenProfile ? `Open profile for ${buddyScreenname}` : `${buddyScreenname} profile is unavailable`
                   }
+                  data-testid="dm-header-open-profile"
                 >
                   <ProfileAvatar
                     screenname={buddyScreenname}
@@ -1635,7 +1638,13 @@ export default function ChatWindow({
                   const swipeLabel = isMine ? 'Reply' : 'Reply';
 
                   return (
-                    <div key={message.id} className="flex flex-col">
+                    <div
+                      key={message.id}
+                      className="flex flex-col"
+                      data-testid="dm-message"
+                      data-message-id={message.id}
+                      data-message-mine={isMine ? 'true' : 'false'}
+                    >
                       {separatorIndex === index ? (
                         <p className="aim-new-messages-separator my-2">New messages</p>
                       ) : clusterMeta.showTimeDivider ? (
@@ -1864,6 +1873,20 @@ export default function ChatWindow({
                                         aria-label={`Save message sent at ${metaTimeLabel}`}
                                       >
                                         Save
+                                      </button>
+                                    ) : null}
+                                    {!isMine && onReportMessage ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          onReportMessage(message);
+                                          setLongPressMessageId(null);
+                                        }}
+                                        className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/30"
+                                        aria-label={`Report message sent at ${metaTimeLabel}`}
+                                        data-testid="dm-message-report"
+                                      >
+                                        Report
                                       </button>
                                     ) : null}
                                     {isMine ? (
