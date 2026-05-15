@@ -30,6 +30,7 @@ import {
   RichTextFormat,
   sanitizeRichTextHtml,
 } from '@/lib/richText';
+import { MESSAGE_HIDDEN_PLACEHOLDER } from '@/lib/contentModeration';
 import {
   EXTENDED_ROOM_PROFILE_SELECT_FIELDS,
   isProfileSchemaMissingError,
@@ -39,7 +40,9 @@ import {
 import { useChatContext } from '@/context/ChatContext';
 import { createClientMessageId } from '@/lib/outbox';
 import {
+  LEGACY_ROOM_MESSAGE_SELECT_FIELDS,
   ROOM_MESSAGE_SELECT_FIELDS,
+  isRoomMessageMetadataSchemaMissingError,
   sendRoomMessageWithClientMessageId,
 } from '@/lib/messageIdempotency';
 
@@ -49,6 +52,7 @@ interface RoomMessage {
   user_id: string;
   body: string;
   created_at: string;
+  flagged_at?: string | null;
 }
 
 interface RosterMember {
@@ -583,12 +587,28 @@ export default function GroupChatWindow({
       setIsLoadingMessages(true);
       setError(null);
 
-      const { data, error: messagesError } = await supabase
+      let data: unknown = null;
+      let messagesError: { message?: string | null; code?: string | null } | null = null;
+
+      const initial = await supabase
         .from('room_messages')
         .select(ROOM_MESSAGE_SELECT_FIELDS)
         .eq('room_id', roomId)
         .order('created_at', { ascending: true })
         .limit(300);
+      data = initial.data;
+      messagesError = initial.error;
+
+      if (isRoomMessageMetadataSchemaMissingError(messagesError)) {
+        const fallback = await supabase
+          .from('room_messages')
+          .select(LEGACY_ROOM_MESSAGE_SELECT_FIELDS)
+          .eq('room_id', roomId)
+          .order('created_at', { ascending: true })
+          .limit(300);
+        data = fallback.data;
+        messagesError = fallback.error;
+      }
 
       if (isCancelled) {
         return;
@@ -596,7 +616,7 @@ export default function GroupChatWindow({
 
       if (messagesError) {
         setMessages([]);
-        setError(messagesError.message);
+        setError(messagesError.message ?? 'Failed to load messages.');
         setIsLoadingMessages(false);
         return;
       }
@@ -993,10 +1013,15 @@ export default function GroupChatWindow({
   const richTextPresentationByMessageId = useMemo(() => {
     const presentation = new Map<string, ReturnType<typeof getRichTextPresentation>>();
     for (const message of messages) {
-      presentation.set(message.id, getRichTextPresentation(message.body));
+      const viewerIsAuthor = message.user_id === currentUserId;
+      const effectiveBody =
+        message.flagged_at && !viewerIsAuthor
+          ? MESSAGE_HIDDEN_PLACEHOLDER
+          : message.body;
+      presentation.set(message.id, getRichTextPresentation(effectiveBody));
     }
     return presentation;
-  }, [messages]);
+  }, [messages, currentUserId]);
   const messagesById = useMemo(() => {
     return new Map(messages.map((message) => [message.id, message] as const));
   }, [messages]);
@@ -1504,8 +1529,12 @@ export default function GroupChatWindow({
                     !isMine && plainMessageText.includes(`@${currentUserScreenname.trim().toLowerCase()}`);
                   const timestampDate = new Date(message.created_at);
                   const fullTimestamp = timestampDate.toLocaleString();
+                  const fallbackBody =
+                    message.flagged_at && message.user_id !== currentUserId
+                      ? MESSAGE_HIDDEN_PLACEHOLDER
+                      : message.body;
                   const richTextPresentation = richTextPresentationByMessageId.get(message.id) ?? {
-                    html: sanitizeRichTextHtml(message.body),
+                    html: sanitizeRichTextHtml(fallbackBody),
                     hasCustomStyling: false,
                   };
                   const hasCustomStyling = richTextPresentation.hasCustomStyling;
