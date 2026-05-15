@@ -1,17 +1,23 @@
 # Project Memory
-Last updated: 2026-05-14 | Session 1 | Branch: codex/him-midnight-migration
+Last updated: 2026-05-15 | Session 2 | Branch: claude/app-store-submission-prep-xIHe3
 Memory health: 8/10
 
 ## Project Overview
-H.I.M. (`hiitsme`) — retro AIM-style mobile-first messaging app. Vite + React 19 + React Router v7 web app, deployed on Vercel (web) and wrapped via Capacitor 8 for iOS + Android. Supabase for auth/Postgres/realtime. README "Stack" section is **stale** — still says Next.js 16, but the app migrated to Vite/React Router in commit `5ec1d04`.
+H.I.M. (`hiitsme`) — retro AIM-style mobile-first messaging app. Vite + React 19 + React Router v7 web app, deployed on Vercel (web) and wrapped via Capacitor 8 for iOS + Android. Supabase for auth/Postgres/realtime. README "Stack" section is **stale** — still says Next.js 16, but the app migrated to Vite/React Router in commit `5ec1d04`. CLAUDE.md also still claims Next.js + "17 migrations" (actually 25+ now).
 
 ## Where We Left Off
-- **Current task:** Midnight design system migration — **SHIPPED to main** (PR #32 + #33 + #34 all merged)
-- **Status:** Web is live with the new palette. Native bundles synced. MEMORY.md tracked.
-- **Next immediate step:** Check Xcode Cloud in App Store Connect for the auto-archive build of main; promote to TestFlight if successful. Otherwise: provide brand artwork (amber lamp glyph + splash) so `npm run ios:assets` can run, then archive.
-- **Open question:** None blocking. Brand artwork is the only thing gating native release.
+- **Current task:** App Store submission prep, Phase 3 of 4 (content filter for Apple Guideline 1.2). DB migration `20260516000026_content_moderation.sql` written; JS helper `src/lib/contentModeration.ts` + 11 unit tests passing. **Still to do this phase:** wire `flagged_at` into the `ChatMessage`/`RoomMessage` types + SELECT queries, swap the body for `MESSAGE_HIDDEN_PLACEHOLDER` on render for recipients, ship the admin queue review SQL.
+- **Status:**
+  - Phase 1 (in-app account deletion / Guideline 5.1.1(v)) — **merged in PR #36**
+  - Phase 2(a) (block + report visible on every UGC surface) — **merged in PR #36**
+  - Phase 3 (content filter / Guideline 1.2) — **in progress on this branch**
+  - Phase 4 (Legal section + push permission audit) — **not started**
+- **Next immediate step:** Finish Phase 3 (3 small items above), open new draft PR, await approval, then Phase 4.
+- **Open question:** Should `abuse_reports.source_message_id` (bigint → messages) gain a sibling `source_room_message_id` (uuid → room_messages)? Flagged for owner during Phase 2 review; deferred.
 
 ## Completed (last 10 commits)
+- 2026-05-14 `66ac562` feat(safety): expose block + report on every UGC surface (merged in PR #36)
+- 2026-05-14 `823e588` feat(account): in-app account deletion for App Store 5.1.1(v) (merged in PR #36)
 - 2026-05-xx `e534dc7` Send auth token with room invite request
 - 2026-05-xx `38a21ec` Room invite CORS 404, iOS fetch origin, plugin gates, render churn
 - 2026-05-xx `beff381` Stabilize `useAppRouter` return value — stops bootstrap re-run loop
@@ -24,11 +30,13 @@ H.I.M. (`hiitsme`) — retro AIM-style mobile-first messaging app. Vite + React 
 - Earlier: AIM-style shell polish, HIM design system, social graph + room discovery, push notifications
 
 ## Active Work
+- [ ] **Phase 3 (in flight):** wire `flagged_at` into the `ChatMessage`/`RoomMessage` types + SELECT queries (`chatMessages` fetch in `hi-its-me/page.tsx`, room message fetch in `GroupChatWindow.tsx`, idempotency `MESSAGE_SELECT_COLUMNS` in `messageIdempotency.ts`); render placeholder for recipients via `displayBodyForMessage`; ship `supabase/queries/moderation_review_queue.sql` for the owner to run.
+- [ ] **Phase 4:** Legal section on `/account` (Privacy, Terms, Contact rows) + push permission audit (don't fire `requestPermission` on cold launch; only after settings toggle OR after first sent message via "Get notified when buddies reply?" CTA).
 - [ ] Check Xcode Cloud auto-archive of main; promote to TestFlight from App Store Connect
 - [ ] Generate brand artwork (amber lamp glyph + splash) so `npm run ios:assets` can regenerate iOS icons; Android mipmaps need direct replacement
 - [ ] Fix `capacitor.config.ts` `webDir: 'dist'` vs `scripts/ios-release-preflight.mjs` expecting `'native-web'` mismatch — one-line config bug
 - [ ] Follow-up PR (after ~2 weeks clean prod): delete `--rose`, `--rose-dark`, `--gold`, `--lavender` deprecation aliases from `globals.css`
-- [ ] Update README "Stack" section — still references Next.js 16
+- [ ] Update README + CLAUDE.md "Stack" sections — still reference Next.js 16 and 17 migrations
 
 ## Blockers
 - None known
@@ -36,6 +44,9 @@ H.I.M. (`hiitsme`) — retro AIM-style mobile-first messaging app. Vite + React 
 ## Key Decisions
 | Date | Decision | Reasoning | Affects |
 |------|----------|-----------|---------|
+| 2026-05-15 | Account deletion deletes `abuse_reports` rows on BOTH reporter and target sides | Owner choice for full erasure on user request; loses some moderation trail but satisfies right-to-be-forgotten. | `supabase/functions/delete-account/` |
+| 2026-05-15 | Content moderation = DB trigger w/ baked-in regex sourced from `bad-words` npm package | Phase 3 of App Store prep. Webhook-based moderation infra was disabled in migration 15 (push moved client-side), so a `BEFORE INSERT` trigger is the cleanest server-side gate. List is regenerated via `scripts/generate-profanity-terms.mjs`, not hand-rolled. | `supabase/migrations/20260516000026_content_moderation.sql`, `src/lib/contentModeration.ts` |
+| 2026-05-15 | Message-report `source_message_id` only populated for DM reports, not room-message reports | `abuse_reports.source_message_id` is `bigint → messages(id)`, but `room_messages` uses `uuid`. Adding a sibling column deferred until owner confirms. | `abuse_reports` schema, `MessageReportSheet.tsx` wiring |
 | 2026-05-14 | Locked Midnight design system: Chiraag amber `#E8A23A` brand, midnight indigo `#1A1F3A` dark, pale stone `#F5F1E8` light, Anaar pomegranate `#9C2E2E` accent-only | Replaces rose/lavender/gold/blue. Source: Samaan brand book locked 2026.05.14. Rose retired entirely. | Whole UI, native status bar, app icon (pending) |
 | 2026-05-14 | Keep `--rose`/`--gold`/`--lavender` as deprecation aliases → `--chiraag` for one release | Safety net for ~50 inline `var(--rose)` refs scattered in globals.css; deleted in follow-up PR after 2 weeks clean prod | `src/app/globals.css` |
 | ~2026-04 | Next.js → Vite + React Router v7 + Vercel Functions | Vite migration; cleaner Capacitor bundling, simpler API split | Whole frontend + `api/` |
@@ -49,16 +60,24 @@ H.I.M. (`hiitsme`) — retro AIM-style mobile-first messaging app. Vite + React 
 |------|---------|
 | `src/context/ChatContext.tsx` | Persistent room state + unread logic |
 | `src/components/GlobalNotificationListener.tsx` | App-wide DM/room notification banners |
-| `src/components/GroupChatWindow.tsx` | Room UI + presence |
-| `src/components/ChatWindow.tsx` | DM UI (dense log, collapsible formatting) |
+| `src/components/GroupChatWindow.tsx` | Room UI + presence; long-press menu wires Report + Block sender |
+| `src/components/ChatWindow.tsx` | DM UI; long-press menu adds Report for incoming messages |
+| `src/components/MessageReportSheet.tsx` | Shared report sheet for message- or user-level reports |
+| `src/components/BuddyProfileSheet.tsx` | Profile sheet w/ Block/Unblock/Report (visible, ≤2 taps from any UGC surface) |
 | `src/components/RetroWindow.tsx` | Top-level mobile window shell |
+| `src/app/account/delete/page.tsx` | Self-service account deletion (Apple 5.1.1(v)) |
 | `src/app/hi-its-me/page.tsx` | H.I.M. main view — buddies, DMs, rooms, settings |
+| `src/lib/accountDeletion.ts` | Screenname confirmation matcher + edge-function invoke |
+| `src/lib/contentModeration.ts` | `isObjectionable()` + `displayBodyForMessage()` (mirrors DB trigger) |
+| `src/lib/profanityTerms.generated.ts` | **Auto-generated** wordlist from `bad-words`. Refresh via `scripts/generate-profanity-terms.mjs`. |
 | `src/lib/passwordRecovery.ts` | Recovery code + admin reset ticket crypto |
 | `src/lib/clientStorage.ts` | Versioned local persistence envelopes |
 | `src/lib/outbox.ts` | Offline send queue (`hiitsme:outbox:v1:<userId>`) |
+| `supabase/functions/delete-account/` | Edge function: wipes 14 user tables + auth.users (final, irreversible) |
+| `supabase/migrations/` | CLI-managed schema history (26 migrations as of 2026-05-15) |
+| `scripts/generate-profanity-terms.mjs` | Regenerates the moderation blocklist from `bad-words` npm package |
 | `capacitor.config.ts` | iOS/Android wrapper config |
 | `api/` | Vercel Functions (admin, auth, push, rooms) |
-| `supabase/migrations/` | Canonical CLI-managed schema history (17 migrations as of 2026-04-05) |
 
 ## Architecture Notes
 - Realtime channels: `active_chat_room:${roomId}` (room presence), `global_notifications_messages` (DMs), `global_notifications_room_messages` (rooms)
@@ -75,6 +94,7 @@ H.I.M. (`hiitsme`) — retro AIM-style mobile-first messaging app. Vite + React 
 | Session | Date | Summary |
 |---------|------|---------|
 | 1 | 2026-05-14 | Recovery mode init. Midnight migration shipped via PR #32 (22 files), iOS+Android bundle resync via PR #33 (86 files), MEMORY.md tracked via PR #34. PR #31 closed (stale base). nvm default set to v22 (Capacitor CLI requirement). Obsolete local commit `e534dc7` skipped during rebase — its room-invite auth fix was superseded by the Edge Function migration on origin/main. Preflight `webDir` mismatch flagged for follow-up. |
+| 2 | 2026-05-15 | App Store submission prep. **Phase 1 + Phase 2 merged via PR #36** (8 + 6 files; +801 / +546 lines). Phase 1: `/account/delete` page (typed screenname → final modal) + `delete-account` Edge Function wiping 14 tables before `auth.admin.deleteUser`. Phase 2(a): `MessageReportSheet` + long-press Report in DM threads + long-press Report/Block-sender in room threads + render-time block filter in `GroupChatWindow`. Phase 3 in progress: migration 0026 + `contentModeration.ts` + 11 unit tests done; render integration + admin queue query still to do. Discrepancies confirmed: CLAUDE.md stack docs are stale (Vite/React-Router, 26 migrations, not Next.js / 17). |
 
 ## User Preferences
 - Concise, direct responses; no trailing summaries
@@ -83,7 +103,8 @@ H.I.M. (`hiitsme`) — retro AIM-style mobile-first messaging app. Vite + React 
 - Default to no comments unless WHY is non-obvious
 
 ## External Context
-- Supabase: 17 migrations applied (`20260320000001` → `20260405220000`), at least one admin row required in `public.admin_users`
-- Vercel: deploys web; env vars `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_APP_API_ORIGIN`, `SUPABASE_SERVICE_ROLE_KEY`
+- Supabase: 26 migrations applied through `20260516000026_content_moderation.sql` (latest committed; not yet pushed). At least one admin row required in `public.admin_users`.
+- Vercel: deploys web; env vars `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_APP_API_ORIGIN`, `SUPABASE_SERVICE_ROLE_KEY`. Vite reads via `import.meta.env.VITE_*` for client-side; `.env.local` should mirror.
 - Native push: APNs auth key `AuthKey_XV95PUP6YN.p8` is in repo root (verify ignored in production)
 - Release docs: `IOS_APP_STORE_RELEASE.md`, `ANDROID_PLAY_RELEASE.md`
+- App Store prep PR #36 merged 2026-05-15 (Phase 1 + Phase 2). Phase 3/4 will ship in a follow-up PR off the same branch.

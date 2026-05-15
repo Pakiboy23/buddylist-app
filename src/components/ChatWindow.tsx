@@ -45,6 +45,7 @@ import {
   filterExpiredMessages,
   formatDisappearingTimerLabel,
 } from '@/lib/trustSafety';
+import { MESSAGE_HIDDEN_PLACEHOLDER } from '@/lib/contentModeration';
 
 export interface ChatMessage {
   id: number;
@@ -63,6 +64,7 @@ export interface ChatMessage {
   edited_at?: string | null;
   deleted_at?: string | null;
   deleted_by?: string | null;
+  flagged_at?: string | null;
 }
 
 export interface ChatComposeSubmitPayload {
@@ -672,10 +674,15 @@ export default function ChatWindow({
   const richTextPresentationByMessageId = useMemo(() => {
     const presentation = new Map<number, ReturnType<typeof getRichTextPresentation>>();
     for (const message of visibleMessages) {
-      presentation.set(message.id, getRichTextPresentation(message.content));
+      const viewerIsAuthor = message.sender_id === currentUserId;
+      const effectiveBody =
+        message.flagged_at && !viewerIsAuthor
+          ? MESSAGE_HIDDEN_PLACEHOLDER
+          : message.content;
+      presentation.set(message.id, getRichTextPresentation(effectiveBody));
     }
     return presentation;
-  }, [visibleMessages]);
+  }, [visibleMessages, currentUserId]);
   const visibleOutboxItems = useMemo(() => {
     const deliveredClientIds = new Set(
       visibleMessages
@@ -1609,8 +1616,12 @@ export default function ChatWindow({
                     .filter((entry) => entry.reactedByMe)
                     .map((entry) => entry.emoji);
                   const messageAttachments = attachmentsByMessageId.get(message.id) ?? [];
+                  const fallbackBody =
+                    message.flagged_at && message.sender_id !== currentUserId
+                      ? MESSAGE_HIDDEN_PLACEHOLDER
+                      : message.content;
                   const richTextPresentation = richTextPresentationByMessageId.get(message.id) ?? {
-                    html: sanitizeRichTextHtml(message.content),
+                    html: sanitizeRichTextHtml(fallbackBody),
                     hasCustomStyling: false,
                   };
                   const hasCustomStyling = richTextPresentation.hasCustomStyling;

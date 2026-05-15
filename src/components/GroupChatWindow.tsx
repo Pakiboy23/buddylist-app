@@ -30,6 +30,7 @@ import {
   RichTextFormat,
   sanitizeRichTextHtml,
 } from '@/lib/richText';
+import { MESSAGE_HIDDEN_PLACEHOLDER } from '@/lib/contentModeration';
 import {
   EXTENDED_ROOM_PROFILE_SELECT_FIELDS,
   isProfileSchemaMissingError,
@@ -49,6 +50,7 @@ interface RoomMessage {
   user_id: string;
   body: string;
   created_at: string;
+  flagged_at?: string | null;
 }
 
 interface RosterMember {
@@ -993,10 +995,15 @@ export default function GroupChatWindow({
   const richTextPresentationByMessageId = useMemo(() => {
     const presentation = new Map<string, ReturnType<typeof getRichTextPresentation>>();
     for (const message of messages) {
-      presentation.set(message.id, getRichTextPresentation(message.body));
+      const viewerIsAuthor = message.user_id === currentUserId;
+      const effectiveBody =
+        message.flagged_at && !viewerIsAuthor
+          ? MESSAGE_HIDDEN_PLACEHOLDER
+          : message.body;
+      presentation.set(message.id, getRichTextPresentation(effectiveBody));
     }
     return presentation;
-  }, [messages]);
+  }, [messages, currentUserId]);
   const messagesById = useMemo(() => {
     return new Map(messages.map((message) => [message.id, message] as const));
   }, [messages]);
@@ -1504,8 +1511,12 @@ export default function GroupChatWindow({
                     !isMine && plainMessageText.includes(`@${currentUserScreenname.trim().toLowerCase()}`);
                   const timestampDate = new Date(message.created_at);
                   const fullTimestamp = timestampDate.toLocaleString();
+                  const fallbackBody =
+                    message.flagged_at && message.user_id !== currentUserId
+                      ? MESSAGE_HIDDEN_PLACEHOLDER
+                      : message.body;
                   const richTextPresentation = richTextPresentationByMessageId.get(message.id) ?? {
-                    html: sanitizeRichTextHtml(message.body),
+                    html: sanitizeRichTextHtml(fallbackBody),
                     hasCustomStyling: false,
                   };
                   const hasCustomStyling = richTextPresentation.hasCustomStyling;

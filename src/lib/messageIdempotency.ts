@@ -23,6 +23,7 @@ export interface DirectMessageRow {
   deleted_at?: string | null;
   deleted_by?: string | null;
   client_msg_id?: string | null;
+  flagged_at?: string | null;
 }
 
 export interface RoomMessageRow {
@@ -31,13 +32,14 @@ export interface RoomMessageRow {
   user_id: string;
   body: string;
   created_at: string;
+  flagged_at?: string | null;
 }
 
 export const DIRECT_MESSAGE_SELECT_FIELDS =
-  'id,sender_id,receiver_id,content,created_at,delivered_at,read_at,reply_to_message_id,forward_source_message_id,forward_source_sender_id,expires_at,preview_type,edited_at,deleted_at,deleted_by,client_msg_id';
+  'id,sender_id,receiver_id,content,created_at,delivered_at,read_at,reply_to_message_id,forward_source_message_id,forward_source_sender_id,expires_at,preview_type,edited_at,deleted_at,deleted_by,client_msg_id,flagged_at';
 export const LEGACY_DIRECT_MESSAGE_SELECT_FIELDS =
   'id,sender_id,receiver_id,content,created_at,edited_at,deleted_at,deleted_by,client_msg_id';
-export const ROOM_MESSAGE_SELECT_FIELDS = 'id,room_id,user_id,body,created_at';
+export const ROOM_MESSAGE_SELECT_FIELDS = 'id,room_id,user_id,body,created_at,flagged_at';
 
 function isClientMessageConflict(error: DatabaseErrorLike | null | undefined) {
   if (!error) {
@@ -61,6 +63,7 @@ export function isDirectMessageMetadataSchemaMissingError(error: DatabaseErrorLi
     'forward_source_message_id',
     'forward_source_sender_id',
     'preview_type',
+    'flagged_at',
   ].some((token) => message.includes(token));
 }
 
