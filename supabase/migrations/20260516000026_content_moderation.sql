@@ -44,7 +44,8 @@ returns trigger
 language plpgsql
 as $$
 begin
-  if public.message_content_appears_objectionable(new.content) then
+  -- room_messages stores text in `body` (not `content` like the DM messages table).
+  if public.message_content_appears_objectionable(new.body) then
     new.flagged_at := timezone('utc', now());
   end if;
   return new;
