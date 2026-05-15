@@ -86,16 +86,33 @@ Deno.serve(async (req: Request) => {
       recordDelete('messages', 'receiver_id');
     }
 
-    // Room messages authored by the user.
+    // Room messages authored by the user. Rooms v2 (migration 20260509184623)
+    // replaced the `sender_id` column with `user_id`. Try the new shape first
+    // and fall back to the legacy column name so this code is correct against
+    // either schema.
     {
-      const { error } = await admin.from('room_messages').delete().eq('sender_id', userId);
+      let { error } = await admin.from('room_messages').delete().eq('user_id', userId);
+      if (error && /sender_id|user_id/i.test(error.message ?? '')) {
+        ({ error } = await admin.from('room_messages').delete().eq('sender_id', userId));
+      }
       if (error && !isMissingTable(error)) {
         throw new Error(`room_messages: ${error.message}`);
       }
-      recordDelete('room_messages', 'sender_id');
+      recordDelete('room_messages', 'user_id');
     }
 
-    // Room participants + active rooms.
+    // Room memberships (rooms v2). Replaces room_participants from rooms v1.
+    {
+      const { error } = await admin.from('room_memberships').delete().eq('user_id', userId);
+      if (error && !isMissingTable(error)) {
+        throw new Error(`room_memberships: ${error.message}`);
+      }
+      recordDelete('room_memberships', 'user_id');
+    }
+
+    // Legacy rooms v1 tables. Production has these as `_archive_*` after the
+    // rooms v2 launch — kept here so the delete sweeps any environment that
+    // still has v1 active.
     {
       const { error } = await admin.from('room_participants').delete().eq('user_id', userId);
       if (error && !isMissingTable(error)) {

@@ -23,9 +23,10 @@ Returns `200 { ok: true, userId, deletes: [...] }` on success or `500 { error, d
 | Table                  | Filter(s)                       | Notes                                                              |
 |------------------------|---------------------------------|--------------------------------------------------------------------|
 | `messages`             | `sender_id`, `receiver_id`      | Direct messages on both sides.                                     |
-| `room_messages`        | `sender_id`                     | Group/room messages authored by the user.                          |
-| `room_participants`    | `user_id`                       | Membership in rooms.                                               |
-| `user_active_rooms`    | `user_id`                       | Persistent room list / unread counters.                            |
+| `room_messages`        | `user_id` (v2) → `sender_id` (v1 fallback) | Group/room messages authored by the user.              |
+| `room_memberships`     | `user_id`                       | Rooms v2 membership (replaces `room_participants`).                |
+| `room_participants`    | `user_id`                       | Rooms v1 membership. Production has this as `_archive_room_participants` after the v2 launch — kept for envs still on v1. |
+| `user_active_rooms`    | `user_id`                       | Rooms v1 persistent list / unread counters. Production has this as `_archive_user_active_rooms` after the v2 launch. |
 | `user_dm_state`        | `user_id`, `buddy_id`           | Per-DM unread counters on both sides of every DM.                  |
 | `user_dm_preferences`  | `user_id`, `buddy_id`           | Per-DM pin/mute/archive/theme/wallpaper/disappearing-timer.        |
 | `blocked_users`        | `blocker_id`, `blocked_id`      | Block records on both sides.                                       |
