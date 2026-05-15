@@ -14,7 +14,7 @@ H.I.M. (`hiitsme`) — retro AIM-style mobile-first messaging app. Vite + React 
   - Carryover cleanup (sync repo migrations to live DB, fix README/CLAUDE.md, delete-account rooms-v2) — **in progress on this branch**
   - Phase 4 (Legal section + push permission audit) — **not started**
 - **Next immediate step:** Open PR for the carryover cleanup, then Phase 4.
-- **Open notes:** Local migrations `20260410000018` through `20260411000022` (`user_connections`, `room_type_and_discovery`, `presence_visibility`, `connection_notifications`, `add_screenname_changed_at`) exist in the repo but are NOT in `supabase_migrations.schema_migrations` on prod — they were applied via SQL editor outside migration tracking. The tables they create (e.g. `user_connections`) DO exist in production. Leaving them as-is for now; a future cleanup pass should register them in the migrations table or fold them into a single bootstrap migration.
+- **Open notes:** Local migrations `20260410000018` through `20260411000022` (`user_connections`, `room_type_and_discovery`, `presence_visibility`, `connection_notifications`, `add_screenname_changed_at`) plus the duplicate-named local versions of `add_invite_to_room_rpc` (0023), `drop_password_recovery` (0024), and `block_report_completion` (0025) have been registered in `supabase_migrations.schema_migrations` as already-applied (repair pass, 2026-05-15). A fresh `supabase db push` from the repo against prod is now a clean no-op.
 
 ## Completed (last 10 commits)
 - 2026-05-14 `66ac562` feat(safety): expose block + report on every UGC surface (merged in PR #36)
