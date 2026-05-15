@@ -436,6 +436,7 @@ export default function BuddyProfileSheet({
                     onClick={onBlockBuddy}
                     disabled={isBlocking}
                     className="ui-focus-ring ui-button-danger rounded-2xl px-4 py-2.5 text-[length:var(--ui-text-md)] disabled:opacity-60"
+                    data-testid="profile-block"
                   >
                     {isBlocking ? 'Blocking…' : 'Block'}
                   </button>

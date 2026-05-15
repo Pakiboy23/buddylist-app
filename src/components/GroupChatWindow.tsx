@@ -113,6 +113,14 @@ interface GroupChatWindowProps {
   onLeave: () => void;
   onSignOff?: () => void;
   reloadToken?: number;
+  blockedUserIds?: string[];
+  onReportRoomMessage?: (payload: {
+    messageId: string;
+    senderId: string;
+    senderScreenname: string;
+    contentPreview: string;
+  }) => void;
+  onBlockRoomUser?: (payload: { userId: string; screenname: string }) => void;
 }
 
 const GROUP_SENDER_COLOR_CLASSES = [
@@ -168,7 +176,11 @@ export default function GroupChatWindow({
   onLeave,
   onSignOff,
   reloadToken = 0,
+  blockedUserIds = [],
+  onReportRoomMessage,
+  onBlockRoomUser,
 }: GroupChatWindowProps) {
+  const blockedUserIdSet = useMemo(() => new Set(blockedUserIds), [blockedUserIds]);
   const { clearUnreads } = useChatContext();
   const [messages, setMessages] = useState<RoomMessage[]>([]);
   const [participants, setParticipants] = useState<RoomParticipant[]>([]);
@@ -190,6 +202,8 @@ export default function GroupChatWindow({
   const [showConversationMenu, setShowConversationMenu] = useState(false);
   const [showComposerTools, setShowComposerTools] = useState(false);
   const [mentioningMessageId, setMentioningMessageId] = useState<string | null>(null);
+  const [longPressRoomMessageId, setLongPressRoomMessageId] = useState<string | null>(null);
+  const longPressRoomTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [composerAreaHeight, setComposerAreaHeight] = useState(0);
   const [isComposerFocused, setIsComposerFocused] = useState(false);
   const [enableSupplementalRealtime, setEnableSupplementalRealtime] = useState(false);
@@ -1474,9 +1488,13 @@ export default function GroupChatWindow({
                 className="flex flex-col gap-0.5"
                 onClick={() => {
                   setShowConversationMenu(false);
+                  setLongPressRoomMessageId(null);
                 }}
               >
                 {messages.map((message, index) => {
+                  if (blockedUserIdSet.has(message.user_id)) {
+                    return null;
+                  }
                   const senderName = screennameMap[message.user_id] || 'Unknown User';
                   const isMine = message.user_id === currentUserId;
                   const isMatch = normalizedSearchQuery ? Boolean(messageMatches.get(message.id)) : false;
@@ -1534,7 +1552,34 @@ export default function GroupChatWindow({
                             onTrigger={() => startMentioningMessage(message)}
                             className="max-w-[82%]"
                           >
-                            <div className="group relative focus:outline-none" tabIndex={0}>
+                            <div
+                              className="group relative focus:outline-none"
+                              tabIndex={0}
+                              onTouchStart={() => {
+                                if (isMine) return;
+                                longPressRoomTimerRef.current = setTimeout(() => {
+                                  void hapticLight();
+                                  setLongPressRoomMessageId(message.id);
+                                }, 500);
+                              }}
+                              onTouchEnd={() => {
+                                if (longPressRoomTimerRef.current) {
+                                  clearTimeout(longPressRoomTimerRef.current);
+                                  longPressRoomTimerRef.current = null;
+                                }
+                              }}
+                              onTouchMove={() => {
+                                if (longPressRoomTimerRef.current) {
+                                  clearTimeout(longPressRoomTimerRef.current);
+                                  longPressRoomTimerRef.current = null;
+                                }
+                              }}
+                              onContextMenu={(event) => {
+                                if (isMine) return;
+                                event.preventDefault();
+                                setLongPressRoomMessageId(message.id);
+                              }}
+                            >
                               {!isMine && clusterMeta.isFirstInRun ? (
                                 <div className="mb-1 flex items-center gap-2 px-1">
                                   <span className={`ui-screenname text-[11px] font-semibold ${senderColorClass}`}>
@@ -1573,16 +1618,59 @@ export default function GroupChatWindow({
 
                               <div
                                 data-swipe-ignore="true"
-                                className="absolute bottom-full right-0 z-10 mb-2 min-w-[10rem] hidden group-hover:flex group-focus-within:flex flex-col gap-1 rounded-2xl border border-white/70 bg-white/90 p-2 shadow-lg backdrop-blur-md dark:border-slate-700/70 dark:bg-[#0F1424]/88"
+                                className={`absolute bottom-full right-0 z-10 mb-2 min-w-[10rem] flex-col gap-1 rounded-2xl border border-white/70 bg-white/90 p-2 shadow-lg backdrop-blur-md dark:border-slate-700/70 dark:bg-[#0F1424]/88 ${
+                                  longPressRoomMessageId === message.id
+                                    ? 'flex'
+                                    : 'hidden group-hover:flex group-focus-within:flex'
+                                }`}
                               >
                                 {!isMine ? (
                                   <button
                                     type="button"
-                                    onClick={() => startMentioningMessage(message)}
+                                    onClick={() => {
+                                      startMentioningMessage(message);
+                                      setLongPressRoomMessageId(null);
+                                    }}
                                     className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-[#0F1424]"
                                     aria-label={`Mention ${senderName}`}
                                   >
                                     Mention
+                                  </button>
+                                ) : null}
+                                {!isMine && onReportRoomMessage ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      onReportRoomMessage({
+                                        messageId: message.id,
+                                        senderId: message.user_id,
+                                        senderScreenname: senderName,
+                                        contentPreview: plainMessageText,
+                                      });
+                                      setLongPressRoomMessageId(null);
+                                    }}
+                                    className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/30"
+                                    aria-label={`Report message from ${senderName}`}
+                                    data-testid="room-message-report"
+                                  >
+                                    Report
+                                  </button>
+                                ) : null}
+                                {!isMine && onBlockRoomUser ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      onBlockRoomUser({
+                                        userId: message.user_id,
+                                        screenname: senderName,
+                                      });
+                                      setLongPressRoomMessageId(null);
+                                    }}
+                                    className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/30"
+                                    aria-label={`Block ${senderName}`}
+                                    data-testid="room-message-block"
+                                  >
+                                    Block sender
                                   </button>
                                 ) : null}
                               </div>
