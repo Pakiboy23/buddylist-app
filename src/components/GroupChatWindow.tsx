@@ -40,7 +40,9 @@ import {
 import { useChatContext } from '@/context/ChatContext';
 import { createClientMessageId } from '@/lib/outbox';
 import {
+  LEGACY_ROOM_MESSAGE_SELECT_FIELDS,
   ROOM_MESSAGE_SELECT_FIELDS,
+  isRoomMessageMetadataSchemaMissingError,
   sendRoomMessageWithClientMessageId,
 } from '@/lib/messageIdempotency';
 
@@ -585,12 +587,28 @@ export default function GroupChatWindow({
       setIsLoadingMessages(true);
       setError(null);
 
-      const { data, error: messagesError } = await supabase
+      let data: unknown = null;
+      let messagesError: { message?: string | null; code?: string | null } | null = null;
+
+      const initial = await supabase
         .from('room_messages')
         .select(ROOM_MESSAGE_SELECT_FIELDS)
         .eq('room_id', roomId)
         .order('created_at', { ascending: true })
         .limit(300);
+      data = initial.data;
+      messagesError = initial.error;
+
+      if (isRoomMessageMetadataSchemaMissingError(messagesError)) {
+        const fallback = await supabase
+          .from('room_messages')
+          .select(LEGACY_ROOM_MESSAGE_SELECT_FIELDS)
+          .eq('room_id', roomId)
+          .order('created_at', { ascending: true })
+          .limit(300);
+        data = fallback.data;
+        messagesError = fallback.error;
+      }
 
       if (isCancelled) {
         return;
@@ -598,7 +616,7 @@ export default function GroupChatWindow({
 
       if (messagesError) {
         setMessages([]);
-        setError(messagesError.message);
+        setError(messagesError.message ?? 'Failed to load messages.');
         setIsLoadingMessages(false);
         return;
       }
