@@ -1,11 +1,13 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { isNativeIosShell, publishNativeShellChromeState } from '@/lib/nativeShell';
+import { useTheme } from '@/hooks/useTheme';
 
 const HI_ITS_ME_PATH = '/hi-its-me';
 
 export default function NativeShellRouteSync() {
   const { pathname } = useLocation();
+  const { isDark } = useTheme();
 
   useEffect(() => {
     if (!isNativeIosShell()) {
@@ -15,9 +17,6 @@ export default function NativeShellRouteSync() {
     if (pathname.startsWith(HI_ITS_ME_PATH)) {
       return;
     }
-
-    const isDark =
-      typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
 
     void publishNativeShellChromeState({
       title: 'H.I.M.',
@@ -33,7 +32,7 @@ export default function NativeShellRouteSync() {
       showsTopChrome: false,
       showsBottomChrome: false,
     });
-  }, [pathname]);
+  }, [pathname, isDark]);
 
   return null;
 }
