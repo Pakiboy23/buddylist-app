@@ -9,6 +9,7 @@ ENTRYPOINT_FILE="$WEB_BUNDLE_DIR/index.html"
 VENDOR_ROOT="$IOS_PROJECT_ROOT/CapacitorVendor"
 REQUIRED_VENDOR_PACKAGES="
 $VENDOR_ROOT/AparajitaCapacitorBiometricAuth
+$VENDOR_ROOT/CapacitorApp
 $VENDOR_ROOT/CapacitorHaptics
 $VENDOR_ROOT/CapacitorLocalNotifications
 $VENDOR_ROOT/CapacitorPushNotifications
