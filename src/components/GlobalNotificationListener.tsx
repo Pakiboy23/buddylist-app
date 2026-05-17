@@ -552,10 +552,7 @@ export default function GlobalNotificationListener() {
           ),
         );
 
-        let permissionState = await PushNotifications.checkPermissions();
-        if (permissionState.receive === 'prompt') {
-          permissionState = await PushNotifications.requestPermissions();
-        }
+        const permissionState = await PushNotifications.checkPermissions();
 
         if (isCancelled || permissionState.receive !== 'granted') {
           return;
