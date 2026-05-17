@@ -38,8 +38,8 @@ function runCommand(command, args) {
 
 async function assertBundledIosSync() {
   const generatedConfig = JSON.parse(await readFile(generatedCapacitorConfigPath, 'utf8'));
-  if (generatedConfig.webDir !== 'native-web') {
-    throw new Error(`Expected generated iOS webDir to be native-web, received ${generatedConfig.webDir ?? 'unknown'}.`);
+  if (generatedConfig.webDir !== 'dist') {
+    throw new Error(`Expected generated iOS webDir to be dist, received ${generatedConfig.webDir ?? 'unknown'}.`);
   }
   if (generatedConfig.server) {
     throw new Error('Generated iOS Capacitor config still includes server.url. Release sync must stay bundled.');

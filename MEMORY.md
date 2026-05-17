@@ -1,19 +1,20 @@
 # Project Memory
 Last updated: 2026-05-15 | Session 2 | Branch: claude/app-store-submission-prep-xIHe3
-Memory health: 8/10
+Memory health: 9/10
 
 ## Project Overview
-H.I.M. (`hiitsme`) — retro AIM-style mobile-first messaging app. Vite + React 19 + React Router v7 web app, deployed on Vercel (web) and wrapped via Capacitor 8 for iOS + Android. Supabase for auth/Postgres/realtime. README "Stack" section is **stale** — still says Next.js 16, but the app migrated to Vite/React Router in commit `5ec1d04`. CLAUDE.md also still claims Next.js + "17 migrations" (actually 25+ now).
+H.I.M. (`hiitsme`) — retro AIM-style mobile-first messaging app. Vite + React 19 + React Router v7 web app, deployed on Vercel (web) and wrapped via Capacitor 8 for iOS + Android. Supabase for auth/Postgres/realtime/edge-functions. README + CLAUDE.md were stale (Next.js claim, "17 migrations"); refreshed in 2026-05-15 cleanup pass.
 
 ## Where We Left Off
-- **Current task:** App Store submission prep, Phase 3 of 4 (content filter for Apple Guideline 1.2). DB migration `20260516000026_content_moderation.sql` written; JS helper `src/lib/contentModeration.ts` + 11 unit tests passing. **Still to do this phase:** wire `flagged_at` into the `ChatMessage`/`RoomMessage` types + SELECT queries, swap the body for `MESSAGE_HIDDEN_PLACEHOLDER` on render for recipients, ship the admin queue review SQL.
+- **Current task:** Carryover cleanup after Phase 3 ship — repo migration sync, doc refresh, delete-account rooms-v2 awareness.
 - **Status:**
   - Phase 1 (in-app account deletion / Guideline 5.1.1(v)) — **merged in PR #36**
   - Phase 2(a) (block + report visible on every UGC surface) — **merged in PR #36**
-  - Phase 3 (content filter / Guideline 1.2) — **in progress on this branch**
+  - Phase 3 (content filter / Guideline 1.2) — **merged in PR #37 + hotfix #38; migration applied to prod**
+  - Carryover cleanup (sync repo migrations to live DB, fix README/CLAUDE.md, delete-account rooms-v2) — **in progress on this branch**
   - Phase 4 (Legal section + push permission audit) — **not started**
-- **Next immediate step:** Finish Phase 3 (3 small items above), open new draft PR, await approval, then Phase 4.
-- **Open question:** Should `abuse_reports.source_message_id` (bigint → messages) gain a sibling `source_room_message_id` (uuid → room_messages)? Flagged for owner during Phase 2 review; deferred.
+- **Next immediate step:** Open PR for the carryover cleanup, then Phase 4.
+- **Open notes:** Local migrations `20260410000018` through `20260411000022` (`user_connections`, `room_type_and_discovery`, `presence_visibility`, `connection_notifications`, `add_screenname_changed_at`) plus the duplicate-named local versions of `add_invite_to_room_rpc` (0023), `drop_password_recovery` (0024), and `block_report_completion` (0025) have been registered in `supabase_migrations.schema_migrations` as already-applied (repair pass, 2026-05-15). A fresh `supabase db push` from the repo against prod is now a clean no-op.
 
 ## Completed (last 10 commits)
 - 2026-05-14 `66ac562` feat(safety): expose block + report on every UGC surface (merged in PR #36)
@@ -94,7 +95,7 @@ H.I.M. (`hiitsme`) — retro AIM-style mobile-first messaging app. Vite + React 
 | Session | Date | Summary |
 |---------|------|---------|
 | 1 | 2026-05-14 | Recovery mode init. Midnight migration shipped via PR #32 (22 files), iOS+Android bundle resync via PR #33 (86 files), MEMORY.md tracked via PR #34. PR #31 closed (stale base). nvm default set to v22 (Capacitor CLI requirement). Obsolete local commit `e534dc7` skipped during rebase — its room-invite auth fix was superseded by the Edge Function migration on origin/main. Preflight `webDir` mismatch flagged for follow-up. |
-| 2 | 2026-05-15 | App Store submission prep. **Phase 1 + Phase 2 merged via PR #36** (8 + 6 files; +801 / +546 lines). Phase 1: `/account/delete` page (typed screenname → final modal) + `delete-account` Edge Function wiping 14 tables before `auth.admin.deleteUser`. Phase 2(a): `MessageReportSheet` + long-press Report in DM threads + long-press Report/Block-sender in room threads + render-time block filter in `GroupChatWindow`. Phase 3 in progress: migration 0026 + `contentModeration.ts` + 11 unit tests done; render integration + admin queue query still to do. Discrepancies confirmed: CLAUDE.md stack docs are stale (Vite/React-Router, 26 migrations, not Next.js / 17). |
+| 2 | 2026-05-15 | App Store submission prep. **Phase 1 + Phase 2 merged via PR #36; Phase 3 merged via PR #37 + hotfix PR #38**. Phase 1: `/account/delete` page (typed screenname → final modal) + `delete-account` Edge Function wiping 14 tables before `auth.admin.deleteUser`. Phase 2(a): `MessageReportSheet` + long-press Report in DM threads + long-press Report/Block-sender in room threads + render-time block filter in `GroupChatWindow`. Phase 3: migration 0026 (later renamed to applied version `20260515021650`) + `contentModeration.ts` + 11 unit tests; render integration + admin queue query shipped. Hotfix #38 corrected the room-trigger column reference (`new.body` not `new.content`). Migration applied to prod via Supabase MCP. **Carryover cleanup pass (this session, post-#38):** imported 8 remote-only migrations into the repo (`drop_last_seen_column`, `migrate_messages_id_bigint_to_uuid_v2`, two `add_invite_to_room_rpc` revisions, `rooms_v2_launch_schema`, `add_discoverable_flag`, `fix_room_memberships_rls_recursion`, `add_join_leave_room_rpcs`); renamed local content_moderation file to its applied version; updated `delete-account` to sweep `room_memberships` (rooms v2) alongside the legacy v1 tables; refreshed README + CLAUDE.md to reflect the Vite stack + rooms v2 + content moderation; learned that `abuse_reports.source_message_id` was already migrated to uuid in prod (the originally-flagged bigint mismatch is moot). |
 
 ## User Preferences
 - Concise, direct responses; no trailing summaries
