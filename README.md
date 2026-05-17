@@ -1,6 +1,6 @@
 # H.I.M. App
 
-A retro AIM-style messaging app built with Next.js + Supabase, now mobile-first with persistent room sessions, unread tracking, global realtime notifications, and Capacitor iOS/Android wrappers.
+A retro AIM-style messaging app built with Vite + React Router + Supabase, mobile-first, with persistent room sessions, unread tracking, global realtime notifications, and Capacitor iOS/Android wrappers.
 
 ## Current Status
 
@@ -51,15 +51,20 @@ This is a product decision, not an unfinished parity backlog. If a room feature 
 
 ## Stack
 
-- Next.js 16 (App Router, Turbopack)
+- Vite 6 + React Router v7
 - React 19
 - TypeScript
 - Tailwind CSS v4
 - Capacitor 8 (`@capacitor/core`, `@capacitor/ios`, `@capacitor/android`)
 - Supabase:
   - Auth
-  - Postgres
+  - Postgres 17
   - Realtime
+  - Storage
+  - Edge Functions (Deno)
+- Vercel: web hosting + serverless `api/` functions
+
+(The repo was migrated off Next.js in commit `5ec1d04`. Folder names under `src/app/` still mirror the old App Router convention, but they're plain React components wired into `src/App.tsx` via `react-router-dom`.)
 
 ## Core App Routes
 
@@ -85,10 +90,15 @@ cp .env.example .env.local
 `.env.local` should contain:
 
 ```bash
-NEXT_PUBLIC_SUPABASE_URL=...
-NEXT_PUBLIC_SUPABASE_ANON_KEY=...
-NEXT_PUBLIC_APP_API_ORIGIN=...
+# Client-side (read via import.meta.env after the Vite migration)
+VITE_SUPABASE_URL=...
+VITE_SUPABASE_ANON_KEY=...
+
+# Server-side only (Vercel Functions, Edge Functions, admin tooling)
 SUPABASE_SERVICE_ROLE_KEY=...
+
+# Native bundles hitting the hosted API origin (var name kept for backward compat)
+NEXT_PUBLIC_APP_API_ORIGIN=...
 ```
 
 Optional E2E (Playwright) env vars for seeded test users:
