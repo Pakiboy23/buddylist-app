@@ -16,6 +16,11 @@ const packages = [
     packageName: 'AparajitaCapacitorBiometricAuth',
   },
   {
+    source: path.join(repoRoot, 'node_modules', '@capacitor', 'app'),
+    vendorDir: 'CapacitorApp',
+    packageName: 'CapacitorApp',
+  },
+  {
     source: path.join(repoRoot, 'node_modules', '@capacitor', 'haptics'),
     vendorDir: 'CapacitorHaptics',
     packageName: 'CapacitorHaptics',
