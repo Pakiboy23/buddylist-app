@@ -9,6 +9,7 @@ WEB_BUNDLE_DIR="$IOS_PROJECT_ROOT/App/public"
 VENDOR_ROOT="$IOS_PROJECT_ROOT/CapacitorVendor"
 REQUIRED_PACKAGES="
 $VENDOR_ROOT/AparajitaCapacitorBiometricAuth
+$VENDOR_ROOT/CapacitorApp
 $VENDOR_ROOT/CapacitorHaptics
 $VENDOR_ROOT/CapacitorLocalNotifications
 $VENDOR_ROOT/CapacitorPushNotifications
