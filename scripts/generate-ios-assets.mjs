@@ -14,7 +14,7 @@ const iconPath = path.join(
   'App',
   'Assets.xcassets',
   'AppIcon.appiconset',
-  'AppIcon-512@2x.png',
+  'icon-1024.png',
 );
 
 const splashDir = path.join(

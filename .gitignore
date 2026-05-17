@@ -50,6 +50,9 @@ next-env.d.ts
 # generated artifacts
 /artifacts
 
+# App Store screenshots (large PNGs — upload to ASC manually, do not commit)
+/screenshots/app-store
+
 # Android build artifacts (keep android/ source, exclude build outputs)
 /android/app/build/
 /android/build/
