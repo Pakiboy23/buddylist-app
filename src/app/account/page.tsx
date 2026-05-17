@@ -1,9 +1,15 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import AppIcon from '@/components/AppIcon';
 import HimWordmark from '@/components/HimWordmark';
 import RetroWindow from '@/components/RetroWindow';
 import { useAppRouter, navigateAppPath } from '@/lib/appNavigation';
 import { waitForSessionOrNull } from '@/lib/authClient';
+import {
+  checkPushPermission,
+  requestAndRegisterPush,
+  type PushPermissionStatus,
+} from '@/lib/nativePush';
 import { supabase } from '@/lib/supabase';
 
 // Legacy accounts were created with derived emails like `<screenname>@hiitsme.app`
@@ -21,6 +27,10 @@ function isLegacyDerivedEmail(email: string | null | undefined): boolean {
 
 function isStrongEnoughPassword(password: string) {
   return password.length >= 8;
+}
+
+function openExternalUrl(url: string) {
+  window.open(url, Capacitor.isNativePlatform() ? '_system' : '_blank');
 }
 
 type EmailPhase = 'idle' | 'submitting' | 'sent' | 'error';
@@ -43,7 +53,21 @@ export default function AccountPage() {
   const [passwordPhase, setPasswordPhase] = useState<PasswordPhase>('idle');
   const [passwordMessage, setPasswordMessage] = useState<string>('');
 
+  const [pushStatus, setPushStatus] = useState<PushPermissionStatus>('not-native');
+  const [pushRequesting, setPushRequesting] = useState(false);
+
   const showLegacyNotice = useMemo(() => isLegacyDerivedEmail(currentEmail), [currentEmail]);
+
+  useEffect(() => {
+    void checkPushPermission().then(setPushStatus);
+  }, []);
+
+  const handleEnableNotifications = useCallback(async () => {
+    setPushRequesting(true);
+    const result = await requestAndRegisterPush();
+    setPushStatus(result);
+    setPushRequesting(false);
+  }, []);
 
   const fieldClass = useMemo(
     () => 'ui-focus-ring ui-auth-field min-h-[52px] w-full rounded-2xl px-4 py-3 text-[15px] font-medium',
@@ -321,6 +345,64 @@ export default function AccountPage() {
             >
               Delete account
             </button>
+          </div>
+
+          {pushStatus !== 'not-native' && (
+            <div className={`${sectionClass} space-y-3`}>
+              <div>
+                <h2 className="text-[16px] font-semibold text-slate-900 dark:text-slate-50">
+                  Notifications
+                </h2>
+                {pushStatus === 'granted' && (
+                  <p className="mt-1 text-[13px] leading-5 text-emerald-600 dark:text-emerald-400">
+                    Push notifications are enabled.
+                  </p>
+                )}
+                {pushStatus === 'prompt' && (
+                  <p className="mt-1 text-[13px] leading-5 text-slate-500 dark:text-slate-400">
+                    Get alerted when buddies send you a message.
+                  </p>
+                )}
+                {pushStatus === 'denied' && (
+                  <p className="mt-1 text-[13px] leading-5 text-slate-500 dark:text-slate-400">
+                    Notifications are off. Go to Settings → H.I.M. → Notifications to re-enable.
+                  </p>
+                )}
+              </div>
+              {pushStatus === 'prompt' && (
+                <button
+                  type="button"
+                  onClick={() => { void handleEnableNotifications(); }}
+                  disabled={pushRequesting}
+                  className={submitClass}
+                >
+                  {pushRequesting ? 'Requesting...' : 'Enable notifications'}
+                </button>
+              )}
+            </div>
+          )}
+
+          <div className={`${sectionClass} space-y-0.5`}>
+            <h2 className="mb-2 text-[16px] font-semibold text-slate-900 dark:text-slate-50">
+              Legal
+            </h2>
+            {(
+              [
+                { label: 'Privacy Policy', href: 'https://hiitsme.app/privacy' },
+                { label: 'Terms of Service', href: 'https://hiitsme.app/terms' },
+                { label: 'Contact Support', href: 'mailto:support@hiitsme.app' },
+              ] as const
+            ).map(({ label, href }) => (
+              <button
+                key={href}
+                type="button"
+                onClick={() => openExternalUrl(href)}
+                className="ui-focus-ring flex min-h-[44px] w-full items-center justify-between rounded-xl px-1 py-2 text-[14px] text-slate-700 transition hover:bg-black/5 dark:text-slate-300 dark:hover:bg-white/5"
+              >
+                {label}
+                <span className="text-slate-400" aria-hidden>›</span>
+              </button>
+            ))}
           </div>
         </div>
       </RetroWindow>
