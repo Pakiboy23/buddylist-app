@@ -8,6 +8,8 @@ fileprivate extension UIColor {
     static let himBg3 = UIColor(red: 38 / 255, green: 33 / 255, blue: 24 / 255, alpha: 1)
     static let himText = UIColor(red: 247 / 255, green: 240 / 255, blue: 232 / 255, alpha: 1)
     static let himMuted = UIColor(red: 156 / 255, green: 142 / 255, blue: 130 / 255, alpha: 1)
+    static let himInk = UIColor(red: 26 / 255, green: 26 / 255, blue: 26 / 255, alpha: 1)
+    static let himInkMuted = UIColor(red: 107 / 255, green: 107 / 255, blue: 107 / 255, alpha: 1)
     static let himRose = UIColor(red: 232 / 255, green: 96 / 255, blue: 138 / 255, alpha: 1)
     static let himGold = UIColor(red: 212 / 255, green: 150 / 255, blue: 58 / 255, alpha: 1)
     static let himGreen = UIColor(red: 78 / 255, green: 201 / 255, blue: 122 / 255, alpha: 1)
@@ -519,9 +521,7 @@ class HiItsMeShellPlugin: CAPPlugin, CAPBridgedPlugin {
 class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
     private let bridgeViewController = HiItsMeBridgeViewController()
     private let topChromeView = UIVisualEffectView(effect: nil)
-    private let bottomChromeView = UIVisualEffectView(effect: nil)
     private let topDockView = UIVisualEffectView(effect: nil)
-    private let bottomDockView = UIVisualEffectView(effect: nil)
     private let headerGradientView = UIView()
     private let headerGradientLayer = CAGradientLayer()
     private let navigationBar = UINavigationBar(frame: .zero)
@@ -584,9 +584,7 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         topDockView.layer.cornerRadius = max(22, topDockView.bounds.height / 2)
-        bottomDockView.layer.cornerRadius = max(24, bottomDockView.bounds.height / 2)
         headerGradientLayer.frame = headerGradientView.bounds
-        updateTabSelectionIndicator()
     }
 
     override var preferredStatusBarStyle: UIStatusBarStyle {
@@ -601,7 +599,7 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
     fileprivate func applyChromeState(_ state: HiItsMeShellChromeState, animated: Bool = true) {
         chromeState = state
         overrideUserInterfaceStyle = state.isDark ? .dark : .light
-        view.backgroundColor = .himBg
+        view.backgroundColor = state.isDark ? .himBg : .systemBackground
 
         titleLabel.text = state.title
         subtitleLabel.text = state.subtitle
@@ -848,34 +846,18 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
     }
 
     private func configureTabBar() {
-        bottomChromeView.translatesAutoresizingMaskIntoConstraints = false
-        bottomDockView.translatesAutoresizingMaskIntoConstraints = false
         tabBar.translatesAutoresizingMaskIntoConstraints = false
         tabBar.delegate = self
         tabBar.items = [imTabItem, chatTabItem, buddyTabItem, profileTabItem]
         tabBar.selectedItem = imTabItem
         tabBar.itemPositioning = .automatic
-        bottomDockView.clipsToBounds = true
-        bottomDockView.layer.cornerCurve = .continuous
 
-        view.addSubview(bottomChromeView)
-        bottomChromeView.contentView.addSubview(bottomDockView)
-        bottomDockView.contentView.addSubview(tabBar)
+        view.addSubview(tabBar)
 
         NSLayoutConstraint.activate([
-            bottomChromeView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            bottomChromeView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            bottomChromeView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-
-            bottomDockView.topAnchor.constraint(equalTo: bottomChromeView.contentView.topAnchor, constant: 6),
-            bottomDockView.leadingAnchor.constraint(equalTo: bottomChromeView.contentView.leadingAnchor, constant: 12),
-            bottomDockView.trailingAnchor.constraint(equalTo: bottomChromeView.contentView.trailingAnchor, constant: -12),
-            bottomDockView.bottomAnchor.constraint(equalTo: bottomChromeView.safeAreaLayoutGuide.bottomAnchor, constant: -6),
-
-            tabBar.topAnchor.constraint(equalTo: bottomDockView.contentView.topAnchor, constant: 2),
-            tabBar.leadingAnchor.constraint(equalTo: bottomDockView.contentView.leadingAnchor, constant: 8),
-            tabBar.trailingAnchor.constraint(equalTo: bottomDockView.contentView.trailingAnchor, constant: -8),
-            tabBar.bottomAnchor.constraint(equalTo: bottomDockView.contentView.bottomAnchor, constant: -2)
+            tabBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            tabBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            tabBar.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
     }
 
@@ -886,7 +868,7 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
 
         bridgeTopWithChromeConstraint = bridgeViewController.view.topAnchor.constraint(equalTo: topChromeView.bottomAnchor)
         bridgeTopFullscreenConstraint = bridgeViewController.view.topAnchor.constraint(equalTo: view.topAnchor)
-        bridgeBottomWithChromeConstraint = bridgeViewController.view.bottomAnchor.constraint(equalTo: bottomChromeView.topAnchor)
+        bridgeBottomWithChromeConstraint = bridgeViewController.view.bottomAnchor.constraint(equalTo: tabBar.topAnchor)
         bridgeBottomFullscreenConstraint = bridgeViewController.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
 
         NSLayoutConstraint.activate([
@@ -903,13 +885,12 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         let shouldShowTopChrome = chromeState.showsTopChrome
         let shouldShowBottomChrome = chromeState.resolvedShowsBottomChrome
         topChromeView.isUserInteractionEnabled = shouldShowTopChrome
-        bottomChromeView.isUserInteractionEnabled = shouldShowBottomChrome
         tabBar.isUserInteractionEnabled = shouldShowBottomChrome
         updateBridgeChromeConstraints()
 
         let updates = {
             self.topChromeView.alpha = shouldShowTopChrome ? 1 : 0
-            self.bottomChromeView.alpha = shouldShowBottomChrome ? 1 : 0
+            self.tabBar.alpha = shouldShowBottomChrome ? 1 : 0
             self.view.layoutIfNeeded()
         }
 
@@ -964,26 +945,19 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
     }
 
     private func updateChromeAppearance(animated: Bool) {
-        let blurStyle: UIBlurEffect.Style = .systemUltraThinMaterialDark
+        let isDark = chromeState.isDark
+        let blurStyle: UIBlurEffect.Style = isDark ? .systemUltraThinMaterialDark : .systemUltraThinMaterialLight
         let tintColor = resolvedAccentColor()
-        let titleColor = UIColor.himText
-        let subtitleColor = UIColor.himMuted
+        let titleColor: UIColor = isDark ? .himText : .himInk
+        let subtitleColor: UIColor = isDark ? .himMuted : .himInkMuted
         let dockOverlayColor = resolvedDockOverlayColor()
         let dockBorderColor = resolvedDockBorderColor()
 
         let animationBlock = {
             self.topChromeView.effect = nil
-            self.bottomChromeView.effect = nil
             self.topChromeView.contentView.backgroundColor = .clear
-            self.bottomChromeView.contentView.backgroundColor = .clear
             self.applyDockAppearance(
                 to: self.topDockView,
-                blurStyle: blurStyle,
-                overlayColor: dockOverlayColor,
-                borderColor: dockBorderColor
-            )
-            self.applyDockAppearance(
-                to: self.bottomDockView,
                 blurStyle: blurStyle,
                 overlayColor: dockOverlayColor,
                 borderColor: dockBorderColor
@@ -995,7 +969,6 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
             self.tabBar.unselectedItemTintColor = subtitleColor
             self.applyNavigationAppearance()
             self.applyTabBarAppearance()
-            self.updateTabSelectionIndicator()
         }
 
         if animated {
@@ -1019,12 +992,12 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
 
     private func applyTabBarAppearance() {
         let appearance = UITabBarAppearance()
-        appearance.configureWithTransparentBackground()
-        appearance.backgroundEffect = nil
-        appearance.backgroundColor = .clear
-        appearance.shadowColor = .clear
+        // Use the system default background so the tab bar picks up Liquid Glass
+        // automatically on iOS 26 while keeping the standard tab bar look on older
+        // iOS releases. Do not override `backgroundEffect` or `backgroundColor`.
+        appearance.configureWithDefaultBackground()
 
-        let normalColor = UIColor.himMuted
+        let normalColor: UIColor = chromeState.isDark ? .himMuted : .himInkMuted
         let selectedColor = resolvedAccentColor()
 
         appearance.stackedLayoutAppearance.normal.iconColor = normalColor
@@ -1041,11 +1014,18 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
     }
 
     private func resolvedDockOverlayColor() -> UIColor {
-        UIColor.himBg2.withAlphaComponent(0.92)
+        // Tint the dock pill subtly so the gradient header reads clearly on top
+        // of the underlying blur, without painting an opaque rectangle that
+        // defeats the Liquid Glass material.
+        chromeState.isDark
+            ? UIColor.himBg2.withAlphaComponent(0.55)
+            : UIColor.white.withAlphaComponent(0.45)
     }
 
     private func resolvedDockBorderColor() -> UIColor {
-        UIColor.white.withAlphaComponent(0.08)
+        chromeState.isDark
+            ? UIColor.white.withAlphaComponent(0.08)
+            : UIColor.himInk.withAlphaComponent(0.08)
     }
 
     private func applyDockAppearance(
@@ -1058,45 +1038,6 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         dockView.contentView.backgroundColor = overlayColor
         dockView.layer.borderWidth = 0.75
         dockView.layer.borderColor = borderColor.cgColor
-    }
-
-    private func updateTabSelectionIndicator() {
-        guard let items = tabBar.items, !items.isEmpty, tabBar.bounds.width > 0, tabBar.bounds.height > 0 else {
-            tabBar.selectionIndicatorImage = nil
-            return
-        }
-
-        let itemWidth = tabBar.bounds.width / CGFloat(items.count)
-        let indicatorInsetX: CGFloat = 7
-        let indicatorInsetY: CGFloat = 6
-        let indicatorRect = CGRect(
-            x: indicatorInsetX,
-            y: indicatorInsetY,
-            width: itemWidth - (indicatorInsetX * 2),
-            height: max(30, tabBar.bounds.height - (indicatorInsetY * 2))
-        )
-        let fillColor = resolvedAccentColor().withAlphaComponent(chromeState.isDark ? 0.2 : 0.12)
-        let strokeColor = resolvedAccentColor().withAlphaComponent(chromeState.isDark ? 0.32 : 0.18)
-        let imageSize = CGSize(width: itemWidth, height: tabBar.bounds.height)
-
-        let image = UIGraphicsImageRenderer(size: imageSize).image { context in
-            let path = UIBezierPath(roundedRect: indicatorRect, cornerRadius: indicatorRect.height / 2)
-            fillColor.setFill()
-            path.fill()
-            strokeColor.setStroke()
-            path.lineWidth = 1
-            path.stroke()
-        }
-
-        tabBar.selectionIndicatorImage = image.resizableImage(
-            withCapInsets: UIEdgeInsets(
-                top: indicatorRect.height / 2,
-                left: indicatorRect.width / 2,
-                bottom: indicatorRect.height / 2,
-                right: indicatorRect.width / 2
-            ),
-            resizingMode: .stretch
-        )
     }
 
     private func makeBarButtonItem(for action: HiItsMeShellAction) -> UIBarButtonItem? {
@@ -1171,7 +1112,9 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         var configuration = UIButton.Configuration.plain()
         configuration.image = UIImage(systemName: systemName)
         configuration.baseForegroundColor = resolvedAccentColor()
-        configuration.background.backgroundColor = UIColor.himBg3.withAlphaComponent(0.88)
+        configuration.background.backgroundColor = chromeState.isDark
+            ? UIColor.white.withAlphaComponent(0.10)
+            : UIColor.himInk.withAlphaComponent(0.06)
         configuration.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8)
         configuration.cornerStyle = .capsule
         button.configuration = configuration
