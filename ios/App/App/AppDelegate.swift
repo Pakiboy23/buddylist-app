@@ -3,11 +3,18 @@ import Capacitor
 import WebKit
 
 fileprivate extension UIColor {
+    // Dark mode
     static let himBg = UIColor(red: 19 / 255, green: 16 / 255, blue: 14 / 255, alpha: 1)
     static let himBg2 = UIColor(red: 29 / 255, green: 25 / 255, blue: 22 / 255, alpha: 1)
     static let himBg3 = UIColor(red: 38 / 255, green: 33 / 255, blue: 24 / 255, alpha: 1)
     static let himText = UIColor(red: 247 / 255, green: 240 / 255, blue: 232 / 255, alpha: 1)
     static let himMuted = UIColor(red: 156 / 255, green: 142 / 255, blue: 130 / 255, alpha: 1)
+    // Light mode
+    static let himLightBg = UIColor(red: 250 / 255, green: 246 / 255, blue: 239 / 255, alpha: 1)
+    static let himLightBg2 = UIColor(red: 255 / 255, green: 255 / 255, blue: 255 / 255, alpha: 1)
+    static let himLightText = UIColor(red: 26 / 255, green: 26 / 255, blue: 26 / 255, alpha: 1)
+    static let himLightMuted = UIColor(red: 107 / 255, green: 107 / 255, blue: 107 / 255, alpha: 1)
+    // Shared
     static let himRose = UIColor(red: 232 / 255, green: 96 / 255, blue: 138 / 255, alpha: 1)
     static let himGold = UIColor(red: 212 / 255, green: 150 / 255, blue: 58 / 255, alpha: 1)
     static let himGreen = UIColor(red: 78 / 255, green: 201 / 255, blue: 122 / 255, alpha: 1)
@@ -601,7 +608,7 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
     fileprivate func applyChromeState(_ state: HiItsMeShellChromeState, animated: Bool = true) {
         chromeState = state
         overrideUserInterfaceStyle = state.isDark ? .dark : .light
-        view.backgroundColor = .himBg
+        view.backgroundColor = state.isDark ? .himBg : .himLightBg
 
         titleLabel.text = state.title
         subtitleLabel.text = state.subtitle
@@ -960,14 +967,14 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         imTabItem.badgeValue = chromeState.unreadDirectCount > 0
             ? (chromeState.unreadDirectCount > 99 ? "99+" : String(chromeState.unreadDirectCount))
             : nil
-        imTabItem.badgeColor = .himRose
+        imTabItem.badgeColor = resolvedAccentColor()
     }
 
     private func updateChromeAppearance(animated: Bool) {
-        let blurStyle: UIBlurEffect.Style = .systemUltraThinMaterialDark
+        let blurStyle: UIBlurEffect.Style = chromeState.isDark ? .systemUltraThinMaterialDark : .systemUltraThinMaterial
         let tintColor = resolvedAccentColor()
-        let titleColor = UIColor.himText
-        let subtitleColor = UIColor.himMuted
+        let titleColor = chromeState.isDark ? UIColor.himText : UIColor.himLightText
+        let subtitleColor = chromeState.isDark ? UIColor.himMuted : UIColor.himLightMuted
         let dockOverlayColor = resolvedDockOverlayColor()
         let dockBorderColor = resolvedDockBorderColor()
 
@@ -1024,7 +1031,7 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         appearance.backgroundColor = .clear
         appearance.shadowColor = .clear
 
-        let normalColor = UIColor.himMuted
+        let normalColor = chromeState.isDark ? UIColor.himMuted : UIColor.himLightMuted
         let selectedColor = resolvedAccentColor()
 
         appearance.stackedLayoutAppearance.normal.iconColor = normalColor
@@ -1037,15 +1044,26 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
     }
 
     private func resolvedAccentColor() -> UIColor {
-        .himRose
+        let dark = chromeState.isDark
+        switch chromeState.accentTone {
+        case .blue:    return UIColor(red: dark ? 3/255 : 2/255,   green: dark ? 105/255 : 132/255, blue: dark ? 161/255 : 199/255, alpha: 1)
+        case .violet:  return UIColor(red: dark ? 109/255 : 124/255, green: dark ? 40/255 : 58/255,  blue: dark ? 217/255 : 237/255, alpha: 1)
+        case .emerald: return UIColor(red: dark ? 4/255 : 5/255,   green: dark ? 120/255 : 150/255, blue: dark ? 87/255 : 105/255,  alpha: 1)
+        case .amber:   return UIColor(red: dark ? 180/255 : 217/255, green: dark ? 83/255 : 119/255, blue: dark ? 9/255 : 6/255,    alpha: 1)
+        case .slate:   return UIColor(red: dark ? 51/255 : 71/255,  green: dark ? 65/255 : 85/255,  blue: dark ? 85/255 : 105/255,  alpha: 1)
+        }
     }
 
     private func resolvedDockOverlayColor() -> UIColor {
-        UIColor.himBg2.withAlphaComponent(0.92)
+        chromeState.isDark
+            ? UIColor.himBg2.withAlphaComponent(0.92)
+            : UIColor.himLightBg2.withAlphaComponent(0.92)
     }
 
     private func resolvedDockBorderColor() -> UIColor {
-        UIColor.white.withAlphaComponent(0.08)
+        chromeState.isDark
+            ? UIColor.white.withAlphaComponent(0.08)
+            : UIColor.black.withAlphaComponent(0.08)
     }
 
     private func applyDockAppearance(
