@@ -1,22 +1,6 @@
 -- Drop the recovery-code-based password recovery system.
---
--- Replaced by Supabase's email-link password reset (auth.resetPasswordForEmail
--- → /reset-password page → auth.updateUser).
---
--- Tables introduced by 20260320000003_password_recovery_admin.sql that are
--- no longer used:
---   account_recovery_codes
---   password_reset_attempts
---   password_reset_tickets
---   password_reset_audit
---
--- Kept on purpose:
---   admin_users — still read by the new src/lib/adminAuth.ts assertAdminUser()
---   public.set_updated_at() — likely reused by other tables
---
--- This migration is forward-only (no rollback). The recovery-code path is
--- gone for good in the new auth model; restoring it would require restoring
--- the application code as well.
+-- Replaced by Supabase's email-link password reset.
+-- Imported retroactively from production migrations table.
 
 begin;
 

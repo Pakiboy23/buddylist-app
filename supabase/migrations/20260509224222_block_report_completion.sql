@@ -1,7 +1,9 @@
 -- Block/report feature completion:
 -- - Add status + notes columns to abuse_reports
 -- - Allow admins to query all reports
--- - Tighten room_messages SELECT to filter blocked-user messages
+-- - Tighten room_messages SELECT to filter blocked-user messages.
+-- Imported retroactively from production migrations table.
+-- Must apply after 20260509184623_rooms_v2_launch_schema (creates room_memberships).
 
 begin;
 
