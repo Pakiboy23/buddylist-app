@@ -14,8 +14,12 @@ fileprivate extension UIColor {
     static let himLightBg2 = UIColor(red: 255 / 255, green: 255 / 255, blue: 255 / 255, alpha: 1)
     static let himLightText = UIColor(red: 26 / 255, green: 26 / 255, blue: 26 / 255, alpha: 1)
     static let himLightMuted = UIColor(red: 107 / 255, green: 107 / 255, blue: 107 / 255, alpha: 1)
-    // Shared
-    static let himRose = UIColor(red: 232 / 255, green: 96 / 255, blue: 138 / 255, alpha: 1)
+    // Brand: primary accent. Mirrors `--chiraag` (#E8A23A) in src/app/globals.css.
+    // Legacy `himRose` name retained as an alias for one release — matches the
+    // web CSS pattern `--rose: var(--chiraag)`. Migrate call sites to
+    // `himChiraag` and delete the alias in a follow-up PR.
+    static let himChiraag = UIColor(red: 232 / 255, green: 162 / 255, blue: 58 / 255, alpha: 1)
+    static let himRose = himChiraag
     static let himGold = UIColor(red: 212 / 255, green: 150 / 255, blue: 58 / 255, alpha: 1)
     static let himGreen = UIColor(red: 78 / 255, green: 201 / 255, blue: 122 / 255, alpha: 1)
     static let himLavender = UIColor(red: 167 / 255, green: 139 / 255, blue: 250 / 255, alpha: 1)
