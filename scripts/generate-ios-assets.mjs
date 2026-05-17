@@ -39,10 +39,10 @@ function iconMarkup() {
     <meta charset="utf-8" />
     <style>
       :root {
-        --navy: #091228;
-        --deep-blue: #10357e;
-        --electric: #2563eb;
-        --sky: #93c5fd;
+        --bg-dark: #13100E;
+        --bg-card: #1D1916;
+        --chiraag: #E8A23A;
+        --text-light: #F7F0E8;
       }
 
       * {
@@ -61,19 +61,8 @@ function iconMarkup() {
         display: grid;
         place-items: center;
         background:
-          radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.14) 0 18%, transparent 40%),
-          radial-gradient(circle at 76% 20%, rgba(147, 197, 253, 0.24) 0 16%, transparent 34%),
-          linear-gradient(155deg, var(--navy) 6%, #0f2351 32%, var(--deep-blue) 58%, var(--electric) 100%);
-      }
-
-      .orb {
-        position: absolute;
-        width: 72%;
-        aspect-ratio: 1;
-        border-radius: 50%;
-        background: radial-gradient(circle, rgba(147, 197, 253, 0.3) 0%, rgba(37, 99, 235, 0.14) 42%, transparent 74%);
-        filter: blur(18px);
-        transform: translateY(5%);
+          radial-gradient(circle at 28% 22%, rgba(232, 162, 58, 0.18) 0%, transparent 48%),
+          radial-gradient(circle at center, var(--bg-card) 0%, var(--bg-dark) 100%);
       }
 
       .panel {
@@ -83,22 +72,13 @@ function iconMarkup() {
         border-radius: 30%;
         overflow: hidden;
         background:
-          linear-gradient(170deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.04) 30%, rgba(10, 18, 40, 0.08) 100%),
-          linear-gradient(160deg, rgba(7, 15, 36, 0.94), rgba(15, 35, 81, 0.95) 42%, rgba(37, 99, 235, 0.94) 100%);
-        border: 1px solid rgba(255, 255, 255, 0.18);
+          linear-gradient(170deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.02) 30%, transparent 100%),
+          var(--bg-card);
+        border: 1px solid rgba(255, 255, 255, 0.12);
         box-shadow:
-          0 52px 120px rgba(7, 15, 36, 0.34),
-          inset 0 1px 0 rgba(255, 255, 255, 0.26),
-          inset 0 -26px 48px rgba(7, 15, 36, 0.2);
-      }
-
-      .panel::before {
-        content: '';
-        position: absolute;
-        inset: 0;
-        background:
-          linear-gradient(145deg, rgba(255, 255, 255, 0.18) 0 14%, transparent 22% 100%),
-          radial-gradient(circle at 80% 84%, rgba(147, 197, 253, 0.22), transparent 34%);
+          0 52px 120px rgba(0, 0, 0, 0.5),
+          0 0 80px rgba(232, 162, 58, 0.12),
+          inset 0 1px 0 rgba(255, 255, 255, 0.14);
       }
 
       .logo-wrap {
@@ -108,40 +88,37 @@ function iconMarkup() {
         place-items: center;
       }
 
-      .logo-glow,
-      .logo-mark,
-      .logo-shadow {
+      .glyph-glow {
         position: absolute;
         width: 42%;
         aspect-ratio: 1;
-        clip-path: polygon(50% 4%, 7% 88%, 93% 88%);
+        border-radius: 50%;
+        background: var(--chiraag);
+        filter: blur(28px);
+        opacity: 0.5;
       }
 
-      .logo-glow {
-        background: rgba(191, 219, 254, 0.45);
-        filter: blur(30px);
-        transform: translateY(3%);
-      }
-
-      .logo-shadow {
-        background: rgba(37, 99, 235, 0.5);
-        transform: translateY(7%) scale(1.02);
-        filter: blur(8px);
-      }
-
-      .logo-mark {
-        background: linear-gradient(180deg, #ffffff 0%, #eef5ff 100%);
-        filter: drop-shadow(0 16px 36px rgba(7, 15, 36, 0.26));
+      .glyph-svg {
+        position: relative;
+        width: 42%;
+        aspect-ratio: 1;
       }
     </style>
   </head>
   <body>
-    <div class="orb"></div>
     <div class="panel">
       <div class="logo-wrap">
-        <div class="logo-glow"></div>
-        <div class="logo-shadow"></div>
-        <div class="logo-mark"></div>
+        <div class="glyph-glow"></div>
+        <svg class="glyph-svg" viewBox="0 0 100 115" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Lamp flame/teardrop body -->
+          <ellipse cx="50" cy="46" rx="30" ry="38" fill="#E8A23A"/>
+          <!-- Lamp base neck -->
+          <rect x="42" y="82" width="16" height="10" rx="3" fill="#E8A23A"/>
+          <!-- Lamp base foot -->
+          <rect x="34" y="90" width="32" height="8" rx="4" fill="#C8821A"/>
+          <!-- Inner highlight on flame -->
+          <ellipse cx="44" cy="36" rx="10" ry="14" fill="rgba(255,240,200,0.35)"/>
+        </svg>
       </div>
     </div>
   </body>
@@ -155,10 +132,11 @@ function splashMarkup() {
     <meta charset="utf-8" />
     <style>
       :root {
-        --navy: #0b1632;
-        --ink: #20325c;
-        --muted: #7f93b5;
-        --accent: #1d4ed8;
+        --bg-dark: #13100E;
+        --bg-card: #1D1916;
+        --chiraag: #E8A23A;
+        --text-light: #F7F0E8;
+        --muted: #9C8E82;
       }
 
       * {
@@ -177,10 +155,9 @@ function splashMarkup() {
         display: grid;
         place-items: center;
         background:
-          radial-gradient(circle at 12% 14%, rgba(197, 221, 255, 0.92) 0 0.8%, rgba(197, 221, 255, 0.55) 0 10%, transparent 28%),
-          radial-gradient(circle at 86% 88%, rgba(191, 219, 254, 0.45) 0 0.4%, rgba(191, 219, 254, 0.18) 0 14%, transparent 30%),
-          radial-gradient(circle at 10% 15%, #c5ddff 0%, #eaf2ff 34%, #f6f9ff 62%, #dce9ff 100%);
-        font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+          radial-gradient(circle at 28% 22%, rgba(232, 162, 58, 0.18) 0%, transparent 48%),
+          radial-gradient(circle at center, var(--bg-card) 0%, var(--bg-dark) 100%);
+        font-family: -apple-system, 'Helvetica Neue', sans-serif;
       }
 
       .shell {
@@ -196,22 +173,13 @@ function splashMarkup() {
         height: 620px;
         border-radius: 196px;
         background:
-          linear-gradient(160deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.05) 26%, rgba(9, 18, 40, 0.08) 100%),
-          linear-gradient(158deg, #0a132b 4%, #14326e 42%, var(--accent) 100%);
-        border: 1px solid rgba(255, 255, 255, 0.32);
+          linear-gradient(170deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.02) 30%, transparent 100%),
+          var(--bg-card);
+        border: 1px solid rgba(255, 255, 255, 0.12);
         box-shadow:
-          0 70px 180px rgba(29, 78, 216, 0.18),
-          inset 0 1px 0 rgba(255, 255, 255, 0.34);
-      }
-
-      .badge::before {
-        content: '';
-        position: absolute;
-        inset: 0;
-        border-radius: inherit;
-        background:
-          linear-gradient(146deg, rgba(255, 255, 255, 0.18) 0 12%, transparent 24% 100%),
-          radial-gradient(circle at 78% 82%, rgba(191, 219, 254, 0.18), transparent 32%);
+          0 70px 180px rgba(0, 0, 0, 0.5),
+          0 0 120px rgba(232, 162, 58, 0.14),
+          inset 0 1px 0 rgba(255, 255, 255, 0.14);
       }
 
       .logo-wrap {
@@ -221,37 +189,27 @@ function splashMarkup() {
         place-items: center;
       }
 
-      .logo-glow,
-      .logo-mark,
-      .logo-shadow {
+      .glyph-glow {
         position: absolute;
         width: 270px;
         aspect-ratio: 1;
-        clip-path: polygon(50% 4%, 7% 88%, 93% 88%);
+        border-radius: 50%;
+        background: var(--chiraag);
+        filter: blur(28px);
+        opacity: 0.5;
       }
 
-      .logo-glow {
-        background: rgba(191, 219, 254, 0.42);
-        filter: blur(26px);
-        transform: translateY(12px);
-      }
-
-      .logo-shadow {
-        background: rgba(37, 99, 235, 0.42);
-        filter: blur(10px);
-        transform: translateY(24px);
-      }
-
-      .logo-mark {
-        background: linear-gradient(180deg, #ffffff 0%, #edf5ff 100%);
-        filter: drop-shadow(0 18px 44px rgba(7, 15, 36, 0.18));
+      .glyph-svg {
+        position: relative;
+        width: 270px;
+        aspect-ratio: 1;
       }
 
       .wordmark {
-        color: var(--navy);
+        color: var(--text-light);
         font-size: 224px;
         font-weight: 700;
-        letter-spacing: -0.08em;
+        letter-spacing: -0.06em;
         line-height: 0.92;
       }
 
@@ -260,7 +218,7 @@ function splashMarkup() {
         color: var(--muted);
         font-size: 66px;
         font-weight: 600;
-        letter-spacing: 0.08em;
+        letter-spacing: 0.18em;
         text-transform: uppercase;
       }
     </style>
@@ -269,13 +227,21 @@ function splashMarkup() {
     <div class="shell">
       <div class="badge">
         <div class="logo-wrap">
-          <div class="logo-glow"></div>
-          <div class="logo-shadow"></div>
-          <div class="logo-mark"></div>
+          <div class="glyph-glow"></div>
+          <svg class="glyph-svg" viewBox="0 0 100 115" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- Lamp flame/teardrop body -->
+            <ellipse cx="50" cy="46" rx="30" ry="38" fill="#E8A23A"/>
+            <!-- Lamp base neck -->
+            <rect x="42" y="82" width="16" height="10" rx="3" fill="#E8A23A"/>
+            <!-- Lamp base foot -->
+            <rect x="34" y="90" width="32" height="8" rx="4" fill="#C8821A"/>
+            <!-- Inner highlight on flame -->
+            <ellipse cx="44" cy="36" rx="10" ry="14" fill="rgba(255,240,200,0.35)"/>
+          </svg>
         </div>
       </div>
       <div class="wordmark">H.I.M.</div>
-      <div class="subhead">Sign on</div>
+      <div class="subhead">Sign on.</div>
     </div>
   </body>
 </html>`;
