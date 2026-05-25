@@ -211,6 +211,58 @@
         color: var(--stone-dim);
       }
 
+      code {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 0.8em;
+        background: var(--stone-faint);
+        border-radius: 0.25rem;
+        padding: 0.1em 0.35em;
+      }
+
+      .table-wrap {
+        width: 100%;
+        overflow-x: auto;
+        margin-top: 0.75rem;
+        margin-bottom: 1.5rem;
+        border-radius: 1rem;
+        border: 1px solid var(--border);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+        color: var(--stone-dim);
+      }
+
+      th {
+        background: var(--surface);
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 0.7rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--amber);
+        font-weight: 500;
+        padding: 0.65rem 1rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border);
+      }
+
+      td {
+        padding: 0.65rem 1rem;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+        line-height: 1.5;
+      }
+
+      tr:last-child td {
+        border-bottom: none;
+      }
+
+      tr:nth-child(even) td {
+        background: rgba(245, 241, 232, 0.03);
+      }
+
       @media (prefers-color-scheme: light) {
         :root {
           --bg: #f5f1e8;
@@ -469,21 +521,124 @@
       <hr class="divider" />
 
       <section id="on-device-storage">
-        <h2>6. On-device storage</h2>
+        <h2>6. On-device storage &amp; cookies</h2>
         <p>
-          H.I.M. stores the following data locally on your device only. This data is never transmitted to our servers
-          except as part of normal app operation (e.g., the outbox sends its content once connectivity is restored).
+          H.I.M. uses <strong>no cookies</strong>. We use browser <code>localStorage</code> to store data
+          directly on your device. This data is never shared with third parties for advertising or tracking.
+          All items in the table below are <strong>strictly necessary</strong> to deliver the service.
+        </p>
+        <p>
+          The web app does not set cookies. The iOS and Android apps use the same localStorage-equivalent
+          mechanism provided by Capacitor, scoped to the app's sandbox.
+        </p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Key</th>
+                <th>Purpose</th>
+                <th>Expiry</th>
+                <th>Strictly necessary</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>sb-*-auth-token</code></td>
+                <td>Supabase authentication session (access token + refresh token)</td>
+                <td>Cleared on sign-out; refresh token rotates periodically</td>
+                <td>Yes — authentication</td>
+              </tr>
+              <tr>
+                <td><code>hiitsme_theme</code></td>
+                <td>Your color-scheme preference (light / dark / system)</td>
+                <td>Until you change it or clear browser data</td>
+                <td>Yes — UI rendering</td>
+              </tr>
+              <tr>
+                <td><code>hiitsme:away-presets:{userId}</code></td>
+                <td>Your saved away-message presets</td>
+                <td>Cleared on sign-out</td>
+                <td>Yes — core messaging</td>
+              </tr>
+              <tr>
+                <td><code>hiitsme:away-settings:{userId}</code></td>
+                <td>Auto-away configuration (threshold, auto-reply enabled)</td>
+                <td>Cleared on sign-out</td>
+                <td>Yes — core messaging</td>
+              </tr>
+              <tr>
+                <td><code>hiitsme:away-cooldowns:{userId}</code></td>
+                <td>Timestamps that throttle auto-reply frequency</td>
+                <td>Cleared on sign-out</td>
+                <td>Yes — prevents reply spam</td>
+              </tr>
+              <tr>
+                <td><code>hiitsme:buddy-sort:{userId}</code></td>
+                <td>Buddy-list sort order preference</td>
+                <td>Cleared on sign-out</td>
+                <td>Yes — UI state</td>
+              </tr>
+              <tr>
+                <td><code>hiitsme:outbox:v1:{userId}</code></td>
+                <td>Offline message queue for reliable delivery when network is lost</td>
+                <td>Cleared on delivery or sign-out</td>
+                <td>Yes — offline messaging</td>
+              </tr>
+              <tr>
+                <td><code>hiitsme_rich_text_format</code></td>
+                <td>Message composer format state (bold, italic, etc.)</td>
+                <td>Until changed or browser data cleared</td>
+                <td>Yes — UI state</td>
+              </tr>
+              <tr>
+                <td><code>hiitsme:dm-preferences:v1:{userId}</code></td>
+                <td>Per-conversation preferences (pinned, muted, archived, chat theme)</td>
+                <td>Cleared on sign-out</td>
+                <td>Yes — core UX</td>
+              </tr>
+              <tr>
+                <td><code>hiitsme:privacy:v1:{userId}</code></td>
+                <td>Local cache of your privacy settings for faster rendering</td>
+                <td>Cleared on sign-out</td>
+                <td>Yes — privacy-sensitive UI</td>
+              </tr>
+              <tr>
+                <td><code>hiitsme:app-lock:v1:{userId}</code></td>
+                <td>App-lock settings: enabled flag, SHA-256 PIN hash (never the raw PIN), auto-lock duration, biometrics flag</td>
+                <td>Cleared on sign-out</td>
+                <td>Yes — security</td>
+              </tr>
+              <tr>
+                <td><code>storage_notice_acknowledged</code></td>
+                <td>Records that you dismissed the storage disclosure notice (EU/EEA/UK users only)</td>
+                <td>Until browser data cleared</td>
+                <td>Yes — prevents repeat notices</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>User controls</h3>
+        <p>
+          All per-account keys (those ending in <code>:{userId}</code>) are removed automatically when
+          you sign out. You can also clear all locally stored data at any time through your browser or
+          device settings:
         </p>
         <div class="card">
           <ul>
-            <li><strong>Outbox</strong> — messages you compose while offline, queued for delivery. Cleared automatically once delivered.</li>
-            <li><strong>App lock</strong> — whether the PIN lock is enabled, a SHA-256 hash of your PIN (never the PIN itself), auto-lock duration, and whether biometric authentication is enabled. Your biometric data (Face ID / Touch ID) is processed entirely by the device's Secure Enclave and is never accessible to H.I.M.</li>
-            <li><strong>Privacy preferences cache</strong> — a local copy of your notification preview mode and per-conversation settings for faster rendering.</li>
-            <li><strong>Room state</strong> — joined room list and unread counts, cached for up to 7 days.</li>
+            <li><strong>Web browser:</strong> Settings → Privacy &amp; Security → Clear browsing data → Cached images and files + Site data (select hiitsme.app).</li>
+            <li><strong>iOS:</strong> Settings → General → iPhone Storage → H.I.M. → Offload App, or delete and reinstall.</li>
+            <li><strong>Android:</strong> Settings → Apps → H.I.M. → Storage → Clear data.</li>
           </ul>
         </div>
         <p>
-          All local data is removed when you delete the app from your device or delete your account through the in-app flow.
+          Clearing local data signs you out on that device. Your account and messages remain on our servers
+          until you delete your account through <strong>Settings → Delete account</strong>.
+        </p>
+        <p>
+          Because all storage is strictly necessary to run the service, no consent toggle is required under
+          ePrivacy rules. EU/EEA/UK users see a one-time notice when they first visit the app.
         </p>
       </section>
 

@@ -6,6 +6,10 @@ import PwaBootstrap from '@/components/PwaBootstrap';
 import NativeShellRouteSync from '@/components/NativeShellRouteSync';
 import GlobalNotificationListener from '@/components/GlobalNotificationListener';
 import DeepLinkHandler from '@/components/DeepLinkHandler';
+import StorageNotice from '@/components/StorageNotice';
+import { isEuTimezone } from '@/lib/euTimezone';
+
+const SHOW_STORAGE_NOTICE = isEuTimezone();
 
 // Pages — lazy-loaded for code splitting
 const LoginPage = lazy(() => import('@/app/page'));
@@ -21,6 +25,7 @@ const InvitePage = lazy(() => import('@/app/join/[inviteCode]/page'));
 export default function App() {
   return (
     <ChatProvider>
+      {SHOW_STORAGE_NOTICE && <StorageNotice />}
       <Suspense fallback={null}>
         <Routes>
           <Route path="/" element={<LoginPage />} />
