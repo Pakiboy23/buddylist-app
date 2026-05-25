@@ -17,5 +17,14 @@ export async function assertAdminUser(admin: SupabaseAdminClient, userId: string
     throw new Error(error.message);
   }
 
-  return Boolean(data);
+  const isAdmin = Boolean(data);
+  if (isAdmin) {
+    void admin
+      .from('security_events')
+      .insert({ event_type: 'admin.access.granted', user_id: userId, outcome: 'success', metadata: {} })
+      .then(({ error: logErr }) => {
+        if (logErr) console.warn('[security_event] admin.access.granted:', logErr.message);
+      });
+  }
+  return isAdmin;
 }

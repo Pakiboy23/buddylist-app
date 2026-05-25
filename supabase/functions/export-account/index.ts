@@ -204,7 +204,7 @@ Deno.serve(async (req: Request) => {
         push_token_values: 'Raw APNs/FCM device tokens are not included in this export for security reasons.',
         messages_received: 'Messages sent to you by other users are not included to protect their privacy. This export contains only content you authored.',
         password_recovery_codes: 'Not applicable — password recovery codes were removed from this app in a prior schema migration.',
-        audit_logs: 'Not applicable — no user-level audit log table exists in this schema version.',
+        audit_logs: 'Security events (sign-in, credential changes, exports, account deletion) are logged in public.security_events and available to admins. This table is not included in user exports.',
         message_limit: `Exports are capped at ${MESSAGE_LIMIT} sent messages and ${ROOM_MESSAGE_LIMIT} room messages (most recent first). Contact support if you need a complete archive.`,
       },
     };
@@ -215,6 +215,16 @@ Deno.serve(async (req: Request) => {
       .from('users')
       .update({ last_exported_at: exportedAt })
       .eq('id', userId);
+
+    await admin.from('security_events').insert({
+      event_type: 'gdpr.export.delivered',
+      user_id: userId,
+      outcome: 'success',
+      metadata: {
+        export_size_bytes: JSON.stringify(payload).length,
+        tables_included: ['profile', 'direct_messages_sent', 'room_messages', 'room_memberships', 'blocks', 'reports_filed', 'push_notification_tokens', 'privacy_settings'],
+      },
+    });
 
     const filename = `hiitsme-export-${exportedAt.slice(0, 10)}.json`;
 

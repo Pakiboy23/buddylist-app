@@ -253,6 +253,14 @@ Deno.serve(async (req: Request) => {
       recordDelete('users', 'id');
     }
 
+    // Persist deletion manifest before removing the auth row (user_id FK becomes null after).
+    await admin.from('security_events').insert({
+      event_type: 'account.deletion.manifest',
+      user_id: userId,
+      outcome: 'success',
+      metadata: { tables: results },
+    });
+
     // Auth row LAST. Once this returns we have no way to recover the user.
     const { error: authDeleteError } = await admin.auth.admin.deleteUser(userId);
     if (authDeleteError) {

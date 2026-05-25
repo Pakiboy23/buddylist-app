@@ -11,6 +11,7 @@ import {
   type PushPermissionStatus,
 } from '@/lib/nativePush';
 import { supabase } from '@/lib/supabase';
+import { logSecurityEvent } from '@/lib/securityEvent';
 
 const SUPABASE_FUNCTIONS_URL = `${(import.meta.env.VITE_SUPABASE_URL as string | undefined) ?? ''}/functions/v1`;
 
@@ -221,6 +222,7 @@ export default function AccountPage() {
       return;
     }
 
+    logSecurityEvent({ event_type: 'auth.email.changed', user_id: userId, outcome: 'success' });
     setEmailPhase('sent');
     setEmailMessage(
       `Confirmation link sent to ${trimmed}. Open the link to finish the change. Until you do, sign-in still uses your current email.`,
@@ -253,6 +255,7 @@ export default function AccountPage() {
       return;
     }
 
+    logSecurityEvent({ event_type: 'auth.password.changed', user_id: userId, outcome: 'success' });
     setPasswordPhase('success');
     setPasswordMessage('Password updated.');
     setNewPassword('');

@@ -650,36 +650,73 @@
           We use the following third-party services that process personal data on our behalf.
           All transfers of EEA/UK personal data to processors in the United States are conducted under
           appropriate transfer mechanisms (Standard Contractual Clauses or equivalent).
-          <!-- LEGAL REVIEW: Confirm SCCs are in place with each sub-processor below and document the transfer mechanism for each -->
         </p>
         <div class="card">
-          <ul>
-            <li>
-              <strong>Supabase, Inc.</strong> (United States) — database, authentication, file storage, realtime messaging,
-              serverless functions. All user data, messages, and files are hosted on Supabase infrastructure.
-              Supabase is SOC 2 Type II certified and operates a Data Processing Agreement.
-            </li>
-            <li>
-              <strong>Vercel, Inc.</strong> (United States) — web hosting, serverless API functions, and web analytics.
-              Request IP addresses and user-agent strings are processed by Vercel infrastructure on the web platform.
-              Vercel is SOC 2 Type II certified and operates a Data Processing Agreement.
-            </li>
-            <li>
-              <strong>Apple Inc. — Apple Push Notification service (APNs)</strong> — iOS push notification delivery.
-              When you enable notifications, your APNs device token and the notification payload (sender name and,
-              depending on your privacy setting, a message preview) pass through Apple's infrastructure.
-              Apple acts as a data processor for this purpose.
-            </li>
-          </ul>
+          <!-- SUBPROCESSORS:START -->
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Sub-processor</th>
+                  <th>Purpose</th>
+                  <th>Location</th>
+                  <th>Transfer mechanism</th>
+                  <th>Data processed</th>
+                </tr>
+              </thead>
+              <tbody>
+            <tr>
+              <td><a href="https://supabase.com/legal/dpa" target="_blank" rel="noopener noreferrer">Supabase, Inc.</a><br><span style="font-size:0.8rem;opacity:0.6;">SOC 2 Type II</span></td>
+              <td>Database, authentication, file storage, realtime messaging, edge functions</td>
+              <td>US (AWS us-west-2)</td>
+              <td>Standard Contractual Clauses (SCCs)</td>
+              <td style="font-size:0.85rem;">All user account data, messages, media files, push tokens, trust &amp; safety records</td>
+            </tr>
+            <tr>
+              <td><a href="https://vercel.com/legal/dpa" target="_blank" rel="noopener noreferrer">Vercel, Inc.</a><br><span style="font-size:0.8rem;opacity:0.6;">SOC 2 Type II</span></td>
+              <td>Web hosting, serverless API functions, web analytics</td>
+              <td>US (edge network: global)</td>
+              <td>Standard Contractual Clauses (SCCs)</td>
+              <td style="font-size:0.85rem;">IP addresses and user-agent strings (web); push notification payloads routed via Vercel Functions; anonymised page-view analytics</td>
+            </tr>
+            <tr>
+              <td><a href="https://www.apple.com/legal/privacy/" target="_blank" rel="noopener noreferrer">Apple Inc. — APNs</a></td>
+              <td>iOS push notification delivery</td>
+              <td>Apple global infrastructure</td>
+              <td>Apple Developer Program License Agreement (DPLA)</td>
+              <td style="font-size:0.85rem;">Device push token; notification payload (sender name and, based on your privacy setting, a message preview)</td>
+            </tr>
+            <tr>
+              <td><a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google LLC — Google Fonts</a></td>
+              <td>Web font delivery on privacy and terms pages</td>
+              <td>US (Google global CDN)</td>
+              <td>Standard Contractual Clauses (SCCs)</td>
+              <td style="font-size:0.85rem;">IP address at font load time (privacy.html and terms.html only; not loaded by the app itself)</td>
+            </tr>
+            <tr>
+              <td><a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google LLC — Firebase Cloud Messaging (FCM)</a> <span style="font-size:0.75rem;opacity:0.55;font-style:italic;">(planned)</span></td>
+              <td>Android push notification delivery</td>
+              <td>US (Google global infrastructure)</td>
+              <td>Standard Contractual Clauses (SCCs)</td>
+              <td style="font-size:0.85rem;">Device push token; notification payload (when Android push is shipped)</td>
+            </tr>
+              </tbody>
+            </table>
+          </div>
+          <p style="margin-top:1rem;font-size:0.875rem;opacity:0.7;">
+            All libraries used in the app that operate solely on your device
+            (Capacitor, jose, @aparajita/capacitor-biometric-auth, bad-words)
+            transmit no data to third parties and are not listed above.
+          </p>
+          <p style="margin-top:0.5rem;font-size:0.875rem;opacity:0.7;">
+            This table is generated from
+            <code>docs/compliance/sub-processors.json</code>.
+            To update it, edit that file and re-run
+            <code>node scripts/render-subprocessors.mjs</code>.
+          </p>
+          <!-- SUBPROCESSORS:END -->
         </div>
-        <p>
-          We do not use Google Firebase Cloud Messaging (FCM) at this time.
-          If we add Android push notifications in future, this policy will be updated.
-        </p>
-        <p>
-          All other libraries used in the app (Capacitor, jose, bad-words) operate locally on your device
-          and transmit no data to third parties.
-        </p>
       </section>
 
       <hr class="divider" />
@@ -687,15 +724,75 @@
       <section id="retention">
         <h2>8. How long we keep data</h2>
         <div class="card">
-          <ul>
-            <li><strong>Account and profile data:</strong> Until you delete your account.</li>
-            <li><strong>Messages and media:</strong> Until the sender or recipient deletes their account. Disappearing messages are assigned an expiry; automated deletion of expired content is a planned feature. <!-- LEGAL REVIEW: Add specific retention duration once automated purge is implemented --></li>
-            <li><strong>Push tokens:</strong> Until invalidated by Apple (automatic) or you delete your account.</li>
-            <li><strong>Abuse reports:</strong> Retained after account deletion where required for legal-obligation purposes. <!-- LEGAL REVIEW: Determine specific legal hold period under applicable law (e.g., EU DSA, local law) and document here --></li>
-            <li><strong>Server logs (authentication, API):</strong> Per the standard retention policies of Supabase and Vercel for your service tier. <!-- LEGAL REVIEW: Confirm exact durations and add here --></li>
-            <li><strong>Analytics:</strong> Per Vercel Analytics' retention policy (anonymised aggregates).</li>
-            <li><strong>On-device data:</strong> Until you delete the app or delete your account.</li>
-          </ul>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Data category</th>
+                  <th>Retention window</th>
+                  <th>How enforced</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Account &amp; profile</td>
+                  <td>Until you delete your account</td>
+                  <td>Account-deletion flow</td>
+                </tr>
+                <tr>
+                  <td>Direct messages &amp; room messages</td>
+                  <td>Until the sender or recipient deletes their account</td>
+                  <td>Account-deletion flow (cascade)</td>
+                </tr>
+                <tr>
+                  <td>Media attachments</td>
+                  <td>Until the message is deleted or account deleted</td>
+                  <td>Account-deletion flow</td>
+                </tr>
+                <tr>
+                  <td>Push notification tokens</td>
+                  <td>90 days since last registration, or until account deletion</td>
+                  <td>Automated daily cleanup job</td>
+                </tr>
+                <tr>
+                  <td>Blocks</td>
+                  <td>Until you unblock the user or delete your account</td>
+                  <td>Account-deletion flow</td>
+                </tr>
+                <tr>
+                  <td>Abuse reports (closed — reviewed or dismissed)</td>
+                  <td>24 months from submission</td>
+                  <td>Automated daily cleanup job</td>
+                </tr>
+                <tr>
+                  <td>Abuse reports (open or actioned)</td>
+                  <td>Retained for legal-obligation purposes (safety &amp; DSA compliance)</td>
+                  <td>Manual review process</td>
+                </tr>
+                <tr>
+                  <td>Account deletion records (internal)</td>
+                  <td>30 days after account deletion</td>
+                  <td>Automated daily cleanup job</td>
+                </tr>
+                <tr>
+                  <td>Server logs (authentication, API)</td>
+                  <td>Per our infrastructure providers' standard policies</td>
+                  <td>Supabase / Vercel managed</td>
+                </tr>
+                <tr>
+                  <td>Analytics (web only, anonymised)</td>
+                  <td>Per Vercel Analytics' retention policy</td>
+                  <td>Vercel managed</td>
+                </tr>
+                <tr>
+                  <td>On-device data (localStorage)</td>
+                  <td>Until you uninstall the app or delete your account</td>
+                  <td>OS / user action</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p style="margin-top:1rem;font-size:0.875rem;opacity:0.7;">Retention windows are enforced by an automated daily cleanup job. Disappearing messages have sender-set expiries; automated purge of those records is a planned feature.</p>
         </div>
       </section>
 

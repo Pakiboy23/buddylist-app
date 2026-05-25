@@ -10,6 +10,7 @@ import { navigateAppPath } from '@/lib/appNavigation';
 import { CONSENT_ERROR_MESSAGES, validateSignupConsent } from '@/lib/signupConsent';
 import { initSoundSystem, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
+import { logSecurityEvent } from '@/lib/securityEvent';
 
 const SIGN_ON_SOUND = '/sounds/aol-welcome.mp3';
 const SIGN_ON_FALLBACK_SOUND = '/sounds/aim.mp3';
@@ -205,6 +206,7 @@ export default function Home() {
           },
           { onConflict: 'id' },
         );
+        logSecurityEvent({ event_type: 'auth.signup.success', user_id: data.session.user.id, outcome: 'success', metadata: { screenname: trimmedScreenname } });
         isCompletingSignUpProtectionRef.current = false;
         setStatusMsg('Account created. Opening H.I.M....');
         await routeToHiItsMe(true);
@@ -225,11 +227,12 @@ export default function Home() {
       .maybeSingle();
 
     if (userData?.email) {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data: signInData, error } = await supabase.auth.signInWithPassword({
         email: userData.email,
         password,
       });
       if (!error) {
+        logSecurityEvent({ event_type: 'auth.signin.success', user_id: signInData.user?.id, outcome: 'success', metadata: { screenname: trimmedScreenname } });
         setStatusMsg('Success! Opening H.I.M....');
         await routeToHiItsMe(true);
         setIsLoading(false);
@@ -240,11 +243,12 @@ export default function Home() {
     // Fall back to derived email for legacy accounts
     let signInError: Error | null = null;
     for (const authEmail of getSignInAuthEmailCandidates(trimmedScreenname)) {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data: signInData, error } = await supabase.auth.signInWithPassword({
         email: authEmail,
         password,
       });
       if (!error) {
+        logSecurityEvent({ event_type: 'auth.signin.success', user_id: signInData.user?.id, outcome: 'success', metadata: { screenname: trimmedScreenname } });
         setStatusMsg('Success! Opening H.I.M....');
         await routeToHiItsMe(true);
         setIsLoading(false);
@@ -255,6 +259,7 @@ export default function Home() {
     }
 
     if (signInError) {
+      logSecurityEvent({ event_type: 'auth.signin.failure', outcome: 'failure', metadata: { screenname: trimmedScreenname } });
       setStatusMsg(
         `Connection failed: ${isInvalidCredentialsError(signInError.message) ? 'Invalid login credentials.' : signInError.message}`,
       );
@@ -282,6 +287,7 @@ export default function Home() {
       return;
     }
 
+    logSecurityEvent({ event_type: 'auth.password_reset.requested', outcome: 'success' });
     setResetSent(true);
     setStatusMsg('Check your email for a password reset link.');
     setIsLoading(false);

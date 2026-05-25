@@ -1,0 +1,52 @@
+[
+  {
+    "name": "Supabase, Inc.",
+    "purpose": "Database, authentication, file storage, realtime messaging, edge functions",
+    "location": "US (AWS us-west-2)",
+    "transfer_mechanism": "Standard Contractual Clauses (SCCs)",
+    "url": "https://supabase.com/legal/dpa",
+    "certifications": ["SOC 2 Type II"],
+    "data_processed": "All user account data, messages, media files, push tokens, trust & safety records",
+    "status": "active"
+  },
+  {
+    "name": "Vercel, Inc.",
+    "purpose": "Web hosting, serverless API functions, web analytics",
+    "location": "US (edge network: global)",
+    "transfer_mechanism": "Standard Contractual Clauses (SCCs)",
+    "url": "https://vercel.com/legal/dpa",
+    "certifications": ["SOC 2 Type II"],
+    "data_processed": "IP addresses and user-agent strings (web); push notification payloads routed via Vercel Functions; anonymised page-view analytics",
+    "status": "active"
+  },
+  {
+    "name": "Apple Inc. — APNs",
+    "purpose": "iOS push notification delivery",
+    "location": "Apple global infrastructure",
+    "transfer_mechanism": "Apple Developer Program License Agreement (DPLA)",
+    "url": "https://www.apple.com/legal/privacy/",
+    "certifications": [],
+    "data_processed": "Device push token; notification payload (sender name and, based on your privacy setting, a message preview)",
+    "status": "active"
+  },
+  {
+    "name": "Google LLC — Google Fonts",
+    "purpose": "Web font delivery on privacy and terms pages",
+    "location": "US (Google global CDN)",
+    "transfer_mechanism": "Standard Contractual Clauses (SCCs)",
+    "url": "https://policies.google.com/privacy",
+    "certifications": [],
+    "data_processed": "IP address at font load time (privacy.html and terms.html only; not loaded by the app itself)",
+    "status": "active"
+  },
+  {
+    "name": "Google LLC — Firebase Cloud Messaging (FCM)",
+    "purpose": "Android push notification delivery",
+    "location": "US (Google global infrastructure)",
+    "transfer_mechanism": "Standard Contractual Clauses (SCCs)",
+    "url": "https://policies.google.com/privacy",
+    "certifications": [],
+    "data_processed": "Device push token; notification payload (when Android push is shipped)",
+    "status": "planned"
+  }
+]
