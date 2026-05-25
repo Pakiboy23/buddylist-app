@@ -15,6 +15,7 @@
     "android:sync:hosted": "CAPACITOR_HOSTED=1 npx cap sync android",
     "native:web:build": "node scripts/build-native-web.mjs",
     "ios:assets": "node scripts/generate-ios-assets.mjs",
+    "android:assets": "node scripts/generate-android-assets.mjs",
     "ios:sync": "npm run native:web:build && npx cap sync ios && node scripts/prepare-ios-swift-packages.mjs",
     "ios:sync:bundled": "npm run ios:sync",
     "ios:sync:hosted": "CAPACITOR_HOSTED=1 npx cap sync ios && node scripts/prepare-ios-swift-packages.mjs",

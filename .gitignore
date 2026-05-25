@@ -63,3 +63,6 @@ next-env.d.ts
 
 # iOS build artifacts (Xcode derived data)
 /ios/build/
+
+# Research / documentation PDFs (do not commit)
+*.pdf
