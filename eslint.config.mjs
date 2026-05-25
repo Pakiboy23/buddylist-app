@@ -38,6 +38,7 @@ const eslintConfig = defineConfig([
     "android/**",
     "ios/build/**",
     "ios/App/App/public/**",
+    "ios/**/.build/**",
     "native-web/**",
   ]),
 ]);

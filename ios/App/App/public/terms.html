@@ -1,0 +1,616 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Terms of Service — H.I.M.</title>
+    <meta name="description" content="H.I.M. Terms of Service" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Nunito:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #13100e;
+        --surface: #1d1916;
+        --amber: #e8a23a;
+        --amber-dim: #c8821a;
+        --stone: #f5f1e8;
+        --stone-dim: rgba(245, 241, 232, 0.62);
+        --stone-faint: rgba(245, 241, 232, 0.18);
+        --border: rgba(245, 241, 232, 0.1);
+      }
+
+      *, *::before, *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html {
+        font-size: 16px;
+        -webkit-text-size-adjust: 100%;
+        scroll-behavior: smooth;
+      }
+
+      body {
+        background: var(--bg);
+        color: var(--stone);
+        font-family: 'Nunito', system-ui, sans-serif;
+        font-size: 1rem;
+        line-height: 1.75;
+        min-height: 100dvh;
+      }
+
+      .page {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 3rem 1.5rem 5rem;
+      }
+
+      header {
+        margin-bottom: 3rem;
+        padding-bottom: 2rem;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .wordmark {
+        font-family: 'IBM Plex Mono', monospace;
+        font-weight: 600;
+        font-size: 0.75rem;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--amber);
+        margin-bottom: 1rem;
+        display: block;
+      }
+
+      header h1 {
+        font-family: 'IBM Plex Mono', monospace;
+        font-weight: 600;
+        font-size: clamp(1.6rem, 4vw, 2.2rem);
+        color: var(--stone);
+        letter-spacing: -0.02em;
+        line-height: 1.2;
+      }
+
+      .meta {
+        margin-top: 0.75rem;
+        font-size: 0.85rem;
+        color: var(--stone-dim);
+      }
+
+      h2 {
+        font-family: 'IBM Plex Mono', monospace;
+        font-weight: 500;
+        font-size: 0.9rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--amber);
+        margin-top: 3rem;
+        margin-bottom: 0.75rem;
+      }
+
+      h3 {
+        font-family: 'IBM Plex Mono', monospace;
+        font-weight: 500;
+        font-size: 0.8rem;
+        letter-spacing: 0.06em;
+        color: var(--stone-dim);
+        text-transform: uppercase;
+        margin-top: 1.5rem;
+        margin-bottom: 0.4rem;
+      }
+
+      p {
+        color: var(--stone-dim);
+        margin-bottom: 1rem;
+      }
+
+      p:last-child {
+        margin-bottom: 0;
+      }
+
+      ul, ol {
+        padding-left: 1.4rem;
+        margin-bottom: 1rem;
+        color: var(--stone-dim);
+      }
+
+      li {
+        margin-bottom: 0.35rem;
+      }
+
+      strong {
+        color: var(--stone);
+        font-weight: 600;
+      }
+
+      a {
+        color: var(--amber);
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+
+      a:hover {
+        color: var(--stone);
+      }
+
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 1.25rem;
+        padding: 1.5rem;
+        margin-top: 0.75rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .card p:last-child {
+        margin-bottom: 0;
+      }
+
+      .notice {
+        background: rgba(232, 162, 58, 0.08);
+        border: 1px solid rgba(232, 162, 58, 0.25);
+        border-radius: 1rem;
+        padding: 1rem 1.25rem;
+        margin-bottom: 2rem;
+        font-size: 0.9rem;
+        color: rgba(245, 241, 232, 0.85);
+      }
+
+      .warning {
+        background: rgba(220, 38, 38, 0.07);
+        border: 1px solid rgba(220, 38, 38, 0.2);
+        border-radius: 1rem;
+        padding: 1rem 1.25rem;
+        margin-top: 0.75rem;
+        margin-bottom: 1.5rem;
+        font-size: 0.9rem;
+        color: rgba(245, 241, 232, 0.85);
+      }
+
+      .divider {
+        border: none;
+        border-top: 1px solid var(--border);
+        margin: 2.5rem 0;
+      }
+
+      .toc {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 1.25rem;
+        padding: 1.25rem 1.5rem;
+        margin-bottom: 2.5rem;
+      }
+
+      .toc p {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 0.75rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--amber);
+        margin-bottom: 0.75rem;
+      }
+
+      .toc ol {
+        margin-bottom: 0;
+        font-size: 0.875rem;
+      }
+
+      .toc a {
+        color: var(--stone-dim);
+        text-decoration: none;
+      }
+
+      .toc a:hover {
+        color: var(--amber);
+      }
+
+      footer {
+        margin-top: 4rem;
+        padding-top: 2rem;
+        border-top: 1px solid var(--border);
+        font-size: 0.8rem;
+        color: var(--stone-faint);
+        text-align: center;
+      }
+
+      footer a {
+        color: var(--stone-dim);
+      }
+
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #f5f1e8;
+          --surface: #ffffff;
+          --stone: #13100e;
+          --stone-dim: rgba(19, 16, 14, 0.65);
+          --stone-faint: rgba(19, 16, 14, 0.25);
+          --border: rgba(19, 16, 14, 0.1);
+          --amber: #b86e00;
+          --amber-dim: #8c5200;
+        }
+        .notice {
+          background: rgba(184, 110, 0, 0.06);
+          border-color: rgba(184, 110, 0, 0.2);
+        }
+        .warning {
+          background: rgba(185, 28, 28, 0.06);
+          border-color: rgba(185, 28, 28, 0.18);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header>
+        <span class="wordmark">H.I.M.</span>
+        <h1>Terms of Service</h1>
+        <p class="meta">
+          Effective: <!-- LEGAL REVIEW: Insert effective date before publishing --> [DATE]
+          &nbsp;·&nbsp;
+          <a href="/privacy">Privacy Policy</a>
+        </p>
+      </header>
+
+      <div class="notice">
+        <strong>Plain-language summary:</strong> H.I.M. is a private messaging space for adults 17+.
+        Be genuine, be kind, and don't use the app to harass, harm, or exploit anyone.
+        Violations can result in content removal or account termination.
+        The full terms below are the binding agreement.
+      </div>
+
+      <!-- LEGAL REVIEW: Confirm legal entity name, jurisdiction, and registered address before publishing -->
+
+      <div class="toc">
+        <p>Contents</p>
+        <ol>
+          <li><a href="#agreement">Agreement to these terms</a></li>
+          <li><a href="#age">Age requirement</a></li>
+          <li><a href="#account">Your account</a></li>
+          <li><a href="#acceptable-use">Acceptable use</a></li>
+          <li><a href="#content">Your content</a></li>
+          <li><a href="#moderation">Content moderation &amp; enforcement</a></li>
+          <li><a href="#termination">Account termination</a></li>
+          <li><a href="#deletion">Account deletion</a></li>
+          <li><a href="#third-party">Third-party services</a></li>
+          <li><a href="#disclaimer">No warranty</a></li>
+          <li><a href="#liability">Limitation of liability</a></li>
+          <li><a href="#governing-law">Governing law</a></li>
+          <li><a href="#disputes">Dispute resolution</a></li>
+          <li><a href="#changes">Changes to these terms</a></li>
+          <li><a href="#contact">Contact</a></li>
+        </ol>
+      </div>
+
+      <hr class="divider" />
+
+      <section id="agreement">
+        <h2>1. Agreement to these terms</h2>
+        <p>
+          By creating an account or using H.I.M. ("the app," "the service," "we," "us," "our"), you agree to be bound
+          by these Terms of Service and our <a href="/privacy">Privacy Policy</a>, which is incorporated here by reference.
+          If you do not agree, do not use the app.
+        </p>
+        <!-- LEGAL REVIEW: Confirm legal entity name and whether a clickwrap acceptance mechanism is implemented at registration -->
+      </section>
+
+      <hr class="divider" />
+
+      <section id="age">
+        <h2>2. Age requirement</h2>
+        <div class="warning">
+          <strong>You must be 17 years of age or older to use H.I.M.</strong>
+          If you are under 17, do not create an account. If we discover that a user is under 17,
+          we will immediately terminate the account and delete all associated data.
+        </div>
+        <p>
+          By creating an account, you represent and warrant that you are at least 17 years old.
+          <!-- LEGAL REVIEW: Evaluate whether an age-verification mechanism (e.g., date-of-birth gate) is required to comply with applicable minors' privacy law (COPPA, KOSA, EU GDPR age thresholds). -->
+        </p>
+      </section>
+
+      <hr class="divider" />
+
+      <section id="account">
+        <h2>3. Your account</h2>
+        <p>
+          You are responsible for maintaining the confidentiality of your password and for all activity that occurs
+          under your account. Do not share your credentials with others.
+        </p>
+        <p>
+          Your screenname is your public identity on H.I.M. You may not use a screenname that impersonates another
+          person, uses a celebrity or brand name without authorization, or is otherwise deceptive.
+        </p>
+        <p>
+          You may update your screenname subject to any rate limits imposed by the app.
+          Screenname availability is not guaranteed.
+        </p>
+        <p>
+          You may only create one account per person. Creating multiple accounts to evade a ban or circumvent
+          moderation is a violation of these terms.
+        </p>
+      </section>
+
+      <hr class="divider" />
+
+      <section id="acceptable-use">
+        <h2>4. Acceptable use</h2>
+        <p>You agree that you will <strong>not</strong> use H.I.M. to:</p>
+
+        <div class="card">
+          <ul>
+            <li>
+              <strong>Harass, threaten, or harm others.</strong> This includes bullying, targeted harassment, hate speech
+              based on race, ethnicity, nationality, religion, sex, gender identity, sexual orientation, disability,
+              or any other protected characteristic, and content that incites violence against any individual or group.
+            </li>
+            <li>
+              <strong>Share content involving minors sexually.</strong> Any content that sexually exploits or depicts
+              minors (CSAM) will result in immediate permanent account termination and reporting to law enforcement
+              and the National Center for Missing &amp; Exploited Children (NCMEC).
+            </li>
+            <li>
+              <strong>Impersonate any person or entity.</strong> This includes impersonating other H.I.M. users,
+              public figures, companies, or H.I.M. staff.
+            </li>
+            <li>
+              <strong>Solicit off-platform transactions or contact.</strong> Using the app to solicit payment,
+              personal contact information, or real-world meetups in exchange for sexual content or favors is prohibited.
+              Sex work solicitation is not permitted on H.I.M.
+            </li>
+            <li>
+              <strong>Spam or abuse the messaging system.</strong> Sending unsolicited bulk messages, automated messages,
+              or flooding other users' inboxes is prohibited.
+            </li>
+            <li>
+              <strong>Distribute malware or phishing content.</strong> Do not send links or files designed to compromise
+              another person's device, account, or personal information.
+            </li>
+            <li>
+              <strong>Violate any applicable law.</strong> This includes laws governing privacy, intellectual property,
+              defamation, fraud, and export controls.
+            </li>
+            <li>
+              <strong>Attempt to circumvent security controls.</strong> Do not reverse-engineer, scrape, or attempt to
+              gain unauthorized access to the app, its API, or other users' accounts.
+            </li>
+          </ul>
+        </div>
+
+        <p>
+          This list is not exhaustive. We reserve the right to take action against any use of the service that
+          we determine, in our sole discretion, to be harmful to users or to the community.
+        </p>
+      </section>
+
+      <hr class="divider" />
+
+      <section id="content">
+        <h2>5. Your content</h2>
+        <p>
+          You retain ownership of the messages, media, and other content you create and share on H.I.M.
+          By posting content, you grant us a limited, non-exclusive, royalty-free license to store, transmit,
+          and display your content solely as necessary to operate the service (for example, delivering a message
+          to its recipient or displaying your profile to other users).
+        </p>
+        <p>
+          You represent and warrant that: (a) you own or have the necessary rights to share your content;
+          (b) your content does not violate these terms or any applicable law; and (c) your content does not
+          infringe the intellectual property rights, privacy rights, or other rights of any third party.
+        </p>
+        <p>
+          We do not review all content before it is posted. An automated keyword filter screens message text
+          before it is stored; messages that trigger the filter are flagged for review and hidden from recipients
+          pending moderation. This filter is not a guarantee that all harmful content will be caught.
+        </p>
+      </section>
+
+      <hr class="divider" />
+
+      <section id="moderation">
+        <h2>6. Content moderation &amp; enforcement</h2>
+        <p>
+          We use a combination of automated filtering and human review to enforce these terms.
+        </p>
+
+        <h3>Automated screening</h3>
+        <p>
+          Every message is screened by an automated filter before it is stored. Messages that match the filter
+          are flagged; flagged messages are hidden from the recipient with a placeholder notice and queued for
+          human review. Automated flagging is not a finding of wrongdoing — it triggers a review process.
+        </p>
+
+        <h3>User reporting</h3>
+        <p>
+          You can report any message or user directly in the app by long-pressing a message or visiting a user's
+          profile. Reports are reviewed by our moderation team.
+          <!-- LEGAL REVIEW: Define SLA for report review and add here -->
+        </p>
+
+        <h3>Enforcement actions</h3>
+        <p>
+          Depending on the nature and severity of the violation, we may take one or more of the following actions:
+        </p>
+        <div class="card">
+          <ul>
+            <li>Remove the specific content.</li>
+            <li>Issue a warning to the account.</li>
+            <li>Temporarily suspend the account.</li>
+            <li>Permanently terminate the account.</li>
+            <li>Report to law enforcement where required by law or where we determine the situation warrants it.</li>
+          </ul>
+        </div>
+        <p>
+          We aim to apply enforcement actions proportionate to the violation, but we reserve the right to act
+          in our sole discretion to protect users and the community.
+          <!-- LEGAL REVIEW: Consider whether an appeals process is required under applicable law (e.g., EU DSA Art. 20) and add here if so -->
+        </p>
+      </section>
+
+      <hr class="divider" />
+
+      <section id="termination">
+        <h2>7. Account termination</h2>
+        <p>
+          We reserve the right to suspend or permanently terminate your account, with or without notice, if we
+          determine that you have violated these terms or that your continued use of the service poses a risk
+          to other users or to the service's integrity.
+        </p>
+        <p>
+          Upon termination by us, your access to the service will be removed. Content you have shared with others
+          (such as messages they received) may remain visible to those recipients unless also removed as part of
+          the enforcement action.
+        </p>
+        <p>
+          If you believe your account was terminated in error, contact <a href="mailto:support@hiitsme.app">support@hiitsme.app</a>.
+          <!-- LEGAL REVIEW: Implement and document a formal appeals process if required under applicable platform accountability law -->
+        </p>
+      </section>
+
+      <hr class="divider" />
+
+      <section id="deletion">
+        <h2>8. Account deletion</h2>
+        <p>
+          You may delete your account at any time from <strong>Account → Delete account</strong> within the app.
+          Account deletion is permanent and irreversible. It will erase:
+        </p>
+        <div class="card">
+          <ul>
+            <li>Your profile, screenname, bio, avatar, and status message.</li>
+            <li>All messages you sent and received (both sides of every conversation).</li>
+            <li>Your room memberships and room message history.</li>
+            <li>Your buddy list and connection records.</li>
+            <li>Your push tokens and notification preferences.</li>
+            <li>Your saved messages, privacy settings, and DM preferences.</li>
+            <li>Your authentication credentials.</li>
+          </ul>
+        </div>
+        <p>
+          Certain records — specifically, moderation records related to abuse reports — may be retained after deletion
+          where required by law. See our <a href="/privacy">Privacy Policy</a> for details.
+        </p>
+      </section>
+
+      <hr class="divider" />
+
+      <section id="third-party">
+        <h2>9. Third-party services</h2>
+        <p>
+          H.I.M. relies on third-party infrastructure providers to operate. By using the app, you acknowledge
+          that your data is processed by these providers as described in our <a href="/privacy">Privacy Policy</a>.
+          We are not responsible for the acts or omissions of third-party service providers beyond what is required
+          by applicable law.
+        </p>
+        <p>
+          The app may contain links to external websites or services. We are not responsible for the content,
+          privacy practices, or terms of those third-party sites.
+        </p>
+      </section>
+
+      <hr class="divider" />
+
+      <section id="disclaimer">
+        <h2>10. No warranty</h2>
+        <!-- LEGAL REVIEW: Review warranty disclaimer language against applicable consumer protection law in your jurisdiction; some disclaimer language may not be enforceable in certain jurisdictions (e.g., EU, UK) -->
+        <p>
+          THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+          INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE,
+          AND NON-INFRINGEMENT. WE DO NOT WARRANT THAT THE SERVICE WILL BE UNINTERRUPTED, ERROR-FREE, OR FREE
+          OF HARMFUL COMPONENTS.
+        </p>
+        <p>
+          We do not guarantee the delivery, accuracy, or completeness of any message transmitted through the service.
+          Messages may be delayed, lost, or filtered by content moderation.
+        </p>
+      </section>
+
+      <hr class="divider" />
+
+      <section id="liability">
+        <h2>11. Limitation of liability</h2>
+        <!-- LEGAL REVIEW: Limitation of liability caps and exclusions must be reviewed against applicable consumer protection law; blanket exclusions are not enforceable in EU / UK for gross negligence or willful misconduct -->
+        <p>
+          TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, WE SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL,
+          SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY LOSS OF PROFITS, DATA, GOODWILL, OR OTHER INTANGIBLE
+          LOSSES, ARISING FROM YOUR USE OF OR INABILITY TO USE THE SERVICE.
+        </p>
+        <p>
+          <!-- LEGAL REVIEW: Insert agreed liability cap amount, e.g., greater of $100 USD or amounts paid in the past 12 months -->
+          OUR TOTAL LIABILITY TO YOU FOR ANY CLAIMS ARISING FROM OR RELATED TO THESE TERMS OR THE SERVICE SHALL NOT
+          EXCEED [AMOUNT PLACEHOLDER].
+        </p>
+        <p>
+          Nothing in these terms excludes or limits liability for death or personal injury caused by our negligence,
+          for fraud or fraudulent misrepresentation, or for any other liability that cannot be excluded by applicable law.
+        </p>
+      </section>
+
+      <hr class="divider" />
+
+      <section id="governing-law">
+        <h2>12. Governing law</h2>
+        <!-- LEGAL REVIEW: Insert governing jurisdiction. If the company is US-based, specify the state. Note that EU/UK users may have mandatory protections under their local law that override a choice-of-law clause. -->
+        <p>
+          These terms are governed by and construed in accordance with the laws of
+          [JURISDICTION PLACEHOLDER], without regard to its conflict-of-law provisions.
+        </p>
+      </section>
+
+      <hr class="divider" />
+
+      <section id="disputes">
+        <h2>13. Dispute resolution</h2>
+        <!-- LEGAL REVIEW: Arbitration clauses are not enforceable in many EU/UK jurisdictions. Determine the dispute resolution approach appropriate for your user base and jurisdiction. -->
+        <p>
+          Before bringing a formal dispute, we encourage you to contact us at
+          <a href="mailto:support@hiitsme.app">support@hiitsme.app</a> so we can try to resolve the issue informally.
+          We will respond within a reasonable time.
+        </p>
+        <p>
+          <!-- LEGAL REVIEW: Insert dispute resolution mechanism (e.g., binding arbitration, small claims court, or jurisdiction-specific consumer tribunal). Binding arbitration with class-action waiver is prohibited in many jurisdictions. -->
+          [DISPUTE RESOLUTION MECHANISM PLACEHOLDER]
+        </p>
+        <p>
+          If you are located in the European Union, you may also use the EU Online Dispute Resolution platform at
+          <a href="https://ec.europa.eu/consumers/odr" rel="noopener noreferrer" target="_blank">ec.europa.eu/consumers/odr</a>.
+        </p>
+      </section>
+
+      <hr class="divider" />
+
+      <section id="changes">
+        <h2>14. Changes to these terms</h2>
+        <p>
+          We may update these terms from time to time. When we make material changes, we will update the effective
+          date at the top of this page. Your continued use of the app after the effective date constitutes
+          acceptance of the updated terms.
+          <!-- LEGAL REVIEW: Consider whether in-app notification of material term changes (with re-acceptance flow) is required under applicable law -->
+        </p>
+      </section>
+
+      <hr class="divider" />
+
+      <section id="contact">
+        <h2>15. Contact</h2>
+        <p>
+          Questions about these terms: <a href="mailto:support@hiitsme.app">support@hiitsme.app</a>
+        </p>
+        <!-- LEGAL REVIEW: Add legal entity name and registered address -->
+      </section>
+
+      <footer>
+        <p>
+          <a href="/privacy">Privacy Policy</a>
+          &nbsp;·&nbsp;
+          <a href="mailto:support@hiitsme.app">support@hiitsme.app</a>
+        </p>
+        <p style="margin-top:0.5rem;">© H.I.M. All rights reserved.</p>
+      </footer>
+    </div>
+  </body>
+</html>
