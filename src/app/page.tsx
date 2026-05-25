@@ -7,6 +7,7 @@ import RetroWindow from '@/components/RetroWindow';
 import { waitForSessionOrNull } from '@/lib/authClient';
 import { getSignInAuthEmailCandidates, isInvalidCredentialsError } from '@/lib/authIdentity';
 import { navigateAppPath } from '@/lib/appNavigation';
+import { CONSENT_ERROR_MESSAGES, validateSignupConsent } from '@/lib/signupConsent';
 import { initSoundSystem, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
 
@@ -41,6 +42,8 @@ export default function Home() {
   const [resetSent, setResetSent] = useState(false);
   const [statusMsg, setStatusMsg] = useState('Welcome back. Enter your screen name and password.');
   const [isLoading, setIsLoading] = useState(false);
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [art9Confirmed, setArt9Confirmed] = useState(false);
   const hasNavigatedRef = useRef(false);
   const isCompletingSignUpProtectionRef = useRef(false);
   const router = useAppRouter();
@@ -120,6 +123,8 @@ export default function Home() {
     setAuthView('sign-on');
     setIsSignUp(true);
     setResetSent(false);
+    setAgeConfirmed(false);
+    setArt9Confirmed(false);
     applyViewStatusMessage('sign-on', true);
   };
 
@@ -127,6 +132,8 @@ export default function Home() {
     setAuthView('sign-on');
     setIsSignUp(false);
     setResetSent(false);
+    setAgeConfirmed(false);
+    setArt9Confirmed(false);
     applyViewStatusMessage('sign-on', false);
   };
 
@@ -138,6 +145,12 @@ export default function Home() {
     }
 
     if (isSignUp) {
+      const consentError = validateSignupConsent({ ageConfirmed, art9Confirmed });
+      if (consentError) {
+        setStatusMsg(CONSENT_ERROR_MESSAGES[consentError]);
+        return;
+      }
+
       if (trimmedScreenname.length < 3) {
         setStatusMsg('Screen Name must be at least 3 characters.');
         return;
@@ -178,6 +191,7 @@ export default function Home() {
       }
 
       if (data.session) {
+        const consentTimestamp = new Date().toISOString();
         await supabase.from('users').upsert(
           {
             id: data.session.user.id,
@@ -185,7 +199,9 @@ export default function Home() {
             screenname: trimmedScreenname,
             status: 'available',
             is_online: true,
-            last_active_at: new Date().toISOString(),
+            last_active_at: consentTimestamp,
+            age_confirmed_at: consentTimestamp,
+            art9_consent_at: consentTimestamp,
           },
           { onConflict: 'id' },
         );
@@ -471,6 +487,49 @@ export default function Home() {
                         autoComplete={isSignUp ? 'new-password' : 'current-password'}
                       />
                     </div>
+
+                    {/* Consent checkboxes — sign up only */}
+                    {isSignUp && (
+                      <div className="space-y-3 pt-1">
+                        <label className="flex cursor-pointer items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={ageConfirmed}
+                            onChange={(e) => setAgeConfirmed(e.target.checked)}
+                            disabled={controlsDisabled}
+                            data-testid="checkbox-age"
+                            className="mt-0.5 h-4 w-4 shrink-0 accent-[#E8A23A]"
+                          />
+                          <span className="text-[13px] leading-5 text-slate-500 dark:text-slate-400">
+                            I am 17 or older.
+                          </span>
+                        </label>
+                        <label className="flex cursor-pointer items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={art9Confirmed}
+                            onChange={(e) => setArt9Confirmed(e.target.checked)}
+                            disabled={controlsDisabled}
+                            data-testid="checkbox-art9"
+                            className="mt-0.5 h-4 w-4 shrink-0 accent-[#E8A23A]"
+                          />
+                          <span className="text-[13px] leading-5 text-slate-500 dark:text-slate-400">
+                            I understand H.I.M. is a social app for gay men, and I consent to the app
+                            processing data that may reveal my sexual orientation as described in the{' '}
+                            <a
+                              href="https://hiitsme.app/privacy"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-amber-500 underline underline-offset-2"
+                            >
+                              Privacy Policy
+                            </a>
+                            .
+                          </span>
+                        </label>
+                      </div>
+                    )}
                   </>
                 )}
 
