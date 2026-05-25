@@ -55,8 +55,14 @@ export default function AccountPage() {
   const [passwordPhase, setPasswordPhase] = useState<PasswordPhase>('idle');
   const [passwordMessage, setPasswordMessage] = useState<string>('');
 
+  const [userId, setUserId] = useState<string>('');
+
   const [pushStatus, setPushStatus] = useState<PushPermissionStatus>('not-native');
   const [pushRequesting, setPushRequesting] = useState(false);
+
+  type NotifPreviewMode = 'full' | 'name_only' | 'hidden';
+  const [notifPreviewMode, setNotifPreviewMode] = useState<NotifPreviewMode>('name_only');
+  const [notifPreviewPhase, setNotifPreviewPhase] = useState<'idle' | 'saving' | 'error'>('idle');
 
   const [exportPhase, setExportPhase] = useState<'idle' | 'loading' | 'error'>('idle');
   const [exportMessage, setExportMessage] = useState('');
@@ -95,10 +101,24 @@ export default function AccountPage() {
         return;
       }
 
+      setUserId(session.user.id);
       setCurrentEmail(session.user.email ?? '');
       const meta = session.user.user_metadata as Record<string, unknown> | undefined;
       const metaScreenname = typeof meta?.screenname === 'string' ? meta.screenname : '';
       setScreenname(metaScreenname);
+
+      const { data: privacyRow } = await supabase
+        .from('user_privacy_settings')
+        .select('notification_preview_mode')
+        .eq('user_id', session.user.id)
+        .maybeSingle();
+      if (!isCancelled) {
+        const stored = (privacyRow as { notification_preview_mode?: string } | null)?.notification_preview_mode;
+        setNotifPreviewMode(
+          stored === 'full' || stored === 'hidden' ? stored : 'name_only',
+        );
+      }
+
       setLoadPhase('ready');
     };
 
@@ -161,6 +181,16 @@ export default function AccountPage() {
       setExportMessage(err instanceof Error ? err.message : 'Export failed. Please try again.');
     }
   }, []);
+
+  const handleNotifPreviewChange = useCallback(async (mode: NotifPreviewMode) => {
+    if (!userId) return;
+    setNotifPreviewMode(mode);
+    setNotifPreviewPhase('saving');
+    const { error } = await supabase
+      .from('user_privacy_settings')
+      .upsert({ user_id: userId, notification_preview_mode: mode }, { onConflict: 'user_id' });
+    setNotifPreviewPhase(error ? 'error' : 'idle');
+  }, [userId]);
 
   const handleDeleteAccount = useCallback(() => {
     navigateAppPath(router, '/account/delete');
@@ -436,6 +466,53 @@ export default function AccountPage() {
               )}
             </div>
           )}
+
+          <div className={`${sectionClass} space-y-3`}>
+            <div>
+              <h2 className="text-[16px] font-semibold text-slate-900 dark:text-slate-50">
+                Notification previews
+              </h2>
+              <p className="mt-1 text-[13px] leading-5 text-slate-500 dark:text-slate-400">
+                Controls what appears in banners and on the lock screen. Lock-screen notifications are visible to anyone with physical access to your device.
+              </p>
+            </div>
+            {(
+              [
+                { value: 'full', label: 'Full', detail: 'Sender name and message snippet' },
+                { value: 'name_only', label: 'Sender only', detail: 'Sender name shown; message text hidden' },
+                { value: 'hidden', label: 'Hidden', detail: 'No sender or content — maximum privacy' },
+              ] as const
+            ).map(({ value, label, detail }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => { void handleNotifPreviewChange(value); }}
+                disabled={notifPreviewPhase === 'saving'}
+                className={`ui-focus-ring flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition active:scale-[0.99] disabled:opacity-50 ${
+                  notifPreviewMode === value
+                    ? 'border-[#E8A23A]/60 bg-[#E8A23A]/10 dark:border-[#E8A23A]/40 dark:bg-[#E8A23A]/10'
+                    : 'border-slate-200/80 bg-white/60 hover:bg-white/80 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10'
+                }`}
+              >
+                <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${
+                  notifPreviewMode === value ? 'border-[#E8A23A]' : 'border-slate-300 dark:border-slate-600'
+                }`}>
+                  {notifPreviewMode === value && (
+                    <span className="h-2 w-2 rounded-full bg-[#E8A23A]" />
+                  )}
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[14px] font-semibold text-slate-900 dark:text-slate-50">{label}</span>
+                  <span className="block text-[12px] text-slate-500 dark:text-slate-400">{detail}</span>
+                </span>
+              </button>
+            ))}
+            {notifPreviewPhase === 'error' && (
+              <p role="status" aria-live="polite" className="rounded-[1.2rem] border border-amber-200/80 bg-amber-50/90 px-4 py-2.5 text-[13px] leading-5 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                Could not save notification preference. Please try again.
+              </p>
+            )}
+          </div>
 
           <div className={`${sectionClass} space-y-3`}>
             <div>

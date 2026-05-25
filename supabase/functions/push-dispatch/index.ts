@@ -215,13 +215,22 @@ Deno.serve(async (req: Request) => {
       const userTokens = tokensByUser.get(recipientId) ?? [];
       if (!userTokens.length) continue;
 
-      const mode = previewModes.get(recipientId) ?? 'full';
+      // Fall back to 'name_only' for recipients with no stored preference —
+      // new accounts without a user_privacy_settings row get the privacy-forward default.
+      const mode = previewModes.get(recipientId) ?? 'name_only';
       const preview = applyNotificationPreview(
         { senderName: input.senderName, messagePreview: input.previewText },
         mode,
       );
       const payload = {
-        aps: { alert: { title: preview.senderName, body: preview.messagePreview }, sound: 'default' },
+        aps: {
+          alert: { title: preview.senderName, body: preview.messagePreview },
+          sound: 'default',
+          // mutable-content: 1 lets a future Notification Service Extension
+          // decrypt content client-side or enrich the alert before display.
+          // No extension is implemented yet; the flag is a forward-compatibility hook.
+          'mutable-content': 1,
+        },
         senderName: preview.senderName,
         messagePreview: preview.messagePreview,
         targetPath: input.targetPath,
