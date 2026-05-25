@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import AppIcon from '@/components/AppIcon';
 import HimWordmark from '@/components/HimWordmark';
@@ -11,6 +11,8 @@ import {
   type PushPermissionStatus,
 } from '@/lib/nativePush';
 import { supabase } from '@/lib/supabase';
+
+const SUPABASE_FUNCTIONS_URL = `${(import.meta.env.VITE_SUPABASE_URL as string | undefined) ?? ''}/functions/v1`;
 
 // Legacy accounts were created with derived emails like `<screenname>@hiitsme.app`
 // or `<screenname>@buddylist.com`. These addresses don't exist in the real world,
@@ -55,6 +57,10 @@ export default function AccountPage() {
 
   const [pushStatus, setPushStatus] = useState<PushPermissionStatus>('not-native');
   const [pushRequesting, setPushRequesting] = useState(false);
+
+  const [exportPhase, setExportPhase] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [exportMessage, setExportMessage] = useState('');
+  const exportLinkRef = useRef<HTMLAnchorElement | null>(null);
 
   const showLegacyNotice = useMemo(() => isLegacyDerivedEmail(currentEmail), [currentEmail]);
 
@@ -106,6 +112,55 @@ export default function AccountPage() {
   const handleBack = useCallback(() => {
     navigateAppPath(router, '/hi-its-me');
   }, [router]);
+
+  const handleExport = useCallback(async () => {
+    setExportPhase('loading');
+    setExportMessage('');
+    try {
+      const session = await waitForSessionOrNull();
+      if (!session) throw new Error('Not signed in.');
+
+      const resp = await fetch(`${SUPABASE_FUNCTIONS_URL}/export-account`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+
+      if (resp.status === 429) {
+        const body = await resp.json() as { retry_after_seconds?: number };
+        const hours = body.retry_after_seconds ? Math.ceil(body.retry_after_seconds / 3600) : 24;
+        setExportPhase('error');
+        setExportMessage(`You can only export once every 24 hours. Try again in ~${hours}h.`);
+        return;
+      }
+      if (!resp.ok) {
+        const body = await resp.json() as { error?: string };
+        throw new Error(body.error ?? `Export failed (${resp.status})`);
+      }
+
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const filename = `hiitsme-export-${new Date().toISOString().slice(0, 10)}.json`;
+
+      // Re-use or create a hidden anchor so we can clean up the object URL.
+      let a = exportLinkRef.current;
+      if (!a) {
+        a = document.createElement('a');
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        exportLinkRef.current = a;
+      }
+      a.href = url;
+      a.download = filename;
+      a.click();
+      // Revoke after a tick so the browser has time to start the download.
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+      setExportPhase('idle');
+    } catch (err) {
+      setExportPhase('error');
+      setExportMessage(err instanceof Error ? err.message : 'Export failed. Please try again.');
+    }
+  }, []);
 
   const handleDeleteAccount = useCallback(() => {
     navigateAppPath(router, '/account/delete');
@@ -381,6 +436,31 @@ export default function AccountPage() {
               )}
             </div>
           )}
+
+          <div className={`${sectionClass} space-y-3`}>
+            <div>
+              <h2 className="text-[16px] font-semibold text-slate-900 dark:text-slate-50">
+                Your data
+              </h2>
+              <p className="mt-1 text-[13px] leading-5 text-slate-500 dark:text-slate-400">
+                Download a copy of your profile, messages, room history, and settings. One export per 24 hours.
+              </p>
+            </div>
+            <button
+              type="button"
+              data-testid="account-export-btn"
+              onClick={() => { void handleExport(); }}
+              disabled={exportPhase === 'loading'}
+              className="ui-focus-ring min-h-[48px] w-full rounded-2xl bg-[#E8A23A] px-4 py-2.5 text-[14px] font-semibold text-[#13100E] transition active:scale-[0.99] hover:bg-[#D4912E] disabled:opacity-50"
+            >
+              {exportPhase === 'loading' ? 'Preparing export…' : 'Download your data'}
+            </button>
+            {exportPhase === 'error' && exportMessage ? (
+              <p role="status" aria-live="polite" className="rounded-[1.2rem] border border-amber-200/80 bg-amber-50/90 px-4 py-2.5 text-[13px] leading-5 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                {exportMessage}
+              </p>
+            ) : null}
+          </div>
 
           <div className={`${sectionClass} space-y-0.5`}>
             <h2 className="mb-2 text-[16px] font-semibold text-slate-900 dark:text-slate-50">
