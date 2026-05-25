@@ -28,6 +28,8 @@
 *.pem
 .tools/
 /.claude/worktrees/
+.codex/
+.xhawk/
 
 # debug
 npm-debug.log*
