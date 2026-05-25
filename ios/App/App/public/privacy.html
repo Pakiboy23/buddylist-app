@@ -211,6 +211,58 @@
         color: var(--stone-dim);
       }
 
+      code {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 0.8em;
+        background: var(--stone-faint);
+        border-radius: 0.25rem;
+        padding: 0.1em 0.35em;
+      }
+
+      .table-wrap {
+        width: 100%;
+        overflow-x: auto;
+        margin-top: 0.75rem;
+        margin-bottom: 1.5rem;
+        border-radius: 1rem;
+        border: 1px solid var(--border);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+        color: var(--stone-dim);
+      }
+
+      th {
+        background: var(--surface);
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 0.7rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--amber);
+        font-weight: 500;
+        padding: 0.65rem 1rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border);
+      }
+
+      td {
+        padding: 0.65rem 1rem;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+        line-height: 1.5;
+      }
+
+      tr:last-child td {
+        border-bottom: none;
+      }
+
+      tr:nth-child(even) td {
+        background: rgba(245, 241, 232, 0.03);
+      }
+
       @media (prefers-color-scheme: light) {
         :root {
           --bg: #f5f1e8;
@@ -235,7 +287,7 @@
         <span class="wordmark">H.I.M.</span>
         <h1>Privacy Policy</h1>
         <p class="meta">
-          Effective: <!-- LEGAL REVIEW: Insert effective date before publishing --> [DATE]
+          Effective: May 25, 2026
           &nbsp;·&nbsp;
           <a href="/terms">Terms of Service</a>
         </p>
@@ -469,21 +521,124 @@
       <hr class="divider" />
 
       <section id="on-device-storage">
-        <h2>6. On-device storage</h2>
+        <h2>6. On-device storage &amp; cookies</h2>
         <p>
-          H.I.M. stores the following data locally on your device only. This data is never transmitted to our servers
-          except as part of normal app operation (e.g., the outbox sends its content once connectivity is restored).
+          H.I.M. uses <strong>no cookies</strong>. We use browser <code>localStorage</code> to store data
+          directly on your device. This data is never shared with third parties for advertising or tracking.
+          All items in the table below are <strong>strictly necessary</strong> to deliver the service.
+        </p>
+        <p>
+          The web app does not set cookies. The iOS and Android apps use the same localStorage-equivalent
+          mechanism provided by Capacitor, scoped to the app's sandbox.
+        </p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Key</th>
+                <th>Purpose</th>
+                <th>Expiry</th>
+                <th>Strictly necessary</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>sb-*-auth-token</code></td>
+                <td>Supabase authentication session (access token + refresh token)</td>
+                <td>Cleared on sign-out; refresh token rotates periodically</td>
+                <td>Yes — authentication</td>
+              </tr>
+              <tr>
+                <td><code>hiitsme_theme</code></td>
+                <td>Your color-scheme preference (light / dark / system)</td>
+                <td>Until you change it or clear browser data</td>
+                <td>Yes — UI rendering</td>
+              </tr>
+              <tr>
+                <td><code>hiitsme:away-presets:{userId}</code></td>
+                <td>Your saved away-message presets</td>
+                <td>Cleared on sign-out</td>
+                <td>Yes — core messaging</td>
+              </tr>
+              <tr>
+                <td><code>hiitsme:away-settings:{userId}</code></td>
+                <td>Auto-away configuration (threshold, auto-reply enabled)</td>
+                <td>Cleared on sign-out</td>
+                <td>Yes — core messaging</td>
+              </tr>
+              <tr>
+                <td><code>hiitsme:away-cooldowns:{userId}</code></td>
+                <td>Timestamps that throttle auto-reply frequency</td>
+                <td>Cleared on sign-out</td>
+                <td>Yes — prevents reply spam</td>
+              </tr>
+              <tr>
+                <td><code>hiitsme:buddy-sort:{userId}</code></td>
+                <td>Buddy-list sort order preference</td>
+                <td>Cleared on sign-out</td>
+                <td>Yes — UI state</td>
+              </tr>
+              <tr>
+                <td><code>hiitsme:outbox:v1:{userId}</code></td>
+                <td>Offline message queue for reliable delivery when network is lost</td>
+                <td>Cleared on delivery or sign-out</td>
+                <td>Yes — offline messaging</td>
+              </tr>
+              <tr>
+                <td><code>hiitsme_rich_text_format</code></td>
+                <td>Message composer format state (bold, italic, etc.)</td>
+                <td>Until changed or browser data cleared</td>
+                <td>Yes — UI state</td>
+              </tr>
+              <tr>
+                <td><code>hiitsme:dm-preferences:v1:{userId}</code></td>
+                <td>Per-conversation preferences (pinned, muted, archived, chat theme)</td>
+                <td>Cleared on sign-out</td>
+                <td>Yes — core UX</td>
+              </tr>
+              <tr>
+                <td><code>hiitsme:privacy:v1:{userId}</code></td>
+                <td>Local cache of your privacy settings for faster rendering</td>
+                <td>Cleared on sign-out</td>
+                <td>Yes — privacy-sensitive UI</td>
+              </tr>
+              <tr>
+                <td><code>hiitsme:app-lock:v1:{userId}</code></td>
+                <td>App-lock settings: enabled flag, SHA-256 PIN hash (never the raw PIN), auto-lock duration, biometrics flag</td>
+                <td>Cleared on sign-out</td>
+                <td>Yes — security</td>
+              </tr>
+              <tr>
+                <td><code>storage_notice_acknowledged</code></td>
+                <td>Records that you dismissed the storage disclosure notice (EU/EEA/UK users only)</td>
+                <td>Until browser data cleared</td>
+                <td>Yes — prevents repeat notices</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>User controls</h3>
+        <p>
+          All per-account keys (those ending in <code>:{userId}</code>) are removed automatically when
+          you sign out. You can also clear all locally stored data at any time through your browser or
+          device settings:
         </p>
         <div class="card">
           <ul>
-            <li><strong>Outbox</strong> — messages you compose while offline, queued for delivery. Cleared automatically once delivered.</li>
-            <li><strong>App lock</strong> — whether the PIN lock is enabled, a SHA-256 hash of your PIN (never the PIN itself), auto-lock duration, and whether biometric authentication is enabled. Your biometric data (Face ID / Touch ID) is processed entirely by the device's Secure Enclave and is never accessible to H.I.M.</li>
-            <li><strong>Privacy preferences cache</strong> — a local copy of your notification preview mode and per-conversation settings for faster rendering.</li>
-            <li><strong>Room state</strong> — joined room list and unread counts, cached for up to 7 days.</li>
+            <li><strong>Web browser:</strong> Settings → Privacy &amp; Security → Clear browsing data → Cached images and files + Site data (select hiitsme.app).</li>
+            <li><strong>iOS:</strong> Settings → General → iPhone Storage → H.I.M. → Offload App, or delete and reinstall.</li>
+            <li><strong>Android:</strong> Settings → Apps → H.I.M. → Storage → Clear data.</li>
           </ul>
         </div>
         <p>
-          All local data is removed when you delete the app from your device or delete your account through the in-app flow.
+          Clearing local data signs you out on that device. Your account and messages remain on our servers
+          until you delete your account through <strong>Settings → Delete account</strong>.
+        </p>
+        <p>
+          Because all storage is strictly necessary to run the service, no consent toggle is required under
+          ePrivacy rules. EU/EEA/UK users see a one-time notice when they first visit the app.
         </p>
       </section>
 
@@ -495,36 +650,73 @@
           We use the following third-party services that process personal data on our behalf.
           All transfers of EEA/UK personal data to processors in the United States are conducted under
           appropriate transfer mechanisms (Standard Contractual Clauses or equivalent).
-          <!-- LEGAL REVIEW: Confirm SCCs are in place with each sub-processor below and document the transfer mechanism for each -->
         </p>
         <div class="card">
-          <ul>
-            <li>
-              <strong>Supabase, Inc.</strong> (United States) — database, authentication, file storage, realtime messaging,
-              serverless functions. All user data, messages, and files are hosted on Supabase infrastructure.
-              Supabase is SOC 2 Type II certified and operates a Data Processing Agreement.
-            </li>
-            <li>
-              <strong>Vercel, Inc.</strong> (United States) — web hosting, serverless API functions, and web analytics.
-              Request IP addresses and user-agent strings are processed by Vercel infrastructure on the web platform.
-              Vercel is SOC 2 Type II certified and operates a Data Processing Agreement.
-            </li>
-            <li>
-              <strong>Apple Inc. — Apple Push Notification service (APNs)</strong> — iOS push notification delivery.
-              When you enable notifications, your APNs device token and the notification payload (sender name and,
-              depending on your privacy setting, a message preview) pass through Apple's infrastructure.
-              Apple acts as a data processor for this purpose.
-            </li>
-          </ul>
+          <!-- SUBPROCESSORS:START -->
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Sub-processor</th>
+                  <th>Purpose</th>
+                  <th>Location</th>
+                  <th>Transfer mechanism</th>
+                  <th>Data processed</th>
+                </tr>
+              </thead>
+              <tbody>
+            <tr>
+              <td><a href="https://supabase.com/legal/dpa" target="_blank" rel="noopener noreferrer">Supabase, Inc.</a><br><span style="font-size:0.8rem;opacity:0.6;">SOC 2 Type II</span></td>
+              <td>Database, authentication, file storage, realtime messaging, edge functions</td>
+              <td>US (AWS us-west-2)</td>
+              <td>Standard Contractual Clauses (SCCs)</td>
+              <td style="font-size:0.85rem;">All user account data, messages, media files, push tokens, trust &amp; safety records</td>
+            </tr>
+            <tr>
+              <td><a href="https://vercel.com/legal/dpa" target="_blank" rel="noopener noreferrer">Vercel, Inc.</a><br><span style="font-size:0.8rem;opacity:0.6;">SOC 2 Type II</span></td>
+              <td>Web hosting, serverless API functions, web analytics</td>
+              <td>US (edge network: global)</td>
+              <td>Standard Contractual Clauses (SCCs)</td>
+              <td style="font-size:0.85rem;">IP addresses and user-agent strings (web); push notification payloads routed via Vercel Functions; anonymised page-view analytics</td>
+            </tr>
+            <tr>
+              <td><a href="https://www.apple.com/legal/privacy/" target="_blank" rel="noopener noreferrer">Apple Inc. — APNs</a></td>
+              <td>iOS push notification delivery</td>
+              <td>Apple global infrastructure</td>
+              <td>Apple Developer Program License Agreement (DPLA)</td>
+              <td style="font-size:0.85rem;">Device push token; notification payload (sender name and, based on your privacy setting, a message preview)</td>
+            </tr>
+            <tr>
+              <td><a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google LLC — Google Fonts</a></td>
+              <td>Web font delivery on privacy and terms pages</td>
+              <td>US (Google global CDN)</td>
+              <td>Standard Contractual Clauses (SCCs)</td>
+              <td style="font-size:0.85rem;">IP address at font load time (privacy.html and terms.html only; not loaded by the app itself)</td>
+            </tr>
+            <tr>
+              <td><a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google LLC — Firebase Cloud Messaging (FCM)</a> <span style="font-size:0.75rem;opacity:0.55;font-style:italic;">(planned)</span></td>
+              <td>Android push notification delivery</td>
+              <td>US (Google global infrastructure)</td>
+              <td>Standard Contractual Clauses (SCCs)</td>
+              <td style="font-size:0.85rem;">Device push token; notification payload (when Android push is shipped)</td>
+            </tr>
+              </tbody>
+            </table>
+          </div>
+          <p style="margin-top:1rem;font-size:0.875rem;opacity:0.7;">
+            All libraries used in the app that operate solely on your device
+            (Capacitor, jose, @aparajita/capacitor-biometric-auth, bad-words)
+            transmit no data to third parties and are not listed above.
+          </p>
+          <p style="margin-top:0.5rem;font-size:0.875rem;opacity:0.7;">
+            This table is generated from
+            <code>docs/compliance/sub-processors.json</code>.
+            To update it, edit that file and re-run
+            <code>node scripts/render-subprocessors.mjs</code>.
+          </p>
+          <!-- SUBPROCESSORS:END -->
         </div>
-        <p>
-          We do not use Google Firebase Cloud Messaging (FCM) at this time.
-          If we add Android push notifications in future, this policy will be updated.
-        </p>
-        <p>
-          All other libraries used in the app (Capacitor, jose, bad-words) operate locally on your device
-          and transmit no data to third parties.
-        </p>
       </section>
 
       <hr class="divider" />
@@ -532,15 +724,75 @@
       <section id="retention">
         <h2>8. How long we keep data</h2>
         <div class="card">
-          <ul>
-            <li><strong>Account and profile data:</strong> Until you delete your account.</li>
-            <li><strong>Messages and media:</strong> Until the sender or recipient deletes their account. Disappearing messages are assigned an expiry; automated deletion of expired content is a planned feature. <!-- LEGAL REVIEW: Add specific retention duration once automated purge is implemented --></li>
-            <li><strong>Push tokens:</strong> Until invalidated by Apple (automatic) or you delete your account.</li>
-            <li><strong>Abuse reports:</strong> Retained after account deletion where required for legal-obligation purposes. <!-- LEGAL REVIEW: Determine specific legal hold period under applicable law (e.g., EU DSA, local law) and document here --></li>
-            <li><strong>Server logs (authentication, API):</strong> Per the standard retention policies of Supabase and Vercel for your service tier. <!-- LEGAL REVIEW: Confirm exact durations and add here --></li>
-            <li><strong>Analytics:</strong> Per Vercel Analytics' retention policy (anonymised aggregates).</li>
-            <li><strong>On-device data:</strong> Until you delete the app or delete your account.</li>
-          </ul>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Data category</th>
+                  <th>Retention window</th>
+                  <th>How enforced</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Account &amp; profile</td>
+                  <td>Until you delete your account</td>
+                  <td>Account-deletion flow</td>
+                </tr>
+                <tr>
+                  <td>Direct messages &amp; room messages</td>
+                  <td>Until the sender or recipient deletes their account</td>
+                  <td>Account-deletion flow (cascade)</td>
+                </tr>
+                <tr>
+                  <td>Media attachments</td>
+                  <td>Until the message is deleted or account deleted</td>
+                  <td>Account-deletion flow</td>
+                </tr>
+                <tr>
+                  <td>Push notification tokens</td>
+                  <td>90 days since last registration, or until account deletion</td>
+                  <td>Automated daily cleanup job</td>
+                </tr>
+                <tr>
+                  <td>Blocks</td>
+                  <td>Until you unblock the user or delete your account</td>
+                  <td>Account-deletion flow</td>
+                </tr>
+                <tr>
+                  <td>Abuse reports (closed — reviewed or dismissed)</td>
+                  <td>24 months from submission</td>
+                  <td>Automated daily cleanup job</td>
+                </tr>
+                <tr>
+                  <td>Abuse reports (open or actioned)</td>
+                  <td>Retained for legal-obligation purposes (safety &amp; DSA compliance)</td>
+                  <td>Manual review process</td>
+                </tr>
+                <tr>
+                  <td>Account deletion records (internal)</td>
+                  <td>30 days after account deletion</td>
+                  <td>Automated daily cleanup job</td>
+                </tr>
+                <tr>
+                  <td>Server logs (authentication, API)</td>
+                  <td>Per our infrastructure providers' standard policies</td>
+                  <td>Supabase / Vercel managed</td>
+                </tr>
+                <tr>
+                  <td>Analytics (web only, anonymised)</td>
+                  <td>Per Vercel Analytics' retention policy</td>
+                  <td>Vercel managed</td>
+                </tr>
+                <tr>
+                  <td>On-device data (localStorage)</td>
+                  <td>Until you uninstall the app or delete your account</td>
+                  <td>OS / user action</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p style="margin-top:1rem;font-size:0.875rem;opacity:0.7;">Retention windows are enforced by an automated daily cleanup job. Disappearing messages have sender-set expiries; automated purge of those records is a planned feature.</p>
         </div>
       </section>
 
