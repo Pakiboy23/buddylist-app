@@ -1,6 +1,25 @@
 import UIKit
 import Capacitor
+import SwiftUI
 import WebKit
+
+@available(iOS 26.0, *)
+fileprivate struct HiItsMeLiquidGlassDockBackground: View {
+    let isDark: Bool
+
+    var body: some View {
+        GeometryReader { proxy in
+            let cornerRadius = max(CGFloat(22), proxy.size.height / 2)
+            let tint = Color(uiColor: isDark ? .himBg2 : .himLightBg2)
+                .opacity(isDark ? 0.18 : 0.12)
+
+            Color.clear
+                .glassEffect(.regular.tint(tint), in: .rect(cornerRadius: cornerRadius))
+                .accessibilityHidden(true)
+        }
+        .allowsHitTesting(false)
+    }
+}
 
 fileprivate extension UIColor {
     // Dark mode
@@ -567,6 +586,7 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
     )
     private var chromeState = HiItsMeShellChromeState(showsTopChrome: false, showsBottomChrome: false)
     private var hasPreparedBridgeForShutdown = false
+    private var liquidGlassDockHostingController: UIViewController?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -618,6 +638,16 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
     }
 
     func tabBar(_ tabBar: UITabBar, didSelect item: UITabBarItem) {
+        // App Review fix: while the web app is on an unauthenticated route, the JS
+        // side has no tab content to swap in. UIKit still flips the tab selection
+        // visually on tap, which reviewers read as "responds but does nothing"
+        // (Guideline 2.1(a), build 2.0/167). Revert the selection and skip the
+        // bridge dispatch so the tab bar reads as inert on the sign-in screen.
+        if isUnauthenticatedRoute() {
+            restoreSelectedTabItem()
+            return
+        }
+
         switch item {
         case imTabItem:
             dispatchCommand(type: "selectTab", valueKey: "tab", value: HiItsMeShellTab.im.rawValue)
@@ -629,6 +659,34 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
             dispatchCommand(type: "selectTab", valueKey: "tab", value: HiItsMeShellTab.profile.rawValue)
         default:
             return
+        }
+    }
+
+    private func isUnauthenticatedRoute() -> Bool {
+        // Default to "unauthenticated" if the WebView hasn't reported a URL yet,
+        // so taps during the cold-launch loading window are also inert.
+        guard let path = bridgeViewController.webView?.url?.path else {
+            return true
+        }
+        let trimmed = path.hasSuffix("/") && path.count > 1 ? String(path.dropLast()) : path
+        switch trimmed {
+        case "", "/", "/index.html":
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func restoreSelectedTabItem() {
+        switch chromeState.activeTab {
+        case .im:
+            tabBar.selectedItem = imTabItem
+        case .chat:
+            tabBar.selectedItem = chatTabItem
+        case .buddy:
+            tabBar.selectedItem = buddyTabItem
+        case .profile:
+            tabBar.selectedItem = profileTabItem
         }
     }
 
@@ -825,6 +883,7 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
 
         view.addSubview(topChromeView)
         topChromeView.contentView.addSubview(topDockView)
+        installLiquidGlassDockBackgroundIfAvailable()
         topDockView.contentView.addSubview(headerGradientView)
         topDockView.contentView.addSubview(navigationBar)
 
@@ -1046,10 +1105,63 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         overlayColor: UIColor,
         borderColor: UIColor
     ) {
-        dockView.effect = UIBlurEffect(style: blurStyle)
-        dockView.contentView.backgroundColor = overlayColor
+        // On iOS 26+, the top dock paints its background with a SwiftUI
+        // `glassEffect` hosted behind the navigation content. Skip the legacy
+        // UIBlurEffect so the new material isn't doubled up.
+        if #available(iOS 26.0, *), dockView === topDockView {
+            dockView.effect = nil
+            dockView.contentView.backgroundColor = .clear
+            updateLiquidGlassDockBackground()
+        } else {
+            dockView.effect = UIBlurEffect(style: blurStyle)
+            dockView.contentView.backgroundColor = overlayColor
+        }
         dockView.layer.borderWidth = 0.75
         dockView.layer.borderColor = borderColor.cgColor
+    }
+
+    private func installLiquidGlassDockBackgroundIfAvailable() {
+        if #available(iOS 26.0, *) {
+            installLiquidGlassDockBackground()
+        }
+    }
+
+    @available(iOS 26.0, *)
+    private func installLiquidGlassDockBackground() {
+        guard liquidGlassDockHostingController == nil else { return }
+
+        let hosting = UIHostingController(rootView: makeLiquidGlassDockBackground())
+        hosting.view.translatesAutoresizingMaskIntoConstraints = false
+        hosting.view.backgroundColor = .clear
+        hosting.view.isUserInteractionEnabled = false
+
+        addChild(hosting)
+        // Insert at index 0 so the SwiftUI glass sits behind the gradient
+        // header and navigation bar inside the dock pill.
+        topDockView.contentView.insertSubview(hosting.view, at: 0)
+
+        NSLayoutConstraint.activate([
+            hosting.view.topAnchor.constraint(equalTo: topDockView.contentView.topAnchor),
+            hosting.view.leadingAnchor.constraint(equalTo: topDockView.contentView.leadingAnchor),
+            hosting.view.trailingAnchor.constraint(equalTo: topDockView.contentView.trailingAnchor),
+            hosting.view.bottomAnchor.constraint(equalTo: topDockView.contentView.bottomAnchor)
+        ])
+
+        hosting.didMove(toParent: self)
+        liquidGlassDockHostingController = hosting
+    }
+
+    @available(iOS 26.0, *)
+    private func updateLiquidGlassDockBackground() {
+        guard let hosting = liquidGlassDockHostingController as? UIHostingController<HiItsMeLiquidGlassDockBackground> else {
+            return
+        }
+        hosting.rootView = makeLiquidGlassDockBackground()
+    }
+
+    @available(iOS 26.0, *)
+    private func makeLiquidGlassDockBackground() -> HiItsMeLiquidGlassDockBackground {
+        HiItsMeLiquidGlassDockBackground(isDark: chromeState.isDark)
     }
 
     private func makeBarButtonItem(for action: HiItsMeShellAction) -> UIBarButtonItem? {
