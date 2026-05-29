@@ -571,6 +571,8 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
     )
     private var chromeState = HiItsMeShellChromeState()
     private var hasPreparedBridgeForShutdown = false
+    private var hasReceivedWebChromeState = false
+    private var startupChromeFallbackWorkItem: DispatchWorkItem?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -586,7 +588,8 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         configureNavigationBar()
         configureTabBar()
         embedBridgeViewController()
-        applyChromeState(chromeState, animated: false)
+        applyChromeState(chromeState, animated: false, fromWeb: false)
+        scheduleStartupChromeFallback()
         registerForApplicationLifecycleNotifications()
     }
 
@@ -602,10 +605,51 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
 
     deinit {
         NotificationCenter.default.removeObserver(self)
+        startupChromeFallbackWorkItem?.cancel()
         prepareBridgeForShutdown()
     }
 
-    fileprivate func applyChromeState(_ state: HiItsMeShellChromeState, animated: Bool = true) {
+    private func scheduleStartupChromeFallback() {
+        startupChromeFallbackWorkItem?.cancel()
+
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self, !self.hasReceivedWebChromeState else {
+                return
+            }
+
+            self.applyChromeState(
+                HiItsMeShellChromeState(
+                    title: "H.I.M.",
+                    subtitle: nil,
+                    mode: .sheet,
+                    activeTab: .im,
+                    tabBarVisibility: .hidden,
+                    leadingAction: nil,
+                    trailingActions: [],
+                    accentTone: .blue,
+                    canGoBack: false,
+                    isDark: self.chromeState.isDark,
+                    isAdminUser: false,
+                    unreadDirectCount: 0,
+                    showsTopChrome: false,
+                    showsBottomChrome: false
+                ),
+                animated: true,
+                fromWeb: false
+            )
+        }
+
+        startupChromeFallbackWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: workItem)
+    }
+
+    fileprivate func applyChromeState(_ state: HiItsMeShellChromeState, animated: Bool = true, fromWeb: Bool = true) {
+        if fromWeb {
+            hasReceivedWebChromeState = true
+            startupChromeFallbackWorkItem?.cancel()
+            startupChromeFallbackWorkItem = nil
+        }
+
         chromeState = state
         overrideUserInterfaceStyle = state.isDark ? .dark : .light
         view.backgroundColor = state.isDark ? .himBg : .himLightBg

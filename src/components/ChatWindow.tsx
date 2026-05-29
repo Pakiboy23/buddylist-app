@@ -264,7 +264,7 @@ export default function ChatWindow({
   const [isRequestingMicrophone, setIsRequestingMicrophone] = useState(false);
   const [isRecordingVoiceNote, setIsRecordingVoiceNote] = useState(false);
   const [voiceNoteElapsedSeconds, setVoiceNoteElapsedSeconds] = useState(0);
-  const [expiryTick, setExpiryTick] = useState(0);
+  const [expiryNowMs, setExpiryNowMs] = useState(() => Date.now());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
@@ -341,7 +341,7 @@ export default function ChatWindow({
     }
 
     const intervalId = setInterval(() => {
-      setExpiryTick((previous) => previous + 1);
+      setExpiryNowMs(Date.now());
     }, 15000);
 
     return () => {
@@ -596,10 +596,7 @@ export default function ChatWindow({
 
   const normalizedInitialUnreadCount = Math.max(0, Math.floor(initialUnreadCount));
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
-  const visibleMessages = useMemo(() => {
-    const nowMs = Date.now() + expiryTick;
-    return filterExpiredMessages(messages, nowMs);
-  }, [expiryTick, messages]);
+  const visibleMessages = useMemo(() => filterExpiredMessages(messages, expiryNowMs), [expiryNowMs, messages]);
   const messageMatches = useMemo(() => {
     const matches = new Map<number, boolean>();
     if (!normalizedSearchQuery) {
