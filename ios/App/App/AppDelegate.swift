@@ -450,7 +450,6 @@ class HiItsMeBridgeViewController: CAPBridgeViewController {
 
         installMediaTrackingIfNeeded()
         webView.evaluateJavaScript(mediaTeardownScript, completionHandler: nil)
-        webView.stopLoading()
     }
 
     func tearDownWebView() {
@@ -459,6 +458,7 @@ class HiItsMeBridgeViewController: CAPBridgeViewController {
         }
 
         prepareForMediaShutdown()
+        webView.stopLoading()
         webView.navigationDelegate = nil
         webView.uiDelegate = nil
         webView.scrollView.delegate = nil
