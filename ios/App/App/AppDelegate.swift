@@ -8,16 +8,19 @@ fileprivate struct HiItsMeLiquidGlassDockBackground: View {
     let isDark: Bool
 
     var body: some View {
-        GeometryReader { proxy in
-            let cornerRadius = max(CGFloat(22), proxy.size.height / 2)
-            let tint = Color(uiColor: isDark ? .himBg2 : .himLightBg2)
-                .opacity(isDark ? 0.18 : 0.12)
+        // Rectangle with explicit fill instead of Color.clear: gives SwiftUI a
+        // concrete geometry instead of a layout-flexible placeholder. .capsule
+        // matches the dock pill shape without needing a GeometryReader to
+        // resolve sizes (GeometryReader inside a UIHostingController.contentView
+        // can resolve to .zero on the first layout pass, locking SwiftUI).
+        let tint = Color(uiColor: isDark ? .himBg2 : .himLightBg2)
+            .opacity(isDark ? 0.18 : 0.12)
 
-            Color.clear
-                .glassEffect(.regular.tint(tint), in: .rect(cornerRadius: cornerRadius))
-                .accessibilityHidden(true)
-        }
-        .allowsHitTesting(false)
+        Rectangle()
+            .fill(Color.clear)
+            .glassEffect(.regular.tint(tint), in: .capsule)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 }
 
@@ -610,6 +613,7 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         super.viewDidLayoutSubviews()
         topDockView.layer.cornerRadius = max(22, topDockView.bounds.height / 2)
         headerGradientLayer.frame = headerGradientView.bounds
+        installLiquidGlassDockBackgroundIfAvailable()
     }
 
     override var preferredStatusBarStyle: UIStatusBarStyle {
@@ -883,9 +887,13 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
 
         view.addSubview(topChromeView)
         topChromeView.contentView.addSubview(topDockView)
-        installLiquidGlassDockBackgroundIfAvailable()
         topDockView.contentView.addSubview(headerGradientView)
         topDockView.contentView.addSubview(navigationBar)
+        // SwiftUI Liquid Glass install moved to viewDidLayoutSubviews — see
+        // installLiquidGlassDockBackgroundIfAvailable() guard. Installing the
+        // UIHostingController in viewDidLoad before the parent VC is in a
+        // window was the suspected cause of the TestFlight blank-screen on
+        // build 168 (CFBundleVersion before this fix).
 
         NSLayoutConstraint.activate([
             topChromeView.topAnchor.constraint(equalTo: view.topAnchor),
@@ -1106,12 +1114,27 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         borderColor: UIColor
     ) {
         // On iOS 26+, the top dock paints its background with a SwiftUI
-        // `glassEffect` hosted behind the navigation content. Skip the legacy
-        // UIBlurEffect so the new material isn't doubled up.
-        if #available(iOS 26.0, *), dockView === topDockView {
+        // `glassEffect` hosted behind the navigation content. We only swap out
+        // the legacy UIBlurEffect AFTER the SwiftUI hosting controller has
+        // actually mounted (gated on liquidGlassDockHostingController != nil).
+        // If the hosting controller hasn't installed yet, OR fails to mount,
+        // the legacy blur stays as a backstop so the dock is never empty. This
+        // is the fix for the 168 TestFlight blank-screen — c933171 nuked the
+        // blur unconditionally on iOS 26, leaving the dock transparent if the
+        // SwiftUI mount silently failed.
+        let useLiquidGlass: Bool
+        if #available(iOS 26.0, *) {
+            useLiquidGlass = (dockView === topDockView) && (liquidGlassDockHostingController != nil)
+        } else {
+            useLiquidGlass = false
+        }
+
+        if useLiquidGlass {
             dockView.effect = nil
             dockView.contentView.backgroundColor = .clear
-            updateLiquidGlassDockBackground()
+            if #available(iOS 26.0, *) {
+                updateLiquidGlassDockBackground()
+            }
         } else {
             dockView.effect = UIBlurEffect(style: blurStyle)
             dockView.contentView.backgroundColor = overlayColor
@@ -1149,6 +1172,14 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
 
         hosting.didMove(toParent: self)
         liquidGlassDockHostingController = hosting
+
+        // Hosting mounted successfully — re-apply chrome state so the dock
+        // switches from UIBlurEffect to the SwiftUI glass material now that
+        // applyDockAppearance's `useLiquidGlass` gate evaluates true. The
+        // re-entry is safe: install is guarded by a nil check so we don't
+        // recurse, and applyChromeState just refreshes visual properties
+        // without re-running layout.
+        applyChromeState(chromeState, animated: false)
     }
 
     @available(iOS 26.0, *)
