@@ -122,7 +122,7 @@ export default function SearchPanel({ currentUserId }: SearchPanelProps) {
                 onClick={() => setSelectedUserId(user.id)}
                 className="ui-focus-ring ui-list-row w-full text-left"
               >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[rgba(232,162,58,0.12)] text-[13px] font-bold text-[var(--rose)]">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[rgba(232,162,58,0.12)] text-[13px] font-bold text-[var(--chiraag)]">
                   {user.screenname.slice(0, 1).toUpperCase()}
                 </div>
                 <div className="min-w-0 flex-1">

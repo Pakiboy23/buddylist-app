@@ -15,11 +15,7 @@ fileprivate extension UIColor {
     static let himLightText = UIColor(red: 26 / 255, green: 26 / 255, blue: 26 / 255, alpha: 1)
     static let himLightMuted = UIColor(red: 107 / 255, green: 107 / 255, blue: 107 / 255, alpha: 1)
     // Brand: primary accent. Mirrors `--chiraag` (#E8A23A) in src/app/globals.css.
-    // Legacy `himRose` name retained as an alias for one release — matches the
-    // web CSS pattern `--rose: var(--chiraag)`. Migrate call sites to
-    // `himChiraag` and delete the alias in a follow-up PR.
     static let himChiraag = UIColor(red: 232 / 255, green: 162 / 255, blue: 58 / 255, alpha: 1)
-    static let himRose = himChiraag
     static let himGold = UIColor(red: 212 / 255, green: 150 / 255, blue: 58 / 255, alpha: 1)
     static let himGreen = UIColor(red: 78 / 255, green: 201 / 255, blue: 122 / 255, alpha: 1)
     static let himLavender = UIColor(red: 167 / 255, green: 139 / 255, blue: 250 / 255, alpha: 1)
@@ -569,7 +565,7 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         image: UIImage(systemName: "person.crop.circle"),
         selectedImage: UIImage(systemName: "person.crop.circle.fill")
     )
-    private var chromeState = HiItsMeShellChromeState()
+    private var chromeState = HiItsMeShellChromeState(showsTopChrome: false, showsBottomChrome: false)
     private var hasPreparedBridgeForShutdown = false
 
     override func viewDidLoad() {
@@ -577,7 +573,7 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         view.backgroundColor = .himBg
         bridgeViewController.shellController = self
 
-        headerGradientLayer.colors = [UIColor.himRose.cgColor, UIColor.himLavender.cgColor, UIColor.himGold.cgColor]
+        headerGradientLayer.colors = [UIColor.himChiraag.cgColor, UIColor.himLavender.cgColor, UIColor.himGold.cgColor]
         headerGradientLayer.startPoint = CGPoint(x: 0, y: 0.5)
         headerGradientLayer.endPoint = CGPoint(x: 1, y: 0.5)
         headerGradientView.layer.addSublayer(headerGradientLayer)
@@ -1343,9 +1339,9 @@ fileprivate final class PrivacySheetViewController: UIViewController {
         let heroCard = makeCardView()
         let heroIcon = UIImageView(image: UIImage(systemName: "hand.raised.fill"))
         heroIcon.translatesAutoresizingMaskIntoConstraints = false
-        heroIcon.tintColor = .himRose
+        heroIcon.tintColor = .himChiraag
         heroIcon.preferredSymbolConfiguration = .init(pointSize: 20, weight: .semibold)
-        heroIcon.backgroundColor = UIColor.himRose.withAlphaComponent(0.16)
+        heroIcon.backgroundColor = UIColor.himChiraag.withAlphaComponent(0.16)
         heroIcon.layer.cornerRadius = 22
         heroIcon.clipsToBounds = true
 
@@ -1381,10 +1377,10 @@ fileprivate final class PrivacySheetViewController: UIViewController {
         feedbackLabel.numberOfLines = 0
         feedbackLabel.isHidden = true
         feedbackLabel.textColor = .himMuted
-        loadSpinner.color = .himRose
-        shareReadReceiptsSwitch.onTintColor = .himRose
-        screenShieldSwitch.onTintColor = .himRose
-        notificationPreviewControl.selectedSegmentTintColor = .himRose
+        loadSpinner.color = .himChiraag
+        shareReadReceiptsSwitch.onTintColor = .himChiraag
+        screenShieldSwitch.onTintColor = .himChiraag
+        notificationPreviewControl.selectedSegmentTintColor = .himChiraag
 
         let statusRow = UIStackView(arrangedSubviews: [loadSpinner, feedbackLabel])
         statusRow.axis = .horizontal
@@ -1495,7 +1491,7 @@ fileprivate final class PrivacySheetViewController: UIViewController {
         openAdvancedButton.configuration?.title = "Open Full Controls"
         openAdvancedButton.configuration?.image = UIImage(systemName: "arrow.up.right.square")
         openAdvancedButton.configuration?.imagePadding = 8
-        openAdvancedButton.configuration?.baseForegroundColor = .himRose
+        openAdvancedButton.configuration?.baseForegroundColor = .himChiraag
         openAdvancedButton.configuration?.background.backgroundColor = UIColor.himBg3
         openAdvancedButton.addTarget(self, action: #selector(handleOpenAdvancedControls), for: .touchUpInside)
 
@@ -1531,7 +1527,7 @@ fileprivate final class PrivacySheetViewController: UIViewController {
         }
 
         guard let shellController else {
-            showFeedback("H.I.M. is still loading.", color: .himRose)
+            showFeedback("H.I.M. is still loading.", color: .himChiraag)
             return
         }
 
@@ -1552,7 +1548,7 @@ fileprivate final class PrivacySheetViewController: UIViewController {
                 switch result {
                 case .success(let response):
                     guard response.ok, let state = response.state else {
-                        self.showFeedback(response.error ?? "Could not load privacy settings.", color: .himRose)
+                        self.showFeedback(response.error ?? "Could not load privacy settings.", color: .himChiraag)
                         return
                     }
 
@@ -1563,7 +1559,7 @@ fileprivate final class PrivacySheetViewController: UIViewController {
                         self.feedbackLabel.isHidden = true
                     }
                 case .failure(let error):
-                    self.showFeedback(error.localizedDescription, color: .himRose)
+                    self.showFeedback(error.localizedDescription, color: .himChiraag)
                 }
             }
         }
@@ -1611,7 +1607,7 @@ fileprivate final class PrivacySheetViewController: UIViewController {
 
         guard let shellController else {
             applyState(previousState)
-            showFeedback("H.I.M. is still loading.", color: .himRose)
+            showFeedback("H.I.M. is still loading.", color: .himChiraag)
             return
         }
 
@@ -1632,7 +1628,7 @@ fileprivate final class PrivacySheetViewController: UIViewController {
                 case .success(let response):
                     guard response.ok, let state = response.state else {
                         self.applyState(previousState)
-                        self.showFeedback(response.error ?? "Could not update privacy.", color: .himRose)
+                        self.showFeedback(response.error ?? "Could not update privacy.", color: .himChiraag)
                         return
                     }
 
@@ -1644,7 +1640,7 @@ fileprivate final class PrivacySheetViewController: UIViewController {
                     }
                 case .failure(let error):
                     self.applyState(previousState)
-                    self.showFeedback(error.localizedDescription, color: .himRose)
+                    self.showFeedback(error.localizedDescription, color: .himChiraag)
                 }
             }
         }
@@ -1816,9 +1812,9 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
         let heroCard = makeCardView()
         let heroIcon = UIImageView(image: UIImage(systemName: "shield.lefthalf.filled"))
         heroIcon.translatesAutoresizingMaskIntoConstraints = false
-        heroIcon.tintColor = .himRose
+        heroIcon.tintColor = .himChiraag
         heroIcon.preferredSymbolConfiguration = .init(pointSize: 20, weight: .semibold)
-        heroIcon.backgroundColor = UIColor.himRose.withAlphaComponent(0.16)
+        heroIcon.backgroundColor = UIColor.himChiraag.withAlphaComponent(0.16)
         heroIcon.layer.cornerRadius = 22
         heroIcon.clipsToBounds = true
 
@@ -1884,7 +1880,7 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
         let confirmLabel = makeLabel(textStyle: .subheadline, weight: .medium)
         confirmLabel.text = "I verified this request and will deliver the reset handoff through a trusted channel."
         confirmLabel.numberOfLines = 0
-        confirmationSwitch.onTintColor = .himRose
+        confirmationSwitch.onTintColor = .himChiraag
         let confirmRow = UIStackView(arrangedSubviews: [confirmLabel, confirmationSwitch])
         confirmRow.axis = .horizontal
         confirmRow.alignment = .center
@@ -1905,7 +1901,7 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
         issueButton.configuration?.title = "Issue Secure Ticket"
         issueButton.configuration?.image = UIImage(systemName: "paperplane.fill")
         issueButton.configuration?.imagePadding = 8
-        issueButton.configuration?.baseBackgroundColor = .himRose
+        issueButton.configuration?.baseBackgroundColor = .himChiraag
         issueButton.configuration?.baseForegroundColor = .white
         issueButton.addTarget(self, action: #selector(handleIssue), for: .touchUpInside)
 
@@ -1924,7 +1920,7 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
         feedbackLabel.isHidden = true
         feedbackLabel.textColor = .himMuted
         issueSpinner.color = .white
-        auditSpinner.color = .himRose
+        auditSpinner.color = .himChiraag
 
         resultCard.isHidden = true
         resultCard.backgroundColor = .himBg2
@@ -1945,14 +1941,14 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
         copyTicketButton.configuration = .tinted()
         copyTicketButton.configuration?.cornerStyle = .medium
         copyTicketButton.configuration?.title = "Copy Ticket"
-        copyTicketButton.configuration?.baseForegroundColor = .himRose
+        copyTicketButton.configuration?.baseForegroundColor = .himChiraag
         copyTicketButton.configuration?.background.backgroundColor = .himBg3
         copyTicketButton.addTarget(self, action: #selector(handleCopyTicket), for: .touchUpInside)
 
         copyHandoffButton.configuration = .tinted()
         copyHandoffButton.configuration?.cornerStyle = .medium
         copyHandoffButton.configuration?.title = "Copy Secure Handoff"
-        copyHandoffButton.configuration?.baseForegroundColor = .himRose
+        copyHandoffButton.configuration?.baseForegroundColor = .himChiraag
         copyHandoffButton.configuration?.background.backgroundColor = .himBg3
         copyHandoffButton.addTarget(self, action: #selector(handleCopyHandoff), for: .touchUpInside)
 
@@ -1978,7 +1974,7 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
         refreshButton.configuration = .tinted()
         refreshButton.configuration?.cornerStyle = .medium
         refreshButton.configuration?.title = "Refresh"
-        refreshButton.configuration?.baseForegroundColor = .himRose
+        refreshButton.configuration?.baseForegroundColor = .himChiraag
         refreshButton.configuration?.background.backgroundColor = .himBg3
         refreshButton.addTarget(self, action: #selector(handleRefresh), for: .touchUpInside)
 
@@ -2094,7 +2090,7 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
         }
 
         emptyAuditLabel.text = message
-        emptyAuditLabel.textColor = .himRose
+        emptyAuditLabel.textColor = .himChiraag
         emptyAuditLabel.isHidden = false
     }
 
@@ -2148,7 +2144,7 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
 
     private func showFeedback(_ message: String, isError: Bool) {
         feedbackLabel.text = message
-        feedbackLabel.textColor = isError ? .himRose : .himGreen
+        feedbackLabel.textColor = isError ? .himChiraag : .himGreen
         feedbackLabel.isHidden = false
     }
 

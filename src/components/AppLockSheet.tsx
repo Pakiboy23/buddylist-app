@@ -339,7 +339,7 @@ export default function AppLockSheet({
                     type="button"
                     onClick={onUseBiometrics}
                     disabled={isBiometricAuthenticating}
-                    className="ui-focus-ring flex h-14 w-full items-center justify-center rounded-[1.25rem] border border-amber-300/40 bg-[rgba(232,162,58,0.12)] px-2 text-[11px] font-semibold text-[var(--rose)] transition disabled:opacity-60"
+                    className="ui-focus-ring flex h-14 w-full items-center justify-center rounded-[1.25rem] border border-amber-300/40 bg-[rgba(232,162,58,0.12)] px-2 text-[11px] font-semibold text-[var(--chiraag)] transition disabled:opacity-60"
                   >
                     {isBiometricAuthenticating ? 'Checking...' : biometricLabel}
                   </button>

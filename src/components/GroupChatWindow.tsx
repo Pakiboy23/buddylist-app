@@ -129,12 +129,12 @@ interface GroupChatWindowProps {
 
 const GROUP_SENDER_COLOR_CLASSES = [
   'text-[var(--green)]',
-  'text-[var(--lavender)]',
-  'text-[var(--rose)]',
-  'text-[var(--gold)]',
-  'text-[color:color-mix(in_srgb,var(--rose)_78%,white)]',
-  'text-[color:color-mix(in_srgb,var(--gold)_76%,white)]',
-  'text-[color:color-mix(in_srgb,var(--lavender)_76%,white)]',
+  'text-[var(--chiraag)]',
+  'text-[var(--chiraag)]',
+  'text-[var(--chiraag)]',
+  'text-[color:color-mix(in_srgb,var(--chiraag)_78%,white)]',
+  'text-[color:color-mix(in_srgb,var(--chiraag)_76%,white)]',
+  'text-[color:color-mix(in_srgb,var(--chiraag)_76%,white)]',
   'text-[color:color-mix(in_srgb,var(--green)_78%,white)]',
 ] as const;
 
@@ -1116,7 +1116,7 @@ export default function GroupChatWindow({
             >
               <div className="flex items-start gap-3">
                 <div className="min-w-0 flex flex-1 items-center gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[rgba(232,162,58,0.18)] bg-[rgba(232,162,58,0.14)] text-[15px] font-bold text-[var(--gold)]">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[rgba(232,162,58,0.18)] bg-[rgba(232,162,58,0.14)] text-[15px] font-bold text-[var(--chiraag)]">
                     #
                   </div>
                   <div className="min-w-0 flex-1">
@@ -1124,7 +1124,7 @@ export default function GroupChatWindow({
                       <span className="truncate text-[15px] font-semibold text-slate-800 dark:text-slate-100">
                         #{roomName}
                       </span>
-                      <span className="text-[11px] font-semibold text-[var(--gold)]">
+                      <span className="text-[11px] font-semibold text-[var(--chiraag)]">
                         {rosterMembers.length} active
                       </span>
                     </div>
@@ -1182,7 +1182,7 @@ export default function GroupChatWindow({
                       }}
                       className="ui-focus-ring ui-button-secondary ui-button-compact flex w-full items-center gap-2"
                     >
-                      <AppIcon kind="add" className="h-3.5 w-3.5 shrink-0 text-[var(--rose)]" />
+                      <AppIcon kind="add" className="h-3.5 w-3.5 shrink-0 text-[var(--chiraag)]" />
                       <span className="font-mono text-[11px] uppercase tracking-[0.1em]">Invite a buddy</span>
                     </button>
                   ) : null}
@@ -1306,7 +1306,7 @@ export default function GroupChatWindow({
               />
               <div className="relative z-10 rounded-t-[1.75rem] bg-[var(--bg2)] px-4 pb-8 pt-5">
                 <div className="mb-1 flex items-center justify-between gap-3">
-                  <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--rose)]">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--chiraag)]">
                     Invite to #{roomName}
                   </p>
                   <button
@@ -1344,14 +1344,14 @@ export default function GroupChatWindow({
                             }}
                             className={`ui-focus-ring flex w-full items-center gap-3 rounded-[0.875rem] px-3 py-2.5 text-left transition active:scale-[0.98] ${
                               selected
-                                ? 'bg-[var(--rose)]/15'
+                                ? 'bg-[var(--chiraag)]/15'
                                 : 'bg-white/5 hover:bg-white/10'
                             }`}
                           >
                             <span
                               className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition ${
                                 selected
-                                  ? 'border-[var(--rose)] bg-[var(--rose)]'
+                                  ? 'border-[var(--chiraag)] bg-[var(--chiraag)]'
                                   : 'border-slate-600'
                               }`}
                               aria-hidden="true"
@@ -1413,7 +1413,7 @@ export default function GroupChatWindow({
               />
               <div className="relative z-10 rounded-t-[1.75rem] bg-[var(--bg2)] px-4 pb-8 pt-5">
                 <div className="mb-4 flex items-center justify-between gap-3">
-                  <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--rose)]">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--chiraag)]">
                     Member
                   </p>
                   <button
@@ -1523,7 +1523,7 @@ export default function GroupChatWindow({
                   const senderName = screennameMap[message.user_id] || 'Unknown User';
                   const isMine = message.user_id === currentUserId;
                   const isMatch = normalizedSearchQuery ? Boolean(messageMatches.get(message.id)) : false;
-                  const senderColorClass = isMine ? 'text-[var(--rose)]' : getStableSenderColorClass(message.user_id);
+                  const senderColorClass = isMine ? 'text-[var(--chiraag)]' : getStableSenderColorClass(message.user_id);
                   const plainMessageText = htmlToPlainText(message.body).toLowerCase();
                   const isMentioningCurrentUser =
                     !isMine && plainMessageText.includes(`@${currentUserScreenname.trim().toLowerCase()}`);

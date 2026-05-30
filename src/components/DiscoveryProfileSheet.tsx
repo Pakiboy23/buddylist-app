@@ -142,7 +142,7 @@ export default function DiscoveryProfileSheet({ userId, currentUserId, onClose }
       />
       <div className="relative z-10 rounded-t-[1.75rem] bg-[var(--bg2)] px-4 pb-8 pt-5">
         <div className="mb-4 flex items-center justify-between gap-3">
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--rose)]">Profile</p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--chiraag)]">Profile</p>
           <button type="button" onClick={onClose} className="ui-focus-ring ui-conversation-action" aria-label="Close">
             <AppIcon kind="close" className="h-3.5 w-3.5" />
           </button>
@@ -220,7 +220,7 @@ export default function DiscoveryProfileSheet({ userId, currentUserId, onClose }
                       className={[
                         'ui-focus-ring rounded-xl px-3 py-2 text-[12px] font-medium transition-colors',
                         reportReason === value
-                          ? 'bg-[var(--rose)] text-white'
+                          ? 'bg-[var(--chiraag)] text-white'
                           : 'bg-[var(--bg2)] text-slate-300',
                       ].join(' ')}
                     >

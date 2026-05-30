@@ -668,13 +668,13 @@ html.dark body {
 
 .ui-button-primary {
   border: 1px solid rgba(232, 162, 58, 0.45);
-  background: linear-gradient(180deg, var(--rose) 0%, var(--rose-dark) 100%);
+  background: linear-gradient(180deg, var(--chiraag) 0%, var(--chiraag-strong) 100%);
   color: #fff;
   box-shadow: 0 12px 24px rgba(232, 162, 58, 0.28);
 }
 
 .ui-button-primary:hover {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--rose) 92%, white 8%) 0%, color-mix(in srgb, var(--rose-dark) 92%, black 8%) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--chiraag) 92%, white 8%) 0%, color-mix(in srgb, var(--chiraag-strong) 92%, black 8%) 100%);
 }
 
 .dark .ui-button-primary {
@@ -1122,7 +1122,7 @@ html.dark body {
 
 .ui-filter-chip[data-active='true'] {
   border-color: rgba(232, 162, 58, 0.4);
-  background: linear-gradient(180deg, var(--rose) 0%, var(--rose-dark) 100%);
+  background: linear-gradient(180deg, var(--chiraag) 0%, var(--chiraag-strong) 100%);
   color: #fff;
   box-shadow: 0 10px 24px rgba(232, 162, 58, 0.22);
 }
@@ -1135,7 +1135,7 @@ html.dark body {
 
 .dark .ui-filter-chip[data-active='true'] {
   border-color: rgba(232, 162, 58, 0.4);
-  background: linear-gradient(180deg, var(--rose) 0%, var(--rose-dark) 100%);
+  background: linear-gradient(180deg, var(--chiraag) 0%, var(--chiraag-strong) 100%);
   color: #fff;
 }
 
@@ -1547,12 +1547,6 @@ button:not(:disabled):active,
   --ui-shell-muted: rgba(26, 31, 58, 0.82);
   --ui-shell-shadow: 0 22px 48px rgba(0, 0, 0, 0.34), inset 0 0.5px 0 rgba(255, 255, 255, 0.04);
   --ui-shell-shadow-soft: 0 14px 34px rgba(0, 0, 0, 0.26), inset 0 0.5px 0 rgba(255, 255, 255, 0.04);
-
-  /* RETIRED — deprecation aliases for one release; delete in follow-up PR */
-  --rose: var(--chiraag);
-  --rose-dark: var(--chiraag-strong);
-  --gold: var(--chiraag);
-  --lavender: var(--chiraag);
 }
 
 /* ── data-theme attribute palette (mirrors .dark / html:not(.dark)) ── */
@@ -1641,7 +1635,7 @@ body.privacy-shield-active::after {
 .ui-brand-sparkle {
   border: 1px solid rgba(232, 162, 58, 0.3);
   background: linear-gradient(180deg, rgba(232, 162, 58, 0.2), rgba(232, 162, 58, 0.14));
-  color: var(--rose);
+  color: var(--chiraag);
   box-shadow: 0 10px 22px rgba(232, 162, 58, 0.18);
 }
 
@@ -1788,7 +1782,7 @@ body.privacy-shield-active::after {
   top: 0;
   width: 100%;
   height: 2px;
-  background: linear-gradient(90deg, var(--rose) 0%, var(--lavender) 52%, var(--gold) 100%);
+  background: linear-gradient(90deg, var(--chiraag) 0%, var(--chiraag) 52%, var(--chiraag) 100%);
   opacity: 1;
 }
 
@@ -1855,7 +1849,7 @@ body.privacy-shield-active::after {
 
 .ui-popover-item:hover {
   background: rgba(232, 162, 58, 0.12);
-  color: var(--rose);
+  color: var(--chiraag);
 }
 
 .dark .ui-popover-item:hover {
@@ -1987,11 +1981,11 @@ body.privacy-shield-active::after {
 }
 
 .ui-section-header[data-tone='online'] {
-  color: var(--rose);
+  color: var(--chiraag);
 }
 
 .ui-section-header[data-tone='away'] {
-  color: var(--gold);
+  color: var(--chiraag);
 }
 
 .ui-section-header[data-tone='offline'] {
@@ -2031,20 +2025,20 @@ body.privacy-shield-active::after {
 .ui-filter-chip[data-active='true'],
 .dark .ui-filter-chip[data-active='true'] {
   border-color: rgba(232, 162, 58, 0.4);
-  background: linear-gradient(180deg, var(--rose) 0%, var(--rose-dark) 100%);
+  background: linear-gradient(180deg, var(--chiraag) 0%, var(--chiraag-strong) 100%);
   color: #fff;
   box-shadow: 0 12px 24px rgba(232, 162, 58, 0.24);
 }
 
 .ui-button-primary {
   border-color: rgba(232, 162, 58, 0.45);
-  background: linear-gradient(180deg, var(--rose) 0%, var(--rose-dark) 100%);
+  background: linear-gradient(180deg, var(--chiraag) 0%, var(--chiraag-strong) 100%);
   color: #fff;
   box-shadow: 0 14px 28px rgba(232, 162, 58, 0.28);
 }
 
 .ui-button-primary:hover {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--rose) 92%, white 8%) 0%, color-mix(in srgb, var(--rose-dark) 92%, black 8%) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--chiraag) 92%, white 8%) 0%, color-mix(in srgb, var(--chiraag-strong) 92%, black 8%) 100%);
 }
 
 .dark .ui-button-primary {
@@ -2074,12 +2068,12 @@ body.privacy-shield-active::after {
 
 .ui-button-quiet,
 .dark .ui-button-quiet {
-  color: var(--rose);
+  color: var(--chiraag);
 }
 
 .ui-button-quiet:hover {
   background: rgba(232, 162, 58, 0.1);
-  color: var(--rose);
+  color: var(--chiraag);
 }
 
 .dark .ui-button-quiet:hover {
@@ -2106,7 +2100,7 @@ body.privacy-shield-active::after {
 .ui-note-error {
   border-color: rgba(232, 162, 58, 0.28);
   background: rgba(232, 162, 58, 0.08);
-  color: var(--rose);
+  color: var(--chiraag);
 }
 
 .dark .ui-note-error {
@@ -2133,7 +2127,7 @@ body.privacy-shield-active::after {
 .ui-unread-badge,
 .ui-unread-badge-pulse,
 .aim-unread-badge-pulse {
-  background: var(--rose) !important;
+  background: var(--chiraag) !important;
   color: #fff !important;
   box-shadow: 0 0 16px rgba(232, 162, 58, 0.34);
 }
@@ -2203,7 +2197,7 @@ body.privacy-shield-active::after {
   bottom: 0.2rem;
   border-radius: 999px;
   border: 2px solid var(--bg);
-  background: linear-gradient(135deg, var(--rose) 0%, var(--gold) 100%);
+  background: linear-gradient(135deg, var(--chiraag) 0%, var(--chiraag) 100%);
   padding: 0.18rem 0.56rem;
   font-family: var(--font-screenname), "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
   font-size: 8px;
@@ -2232,7 +2226,7 @@ body.privacy-shield-active::after {
   bottom: 0.55rem;
   width: 3px;
   border-radius: 999px;
-  background: linear-gradient(180deg, var(--rose) 0%, var(--gold) 100%);
+  background: linear-gradient(180deg, var(--chiraag) 0%, var(--chiraag) 100%);
 }
 
 .ui-profile-away-box[data-mood='chaotic'] {
@@ -2255,7 +2249,7 @@ body.privacy-shield-active::after {
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--rose);
+  color: var(--chiraag);
 }
 
 .ui-profile-away-text {
@@ -2317,7 +2311,7 @@ body.privacy-shield-active::after {
   top: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, var(--rose) 0%, var(--gold) 100%);
+  background: linear-gradient(90deg, var(--chiraag) 0%, var(--chiraag) 100%);
   opacity: 0.6;
 }
 
@@ -2327,7 +2321,7 @@ body.privacy-shield-active::after {
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--rose);
+  color: var(--chiraag);
 }
 
 .ui-my-status-text {
@@ -2364,19 +2358,19 @@ body.privacy-shield-active::after {
 .ui-my-status-chip[data-tone='rose'] {
   border-color: rgba(232, 162, 58, 0.26);
   background: rgba(232, 162, 58, 0.12);
-  color: var(--rose);
+  color: var(--chiraag);
 }
 
 .ui-my-status-chip[data-tone='gold'] {
   border-color: rgba(232, 162, 58, 0.24);
   background: rgba(232, 162, 58, 0.1);
-  color: var(--gold);
+  color: var(--chiraag);
 }
 
 .ui-my-status-chip[data-tone='lavender'] {
   border-color: rgba(232, 162, 58, 0.24);
   background: rgba(232, 162, 58, 0.1);
-  color: var(--lavender);
+  color: var(--chiraag);
 }
 
 .ui-my-status-chip[data-tone='green'] {
@@ -2426,7 +2420,7 @@ html:not(.dark) .ui-my-status-chip[data-tone='ghost'] {
 .ui-room-filter-chip[data-active='true'] {
   color: #fff;
   border-color: rgba(232, 162, 58, 0.42);
-  background: linear-gradient(180deg, var(--rose) 0%, var(--rose-dark) 100%);
+  background: linear-gradient(180deg, var(--chiraag) 0%, var(--chiraag-strong) 100%);
   box-shadow: 0 12px 20px rgba(232, 162, 58, 0.24);
 }
 
@@ -2453,7 +2447,7 @@ html:not(.dark) .ui-room-filter-chip {
   bottom: 0.5rem;
   width: 3px;
   border-radius: 999px;
-  background: linear-gradient(180deg, var(--rose) 0%, var(--gold) 100%);
+  background: linear-gradient(180deg, var(--chiraag) 0%, var(--chiraag) 100%);
 }
 
 .ui-room-live-pill {
@@ -2505,19 +2499,19 @@ html:not(.dark) .ui-room-filter-chip {
 .ui-room-tag[data-tone='rose'] {
   border-color: rgba(232, 162, 58, 0.26);
   background: rgba(232, 162, 58, 0.12);
-  color: var(--rose);
+  color: var(--chiraag);
 }
 
 .ui-room-tag[data-tone='gold'] {
   border-color: rgba(232, 162, 58, 0.24);
   background: rgba(232, 162, 58, 0.1);
-  color: var(--gold);
+  color: var(--chiraag);
 }
 
 .ui-room-tag[data-tone='lavender'] {
   border-color: rgba(232, 162, 58, 0.24);
   background: rgba(232, 162, 58, 0.1);
-  color: var(--lavender);
+  color: var(--chiraag);
 }
 
 .ui-room-tag[data-tone='green'] {
@@ -2558,13 +2552,13 @@ html:not(.dark) .ui-room-tag[data-tone='ghost'] {
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, var(--rose), var(--gold));
+  background: linear-gradient(90deg, var(--chiraag), var(--chiraag));
   opacity: 0.5;
   pointer-events: none;
 }
 
 .ui-away-card [data-away-label='true'] {
-  color: var(--rose);
+  color: var(--chiraag);
   font-size: 10px;
   font-style: normal;
   font-weight: 700;
@@ -2608,19 +2602,19 @@ html:not(.dark) .ui-room-tag[data-tone='ghost'] {
 .ui-away-mood-pill[data-tone='rose'] {
   border-color: rgba(232, 162, 58, 0.26);
   background: rgba(232, 162, 58, 0.12);
-  color: var(--rose);
+  color: var(--chiraag);
 }
 
 .ui-away-mood-pill[data-tone='gold'] {
   border-color: rgba(232, 162, 58, 0.22);
   background: rgba(232, 162, 58, 0.1);
-  color: var(--gold);
+  color: var(--chiraag);
 }
 
 .ui-away-mood-pill[data-tone='lavender'] {
   border-color: rgba(232, 162, 58, 0.22);
   background: rgba(232, 162, 58, 0.1);
-  color: var(--lavender);
+  color: var(--chiraag);
 }
 
 .ui-away-mood-pill[data-tone='green'] {
@@ -2651,19 +2645,19 @@ html:not(.dark) .ui-room-tag[data-tone='ghost'] {
 .ui-mood-button[data-tone='rose'][data-active='true'] {
   border-color: rgba(232, 162, 58, 0.42);
   background: rgba(232, 162, 58, 0.12);
-  color: var(--rose);
+  color: var(--chiraag);
 }
 
 .ui-mood-button[data-tone='gold'][data-active='true'] {
   border-color: rgba(232, 162, 58, 0.34);
   background: rgba(232, 162, 58, 0.1);
-  color: var(--gold);
+  color: var(--chiraag);
 }
 
 .ui-mood-button[data-tone='lavender'][data-active='true'] {
   border-color: rgba(232, 162, 58, 0.34);
   background: rgba(232, 162, 58, 0.1);
-  color: var(--lavender);
+  color: var(--chiraag);
 }
 
 .ui-mood-button[data-tone='green'][data-active='true'] {
@@ -2718,7 +2712,7 @@ html:not(.dark) .ui-room-tag[data-tone='ghost'] {
   display: block;
   width: 2px;
   border-radius: 999px;
-  background: var(--rose);
+  background: var(--chiraag);
   box-shadow: 0 0 6px rgba(232, 162, 58, 0.34);
   transform-origin: center bottom;
   animation: ui-buddy-arrival-wave 0.95s ease-in-out infinite;
@@ -2780,12 +2774,12 @@ html:not(.dark) .ui-room-tag[data-tone='ghost'] {
 }
 
 .presence-ring-away {
-  --tw-ring-color: var(--gold) !important;
+  --tw-ring-color: var(--chiraag) !important;
   box-shadow: 0 0 0 1px rgba(232, 162, 58, 0.16), 0 0 16px rgba(232, 162, 58, 0.28);
 }
 
 .presence-ring-idle {
-  --tw-ring-color: var(--lavender) !important;
+  --tw-ring-color: var(--chiraag) !important;
   box-shadow: 0 0 0 1px rgba(232, 162, 58, 0.16), 0 0 16px rgba(232, 162, 58, 0.28);
 }
 
@@ -2805,7 +2799,7 @@ html:not(.dark) .ui-room-tag[data-tone='ghost'] {
 }
 
 .presence-dot-idle {
-  background: var(--lavender) !important;
+  background: var(--chiraag) !important;
   box-shadow: 0 0 10px rgba(232, 162, 58, 0.55);
 }
 
@@ -2857,7 +2851,7 @@ html:not(.dark) .ui-room-tag[data-tone='ghost'] {
 .aim-room-tag-chip {
   border: 1px solid rgba(247, 240, 232, 0.12);
   background: rgba(26, 31, 58, 0.9);
-  color: var(--gold);
+  color: var(--chiraag);
   border-radius: 9999px;
   font-size: 10px;
   padding: 0.05rem 0.4rem;
@@ -2874,7 +2868,7 @@ html:not(.dark) .ui-room-tag[data-tone='ghost'] {
   width: 7px;
   height: 7px;
   border-radius: 9999px;
-  background: var(--rose);
+  background: var(--chiraag);
   box-shadow: 0 0 10px rgba(232, 162, 58, 0.45);
   animation: aim-room-pulse 1.2s ease-in-out infinite;
 }
@@ -2892,7 +2886,7 @@ html:not(.dark) .ui-room-tag[data-tone='ghost'] {
 .aim-mood-chip[data-active='true'] {
   color: #fff;
   border-color: rgba(232, 162, 58, 0.45);
-  background: linear-gradient(180deg, var(--rose), var(--rose-dark));
+  background: linear-gradient(180deg, var(--chiraag), var(--chiraag-strong));
 }
 
 .presence-dot-offline::after {
@@ -2937,7 +2931,7 @@ html:not(.dark) .ui-room-tag[data-tone='ghost'] {
 }
 
 .ui-auth-mode[data-active='true'] {
-  background: linear-gradient(180deg, var(--rose) 0%, var(--rose-dark) 100%);
+  background: linear-gradient(180deg, var(--chiraag) 0%, var(--chiraag-strong) 100%);
   color: #fff;
   box-shadow: 0 12px 22px rgba(232, 162, 58, 0.24);
 }
@@ -2954,7 +2948,7 @@ html:not(.dark) .ui-room-tag[data-tone='ghost'] {
 }
 
 .ui-auth-secondary {
-  color: var(--rose);
+  color: var(--chiraag);
 }
 
 .ui-auth-secondary:hover {
@@ -2969,13 +2963,13 @@ html:not(.dark) .ui-room-tag[data-tone='ghost'] {
 
 .ui-auth-submit {
   border: 1px solid rgba(232, 162, 58, 0.45);
-  background: linear-gradient(180deg, var(--rose) 0%, var(--rose-dark) 100%);
+  background: linear-gradient(180deg, var(--chiraag) 0%, var(--chiraag-strong) 100%);
   color: #fff;
   box-shadow: 0 14px 28px rgba(232, 162, 58, 0.28);
 }
 
 .ui-auth-submit:hover {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--rose) 92%, white 8%) 0%, color-mix(in srgb, var(--rose-dark) 92%, black 8%) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--chiraag) 92%, white 8%) 0%, color-mix(in srgb, var(--chiraag-strong) 92%, black 8%) 100%);
 }
 
 .bg-blue-50,
@@ -2993,7 +2987,7 @@ html:not(.dark) .ui-room-tag[data-tone='ghost'] {
 
 .bg-blue-500,
 .bg-blue-500\/92 {
-  background: linear-gradient(180deg, var(--rose) 0%, var(--rose-dark) 100%) !important;
+  background: linear-gradient(180deg, var(--chiraag) 0%, var(--chiraag-strong) 100%) !important;
 }
 
 .text-blue-100,
@@ -3004,7 +2998,7 @@ html:not(.dark) .ui-room-tag[data-tone='ghost'] {
 .text-blue-600,
 .text-blue-700,
 .text-blue-800 {
-  color: var(--rose) !important;
+  color: var(--chiraag) !important;
 }
 
 .border-blue-200,
@@ -3027,7 +3021,7 @@ html:not(.dark) .ui-room-tag[data-tone='ghost'] {
 .text-sky-600,
 .text-sky-700,
 .text-sky-800 {
-  color: var(--lavender) !important;
+  color: var(--chiraag) !important;
 }
 
 .bg-sky-50,
@@ -3042,7 +3036,7 @@ html:not(.dark) .ui-room-tag[data-tone='ghost'] {
 .text-amber-700,
 .text-amber-800,
 .text-amber-900 {
-  color: var(--gold) !important;
+  color: var(--chiraag) !important;
 }
 
 .bg-amber-50,
@@ -3070,7 +3064,7 @@ html:not(.dark) .ui-room-tag[data-tone='ghost'] {
 .text-red-500,
 .text-red-600,
 .text-red-700 {
-  color: var(--rose) !important;
+  color: var(--chiraag) !important;
 }
 
 .bg-red-50,
@@ -3079,7 +3073,7 @@ html:not(.dark) .ui-room-tag[data-tone='ghost'] {
 }
 
 .bg-red-500 {
-  background-color: var(--rose) !important;
+  background-color: var(--chiraag) !important;
 }
 
 .ios-toggle {

@@ -774,9 +774,9 @@ const DirectMessageRow = memo(function DirectMessageRow({
   const showArrivalWave = recentActivity?.tone === 'online' || recentActivity?.tone === 'back';
   const presenceToneClass =
     presenceState === 'away'
-      ? 'text-[var(--gold)]'
+      ? 'text-[var(--chiraag)]'
       : presenceState === 'idle'
-        ? 'text-[var(--lavender)]'
+        ? 'text-[var(--chiraag)]'
         : presenceState === 'offline'
           ? 'text-[var(--muted)]'
           : 'text-[var(--green)]';
@@ -802,13 +802,13 @@ const DirectMessageRow = memo(function DirectMessageRow({
         />
         <div className="min-w-0 flex-1">
           <p className={`ui-screenname truncate text-[13px] font-semibold leading-tight ${
-            isSelected ? 'text-[var(--rose)]' : 'text-slate-800 dark:text-slate-100'
+            isSelected ? 'text-[var(--chiraag)]' : 'text-slate-800 dark:text-slate-100'
           }`}>
             {buddy.screenname}
           </p>
           <div className="mt-0.5 flex flex-wrap items-center gap-1">
             {conversationPreference.isPinned ? (
-              <span className="rounded-full border border-[rgba(232,162,58,0.16)] bg-[rgba(232,162,58,0.1)] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[var(--rose)]">
+              <span className="rounded-full border border-[rgba(232,162,58,0.16)] bg-[rgba(232,162,58,0.1)] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[var(--chiraag)]">
                 Pinned
               </span>
             ) : null}
@@ -823,7 +823,7 @@ const DirectMessageRow = memo(function DirectMessageRow({
               </span>
             ) : null}
             {unreadCount > 0 ? (
-              <span className="rounded-full border border-[rgba(232,162,58,0.16)] bg-[rgba(232,162,58,0.1)] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[var(--rose)]">
+              <span className="rounded-full border border-[rgba(232,162,58,0.16)] bg-[rgba(232,162,58,0.1)] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[var(--chiraag)]">
                 Unread
               </span>
             ) : null}
@@ -842,7 +842,7 @@ const DirectMessageRow = memo(function DirectMessageRow({
           </div>
           <p className="truncate text-[11px] text-slate-400" title={recentActivity?.message || presenceDetail}>
             {isTypingActive ? (
-              <span className="italic text-[var(--rose)]">typing…</span>
+              <span className="italic text-[var(--chiraag)]">typing…</span>
             ) : (
               lastMessagePreview || presenceDetail
             )}
@@ -5863,7 +5863,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-[13px] font-semibold leading-tight text-slate-800 dark:text-slate-100">Saved Messages</p>
-          <p className="truncate text-[11px] font-semibold text-[var(--rose)]">Private notes</p>
+          <p className="truncate text-[11px] font-semibold text-[var(--chiraag)]">Private notes</p>
           <p className="truncate text-[11px] text-slate-400">
             {savedMessages[0]
               ? getSavedMessagePreviewText(savedMessages[0].content)
@@ -6091,17 +6091,17 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       : profileBio || (statusMsg.trim() && statusMsg !== AVAILABLE_STATUS ? statusMsg : 'Say a little more than “available.”');
   const currentUserPresenceToneClass =
     currentUserPresenceState === 'away'
-      ? 'text-[var(--gold)]'
+      ? 'text-[var(--chiraag)]'
       : currentUserPresenceState === 'idle'
-        ? 'text-[var(--lavender)]'
+        ? 'text-[var(--chiraag)]'
         : currentUserPresenceState === 'offline'
           ? 'text-[var(--muted)]'
           : 'text-[var(--green)]';
   const currentUserPresenceChipClass =
     currentUserPresenceState === 'away'
-      ? 'border border-[rgba(232,162,58,0.18)] bg-[rgba(232,162,58,0.12)] text-[var(--gold)]'
+      ? 'border border-[rgba(232,162,58,0.18)] bg-[rgba(232,162,58,0.12)] text-[var(--chiraag)]'
       : currentUserPresenceState === 'idle'
-        ? 'border border-[rgba(232,162,58,0.18)] bg-[rgba(232,162,58,0.12)] text-[var(--lavender)]'
+        ? 'border border-[rgba(232,162,58,0.18)] bg-[rgba(232,162,58,0.12)] text-[var(--chiraag)]'
         : currentUserPresenceState === 'offline'
           ? 'border border-[rgba(156,142,130,0.18)] bg-[rgba(156,142,130,0.12)] text-[var(--muted)]'
           : 'border border-[rgba(78,201,122,0.18)] bg-[rgba(78,201,122,0.12)] text-[var(--green)]';
@@ -6222,7 +6222,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                     strokeWidth="2"
                     strokeLinecap="round"
                     strokeDasharray={`${pullToRefresh.isRefreshing ? 42 : Math.min(pullToRefresh.pullDistance / 70, 1) * 56.5} 56.5`}
-                    className="text-[var(--rose)]"
+                    className="text-[var(--chiraag)]"
                     style={{ transform: 'rotate(-90deg)', transformOrigin: '50% 50%' }}
                   />
                 </svg>
@@ -6265,7 +6265,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                         <span className="ui-profile-pro-badge">H.I.M. Pro</span>
                       </button>
                       <div className="mt-4 min-w-0">
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--rose)]">You</p>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--chiraag)]">You</p>
                         <p className="ui-screenname mt-1 truncate text-[17px] font-semibold text-slate-800 dark:text-slate-100">{screenname}</p>
                         <p className={`mt-1 text-[11px] font-semibold ${currentUserPresenceToneClass}`}>
                           {getPresenceLabel(currentUserPresenceState)}
@@ -6627,7 +6627,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                       {!isBootstrapping && !isLoadingBuddies && acceptedBuddies.length === 0 && conversationFilter !== 'requests' ? (
                         <div className="ui-empty-state px-6 py-10 ui-fade-in">
                           <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[rgba(232,162,58,0.16)] bg-[rgba(232,162,58,0.12)]">
-                            <AppIcon kind="smile" className="h-8 w-8 text-[var(--rose)]" />
+                            <AppIcon kind="smile" className="h-8 w-8 text-[var(--chiraag)]" />
                           </div>
                           <div className="text-center">
                             <p className="text-[14px] font-semibold text-slate-500">No buddies yet</p>
@@ -6651,7 +6651,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                         pendingRequests.length === 0 ? (
                           <div className="ui-empty-state px-6 py-10 ui-fade-in">
                             <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[rgba(232,162,58,0.16)] bg-[rgba(232,162,58,0.12)]">
-                              <AppIcon kind="mail" className="h-8 w-8 text-[var(--gold)]" />
+                              <AppIcon kind="mail" className="h-8 w-8 text-[var(--chiraag)]" />
                             </div>
                             <div className="text-center">
                               <p className="text-[14px] font-semibold text-slate-500">No message requests</p>
@@ -6693,7 +6693,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                       {!isBootstrapping && conversationFilter !== 'requests' && filteredDirectMessageBuddies.length === 0 && acceptedBuddies.length > 0 ? (
                         <div className="ui-empty-state px-6 py-10 ui-fade-in">
                           <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[rgba(232,162,58,0.16)] bg-[rgba(232,162,58,0.12)]">
-                            <AppIcon kind="chat" className="h-6 w-6 text-[var(--lavender)]" />
+                            <AppIcon kind="chat" className="h-6 w-6 text-[var(--chiraag)]" />
                           </div>
                           <div className="text-center">
                             <p className="text-[14px] font-semibold text-slate-500">No chats in this view</p>
@@ -6854,7 +6854,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                       ) : filteredRoomCards.length === 0 ? (
                         <div className="ui-empty-state px-4 py-8 ui-fade-in">
                           <div className="flex h-11 w-11 items-center justify-center rounded-full border border-[rgba(232,162,58,0.16)] bg-[rgba(232,162,58,0.12)]">
-                            <AppIcon kind="chat" className="h-5 w-5 text-[var(--rose)]" />
+                            <AppIcon kind="chat" className="h-5 w-5 text-[var(--chiraag)]" />
                           </div>
                           <p className="text-[12px] text-slate-400">No rooms match this vibe right now.</p>
                         </div>
@@ -6876,7 +6876,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                                 data-live={meta.liveCount > 0 ? 'true' : 'false'}
                                 className="ui-list-row ui-room-card flex-1 text-left"
                               >
-                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[0.9rem] border border-[rgba(232,162,58,0.18)] bg-[rgba(232,162,58,0.14)] text-[13px] font-bold text-[var(--gold)]">
+                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[0.9rem] border border-[rgba(232,162,58,0.18)] bg-[rgba(232,162,58,0.14)] text-[13px] font-bold text-[var(--chiraag)]">
                                   #
                                 </div>
                                 <div className="min-w-0 flex-1">
@@ -7224,7 +7224,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                     <p className="ui-screenname truncate text-[14px] font-semibold text-slate-800 dark:text-slate-100">{screenname}</p>
                     <p className="truncate text-[11px] text-slate-500">{profileStatusDraft || AVAILABLE_STATUS}</p>
                     {buddyIconPreviewUrl ? (
-                      <p className="mt-1 text-[10px] text-[var(--rose)]">New icon ready to save</p>
+                      <p className="mt-1 text-[10px] text-[var(--chiraag)]">New icon ready to save</p>
                     ) : removeBuddyIconOnSave ? (
                       <p className="mt-1 text-[10px] text-red-500">Icon will be removed on save</p>
                     ) : buddyIconPath ? (
@@ -7901,7 +7901,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
               <div className={`${xpModalHeaderClass} mb-2`}>New Message Request</div>
               <div className="flex flex-col gap-3 px-2 pb-2 text-[11px] text-slate-700 dark:text-slate-300">
                 <p>
-                  <span className="ui-screenname font-bold text-[var(--rose)]">{activePendingRequest.screenname}</span> wants to message
+                  <span className="ui-screenname font-bold text-[var(--chiraag)]">{activePendingRequest.screenname}</span> wants to message
                   you, but they are not in your H.I.M. contacts yet.
                 </p>
                 {pendingRequestError && (
@@ -8175,9 +8175,9 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                 item.tone === 'offline'
                   ? 'border-[rgba(156,142,130,0.22)] bg-[rgba(21, 26, 48,0.94)] text-[var(--muted)]'
                   : item.tone === 'away'
-                    ? 'border-[rgba(232,162,58,0.24)] bg-[rgba(44,31,15,0.92)] text-[var(--gold)]'
+                    ? 'border-[rgba(232,162,58,0.24)] bg-[rgba(44,31,15,0.92)] text-[var(--chiraag)]'
                     : item.tone === 'back'
-                      ? 'border-[rgba(232,162,58,0.26)] bg-[rgba(42,31,58,0.92)] text-[var(--lavender)]'
+                      ? 'border-[rgba(232,162,58,0.26)] bg-[rgba(42,31,58,0.92)] text-[var(--chiraag)]'
                       : 'border-[rgba(78,201,122,0.24)] bg-[rgba(17,37,27,0.92)] text-[var(--green)]'
               }`}
             >

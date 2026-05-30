@@ -33,11 +33,11 @@ const SIZE_CLASSES = {
 function getFallbackToneClasses(tone: NonNullable<ProfileAvatarProps['tone']>) {
   switch (tone) {
     case 'violet':
-      return 'bg-[rgba(232,162,58,0.18)] text-[var(--lavender)]';
+      return 'bg-[rgba(232,162,58,0.18)] text-[var(--chiraag)]';
     case 'slate':
       return 'bg-[rgba(156,142,130,0.16)] text-[var(--muted)]';
     default:
-      return 'bg-[rgba(232,162,58,0.16)] text-[var(--rose)]';
+      return 'bg-[rgba(232,162,58,0.16)] text-[var(--chiraag)]';
   }
 }
 

@@ -206,7 +206,7 @@ export default function BuddyProfileSheet({
                 </p>
                 {showPresence ? (
                   <>
-                    <p className="text-[length:var(--ui-text-sm)] font-semibold text-[var(--rose)]">
+                    <p className="text-[length:var(--ui-text-sm)] font-semibold text-[var(--chiraag)]">
                       {getPresenceLabel(buddy.presenceState)}
                     </p>
                     <p className="mt-1 text-[length:var(--ui-text-sm)] text-slate-500 dark:text-slate-400">
