@@ -613,7 +613,14 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         super.viewDidLayoutSubviews()
         topDockView.layer.cornerRadius = max(22, topDockView.bounds.height / 2)
         headerGradientLayer.frame = headerGradientView.bounds
-        installLiquidGlassDockBackgroundIfAvailable()
+        // DIAGNOSTIC build 170: SwiftUI Liquid Glass install temporarily
+        // disabled. Build 169 (with install enabled) rendered chrome but
+        // left the WebView blank. Build 173 (Liquid Glass stripped) had
+        // a working WebView. This build isolates the cherry-pick as the
+        // suspected cause. If 170 boots cleanly with a working WebView
+        // and legacy UIBlurEffect dock, Liquid Glass install IS the
+        // culprit — reintroduce with a deferred-after-WebView-load hook.
+        // installLiquidGlassDockBackgroundIfAvailable()
     }
 
     override var preferredStatusBarStyle: UIStatusBarStyle {
