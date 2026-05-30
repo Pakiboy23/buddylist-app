@@ -6,10 +6,10 @@ Memory health: 9/10
 H.I.M. (`hiitsme`) — retro AIM-style mobile-first messaging app. Vite + React 19 + React Router v7 web app, deployed on Vercel (web) and wrapped via Capacitor 8 for iOS + Android. Supabase for auth/Postgres/realtime/edge-functions.
 
 ## Where We Left Off
-- **Current task:** Brand alias cleanup — DONE. CSS `--rose`/`--rose-dark`/`--gold`/`--lavender` aliases removed; Swift `.himRose` alias removed.
-- **Status:** Migrated, typecheck clean. Unbuilt + uncommitted; needs visual smoke test before commit.
-- **Next immediate step:** `npm run dev` + visually verify auth orbs, room sender colors, header gradients, account chrome — then commit.
-- **Open question:** None.
+- **Current task:** Brand alias cleanup — shipped in `0bf3fd1`.
+- **Status:** Committed. Working tree still has stale `dist/` deletions and modified iOS splash/icon assets from prior sessions (need a `npm run build` + `ios:sync` to resync).
+- **Next immediate step:** Open question — either (a) resync `dist/` + iOS assets so the working tree is clean, or (b) move to next product/feature task.
+- **Open question:** What's next?
 
 ## Completed (this session)
 - 2026-05-29 New "hi." app icon shipped (PRs in `fc9b9b3` + `53387cc`): Nunito Black wordmark, Chiraag amber on Midnight, period as oversized circle for 60×60 Spotlight legibility. 13 iOS sizes + Android 5 densities (flat + adaptive foreground). Replaces Samaan chiraag mark (wrong semantic for chat, fragile small).
