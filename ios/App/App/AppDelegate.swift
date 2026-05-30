@@ -613,14 +613,12 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         super.viewDidLayoutSubviews()
         topDockView.layer.cornerRadius = max(22, topDockView.bounds.height / 2)
         headerGradientLayer.frame = headerGradientView.bounds
-        // DIAGNOSTIC build 170: SwiftUI Liquid Glass install temporarily
-        // disabled. Build 169 (with install enabled) rendered chrome but
-        // left the WebView blank. Build 173 (Liquid Glass stripped) had
-        // a working WebView. This build isolates the cherry-pick as the
-        // suspected cause. If 170 boots cleanly with a working WebView
-        // and legacy UIBlurEffect dock, Liquid Glass install IS the
-        // culprit — reintroduce with a deferred-after-WebView-load hook.
-        // installLiquidGlassDockBackgroundIfAvailable()
+        // Liquid Glass install moved to applyChromeState, triggered by the
+        // first JS publish where showsTopChrome=true. Build 174 confirmed
+        // installing during viewDidLayoutSubviews disturbs WKWebView's
+        // first paint (WebView blanks while chrome renders Swift defaults).
+        // By gating install on a JS chrome publish, React has clearly
+        // mounted by the time install runs.
     }
 
     override var preferredStatusBarStyle: UIStatusBarStyle {
@@ -640,6 +638,19 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         titleLabel.text = state.title
         subtitleLabel.text = state.subtitle
         subtitleLabel.isHidden = state.subtitle == nil
+
+        // Install the SwiftUI Liquid Glass dock background on the FIRST JS
+        // publish where the chrome wants to be visible. Two reasons:
+        // 1. JS publishing setChromeState proves React is mounted, so the
+        //    UIHostingController install can't interfere with the WebView's
+        //    initial paint window (build 174 evidence).
+        // 2. Install must happen BEFORE updateChromeAppearance below so the
+        //    `useLiquidGlass` gate in applyDockAppearance evaluates true on
+        //    this same frame — otherwise the dock paints blur, then glass on
+        //    the next state update (visible flash).
+        if #available(iOS 26.0, *), state.showsTopChrome {
+            installLiquidGlassDockBackgroundIfAvailable()
+        }
 
         updateNavigationItems()
         updateTabSelection()
@@ -1179,14 +1190,13 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
 
         hosting.didMove(toParent: self)
         liquidGlassDockHostingController = hosting
-
-        // Hosting mounted successfully — re-apply chrome state so the dock
-        // switches from UIBlurEffect to the SwiftUI glass material now that
-        // applyDockAppearance's `useLiquidGlass` gate evaluates true. The
-        // re-entry is safe: install is guarded by a nil check so we don't
-        // recurse, and applyChromeState just refreshes visual properties
-        // without re-running layout.
-        applyChromeState(chromeState, animated: false)
+        // No applyChromeState re-entry here. The caller (applyChromeState)
+        // continues into updateChromeAppearance with the hosting now set,
+        // so applyDockAppearance's `useLiquidGlass` gate picks up the glass
+        // path on this same frame. The earlier re-entry (build 169) ran
+        // updateBridgeChromeConstraints again during the WebView's initial
+        // paint window, which thrashed the WebView's frame and killed JS
+        // bootstrap.
     }
 
     @available(iOS 26.0, *)
