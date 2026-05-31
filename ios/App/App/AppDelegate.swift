@@ -496,8 +496,12 @@ class HiItsMeShellPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     @objc func isAvailable(_ call: CAPPluginCall) {
+        // Only report available when the native shell view controller is actually
+        // hosting the bridge. If it isn't the root (e.g. a stock Capacitor build or
+        // a packaging regression), the web layer must keep rendering its own chrome
+        // so the user is never left without navigation.
         call.resolve([
-            "available": true,
+            "available": shellController != nil,
             "platform": "ios"
         ])
     }
