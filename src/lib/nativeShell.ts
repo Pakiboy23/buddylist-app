@@ -133,6 +133,28 @@ export function isNativeIosShell() {
   return typeof window !== 'undefined' && Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
 }
 
+/**
+ * Confirms that the native shell is genuinely hosting the web view and can render
+ * its own chrome (top nav + tab bar). This is stronger than {@link isNativeIosShell}:
+ * a build can be native iOS yet not embed the custom `HiItsMeShell` root (stock
+ * Capacitor, a failed plugin registration, or a native packaging regression). In
+ * those cases the bridge reports the shell as unavailable and the web layer keeps
+ * its own navigation chrome so the user is never stranded without nav buttons.
+ */
+export async function confirmNativeShellAvailable(): Promise<boolean> {
+  if (!isNativeIosShell()) {
+    return false;
+  }
+
+  try {
+    const availability = await HiItsMeShell.isAvailable();
+    return availability.available === true;
+  } catch (error) {
+    console.warn('Native shell availability check failed:', error);
+    return false;
+  }
+}
+
 export async function getNativePushEnvironment(): Promise<NativePushEnvironment | null> {
   if (!isNativeIosShell() || !Capacitor.isPluginAvailable('HiItsMeShell')) {
     return null;
@@ -171,9 +193,12 @@ export async function getNativePushEnvironment(): Promise<NativePushEnvironment 
 }
 
 export async function publishNativeShellChromeState(state: NativeShellChromeState) {
-  if (!isNativeIosShell() || !Capacitor.isPluginAvailable('HiItsMeShell')) {
+  if (!isNativeIosShell()) {
     return;
   }
+  // Availability is confirmed via the live `isAvailable()` round-trip below rather
+  // than `Capacitor.isPluginAvailable`, which reports stale plugin headers and can
+  // miss the manually-registered shell plugin on otherwise-healthy builds.
 
   let lastError: unknown = null;
 
