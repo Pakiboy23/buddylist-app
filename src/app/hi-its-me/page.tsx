@@ -118,6 +118,7 @@ import {
   type UserDmStateRowLite,
 } from '@/lib/unread-dm';
 import {
+  confirmNativeShellAvailable,
   isNativeIosShell,
   publishNativeShellChromeState,
   registerNativeShellBridge,
@@ -1050,7 +1051,27 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   const { isDark, toggleDark } = useTheme();
   const router = useAppRouter();
   const [searchParams] = useSearchParams();
-  const nativeShellActive = isNativeIosShell();
+  // Optimistically assume the native shell on iOS so a healthy build never flashes
+  // the web chrome, but downgrade to the web header + tab bar if the bridge can't
+  // confirm the shell is actually hosting the view. Without this fallback a native
+  // build that lacks the custom shell root renders no navigation at all.
+  const [nativeShellActive, setNativeShellActive] = useState(() => isNativeIosShell());
+  useEffect(() => {
+    if (!isNativeIosShell()) {
+      return;
+    }
+
+    let cancelled = false;
+    void confirmNativeShellAvailable().then((available) => {
+      if (!cancelled) {
+        setNativeShellActive(available);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const {
     activeRooms,
     joinedRooms,
