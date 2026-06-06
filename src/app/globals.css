@@ -59,6 +59,16 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
+html {
+  /* Solid fallback matching the radial-gradient midpoint so safe-area gaps
+     (status bar, home indicator) blend with the body gradient. */
+  background-color: #F5F1E8;
+}
+
+html.dark {
+  background-color: #1A1F3A;
+}
+
 body {
   position: relative;
   background:

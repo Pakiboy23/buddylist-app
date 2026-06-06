@@ -25,15 +25,15 @@ fileprivate struct HiItsMeLiquidGlassDockBackground: View {
 }
 
 fileprivate extension UIColor {
-    // Dark mode
-    static let himBg = UIColor(red: 19 / 255, green: 16 / 255, blue: 14 / 255, alpha: 1)
-    static let himBg2 = UIColor(red: 29 / 255, green: 25 / 255, blue: 22 / 255, alpha: 1)
-    static let himBg3 = UIColor(red: 38 / 255, green: 33 / 255, blue: 24 / 255, alpha: 1)
-    static let himText = UIColor(red: 247 / 255, green: 240 / 255, blue: 232 / 255, alpha: 1)
-    static let himMuted = UIColor(red: 156 / 255, green: 142 / 255, blue: 130 / 255, alpha: 1)
-    // Light mode
-    static let himLightBg = UIColor(red: 250 / 255, green: 246 / 255, blue: 239 / 255, alpha: 1)
-    static let himLightBg2 = UIColor(red: 255 / 255, green: 255 / 255, blue: 255 / 255, alpha: 1)
+    // Dark mode — matches CSS radial-gradient midpoint (#1A1F3A at 38%)
+    static let himBg = UIColor(red: 26 / 255.0, green: 31 / 255.0, blue: 58 / 255.0, alpha: 1)
+    static let himBg2 = UIColor(red: 21 / 255.0, green: 26 / 255.0, blue: 48 / 255.0, alpha: 1)
+    static let himBg3 = UIColor(red: 15 / 255.0, green: 20 / 255.0, blue: 36 / 255.0, alpha: 1)
+    static let himText = UIColor(red: 247 / 255.0, green: 240 / 255.0, blue: 232 / 255.0, alpha: 1)
+    static let himMuted = UIColor(red: 156 / 255.0, green: 142 / 255.0, blue: 130 / 255.0, alpha: 1)
+    // Light mode — matches CSS radial-gradient midpoint (#F5F1E8 at 38%)
+    static let himLightBg = UIColor(red: 245 / 255.0, green: 241 / 255.0, blue: 232 / 255.0, alpha: 1)
+    static let himLightBg2 = UIColor(red: 237 / 255.0, green: 231 / 255.0, blue: 217 / 255.0, alpha: 1)
     static let himLightText = UIColor(red: 26 / 255, green: 26 / 255, blue: 26 / 255, alpha: 1)
     static let himLightMuted = UIColor(red: 107 / 255, green: 107 / 255, blue: 107 / 255, alpha: 1)
     // Brand: primary accent. Mirrors `--chiraag` (#E8A23A) in src/app/globals.css.
@@ -107,7 +107,7 @@ fileprivate struct HiItsMeShellChromeState: Decodable, Equatable {
         trailingActions: [HiItsMeShellAction] = [],
         accentTone: HiItsMeShellAccentTone = .blue,
         canGoBack: Bool = false,
-        isDark: Bool = false,
+        isDark: Bool = true,
         isAdminUser: Bool = false,
         unreadDirectCount: Int = 0,
         showsTopChrome: Bool = true,
@@ -613,6 +613,7 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         super.viewDidLayoutSubviews()
         topDockView.layer.cornerRadius = max(22, topDockView.bounds.height / 2)
         headerGradientLayer.frame = headerGradientView.bounds
+        updateBridgeSafeAreaInsets()
         // Liquid Glass install moved to applyChromeState, triggered by the
         // first JS publish where showsTopChrome=true. Build 174 confirmed
         // installing during viewDidLayoutSubviews disturbs WKWebView's
@@ -956,6 +957,11 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         bridgeViewController.view.translatesAutoresizingMaskIntoConstraints = false
         view.insertSubview(bridgeViewController.view, at: 0)
 
+        // The bridge always runs edge-to-edge so its gradient background extends
+        // behind the native chrome. Liquid Glass (iOS 26) samples the content
+        // behind it — by rendering the web gradient under the chrome, the glass
+        // blends with the actual app background instead of a solid UIColor.
+        // The old chrome-constrained layout is no longer used.
         bridgeTopWithChromeConstraint = bridgeViewController.view.topAnchor.constraint(equalTo: topChromeView.bottomAnchor)
         bridgeTopFullscreenConstraint = bridgeViewController.view.topAnchor.constraint(equalTo: view.topAnchor)
         bridgeBottomWithChromeConstraint = bridgeViewController.view.bottomAnchor.constraint(equalTo: tabBar.topAnchor)
@@ -982,6 +988,7 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
             self.topChromeView.alpha = shouldShowTopChrome ? 1 : 0
             self.tabBar.alpha = shouldShowBottomChrome ? 1 : 0
             self.view.layoutIfNeeded()
+            self.updateBridgeSafeAreaInsets()
         }
 
         if animated {
@@ -991,11 +998,33 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         }
     }
 
+    private func updateBridgeSafeAreaInsets() {
+        // The WebView runs edge-to-edge so its gradient extends behind the
+        // native chrome (Liquid Glass samples what's behind it). Push the web
+        // content below/above the chrome via additionalSafeAreaInsets so
+        // env(safe-area-inset-*) in CSS includes the chrome height.
+        let deviceSafeArea = view.safeAreaInsets
+        let topInset = chromeState.showsTopChrome
+            ? max(topChromeView.frame.height - deviceSafeArea.top, 0)
+            : 0
+        let bottomInset = chromeState.resolvedShowsBottomChrome
+            ? max(tabBar.frame.height - deviceSafeArea.bottom, 0)
+            : 0
+        bridgeViewController.additionalSafeAreaInsets = UIEdgeInsets(
+            top: topInset,
+            left: 0,
+            bottom: bottomInset,
+            right: 0
+        )
+    }
+
     private func updateBridgeChromeConstraints() {
-        bridgeTopWithChromeConstraint?.isActive = chromeState.showsTopChrome
-        bridgeTopFullscreenConstraint?.isActive = !chromeState.showsTopChrome
-        bridgeBottomWithChromeConstraint?.isActive = chromeState.resolvedShowsBottomChrome
-        bridgeBottomFullscreenConstraint?.isActive = !chromeState.resolvedShowsBottomChrome
+        // Always keep the WebView edge-to-edge. Liquid Glass samples the
+        // content behind it, so the web gradient must extend under the chrome.
+        bridgeTopWithChromeConstraint?.isActive = false
+        bridgeTopFullscreenConstraint?.isActive = true
+        bridgeBottomWithChromeConstraint?.isActive = false
+        bridgeBottomFullscreenConstraint?.isActive = true
     }
 
     private func updateNavigationItems() {

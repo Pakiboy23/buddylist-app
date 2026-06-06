@@ -6161,7 +6161,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
             <div className="fixed inset-0 z-30" onClick={() => setIsHeaderMenuOpen(false)}>
               <div
                 className={`ui-popover-menu absolute right-2 w-56 rounded-2xl p-1.5 ${
-                  nativeShellActive ? 'top-3' : 'top-[calc(env(safe-area-inset-top)+3.2rem)]'
+                  nativeShellActive ? 'top-[env(safe-area-inset-top)]' : 'top-[calc(env(safe-area-inset-top)+3.2rem)]'
                 }`}
                 onClick={(event) => event.stopPropagation()}
               >
@@ -8165,7 +8165,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         <div
           aria-live="polite"
           className={`pointer-events-none fixed right-3 z-40 flex w-[min(22rem,calc(100vw-1.5rem))] flex-col gap-2 ${
-            nativeShellActive ? 'top-3' : 'top-[calc(env(safe-area-inset-top)+4.25rem)]'
+            nativeShellActive ? 'top-[env(safe-area-inset-top)]' : 'top-[calc(env(safe-area-inset-top)+4.25rem)]'
           }`}
         >
           {buddyActivityToasts.map((item) => (

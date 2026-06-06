@@ -8,6 +8,11 @@ const repoRoot = path.resolve(__dirname, '..');
 
 const vendorRoot = path.join(repoRoot, 'ios', 'App', 'CapacitorVendor');
 const capAppPackagePath = path.join(repoRoot, 'ios', 'App', 'CapApp-SPM', 'Package.swift');
+const capConfigJsonPath = path.join(repoRoot, 'ios', 'App', 'App', 'capacitor.config.json');
+
+// In-app Capacitor plugins (defined in AppDelegate.swift, not in node_modules)
+// that must appear in packageClassList so the bridge registers them.
+const inAppPluginClasses = ['HiItsMeShellPlugin'];
 
 // privacySourceDir: path within the vendored package where PrivacyInfo.xcprivacy lives
 //   (same as the `path:` value in the main .target(...) declaration)
@@ -167,6 +172,20 @@ async function main() {
 
   await writeFile(capAppPackagePath, rewritten);
   console.log(`Rewrote ${path.relative(repoRoot, capAppPackagePath)} to use vendored Swift packages`);
+
+  // Inject in-app plugin classes into capacitor.config.json so the bridge
+  // registers them. Capacitor 8's autoRegisterPlugins reads packageClassList
+  // from this file but only includes classes from SPM package plugins — in-app
+  // plugins defined directly in the Xcode target are not discovered.
+  const capConfigRaw = await readFile(capConfigJsonPath, 'utf8');
+  const capConfig = JSON.parse(capConfigRaw);
+  const classList = new Set(capConfig.packageClassList ?? []);
+  for (const cls of inAppPluginClasses) {
+    classList.add(cls);
+  }
+  capConfig.packageClassList = [...classList];
+  await writeFile(capConfigJsonPath, JSON.stringify(capConfig, null, '\t') + '\n');
+  console.log(`Injected in-app plugin classes into capacitor.config.json: ${inAppPluginClasses.join(', ')}`);
 }
 
 await main();

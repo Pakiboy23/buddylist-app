@@ -98,7 +98,10 @@ export default function RetroWindow({
           </div>
         )}
 
-        <div className={`min-h-0 flex-1 overflow-hidden ${hideHeader ? 'px-0 pt-0 pb-0' : 'px-3 pb-3 pt-2'}`}>
+        <div
+          className={`min-h-0 flex-1 overflow-hidden ${hideHeader ? 'px-0' : 'px-3 pb-3 pt-2'}`}
+          style={hideHeader ? { paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' } : undefined}
+        >
           {children}
         </div>
       </div>
