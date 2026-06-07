@@ -28,6 +28,7 @@
 		"HapticsPlugin",
 		"LocalNotificationsPlugin",
 		"PushNotificationsPlugin",
-		"BadgePlugin"
+		"BadgePlugin",
+		"HiItsMeShellPlugin"
 	]
 }
