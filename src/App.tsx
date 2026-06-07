@@ -42,18 +42,6 @@ function AppLaunchFallback() {
   );
 }
 
-function AppLoadingFallback() {
-  return (
-    <main className="flex h-[100dvh] items-center justify-center bg-[#13100E] px-6 text-center text-[#F7F0E8]">
-      <div role="status" aria-live="polite" className="space-y-3">
-        <div className="mx-auto h-10 w-10 animate-pulse rounded-2xl bg-[#E8A23A]" />
-        <p className="text-[13px] font-semibold uppercase tracking-[0.22em] text-[#E8A23A]">Loading H.I.M.</p>
-        <p className="text-[14px] text-[#9C8E82]">Getting the app ready…</p>
-      </div>
-    </main>
-  );
-}
-
 class AppErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
   state = { hasError: false };
 
@@ -114,20 +102,6 @@ export default function App() {
           </Routes>
         </Suspense>
       </AppErrorBoundary>
-      <Suspense fallback={<AppLoadingFallback />}>
-        <Routes>
-          <Route path="/" element={<LoginPage />} />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route path="/account" element={<AccountPage />} />
-          <Route path="/account/delete" element={<DeleteAccountPage />} />
-          <Route path="/hi-its-me" element={<HiItsMePage />} />
-          <Route path="/hi-its-me/rooms" element={<RoomsPage />} />
-          <Route path="/hi-its-me/rooms/new" element={<NewRoomPage />} />
-          <Route path="/hi-its-me/rooms/:roomId/preview" element={<RoomPreviewPage />} />
-          <Route path="/join/:inviteCode" element={<InvitePage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Suspense>
       <PwaBootstrap />
       <NativeShellRouteSync />
       <DeepLinkHandler />
