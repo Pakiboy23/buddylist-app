@@ -37,6 +37,11 @@ function AppLaunchFallback() {
         <p className="mt-2 text-[12px] leading-5 text-slate-400">
           Warming up your private messaging shell. This should only take a moment.
         </p>
+      </div>
+    </main>
+  );
+}
+
 function AppLoadingFallback() {
   return (
     <main className="flex h-[100dvh] items-center justify-center bg-[#13100E] px-6 text-center text-[#F7F0E8]">
