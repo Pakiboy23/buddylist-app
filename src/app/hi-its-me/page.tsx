@@ -1028,7 +1028,8 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   const profileBioRef = useRef(profileBio);
   const buddyIconPathRef = useRef<string | null>(buddyIconPath);
   const idleSinceRef = useRef<string | null>(idleSinceAt);
-  const lastActivityAtRef = useRef<number>(Date.now());
+  const [initialActivityAt] = useState(() => Date.now());
+  const lastActivityAtRef = useRef<number>(initialActivityAt);
   const lastPresenceWriteAtRef = useRef(0);
   const activityTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const lastBuddyActivityAtRef = useRef<Record<string, number>>({});
@@ -5706,13 +5707,14 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     () => (activeChatBuddyId ? getDmPreference(dmPreferencesByBuddyId, activeChatBuddyId) : null),
     [activeChatBuddyId, dmPreferencesByBuddyId],
   );
+  const activeRoomId = activeRoom?.id ?? null;
   const activeRoomOutboxItems = useMemo(() => {
-    if (!activeRoom?.id) {
+    if (!activeRoomId) {
       return [];
     }
 
-    return outboxItems.filter((item) => item.type === 'room' && item.targetId === activeRoom.id);
-  }, [activeRoom?.id, outboxItems]);
+    return outboxItems.filter((item) => item.type === 'room' && item.targetId === activeRoomId);
+  }, [activeRoomId, outboxItems]);
   const shouldShowSystemStatusChip =
     syncState === 'hydrating' || syncState === 'syncing' || syncState === 'error' || pendingOutboxCount > 0;
   const isConversationOverlayOpen = Boolean(activeChatBuddy || activeRoom);
