@@ -1,5 +1,6 @@
 import { Component, Suspense, lazy, type ErrorInfo, type ReactNode } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
 import { Analytics } from '@vercel/analytics/react';
 import { ChatProvider } from '@/context/ChatContext';
 import PwaBootstrap from '@/components/PwaBootstrap';
@@ -36,13 +37,6 @@ function AppLaunchFallback() {
         <p className="mt-2 text-[12px] leading-5 text-slate-400">
           Warming up your private messaging shell. This should only take a moment.
         </p>
-function AppLoadingFallback() {
-  return (
-    <main className="flex h-[100dvh] items-center justify-center bg-[#13100E] px-6 text-center text-[#F7F0E8]">
-      <div role="status" aria-live="polite" className="space-y-3">
-        <div className="mx-auto h-10 w-10 animate-pulse rounded-2xl bg-[#E8A23A]" />
-        <p className="text-[13px] font-semibold uppercase tracking-[0.22em] text-[#E8A23A]">Loading H.I.M.</p>
-        <p className="text-[14px] text-[#9C8E82]">Getting the app ready…</p>
       </div>
     </main>
   );
@@ -108,25 +102,11 @@ export default function App() {
           </Routes>
         </Suspense>
       </AppErrorBoundary>
-      <Suspense fallback={<AppLoadingFallback />}>
-        <Routes>
-          <Route path="/" element={<LoginPage />} />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route path="/account" element={<AccountPage />} />
-          <Route path="/account/delete" element={<DeleteAccountPage />} />
-          <Route path="/hi-its-me" element={<HiItsMePage />} />
-          <Route path="/hi-its-me/rooms" element={<RoomsPage />} />
-          <Route path="/hi-its-me/rooms/new" element={<NewRoomPage />} />
-          <Route path="/hi-its-me/rooms/:roomId/preview" element={<RoomPreviewPage />} />
-          <Route path="/join/:inviteCode" element={<InvitePage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Suspense>
       <PwaBootstrap />
       <NativeShellRouteSync />
       <DeepLinkHandler />
       <GlobalNotificationListener />
-      <Analytics />
+      {!Capacitor.isNativePlatform() && <Analytics />}
     </ChatProvider>
   );
 }

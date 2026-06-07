@@ -534,6 +534,19 @@ export default function Home() {
                             .
                           </span>
                         </label>
+                        <p className="text-[12px] leading-5 text-slate-500 dark:text-slate-400">
+                          By creating an account you agree to our{' '}
+                          <a
+                            href="https://hiitsme.app/terms"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-amber-500 underline underline-offset-2"
+                          >
+                            Terms of Service
+                          </a>{' '}
+                          and confirm you understand H.I.M. has zero tolerance for objectionable content or abusive behavior.
+                        </p>
                       </div>
                     )}
                   </>

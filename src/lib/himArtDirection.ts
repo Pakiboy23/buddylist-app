@@ -125,14 +125,6 @@ const ROOM_META_OVERRIDES: Record<string, Omit<HimRoomMeta, 'liveCount'>> = {
   },
 };
 
-function hashString(input: string) {
-  let hash = 0;
-  for (let index = 0; index < input.length; index += 1) {
-    hash = (hash * 31 + input.charCodeAt(index)) >>> 0;
-  }
-  return hash;
-}
-
 function dedupeTags(tags: HimRoomTag[]) {
   const unique = new Map<string, HimRoomTag>();
   tags.forEach((tag) => {
@@ -226,7 +218,10 @@ function buildHeuristicBlurb(roomName: string, tags: HimRoomTag[]) {
 export function getHimRoomMeta(roomName: string): HimRoomMeta {
   const normalizedName = normalizeRoomKey(roomName);
   const override = ROOM_META_OVERRIDES[normalizedName];
-  const liveCount = 8 + (hashString(normalizedName || roomName) % 37);
+  // Presence must be REAL — never fabricate a "live" count from a name hash.
+  // Until room_memberships presence is wired in, report 0 so no fake number
+  // shows (the room-card pill is gated on liveCount > 0 in hi-its-me/page.tsx).
+  const liveCount = 0;
 
   if (override) {
     return {
