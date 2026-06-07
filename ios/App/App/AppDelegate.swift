@@ -596,6 +596,8 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
     private var hasReceivedWebChromeState = false
     private var startupChromeFallbackWorkItem: DispatchWorkItem?
     private var liquidGlassDockHostingController: UIViewController?
+    private var lastPublishedShellTopInset: CGFloat = -1
+    private var lastPublishedShellBottomInset: CGFloat = -1
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -1064,6 +1066,26 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
             bottom: bottomInset,
             right: 0
         )
+        publishShellInsetsToWeb(deviceSafeArea: deviceSafeArea)
+    }
+
+    private func publishShellInsetsToWeb(deviceSafeArea: UIEdgeInsets) {
+        // WKWebView does NOT reliably fold additionalSafeAreaInsets into
+        // env(safe-area-inset-*) — the top dock is much taller than the device
+        // notch, so env() alone leaves content under the dock (the bug). Publish
+        // the real chrome height as explicit CSS variables the web reads for its
+        // top/bottom inset (see RetroWindow + page.tsx overlay positioning).
+        let topTotal = chromeState.showsTopChrome ? topChromeView.frame.height : deviceSafeArea.top
+        let bottomTotal = chromeState.resolvedShowsBottomChrome ? tabBar.frame.height : deviceSafeArea.bottom
+        guard topTotal > 0 || bottomTotal > 0 else { return }
+        guard abs(topTotal - lastPublishedShellTopInset) > 0.5
+            || abs(bottomTotal - lastPublishedShellBottomInset) > 0.5 else { return }
+        lastPublishedShellTopInset = topTotal
+        lastPublishedShellBottomInset = bottomTotal
+        let script = "(function(){var s=document.documentElement.style;"
+            + "s.setProperty('--hiitsme-shell-top-inset','\(Int(topTotal.rounded()))px');"
+            + "s.setProperty('--hiitsme-shell-bottom-inset','\(Int(bottomTotal.rounded()))px');})();"
+        bridgeViewController.webView?.evaluateJavaScript(script, completionHandler: nil)
     }
 
     private func updateBridgeChromeConstraints() {
