@@ -1,17 +1,19 @@
 # Project Memory
-Last updated: 2026-05-29 | Session 7 | Branch: main
+Last updated: 2026-06-07 | Session 8 | Branch: main
 Memory health: 9/10
 
 ## Project Overview
 H.I.M. (`hiitsme`) — retro AIM-style mobile-first messaging app. Vite + React 19 + React Router v7 web app, deployed on Vercel (web) and wrapped via Capacitor 8 for iOS + Android. Supabase for auth/Postgres/realtime/edge-functions.
 
 ## Where We Left Off
-- **Current task:** Brand alias cleanup — shipped in `0bf3fd1`.
-- **Status:** Committed. Working tree still has stale `dist/` deletions and modified iOS splash/icon assets from prior sessions (need a `npm run build` + `ios:sync` to resync).
-- **Next immediate step:** Open question — either (a) resync `dist/` + iOS assets so the working tree is clean, or (b) move to next product/feature task.
-- **Open question:** What's next?
+- **Current task:** Session-start cleanup done — worktree is CLEAN, ready for today's work.
+- **Status:** Committed (`ba80371`, `6930bdd`, `d708575`). Found + fixed a latent bug: committed `dist/` had drifted from source (stale asset hashes, an untracked orphan build left behind). Rebuilt fresh, resynced iOS via `cap copy`, bumped to build 177. tsc clean, 106/106 unit tests pass, same Supabase backend, plugin registration preserved.
+- **Next immediate step:** Awaiting today's task — build pipeline + tree are healthy.
 
-## Completed (this session)
+## Completed (Session 8 — 2026-06-07)
+- Session-start cleanup: rebuilt stale `dist/` (committed asset hashes had drifted from source; a reverted build had left 56 untracked orphan assets), resynced iOS `public/` via `cap copy`, bumped CFBundleVersion → 177 (`ba80371`). Verified same Supabase backend baked in; restored `HiItsMeShellPlugin` registration in `capacitor.config.json` (cap copy drops it). Removed stray empty `1.0` file. Tracked `supabase/.temp/linked-project.json` (`d708575`, follows 8 sibling files) + added `swiftui-liquid-glass` skill (`6930bdd`).
+
+## Completed (Session 7 — 2026-05-29)
 - 2026-05-29 New "hi." app icon shipped (PRs in `fc9b9b3` + `53387cc`): Nunito Black wordmark, Chiraag amber on Midnight, period as oversized circle for 60×60 Spotlight legibility. 13 iOS sizes + Android 5 densities (flat + adaptive foreground). Replaces Samaan chiraag mark (wrong semantic for chat, fragile small).
 - 2026-05-29 CFBundleVersion bumped 162 → 166 → 167 for App Store builds.
 - 2026-05-29 SwiftUI Liquid Glass top dock bridge implemented then reverted after physical TestFlight blank-screen report. Stable UIKit blur top dock restored.
@@ -88,11 +90,13 @@ H.I.M. (`hiitsme`) — retro AIM-style mobile-first messaging app. Vite + React 
 - Rooms v2: `public.rooms` + `public.room_memberships`. Join/leave via `join_room_by_id` / `leave_room_by_id` SECURITY DEFINER RPCs (bypasses RLS recursion bug on direct INSERT).
 - Local cache namespace: `hiitsme:ui:v1:<userId>` with legacy-key migration
 - Native push flow: `GlobalNotificationListener` adds `registration` listener → token upserted to `user_push_tokens`. `requestAndRegisterPush()` in `nativePush.ts` is the ONLY permitted trigger for new permission requests.
-- Liquid Glass: `UITabBar.configureWithDefaultBackground()` lets the system paint Liquid Glass on iOS 26 and standard tab bar chrome on older iOS. Top chrome pill uses the stable UIKit blur fallback; SwiftUI-hosted top-dock glass is deferred after a physical TestFlight blank-screen report.
+- Liquid Glass: `UITabBar.configureWithDefaultBackground()` lets the system paint Liquid Glass on iOS 26 and standard tab bar chrome on older iOS. SwiftUI top-dock glass was RE-ENABLED after Session 7 (builds 170–177, despite the earlier blank-screen revert): install deferred until first JS chrome publish to dodge the boot blank-screen; WebView runs edge-to-edge so Glass samples the real web gradient; native UIColor backgrounds aligned to CSS gradient midpoints (dark `#1A1F3A`, light `#F5F1E8`); `HiItsMeShellPlugin` registered via `prepare-ios-swift-packages.mjs` (Capacitor 8 autoRegister skips in-app plugins). Last touched `7c834a3` (2026-06-06).
 - App Store screenshots: `scripts/take-app-store-screenshots.mjs` — set `PLAYWRIGHT_USER_A_SCREENNAME` + `PLAYWRIGHT_USER_A_PASSWORD` env vars for live authenticated screens.
 
 ## Known Issues
-- None outstanding for brand migration (aliases removed 2026-05-29). `himLavender` is a real `#A78BFA` color used in `headerGradientLayer`; not a candidate for removal.
+- **dist/ drift:** committed `dist/` can fall out of sync with source if a build's `index.html`/deletions get reverted via git while the new hashed assets stay untracked (orphans). Always rebuild (`npm run build` — `emptyOutDir` wipes orphans) before committing a resync. Found + fixed Session 8.
+- `npx cap copy ios` regenerates `capacitor.config.json` and DROPS `HiItsMeShellPlugin` from `packageClassList`. Restore from HEAD, or run full `npm run ios:sync` (note `prepare-ios-swift-packages.mjs` only works after a full `cap sync`, not `cap copy` — it throws on the already-prepared `Package.swift`).
+- None outstanding for brand migration. `himLavender` `#A78BFA` in `headerGradientLayer` is a real color, not an alias.
 
 ## Session Log
 | Session | Date | Summary |
@@ -104,6 +108,7 @@ H.I.M. (`hiitsme`) — retro AIM-style mobile-first messaging app. Vite + React 
 | 5 | 2026-05-25 | TestFlight confirmed live. Android mipmaps regenerated (Midnight amber). UIGlassEffect researched + deferred (SwiftUI-only, needs `UIHostingController` bridge + iOS 26 GM device test). |
 | 6 | 2026-05-25 | Compliance push: iOS privacy manifests (app + 6 plugins), export-compliance flag, audit log (`security_events` + 10 gaps), GDPR doc set + retention cron, EU storage banner, notification preview toggle (sender-only default). |
 | 7 | 2026-05-29 | SwiftUI Liquid Glass top dock attempted + reverted (TestFlight blank screen). New "hi." app icon shipped (iOS + Android). CFBundleVersion → 167. Memory refreshed. |
+| 8 | 2026-06-07 | Session-start cleanup. Fixed latent dist/ drift (committed bundle stale vs source) — rebuilt + resynced iOS, build 177. Corrected memory: Liquid Glass was RE-enabled builds 170–177 (Session 7 "reverted" note was wrong). Tree clean; tsc + 106 tests pass. |
 
 ## User Preferences
 - Concise, direct responses; no trailing summaries
