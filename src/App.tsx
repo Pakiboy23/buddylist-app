@@ -1,5 +1,6 @@
 import { Component, Suspense, lazy, type ErrorInfo, type ReactNode } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
 import { Analytics } from '@vercel/analytics/react';
 import { ChatProvider } from '@/context/ChatContext';
 import PwaBootstrap from '@/components/PwaBootstrap';
@@ -126,7 +127,7 @@ export default function App() {
       <NativeShellRouteSync />
       <DeepLinkHandler />
       <GlobalNotificationListener />
-      <Analytics />
+      {!Capacitor.isNativePlatform() && <Analytics />}
     </ChatProvider>
   );
 }

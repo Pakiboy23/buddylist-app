@@ -6905,10 +6905,12 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center gap-2">
                                     <p className="truncate text-[13px] font-semibold text-slate-800 dark:text-slate-100">{room.name}</p>
-                                    <span className="ui-room-live-pill">
-                                      <span className="ui-room-live-dot" />
-                                      {meta.liveCount}
-                                    </span>
+                                    {meta.liveCount > 0 ? (
+                                      <span className="ui-room-live-pill">
+                                        <span className="ui-room-live-dot" />
+                                        {meta.liveCount}
+                                      </span>
+                                    ) : null}
                                   </div>
                                   <p className="mt-0.5 truncate text-[11px] text-slate-400 dark:text-slate-500">{meta.blurb}</p>
                                   <div className="mt-2 flex flex-wrap gap-1.5">

@@ -2,7 +2,7 @@ import { getEdgeFunctionUrl } from '@/lib/appApi';
 import { getAccessTokenOrNull } from '@/lib/authClient';
 
 type PushDispatchPayload =
-  | { kind: 'dm'; messageId: number }
+  | { kind: 'dm'; messageId: string }
   | { kind: 'room'; roomMessageId: string }
   | { kind: 'buddy_request'; buddyId: string }
   | { kind: 'buddy_accept'; buddyId: string };
@@ -32,12 +32,12 @@ async function sendPushDispatch(payload: PushDispatchPayload) {
   }
 }
 
-export function dispatchDirectMessagePush(messageId: number) {
-  if (!Number.isFinite(messageId) || messageId <= 0) {
+export function dispatchDirectMessagePush(messageId: string) {
+  if (!messageId || !String(messageId).trim()) {
     return;
   }
 
-  void sendPushDispatch({ kind: 'dm', messageId });
+  void sendPushDispatch({ kind: 'dm', messageId: String(messageId).trim() });
 }
 
 export function dispatchRoomMessagePush(roomMessageId: string) {
