@@ -1,0 +1,60 @@
+name: CI
+
+# Build gate: a non-compiling main is what froze production for 4 merges
+# (PRs #47/#48/#51/#27 all failed to deploy on a broken src/App.tsx).
+# This runs the same `tsc --noEmit && vite build` Vercel uses, plus unit tests,
+# so a broken build can't be merged. Mark the `build` check as REQUIRED in
+# Settings -> Branches -> main branch protection for it to actually block merges.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Don't pile up runs on the same branch; cancel superseded ones.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build + unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The gate that matters: tsc --noEmit && vite build (same as `npm run build`).
+      # This is exactly what would have caught the malformed App.tsx.
+      - name: Type-check + build
+        run: pnpm run build
+        env:
+          # Placeholders so a missing-env edge case can't fail the build.
+          # Vite inlines VITE_* at build time; these are not real credentials.
+          VITE_SUPABASE_URL: https://ci-placeholder.supabase.co
+          VITE_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+
+      - name: Unit tests
+        run: pnpm run test:unit
+
+# Note: `lint` (eslint .) is intentionally NOT gated here — the repo currently
+# has ~3.5k pre-existing eslint errors, so blocking on it would reject every PR.
+# Clean those up incrementally, then add a `pnpm run lint` step to this job.
