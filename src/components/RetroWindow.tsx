@@ -98,7 +98,13 @@ export default function RetroWindow({
           </div>
         )}
 
-        <div className={`min-h-0 flex-1 overflow-hidden ${hideHeader ? 'px-0 pt-0 pb-0' : 'px-3 pb-3 pt-2'}`}>
+        <div
+          className={`min-h-0 flex-1 overflow-hidden ${hideHeader ? 'px-0' : 'px-3 pb-3 pt-2'}`}
+          style={hideHeader ? {
+            paddingTop: 'var(--hiitsme-shell-top-inset, env(safe-area-inset-top))',
+            paddingBottom: 'var(--hiitsme-shell-bottom-inset, env(safe-area-inset-bottom))',
+          } : undefined}
+        >
           {children}
         </div>
       </div>
@@ -146,7 +152,10 @@ export default function RetroWindow({
         </div>
       )}
 
-      <div className={`flex-1 overflow-y-auto px-3 pb-3 ${hideHeader ? 'pt-0' : 'pt-2'}`}>
+      <div
+        className={`flex-1 overflow-y-auto px-3 pb-3 ${hideHeader ? '' : 'pt-2'}`}
+        style={hideHeader ? { paddingTop: 'var(--hiitsme-shell-top-inset, env(safe-area-inset-top))' } : undefined}
+      >
         {children}
       </div>
     </div>
