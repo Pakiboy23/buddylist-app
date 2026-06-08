@@ -60,6 +60,7 @@ export default function AccountPage() {
 
   const [pushStatus, setPushStatus] = useState<PushPermissionStatus>('not-native');
   const [pushRequesting, setPushRequesting] = useState(false);
+  const [showPushRationale, setShowPushRationale] = useState(false);
 
   type NotifPreviewMode = 'full' | 'name_only' | 'hidden';
   const [notifPreviewMode, setNotifPreviewMode] = useState<NotifPreviewMode>('name_only');
@@ -76,6 +77,7 @@ export default function AccountPage() {
   }, []);
 
   const handleEnableNotifications = useCallback(async () => {
+    setShowPushRationale(false);
     setPushRequesting(true);
     const result = await requestAndRegisterPush();
     setPushStatus(result);
@@ -460,7 +462,7 @@ export default function AccountPage() {
               {pushStatus === 'prompt' && (
                 <button
                   type="button"
-                  onClick={() => { void handleEnableNotifications(); }}
+                  onClick={() => setShowPushRationale(true)}
                   disabled={pushRequesting}
                   className={submitClass}
                 >
@@ -566,6 +568,58 @@ export default function AccountPage() {
           </div>
         </div>
       </RetroWindow>
+
+      {showPushRationale && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 px-4 pb-6 pt-10 backdrop-blur-sm sm:items-center sm:pb-10"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="push-rationale-title"
+          onClick={() => setShowPushRationale(false)}
+        >
+          <div
+            className={`${sectionClass} w-full max-w-sm space-y-4`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div>
+              <h2
+                id="push-rationale-title"
+                className="text-[18px] font-semibold text-slate-900 dark:text-slate-50"
+              >
+                Stay in touch with your buddies
+              </h2>
+              <p className="mt-2 text-[13px] leading-5 text-slate-500 dark:text-slate-400">
+                After you continue, your device will ask whether H.I.M. can send notifications. We use them for:
+              </p>
+            </div>
+            <ul className="space-y-1.5 text-[13px] leading-5 text-slate-700 dark:text-slate-300">
+              <li>• New direct messages from your buddies</li>
+              <li>• Mentions and replies in chat rooms</li>
+              <li>• Buddy requests</li>
+            </ul>
+            <p className="text-[12px] leading-5 text-slate-500 dark:text-slate-400">
+              You can change this anytime in Settings.
+            </p>
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowPushRationale(false)}
+                className="ui-focus-ring min-h-[48px] flex-1 rounded-2xl border border-slate-200/80 bg-white/60 px-4 py-2.5 text-[14px] font-semibold text-slate-700 transition active:scale-[0.99] hover:bg-white/80 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
+              >
+                Not now
+              </button>
+              <button
+                type="button"
+                onClick={() => { void handleEnableNotifications(); }}
+                disabled={pushRequesting}
+                className={`${submitClass} flex-1`}
+              >
+                {pushRequesting ? 'Requesting...' : 'Continue'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
