@@ -33,7 +33,7 @@ select
   sender.screenname as sender_screenname,
   rm.body
 from public.room_messages rm
-left join public.chat_rooms cr on cr.id = rm.room_id
+left join public.rooms cr on cr.id = rm.room_id
 left join public.users sender on sender.id = rm.user_id
 where rm.flagged_at is not null
   and rm.flagged_at > timezone('utc', now()) - interval '7 days'

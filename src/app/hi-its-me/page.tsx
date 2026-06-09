@@ -19,6 +19,7 @@ import {
   type AwayMoodId,
 } from '@/lib/himArtDirection';
 import { getAccessTokenOrNull, waitForSessionOrNull } from '@/lib/authClient';
+import { humanizeDbError } from '@/lib/friendlyError';
 import { getAppApiUrl, getEdgeFunctionUrl } from '@/lib/appApi';
 import { navigateAppPath, replaceAppPathInPlace, useAppRouter } from '@/lib/appNavigation';
 import {
@@ -2280,7 +2281,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
 
           if (error) {
             nextItems = nextItems.map((candidate) =>
-              candidate.id === item.id ? markOutboxAttemptFailure(candidate, error.message) : candidate,
+              candidate.id === item.id ? markOutboxAttemptFailure(candidate, humanizeDbError(error.message)) : candidate,
             );
             setOutboxItems(normalizeOutboxItems(nextItems));
             continue;

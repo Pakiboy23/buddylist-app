@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { dispatchBuddyAcceptedPush, dispatchBuddyRequestPush } from '@/lib/pushDispatch';
+import { humanizeDbError } from '@/lib/friendlyError';
 
 interface BuddyRow {
   user_id: string;
@@ -33,7 +34,7 @@ export async function sendOrAcceptBuddyRequest(
     .in('status', ['accepted', 'pending']);
 
   if (checkError) {
-    return { status: 'error', feedback: checkError.message, ok: false };
+    return { status: 'error', feedback: humanizeDbError(checkError.message), ok: false };
   }
 
   let outgoing: string | null = null;
@@ -59,7 +60,7 @@ export async function sendOrAcceptBuddyRequest(
       ),
     ]);
     const acceptError = outRes.error ?? inRes.error;
-    if (acceptError) return { status: 'error', feedback: acceptError.message, ok: false };
+    if (acceptError) return { status: 'error', feedback: humanizeDbError(acceptError.message), ok: false };
     dispatchBuddyAcceptedPush(buddyId);
     return { status: 'accepted_incoming', feedback: 'Buddy request accepted!', ok: true };
   }
@@ -72,7 +73,7 @@ export async function sendOrAcceptBuddyRequest(
     { user_id: currentUserId, buddy_id: buddyId, status: 'pending' },
     { onConflict: 'user_id,buddy_id' },
   );
-  if (insertError) return { status: 'error', feedback: insertError.message, ok: false };
+  if (insertError) return { status: 'error', feedback: humanizeDbError(insertError.message), ok: false };
 
   dispatchBuddyRequestPush(buddyId);
   return { status: 'sent', feedback: 'Buddy request sent.', ok: true };

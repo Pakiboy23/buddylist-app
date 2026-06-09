@@ -254,12 +254,19 @@ Deno.serve(async (req: Request) => {
     }
 
     // Persist deletion manifest before removing the auth row (user_id FK becomes null after).
-    await admin.from('security_events').insert({
-      event_type: 'account.deletion.manifest',
-      user_id: userId,
-      outcome: 'success',
-      metadata: { tables: results },
-    });
+    // Audit logging must NEVER block the actual erasure (Guideline 5.1.1(v)): swallow any
+    // failure here so a security_events problem can't 500 the request before
+    // auth.admin.deleteUser runs and the account is actually deleted.
+    try {
+      await admin.from('security_events').insert({
+        event_type: 'account.deletion.manifest',
+        user_id: userId,
+        outcome: 'success',
+        metadata: { tables: results },
+      });
+    } catch (logErr) {
+      console.error('[delete-account] manifest log failed (continuing to auth deletion):', logErr);
+    }
 
     // Auth row LAST. Once this returns we have no way to recover the user.
     const { error: authDeleteError } = await admin.auth.admin.deleteUser(userId);
