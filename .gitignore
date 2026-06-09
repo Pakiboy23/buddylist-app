@@ -68,3 +68,8 @@ next-env.d.ts
 
 # Research / documentation PDFs (do not commit)
 *.pdf
+
+# App Store Connect API keys (NEVER commit — these grant App Manager access)
+*.p8
+AuthKey_*.p8
+/fastlane/.keys/

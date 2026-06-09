@@ -51,7 +51,11 @@
 
 html,
 body {
-  width: 100vw;
+  /* width:100% (not 100vw): in iPhone-compatibility mode on iPad, 100vw can
+     resolve wider than the visual viewport, and with overflow:hidden the excess
+     is clipped — shifting centered controls partly off the hittable area so taps
+     miss and the app reads as "unresponsive" (App Review 2.1(a), build 167). */
+  width: 100%;
   height: 100dvh;
   overflow: hidden;
   overscroll-behavior-y: none;
