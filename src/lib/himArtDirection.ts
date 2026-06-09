@@ -119,7 +119,7 @@ const ROOM_META_OVERRIDES: Record<string, Omit<HimRoomMeta, 'liveCount'>> = {
       { key: '30s', label: '30s', tone: 'gold' },
     ],
   },
-  'gay men who actually cook': {
+  'people who actually cook': {
     blurb: 'recipes, spice levels, and kitchen bragging',
     tags: [{ key: 'food', label: 'food', tone: 'rose' }],
   },
