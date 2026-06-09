@@ -71,7 +71,6 @@ export default function RetroWindow({
                 {isWordmarkTitle ? (
                   <div className="flex items-center gap-1.5">
                     <HimWordmark className="truncate text-[15px]" showOnlinePip />
-                    <span className="aim-pro-badge">Pro</span>
                   </div>
                 ) : (
                   <p className="truncate tracking-[0.01em] text-slate-700 dark:text-slate-100">{resolvedXpTitle}</p>
@@ -136,10 +135,7 @@ export default function RetroWindow({
               <AppIcon kind="sparkle" className="h-3.5 w-3.5" />
             </span>
             {title === 'H.I.M.' ? (
-              <>
-                <HimWordmark className="ml-2 truncate text-[13px]" />
-                <span className="aim-pro-badge ml-1">Pro</span>
-              </>
+              <HimWordmark className="ml-2 truncate text-[13px]" />
             ) : (
               <span className="ml-2 truncate tracking-wide text-slate-700 dark:text-slate-100">
                 {title}

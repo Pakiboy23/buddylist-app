@@ -6,7 +6,7 @@ export interface ConsentState {
 }
 
 export const CONSENT_ERROR_MESSAGES: Record<NonNullable<ConsentError>, string> = {
-  age: 'You must confirm you are 17 or older to create an account.',
+  age: 'You must confirm you are 18 or older to create an account.',
   art9: 'You must consent to H.I.M. processing your data to create an account.',
 };
 

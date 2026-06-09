@@ -6285,7 +6285,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                         <span className="ui-profile-avatar-badge">
                           Buddy icon
                         </span>
-                        <span className="ui-profile-pro-badge">H.I.M. Pro</span>
                       </button>
                       <div className="mt-4 min-w-0">
                         <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--rose)]">You</p>

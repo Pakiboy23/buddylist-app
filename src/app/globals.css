@@ -1818,19 +1818,6 @@ body.privacy-shield-active::after {
   text-shadow: 0 0 8px rgba(232, 162, 58, 0.5);
 }
 
-.aim-pro-badge {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid rgba(232, 162, 58, 0.45);
-  border-radius: 9999px;
-  padding: 0.05rem 0.35rem;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #f8d9a2;
-  background: rgba(232, 162, 58, 0.14);
-}
 
 .ui-window-header,
 .dark .ui-window-header {
@@ -2197,22 +2184,6 @@ body.privacy-shield-active::after {
   white-space: nowrap;
 }
 
-.ui-profile-pro-badge {
-  position: absolute;
-  right: -0.5rem;
-  bottom: 0.2rem;
-  border-radius: 999px;
-  border: 2px solid var(--bg);
-  background: linear-gradient(135deg, var(--rose) 0%, var(--gold) 100%);
-  padding: 0.18rem 0.56rem;
-  font-family: var(--font-screenname), "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
-  font-size: 8px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #fff;
-  box-shadow: 0 10px 18px rgba(232, 162, 58, 0.24);
-}
 
 .ui-profile-away-box {
   border: 1px solid var(--faint);

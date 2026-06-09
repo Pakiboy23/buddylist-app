@@ -1467,6 +1467,52 @@ export default function GroupChatWindow({
                               ? 'Request Sent'
                               : 'Add to Buddylist'}
                     </button>
+                    {(onReportRoomMessage || onBlockRoomUser) ? (
+                      <div className="flex items-center justify-center gap-4 pt-1">
+                        {onReportRoomMessage ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onReportRoomMessage({
+                                messageId: '',
+                                senderId: rosterProfile.id,
+                                senderScreenname: rosterProfile.screenname,
+                                contentPreview: '',
+                              });
+                              setRosterProfileId(null);
+                              setRosterProfile(null);
+                              setRosterProfileFeedback(null);
+                              setRosterProfileStatus(null);
+                            }}
+                            className="ui-focus-ring text-[13px] font-semibold text-red-400 hover:text-red-300"
+                            aria-label={`Report ${rosterProfile.screenname}`}
+                            data-testid="roster-report"
+                          >
+                            Report
+                          </button>
+                        ) : null}
+                        {onBlockRoomUser ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onBlockRoomUser({
+                                userId: rosterProfile.id,
+                                screenname: rosterProfile.screenname,
+                              });
+                              setRosterProfileId(null);
+                              setRosterProfile(null);
+                              setRosterProfileFeedback(null);
+                              setRosterProfileStatus(null);
+                            }}
+                            className="ui-focus-ring text-[13px] font-semibold text-red-400 hover:text-red-300"
+                            aria-label={`Block ${rosterProfile.screenname}`}
+                            data-testid="roster-block"
+                          >
+                            Block
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                 ) : (
                   <p className="py-4 text-center text-[13px] text-slate-400">Could not load profile.</p>
