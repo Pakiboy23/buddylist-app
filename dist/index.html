@@ -65,6 +65,9 @@
         align-items: center;
         justify-content: center;
         background: #13100e;
+        /* Never swallow taps even if it lingers a frame; the watchdog below
+           re-enables pointer events only when it shows the Retry control. */
+        pointer-events: none;
       }
       #boot-splash .dot {
         width: 40px;
@@ -89,8 +92,42 @@
         50% { opacity: 1; transform: scale(1); }
       }
     </style>
-    <script type="module" crossorigin src="/assets/index-DGLcRAl8.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-qUR7najk.css">
+    <script>
+      /* Boot watchdog (App Review 2.1(a)). The opaque #boot-splash is removed only
+         when React's createRoot commits and replaces #root's children. If React
+         never mounts — a failed entry/chunk fetch under capacitor://, a synchronous
+         throw before the in-tree error boundary, or a WKWebView paint stall — the
+         splash would otherwise stay forever and read as "app unresponsive" (the
+         exact rejection on iPad). This guarantees an escape hatch with no false
+         positives: it only acts while the splash is still in the DOM (i.e. React
+         has not yet committed). */
+      (function () {
+        function reactMounted() {
+          return !document.getElementById('boot-splash');
+        }
+        function showRetry() {
+          if (reactMounted()) return;
+          var el = document.getElementById('boot-splash');
+          if (!el || el.getAttribute('data-retry') === '1') return;
+          el.setAttribute('data-retry', '1');
+          el.style.pointerEvents = 'auto';
+          el.innerHTML =
+            '<div style="text-align:center;font-family:\'IBM Plex Mono\',monospace;color:#e8a23a">' +
+            '<p style="font-size:13px;letter-spacing:.22em;text-transform:uppercase;margin:0">H.I.M.</p>' +
+            '<p style="font-size:12px;color:#b9966a;margin:10px 0 0">Couldn’t start.</p>' +
+            '<button onclick="location.reload()" style="margin-top:16px;padding:10px 22px;border-radius:12px;' +
+            'border:1px solid #e8a23a;background:transparent;color:#e8a23a;font-family:inherit;font-size:13px">' +
+            'Tap to retry</button></div>';
+        }
+        // Surface a fatal boot error quickly, but only if React still hasn't mounted.
+        window.addEventListener('error', function () { setTimeout(showRetry, 1500); });
+        window.addEventListener('unhandledrejection', function () { setTimeout(showRetry, 1500); });
+        // Ultimate backstop: if nothing painted within 8s, offer a retry.
+        setTimeout(showRetry, 8000);
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-dhwTuSaO.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-nbriSxGL.css">
   </head>
   <body class="antialiased">
     <div id="root">
