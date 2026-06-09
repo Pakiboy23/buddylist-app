@@ -55,6 +55,23 @@ jobs:
       - name: Unit tests
         run: pnpm run test:unit
 
+      # The committed web bundle (dist/, native-web/, ios public) embeds the iOS
+      # app's web layer. If source changes ship without a resync, the iOS archive
+      # ships stale code (Guideline 2.1). Fail a PR that touches build-affecting
+      # source without resyncing the bundle. Excludes test files (no bundle impact).
+      - name: Bundle resync guard
+        if: github.event_name == 'pull_request'
+        run: |
+          base="${{ github.event.pull_request.base.sha }}"
+          changed=$(git diff --name-only "$base" HEAD)
+          src_changed=$(echo "$changed" | grep -E '^(src/|public/|index\.html$)' | grep -vE '\.test\.(ts|tsx)$' || true)
+          bundle_changed=$(echo "$changed" | grep -E '^(dist/|native-web/|ios/App/App/public/)' || true)
+          if [ -n "$src_changed" ] && [ -z "$bundle_changed" ]; then
+            echo "::error::Build-affecting source changed but the web bundle was not resynced. Run 'npm run build && npm run ios:sync' and commit dist/ + native-web/ + ios/App/App/public."
+            echo "Changed source:"; echo "$src_changed"
+            exit 1
+          fi
+
 # Note: `lint` (eslint .) is intentionally NOT gated here — the repo currently
 # has ~3.5k pre-existing eslint errors, so blocking on it would reject every PR.
 # Clean those up incrementally, then add a `pnpm run lint` step to this job.
