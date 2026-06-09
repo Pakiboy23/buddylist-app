@@ -78,7 +78,7 @@ const CITY_LABELS = [
 
 const ROOM_META_OVERRIDES: Record<string, Omit<HimRoomMeta, 'liveCount'>> = {
   'late night cooking': {
-    blurb: 'food, flirting, and dinner decisions',
+    blurb: 'late-night recipes and dinner debates',
     tags: [
       { key: 'food', label: 'food', tone: 'rose' },
       { key: 'general', label: 'all ages', tone: 'ghost' },
@@ -191,7 +191,7 @@ function buildHeuristicBlurb(roomName: string, tags: HimRoomTag[]) {
     return 'local plans & people who already get it';
   }
   if (tagKeys.has('food')) {
-    return 'recipes, cravings, and a little flirting';
+    return 'recipes, cravings, and kitchen wins';
   }
   if (tagKeys.has('film')) {
     return 'movie opinions with zero shame';
@@ -203,13 +203,13 @@ function buildHeuristicBlurb(roomName: string, tags: HimRoomTag[]) {
     return 'grown energy without the small talk';
   }
   if (tagKeys.has('divorced')) {
-    return 'starting over, but hotter and funnier';
+    return 'starting over, wiser and funnier';
   }
   if (tagKeys.has('work')) {
     return 'trying to look productive from the couch';
   }
   if (tagKeys.has('chaotic')) {
-    return 'lightly unhinged but emotionally available';
+    return 'lightly unhinged but always around';
   }
 
   return `${roomName} is active right now`;

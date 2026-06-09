@@ -507,7 +507,7 @@ export default function Home() {
                             className="mt-0.5 h-4 w-4 shrink-0 accent-[#E8A23A]"
                           />
                           <span className="text-[13px] leading-5 text-slate-500 dark:text-slate-400">
-                            I am 17 or older.
+                            I am 18 or older.
                           </span>
                         </label>
                         <label className="flex cursor-pointer items-start gap-3">
@@ -520,7 +520,7 @@ export default function Home() {
                             className="mt-0.5 h-4 w-4 shrink-0 accent-[#E8A23A]"
                           />
                           <span className="text-[13px] leading-5 text-slate-500 dark:text-slate-400">
-                            I understand H.I.M. is a social app for gay men, and I consent to the app
+                            I understand H.I.M. is a friendship app for gay men — not a dating or hookup app — and I consent to the app
                             processing data that may reveal my sexual orientation as described in the{' '}
                             <a
                               href="https://hiitsme.app/privacy"
