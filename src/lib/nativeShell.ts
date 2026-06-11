@@ -11,6 +11,7 @@ export type NativeShellAction =
   | 'openSaved'
   | 'openAdd'
   | 'openMenu'
+  | 'openAccount'
   | 'openPrivacy'
   | 'openAdminReset'
   | 'signOff'
