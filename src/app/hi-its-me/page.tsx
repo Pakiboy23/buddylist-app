@@ -5995,6 +5995,9 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       case 'openMenu':
         setIsHeaderMenuOpen((previous) => !previous);
         return;
+      case 'openAccount':
+        navigateAppPath(router, '/account');
+        return;
       case 'openPrivacy':
         openPrivacyControls();
         return;

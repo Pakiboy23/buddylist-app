@@ -75,6 +75,7 @@ fileprivate enum HiItsMeShellAction: String, Decodable {
     case openSaved
     case openAdd
     case openMenu
+    case openAccount
     case openPrivacy
     case openAdminReset
     case signOff
@@ -1339,7 +1340,7 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
                 accessibilityLabel: "More options",
                 menu: makeOverflowMenu()
             )
-        case .openPrivacy, .openAdminReset, .signOff, .goBack:
+        case .openAccount, .openPrivacy, .openAdminReset, .signOff, .goBack:
             return nil
         }
     }
@@ -1395,6 +1396,11 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
 
     private func makeOverflowMenu() -> UIMenu {
         var actions: [UIAction] = [
+            // Account opens the in-app Account screen (email/password + Delete account).
+            // Required so account deletion is reachable on iOS (App Review 5.1.1(v)).
+            UIAction(title: "Account", image: UIImage(systemName: "person.crop.circle")) { [weak self] _ in
+                self?.dispatchAction(.openAccount)
+            },
             UIAction(title: "Privacy", image: UIImage(systemName: "hand.raised.fill")) { [weak self] _ in
                 self?.presentPrivacySheet()
             }
