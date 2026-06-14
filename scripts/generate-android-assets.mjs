@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
@@ -13,6 +14,13 @@ const mipmapRoot = path.join(
   'src',
   'main',
   'res',
+);
+
+const brandIconSourcePath = path.join(
+  repoRoot,
+  'assets',
+  'brand',
+  'him-app-icon-hi-1024.png',
 );
 
 // Flat legacy icon sizes (dp = px at mdpi baseline)
@@ -33,16 +41,19 @@ const FOREGROUND_SIZES = [
   { density: 'mipmap-xxxhdpi', size: 432 },
 ];
 
-function flatIconMarkup() {
+async function imageDataUri(filePath) {
+  const bytes = await readFile(filePath);
+  return `data:image/png;base64,${bytes.toString('base64')}`;
+}
+
+function flatIconMarkup(iconDataUri) {
   return `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <style>
       :root {
-        --bg-dark: #13100E;
-        --bg-card: #1D1916;
-        --chiraag: #E8A23A;
+        --neel: #1A1F3A;
       }
 
       * { box-sizing: border-box; }
@@ -55,71 +66,25 @@ function flatIconMarkup() {
       }
 
       body {
-        display: grid;
-        place-items: center;
-        background:
-          radial-gradient(circle at 28% 22%, rgba(232, 162, 58, 0.18) 0%, transparent 48%),
-          radial-gradient(circle at center, var(--bg-card) 0%, var(--bg-dark) 100%);
+        background: var(--neel);
       }
 
-      .panel {
-        position: relative;
-        width: 72%;
-        aspect-ratio: 1;
-        border-radius: 30%;
-        overflow: hidden;
-        background:
-          linear-gradient(170deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.02) 30%, transparent 100%),
-          var(--bg-card);
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        box-shadow:
-          0 52px 120px rgba(0, 0, 0, 0.5),
-          0 0 80px rgba(232, 162, 58, 0.12),
-          inset 0 1px 0 rgba(255, 255, 255, 0.14);
-      }
-
-      .logo-wrap {
-        position: absolute;
-        inset: 0;
-        display: grid;
-        place-items: center;
-      }
-
-      .glyph-glow {
-        position: absolute;
-        width: 42%;
-        aspect-ratio: 1;
-        border-radius: 50%;
-        background: var(--chiraag);
-        filter: blur(28px);
-        opacity: 0.5;
-      }
-
-      .glyph-svg {
-        position: relative;
-        width: 42%;
-        aspect-ratio: 1;
+      img {
+        display: block;
+        width: 100%;
+        height: 100%;
       }
     </style>
   </head>
   <body>
-    <div class="panel">
-      <div class="logo-wrap">
-        <div class="glyph-glow"></div>
-        <svg class="glyph-svg" viewBox="0 0 100 115" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <ellipse cx="50" cy="46" rx="30" ry="38" fill="#E8A23A"/>
-          <rect x="42" y="82" width="16" height="10" rx="3" fill="#E8A23A"/>
-          <rect x="34" y="90" width="32" height="8" rx="4" fill="#C8821A"/>
-          <ellipse cx="44" cy="36" rx="10" ry="14" fill="rgba(255,240,200,0.35)"/>
-        </svg>
-      </div>
-    </div>
+    <img src="${iconDataUri}" alt="" />
   </body>
 </html>`;
 }
 
-// Transparent background; glyph centered within the 66.7% safe zone (17% padding each side).
-function foregroundMarkup() {
+// Transparent foreground for Android adaptive icons. The source tile is scaled down
+// so the `hi.` letterform and amber period remain inside the adaptive safe zone.
+function foregroundMarkup(iconDataUri) {
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -140,42 +105,15 @@ function foregroundMarkup() {
         place-items: center;
       }
 
-      /* Safe zone padding: 16.7% each side keeps art within the 72dp safe area */
-      .safe-zone {
-        width: 66.7%;
+      .app-icon {
+        width: 82%;
         aspect-ratio: 1;
-        display: grid;
-        place-items: center;
-        position: relative;
-      }
-
-      .glyph-glow {
-        position: absolute;
-        width: 60%;
-        aspect-ratio: 1;
-        border-radius: 50%;
-        background: #E8A23A;
-        filter: blur(20px);
-        opacity: 0.45;
-      }
-
-      .glyph-svg {
-        position: relative;
-        width: 60%;
-        aspect-ratio: 1;
+        filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.32));
       }
     </style>
   </head>
   <body>
-    <div class="safe-zone">
-      <div class="glyph-glow"></div>
-      <svg class="glyph-svg" viewBox="0 0 100 115" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <ellipse cx="50" cy="46" rx="30" ry="38" fill="#E8A23A"/>
-        <rect x="42" y="82" width="16" height="10" rx="3" fill="#E8A23A"/>
-        <rect x="34" y="90" width="32" height="8" rx="4" fill="#C8821A"/>
-        <ellipse cx="44" cy="36" rx="10" ry="14" fill="rgba(255,240,200,0.35)"/>
-      </svg>
-    </div>
+    <img class="app-icon" src="${iconDataUri}" alt="" />
   </body>
 </html>`;
 }
@@ -208,9 +146,10 @@ async function render(browser, html, size, outputPath, transparent = false) {
 }
 
 async function main() {
+  const iconDataUri = await imageDataUri(brandIconSourcePath);
   const browser = await launchBrowser();
-  const flat = flatIconMarkup();
-  const fg = foregroundMarkup();
+  const flat = flatIconMarkup(iconDataUri);
+  const fg = foregroundMarkup(iconDataUri);
 
   try {
     for (const { density, size } of FLAT_SIZES) {
@@ -229,7 +168,7 @@ async function main() {
     await browser.close();
   }
 
-  console.log('\nGenerated H.I.M. Android mipmap assets.');
+  console.log('\nGenerated H.I.M. hi. Android mipmap assets.');
   console.log('Background color updated separately in ic_launcher_background.xml.');
 }
 
