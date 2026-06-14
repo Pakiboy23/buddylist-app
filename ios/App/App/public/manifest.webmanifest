@@ -4,8 +4,8 @@
   "description": "H.I.M. messenger",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#13100E",
-  "theme_color": "#13100E",
+  "background_color": "#1A1F3A",
+  "theme_color": "#1A1F3A",
   "icons": [
     {
       "src": "/favicon.ico",

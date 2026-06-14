@@ -84,25 +84,45 @@ function shouldPruneToken(reason: string): boolean {
   return ['BadDeviceToken', 'Unregistered', 'DeviceTokenNotForTopic'].includes(reason);
 }
 
-// APNs sends over HTTP/2 — Deno fetch supports HTTP/2 natively.
-async function sendApnsNotification(
-  host: string,
-  deviceToken: string,
-  payload: unknown,
-): Promise<{ status: number; body: string }> {
+// ── APNs JWT cache (one JWT per request, reused across all tokens) ────────────
+// Apple recommends no more than one token per 20 minutes; regenerating per device
+// token wastes time and risks Edge Function timeouts on batch room sends.
+
+let cachedApnsJwt: { token: string; topic: string } | null = null;
+
+async function getApnsJwt(): Promise<{ token: string; topic: string }> {
+  if (cachedApnsJwt) return cachedApnsJwt;
+
   const keyId = Deno.env.get('APPLE_PUSH_KEY_ID')?.trim() ?? '';
   const teamId = Deno.env.get('APPLE_PUSH_TEAM_ID')?.trim() ?? '';
   const rawKey = Deno.env.get('APPLE_PUSH_PRIVATE_KEY') ?? '';
   if (!keyId || !teamId || !rawKey) throw new Error('APPLE_PUSH_KEY_ID, APPLE_PUSH_TEAM_ID, and APPLE_PUSH_PRIVATE_KEY are required.');
 
   const privateKey = await importPKCS8(normalizeApplePushPrivateKey(rawKey), 'ES256');
-  const jwt = await new SignJWT({})
+  const token = await new SignJWT({})
     .setProtectedHeader({ alg: 'ES256', kid: keyId })
     .setIssuer(teamId)
     .setIssuedAt()
+    .setExpirationTime('1h')
     .sign(privateKey);
 
   const topic = (Deno.env.get('APPLE_PUSH_TOPIC') ?? Deno.env.get('VITE_IOS_BUNDLE_ID') ?? 'com.hiitsme.app').trim();
+  cachedApnsJwt = { token, topic };
+  return cachedApnsJwt;
+}
+
+// APNs sends over HTTP/2 — Deno fetch supports HTTP/2 natively.
+async function sendApnsNotification(
+  host: string,
+  deviceToken: string,
+  payload: unknown,
+): Promise<{ status: number; body: string }> {
+  const { token: jwt, topic } = await getApnsJwt();
+
+  // Expire after 24 hours — tells APNs to store-and-forward the notification
+  // if the device is temporarily unreachable (asleep, airplane mode, poor signal).
+  // Without this header APNs treats the push as immediate-or-discard.
+  const expiration = Math.floor(Date.now() / 1000) + 86400;
 
   const res = await fetch(`${host}/3/device/${deviceToken}`, {
     method: 'POST',
@@ -111,6 +131,7 @@ async function sendApnsNotification(
       'apns-topic': topic,
       'apns-push-type': 'alert',
       'apns-priority': '10',
+      'apns-expiration': String(expiration),
       'content-type': 'application/json',
     },
     body: JSON.stringify(payload),
@@ -128,6 +149,9 @@ const CORS_HEADERS = {
 };
 
 Deno.serve(async (req: Request) => {
+  // Reset per-request JWT cache (Deno may reuse the module across invocations).
+  cachedApnsJwt = null;
+
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS_HEADERS });
   if (req.method !== 'POST') return Response.json({ error: 'Method not allowed.' }, { status: 405, headers: CORS_HEADERS });
 
@@ -268,8 +292,8 @@ Deno.serve(async (req: Request) => {
   try {
     // DM push (default when kind is absent)
     if (!body.kind || body.kind === 'dm') {
-      const messageId = typeof body.messageId === 'number' ? body.messageId : Number(body.messageId);
-      if (!Number.isFinite(messageId) || messageId <= 0) {
+      const messageId = typeof body.messageId === 'string' ? body.messageId.trim() : String(body.messageId ?? '').trim();
+      if (!messageId) {
         return Response.json({ error: 'messageId is required.' }, { status: 400, headers: CORS_HEADERS });
       }
       const { data: msg, error: msgErr } = await admin

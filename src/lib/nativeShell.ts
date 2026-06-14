@@ -11,6 +11,7 @@ export type NativeShellAction =
   | 'openSaved'
   | 'openAdd'
   | 'openMenu'
+  | 'openAccount'
   | 'openPrivacy'
   | 'openAdminReset'
   | 'signOff'
@@ -122,6 +123,7 @@ const HiItsMeShell = registerPlugin<HiItsMeShellPlugin>('HiItsMeShell');
 const NATIVE_SHELL_COMMAND_EVENT = 'hiitsme:native-shell-command';
 let cachedPushEnvironment: NativePushEnvironment | null | undefined;
 let pendingPushEnvironmentLookup: Promise<NativePushEnvironment | null> | null = null;
+let chromeStateGeneration = 0;
 
 declare global {
   interface Window {
@@ -131,6 +133,28 @@ declare global {
 
 export function isNativeIosShell() {
   return typeof window !== 'undefined' && Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
+}
+
+/**
+ * Confirms that the native shell is genuinely hosting the web view and can render
+ * its own chrome (top nav + tab bar). This is stronger than {@link isNativeIosShell}:
+ * a build can be native iOS yet not embed the custom `HiItsMeShell` root (stock
+ * Capacitor, a failed plugin registration, or a native packaging regression). In
+ * those cases the bridge reports the shell as unavailable and the web layer keeps
+ * its own navigation chrome so the user is never stranded without nav buttons.
+ */
+export async function confirmNativeShellAvailable(): Promise<boolean> {
+  if (!isNativeIosShell()) {
+    return false;
+  }
+
+  try {
+    const availability = await HiItsMeShell.isAvailable();
+    return availability.available === true;
+  } catch (error) {
+    console.warn('Native shell availability check failed:', error);
+    return false;
+  }
 }
 
 export async function getNativePushEnvironment(): Promise<NativePushEnvironment | null> {
@@ -171,16 +195,24 @@ export async function getNativePushEnvironment(): Promise<NativePushEnvironment 
 }
 
 export async function publishNativeShellChromeState(state: NativeShellChromeState) {
-  if (!isNativeIosShell() || !Capacitor.isPluginAvailable('HiItsMeShell')) {
+  if (!isNativeIosShell()) {
     return;
   }
+  // Availability is confirmed via the live `isAvailable()` round-trip below rather
+  // than `Capacitor.isPluginAvailable`, which reports stale plugin headers and can
+  // miss the manually-registered shell plugin on otherwise-healthy builds.
 
+  const generation = ++chromeStateGeneration;
   let lastError: unknown = null;
 
   for (let attempt = 0; attempt < 4; attempt += 1) {
+    if (chromeStateGeneration !== generation) {
+      return;
+    }
+
     try {
       const availability = await HiItsMeShell.isAvailable();
-      if (!availability.available) {
+      if (!availability.available || chromeStateGeneration !== generation) {
         return;
       }
 
@@ -196,7 +228,7 @@ export async function publishNativeShellChromeState(state: NativeShellChromeStat
     }
   }
 
-  if (lastError) {
+  if (lastError && chromeStateGeneration === generation) {
     console.warn('Native shell state update failed:', lastError);
   }
 }

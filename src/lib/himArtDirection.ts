@@ -78,7 +78,7 @@ const CITY_LABELS = [
 
 const ROOM_META_OVERRIDES: Record<string, Omit<HimRoomMeta, 'liveCount'>> = {
   'late night cooking': {
-    blurb: 'food, flirting, and dinner decisions',
+    blurb: 'late-night recipes and dinner debates',
     tags: [
       { key: 'food', label: 'food', tone: 'rose' },
       { key: 'general', label: 'all ages', tone: 'ghost' },
@@ -119,19 +119,11 @@ const ROOM_META_OVERRIDES: Record<string, Omit<HimRoomMeta, 'liveCount'>> = {
       { key: '30s', label: '30s', tone: 'gold' },
     ],
   },
-  'gay men who actually cook': {
+  'people who actually cook': {
     blurb: 'recipes, spice levels, and kitchen bragging',
     tags: [{ key: 'food', label: 'food', tone: 'rose' }],
   },
 };
-
-function hashString(input: string) {
-  let hash = 0;
-  for (let index = 0; index < input.length; index += 1) {
-    hash = (hash * 31 + input.charCodeAt(index)) >>> 0;
-  }
-  return hash;
-}
 
 function dedupeTags(tags: HimRoomTag[]) {
   const unique = new Map<string, HimRoomTag>();
@@ -199,7 +191,7 @@ function buildHeuristicBlurb(roomName: string, tags: HimRoomTag[]) {
     return 'local plans & people who already get it';
   }
   if (tagKeys.has('food')) {
-    return 'recipes, cravings, and a little flirting';
+    return 'recipes, cravings, and kitchen wins';
   }
   if (tagKeys.has('film')) {
     return 'movie opinions with zero shame';
@@ -211,13 +203,13 @@ function buildHeuristicBlurb(roomName: string, tags: HimRoomTag[]) {
     return 'grown energy without the small talk';
   }
   if (tagKeys.has('divorced')) {
-    return 'starting over, but hotter and funnier';
+    return 'starting over, wiser and funnier';
   }
   if (tagKeys.has('work')) {
     return 'trying to look productive from the couch';
   }
   if (tagKeys.has('chaotic')) {
-    return 'lightly unhinged but emotionally available';
+    return 'lightly unhinged but always around';
   }
 
   return `${roomName} is active right now`;
@@ -226,7 +218,10 @@ function buildHeuristicBlurb(roomName: string, tags: HimRoomTag[]) {
 export function getHimRoomMeta(roomName: string): HimRoomMeta {
   const normalizedName = normalizeRoomKey(roomName);
   const override = ROOM_META_OVERRIDES[normalizedName];
-  const liveCount = 8 + (hashString(normalizedName || roomName) % 37);
+  // Presence must be REAL — never fabricate a "live" count from a name hash.
+  // Until room_memberships presence is wired in, report 0 so no fake number
+  // shows (the room-card pill is gated on liveCount > 0 in hi-its-me/page.tsx).
+  const liveCount = 0;
 
   if (override) {
     return {

@@ -71,7 +71,6 @@ export default function RetroWindow({
                 {isWordmarkTitle ? (
                   <div className="flex items-center gap-1.5">
                     <HimWordmark className="truncate text-[15px]" showOnlinePip />
-                    <span className="aim-pro-badge">Pro</span>
                   </div>
                 ) : (
                   <p className="truncate tracking-[0.01em] text-slate-700 dark:text-slate-100">{resolvedXpTitle}</p>
@@ -98,7 +97,13 @@ export default function RetroWindow({
           </div>
         )}
 
-        <div className={`min-h-0 flex-1 overflow-hidden ${hideHeader ? 'px-0 pt-0 pb-0' : 'px-3 pb-3 pt-2'}`}>
+        <div
+          className={`min-h-0 flex-1 overflow-hidden ${hideHeader ? 'px-0' : 'px-3 pb-3 pt-2'}`}
+          style={hideHeader ? {
+            paddingTop: 'var(--hiitsme-shell-top-inset, env(safe-area-inset-top))',
+            paddingBottom: 'var(--hiitsme-shell-bottom-inset, env(safe-area-inset-bottom))',
+          } : undefined}
+        >
           {children}
         </div>
       </div>
@@ -130,10 +135,7 @@ export default function RetroWindow({
               <AppIcon kind="sparkle" className="h-3.5 w-3.5" />
             </span>
             {title === 'H.I.M.' ? (
-              <>
-                <HimWordmark className="ml-2 truncate text-[13px]" />
-                <span className="aim-pro-badge ml-1">Pro</span>
-              </>
+              <HimWordmark className="ml-2 truncate text-[13px]" />
             ) : (
               <span className="ml-2 truncate tracking-wide text-slate-700 dark:text-slate-100">
                 {title}
@@ -146,7 +148,10 @@ export default function RetroWindow({
         </div>
       )}
 
-      <div className={`flex-1 overflow-y-auto px-3 pb-3 ${hideHeader ? 'pt-0' : 'pt-2'}`}>
+      <div
+        className={`flex-1 overflow-y-auto px-3 pb-3 ${hideHeader ? '' : 'pt-2'}`}
+        style={hideHeader ? { paddingTop: 'var(--hiitsme-shell-top-inset, env(safe-area-inset-top))' } : undefined}
+      >
         {children}
       </div>
     </div>

@@ -507,7 +507,7 @@ export default function Home() {
                             className="mt-0.5 h-4 w-4 shrink-0 accent-[#E8A23A]"
                           />
                           <span className="text-[13px] leading-5 text-slate-500 dark:text-slate-400">
-                            I am 17 or older.
+                            I am 18 or older.
                           </span>
                         </label>
                         <label className="flex cursor-pointer items-start gap-3">
@@ -520,7 +520,7 @@ export default function Home() {
                             className="mt-0.5 h-4 w-4 shrink-0 accent-[#E8A23A]"
                           />
                           <span className="text-[13px] leading-5 text-slate-500 dark:text-slate-400">
-                            I understand H.I.M. is a social app for gay men, and I consent to the app
+                            I understand H.I.M. is a friendship app — not a dating or hookup app — and I consent to the app
                             processing data that may reveal my sexual orientation as described in the{' '}
                             <a
                               href="https://hiitsme.app/privacy"
@@ -534,6 +534,19 @@ export default function Home() {
                             .
                           </span>
                         </label>
+                        <p className="text-[12px] leading-5 text-slate-500 dark:text-slate-400">
+                          By creating an account you agree to our{' '}
+                          <a
+                            href="https://hiitsme.app/terms"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-amber-500 underline underline-offset-2"
+                          >
+                            Terms of Service
+                          </a>{' '}
+                          and confirm you understand H.I.M. has zero tolerance for objectionable content or abusive behavior.
+                        </p>
                       </div>
                     )}
                   </>

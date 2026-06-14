@@ -19,6 +19,7 @@ import {
   type AwayMoodId,
 } from '@/lib/himArtDirection';
 import { getAccessTokenOrNull, waitForSessionOrNull } from '@/lib/authClient';
+import { humanizeDbError } from '@/lib/friendlyError';
 import { getAppApiUrl, getEdgeFunctionUrl } from '@/lib/appApi';
 import { navigateAppPath, replaceAppPathInPlace, useAppRouter } from '@/lib/appNavigation';
 import {
@@ -118,6 +119,7 @@ import {
   type UserDmStateRowLite,
 } from '@/lib/unread-dm';
 import {
+  confirmNativeShellAvailable,
   isNativeIosShell,
   publishNativeShellChromeState,
   registerNativeShellBridge,
@@ -1027,7 +1029,8 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   const profileBioRef = useRef(profileBio);
   const buddyIconPathRef = useRef<string | null>(buddyIconPath);
   const idleSinceRef = useRef<string | null>(idleSinceAt);
-  const lastActivityAtRef = useRef<number>(Date.now());
+  const [initialActivityAt] = useState(() => Date.now());
+  const lastActivityAtRef = useRef<number>(initialActivityAt);
   const lastPresenceWriteAtRef = useRef(0);
   const activityTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const lastBuddyActivityAtRef = useRef<Record<string, number>>({});
@@ -1049,7 +1052,27 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   const { isDark, toggleDark } = useTheme();
   const router = useAppRouter();
   const [searchParams] = useSearchParams();
-  const nativeShellActive = isNativeIosShell();
+  // Optimistically assume the native shell on iOS so a healthy build never flashes
+  // the web chrome, but downgrade to the web header + tab bar if the bridge can't
+  // confirm the shell is actually hosting the view. Without this fallback a native
+  // build that lacks the custom shell root renders no navigation at all.
+  const [nativeShellActive, setNativeShellActive] = useState(() => isNativeIosShell());
+  useEffect(() => {
+    if (!isNativeIosShell()) {
+      return;
+    }
+
+    let cancelled = false;
+    void confirmNativeShellAvailable().then((available) => {
+      if (!cancelled) {
+        setNativeShellActive(available);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const {
     activeRooms,
     joinedRooms,
@@ -2258,7 +2281,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
 
           if (error) {
             nextItems = nextItems.map((candidate) =>
-              candidate.id === item.id ? markOutboxAttemptFailure(candidate, error.message) : candidate,
+              candidate.id === item.id ? markOutboxAttemptFailure(candidate, humanizeDbError(error.message)) : candidate,
             );
             setOutboxItems(normalizeOutboxItems(nextItems));
             continue;
@@ -5685,13 +5708,14 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     () => (activeChatBuddyId ? getDmPreference(dmPreferencesByBuddyId, activeChatBuddyId) : null),
     [activeChatBuddyId, dmPreferencesByBuddyId],
   );
+  const activeRoomId = activeRoom?.id ?? null;
   const activeRoomOutboxItems = useMemo(() => {
-    if (!activeRoom?.id) {
+    if (!activeRoomId) {
       return [];
     }
 
-    return outboxItems.filter((item) => item.type === 'room' && item.targetId === activeRoom.id);
-  }, [activeRoom?.id, outboxItems]);
+    return outboxItems.filter((item) => item.type === 'room' && item.targetId === activeRoomId);
+  }, [activeRoomId, outboxItems]);
   const shouldShowSystemStatusChip =
     syncState === 'hydrating' || syncState === 'syncing' || syncState === 'error' || pendingOutboxCount > 0;
   const isConversationOverlayOpen = Boolean(activeChatBuddy || activeRoom);
@@ -5971,6 +5995,9 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       case 'openMenu':
         setIsHeaderMenuOpen((previous) => !previous);
         return;
+      case 'openAccount':
+        navigateAppPath(router, '/account');
+        return;
       case 'openPrivacy':
         openPrivacyControls();
         return;
@@ -6161,7 +6188,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
             <div className="fixed inset-0 z-30" onClick={() => setIsHeaderMenuOpen(false)}>
               <div
                 className={`ui-popover-menu absolute right-2 w-56 rounded-2xl p-1.5 ${
-                  nativeShellActive ? 'top-3' : 'top-[calc(env(safe-area-inset-top)+3.2rem)]'
+                  nativeShellActive ? 'top-[var(--hiitsme-shell-top-inset,env(safe-area-inset-top))]' : 'top-[calc(env(safe-area-inset-top)+3.2rem)]'
                 }`}
                 onClick={(event) => event.stopPropagation()}
               >
@@ -6262,7 +6289,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                         <span className="ui-profile-avatar-badge">
                           Buddy icon
                         </span>
-                        <span className="ui-profile-pro-badge">H.I.M. Pro</span>
                       </button>
                       <div className="mt-4 min-w-0">
                         <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--rose)]">You</p>
@@ -6882,10 +6908,12 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center gap-2">
                                     <p className="truncate text-[13px] font-semibold text-slate-800 dark:text-slate-100">{room.name}</p>
-                                    <span className="ui-room-live-pill">
-                                      <span className="ui-room-live-dot" />
-                                      {meta.liveCount}
-                                    </span>
+                                    {meta.liveCount > 0 ? (
+                                      <span className="ui-room-live-pill">
+                                        <span className="ui-room-live-dot" />
+                                        {meta.liveCount}
+                                      </span>
+                                    ) : null}
                                   </div>
                                   <p className="mt-0.5 truncate text-[11px] text-slate-400 dark:text-slate-500">{meta.blurb}</p>
                                   <div className="mt-2 flex flex-wrap gap-1.5">
@@ -7470,6 +7498,22 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                     aria-checked={saveAwayPreset}
                   />
                 </div>
+                {saveAwayPreset ? (
+                  <div>
+                    <label htmlFor="away-preset-label-input" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-widest text-slate-400">
+                      Preset label
+                    </label>
+                    <input
+                      id="away-preset-label-input"
+                      type="text"
+                      value={awayLabelDraft}
+                      onChange={(event) => setAwayLabelDraft(event.target.value)}
+                      className={xpModalInputClass}
+                      placeholder="e.g. lunch, focus, offline…"
+                      maxLength={40}
+                    />
+                  </div>
+                ) : null}
               </div>
 
               {isProfileSchemaUnavailable ? (
@@ -8165,7 +8209,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         <div
           aria-live="polite"
           className={`pointer-events-none fixed right-3 z-40 flex w-[min(22rem,calc(100vw-1.5rem))] flex-col gap-2 ${
-            nativeShellActive ? 'top-3' : 'top-[calc(env(safe-area-inset-top)+4.25rem)]'
+            nativeShellActive ? 'top-[var(--hiitsme-shell-top-inset,env(safe-area-inset-top))]' : 'top-[calc(env(safe-area-inset-top)+4.25rem)]'
           }`}
         >
           {buddyActivityToasts.map((item) => (

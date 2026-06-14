@@ -2,7 +2,11 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, content-type',
+  // Must include x-client-info + apikey: this function is called via
+  // supabase.functions.invoke(), which adds those headers. Omitting them made
+  // the browser/WKWebView block the delete POST in CORS preflight, so account
+  // deletion silently failed ("Failed to send a request to the Edge Function").
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
@@ -193,12 +197,12 @@ Deno.serve(async (req: Request) => {
     // Buddies (both sides — schema uses user_id / buddy_id).
     {
       const { error } = await admin.from('buddies').delete().eq('user_id', userId);
-      if (error) throw new Error(`buddies(user_id): ${error.message}`);
+      if (error && !isMissingTable(error)) throw new Error(`buddies(user_id): ${error.message}`);
       recordDelete('buddies', 'user_id');
     }
     {
       const { error } = await admin.from('buddies').delete().eq('buddy_id', userId);
-      if (error) throw new Error(`buddies(buddy_id): ${error.message}`);
+      if (error && !isMissingTable(error)) throw new Error(`buddies(buddy_id): ${error.message}`);
       recordDelete('buddies', 'buddy_id');
     }
 
@@ -249,17 +253,24 @@ Deno.serve(async (req: Request) => {
     // off this, but we deleted them explicitly above for an auditable trail.
     {
       const { error } = await admin.from('users').delete().eq('id', userId);
-      if (error) throw new Error(`users: ${error.message}`);
+      if (error && !isMissingTable(error)) throw new Error(`users: ${error.message}`);
       recordDelete('users', 'id');
     }
 
     // Persist deletion manifest before removing the auth row (user_id FK becomes null after).
-    await admin.from('security_events').insert({
-      event_type: 'account.deletion.manifest',
-      user_id: userId,
-      outcome: 'success',
-      metadata: { tables: results },
-    });
+    // Audit logging must NEVER block the actual erasure (Guideline 5.1.1(v)): swallow any
+    // failure here so a security_events problem can't 500 the request before
+    // auth.admin.deleteUser runs and the account is actually deleted.
+    try {
+      await admin.from('security_events').insert({
+        event_type: 'account.deletion.manifest',
+        user_id: userId,
+        outcome: 'success',
+        metadata: { tables: results },
+      });
+    } catch (logErr) {
+      console.error('[delete-account] manifest log failed (continuing to auth deletion):', logErr);
+    }
 
     // Auth row LAST. Once this returns we have no way to recover the user.
     const { error: authDeleteError } = await admin.auth.admin.deleteUser(userId);
@@ -290,5 +301,16 @@ function isMissingTable(error: { code?: string | null; message?: string | null }
   if (!error) return false;
   const code = error.code ?? '';
   const message = (error.message ?? '').toLowerCase();
-  return code === '42P01' || message.includes('does not exist');
+  // 42P01 = Postgres "undefined table". But PostgREST surfaces a missing table as
+  // PGRST205: "Could not find the table 'public.x' in the schema cache" — which the
+  // old guard missed. Deleting a legacy rooms-v1 table that no longer exists in prod
+  // (room_participants, user_active_rooms) therefore threw and aborted the entire
+  // account deletion. Catch the PostgREST shape too.
+  return (
+    code === '42P01' ||
+    code === 'PGRST205' ||
+    message.includes('does not exist') ||
+    message.includes('schema cache') ||
+    message.includes('could not find the table')
+  );
 }

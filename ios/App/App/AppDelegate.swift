@@ -1,25 +1,43 @@
 import UIKit
 import Capacitor
+import SwiftUI
 import WebKit
 
+@available(iOS 26.0, *)
+fileprivate struct HiItsMeLiquidGlassDockBackground: View {
+    let isDark: Bool
+
+    var body: some View {
+        // Rectangle with explicit fill instead of Color.clear: gives SwiftUI a
+        // concrete geometry instead of a layout-flexible placeholder. .capsule
+        // matches the dock pill shape without needing a GeometryReader to
+        // resolve sizes (GeometryReader inside a UIHostingController.contentView
+        // can resolve to .zero on the first layout pass, locking SwiftUI).
+        let tint = Color(uiColor: isDark ? .himBg2 : .himLightBg2)
+            .opacity(isDark ? 0.18 : 0.12)
+
+        Rectangle()
+            .fill(Color.clear)
+            .glassEffect(.regular.tint(tint), in: .capsule)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+}
+
 fileprivate extension UIColor {
-    // Dark mode
-    static let himBg = UIColor(red: 19 / 255, green: 16 / 255, blue: 14 / 255, alpha: 1)
-    static let himBg2 = UIColor(red: 29 / 255, green: 25 / 255, blue: 22 / 255, alpha: 1)
-    static let himBg3 = UIColor(red: 38 / 255, green: 33 / 255, blue: 24 / 255, alpha: 1)
-    static let himText = UIColor(red: 247 / 255, green: 240 / 255, blue: 232 / 255, alpha: 1)
-    static let himMuted = UIColor(red: 156 / 255, green: 142 / 255, blue: 130 / 255, alpha: 1)
-    // Light mode
-    static let himLightBg = UIColor(red: 250 / 255, green: 246 / 255, blue: 239 / 255, alpha: 1)
-    static let himLightBg2 = UIColor(red: 255 / 255, green: 255 / 255, blue: 255 / 255, alpha: 1)
+    // Dark mode — matches CSS radial-gradient midpoint (#1A1F3A at 38%)
+    static let himBg = UIColor(red: 26 / 255.0, green: 31 / 255.0, blue: 58 / 255.0, alpha: 1)
+    static let himBg2 = UIColor(red: 21 / 255.0, green: 26 / 255.0, blue: 48 / 255.0, alpha: 1)
+    static let himBg3 = UIColor(red: 15 / 255.0, green: 20 / 255.0, blue: 36 / 255.0, alpha: 1)
+    static let himText = UIColor(red: 247 / 255.0, green: 240 / 255.0, blue: 232 / 255.0, alpha: 1)
+    static let himMuted = UIColor(red: 156 / 255.0, green: 142 / 255.0, blue: 130 / 255.0, alpha: 1)
+    // Light mode — matches CSS radial-gradient midpoint (#F5F1E8 at 38%)
+    static let himLightBg = UIColor(red: 245 / 255.0, green: 241 / 255.0, blue: 232 / 255.0, alpha: 1)
+    static let himLightBg2 = UIColor(red: 237 / 255.0, green: 231 / 255.0, blue: 217 / 255.0, alpha: 1)
     static let himLightText = UIColor(red: 26 / 255, green: 26 / 255, blue: 26 / 255, alpha: 1)
     static let himLightMuted = UIColor(red: 107 / 255, green: 107 / 255, blue: 107 / 255, alpha: 1)
     // Brand: primary accent. Mirrors `--chiraag` (#E8A23A) in src/app/globals.css.
-    // Legacy `himRose` name retained as an alias for one release — matches the
-    // web CSS pattern `--rose: var(--chiraag)`. Migrate call sites to
-    // `himChiraag` and delete the alias in a follow-up PR.
     static let himChiraag = UIColor(red: 232 / 255, green: 162 / 255, blue: 58 / 255, alpha: 1)
-    static let himRose = himChiraag
     static let himGold = UIColor(red: 212 / 255, green: 150 / 255, blue: 58 / 255, alpha: 1)
     static let himGreen = UIColor(red: 78 / 255, green: 201 / 255, blue: 122 / 255, alpha: 1)
     static let himLavender = UIColor(red: 167 / 255, green: 139 / 255, blue: 250 / 255, alpha: 1)
@@ -57,6 +75,7 @@ fileprivate enum HiItsMeShellAction: String, Decodable {
     case openSaved
     case openAdd
     case openMenu
+    case openAccount
     case openPrivacy
     case openAdminReset
     case signOff
@@ -89,7 +108,7 @@ fileprivate struct HiItsMeShellChromeState: Decodable, Equatable {
         trailingActions: [HiItsMeShellAction] = [],
         accentTone: HiItsMeShellAccentTone = .blue,
         canGoBack: Bool = false,
-        isDark: Bool = false,
+        isDark: Bool = true,
         isAdminUser: Bool = false,
         unreadDirectCount: Int = 0,
         showsTopChrome: Bool = true,
@@ -450,7 +469,6 @@ class HiItsMeBridgeViewController: CAPBridgeViewController {
 
         installMediaTrackingIfNeeded()
         webView.evaluateJavaScript(mediaTeardownScript, completionHandler: nil)
-        webView.stopLoading()
     }
 
     func tearDownWebView() {
@@ -459,6 +477,7 @@ class HiItsMeBridgeViewController: CAPBridgeViewController {
         }
 
         prepareForMediaShutdown()
+        webView.stopLoading()
         webView.navigationDelegate = nil
         webView.uiDelegate = nil
         webView.scrollView.delegate = nil
@@ -496,8 +515,12 @@ class HiItsMeShellPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     @objc func isAvailable(_ call: CAPPluginCall) {
+        // Only report available when the native shell view controller is actually
+        // hosting the bridge. If it isn't the root (e.g. a stock Capacitor build or
+        // a packaging regression), the web layer must keep rendering its own chrome
+        // so the user is never left without navigation.
         call.resolve([
-            "available": true,
+            "available": shellController != nil,
             "platform": "ios"
         ])
     }
@@ -569,15 +592,20 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         image: UIImage(systemName: "person.crop.circle"),
         selectedImage: UIImage(systemName: "person.crop.circle.fill")
     )
-    private var chromeState = HiItsMeShellChromeState()
+    private var chromeState = HiItsMeShellChromeState(showsTopChrome: false, showsBottomChrome: false)
     private var hasPreparedBridgeForShutdown = false
+    private var hasReceivedWebChromeState = false
+    private var startupChromeFallbackWorkItem: DispatchWorkItem?
+    private var liquidGlassDockHostingController: UIViewController?
+    private var lastPublishedShellTopInset: CGFloat = -1
+    private var lastPublishedShellBottomInset: CGFloat = -1
 
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .himBg
         bridgeViewController.shellController = self
 
-        headerGradientLayer.colors = [UIColor.himRose.cgColor, UIColor.himLavender.cgColor, UIColor.himGold.cgColor]
+        headerGradientLayer.colors = [UIColor.himChiraag.cgColor, UIColor.himLavender.cgColor, UIColor.himGold.cgColor]
         headerGradientLayer.startPoint = CGPoint(x: 0, y: 0.5)
         headerGradientLayer.endPoint = CGPoint(x: 1, y: 0.5)
         headerGradientView.layer.addSublayer(headerGradientLayer)
@@ -586,7 +614,8 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         configureNavigationBar()
         configureTabBar()
         embedBridgeViewController()
-        applyChromeState(chromeState, animated: false)
+        applyChromeState(chromeState, animated: false, fromWeb: false)
+        scheduleStartupChromeFallback()
         registerForApplicationLifecycleNotifications()
     }
 
@@ -594,6 +623,13 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         super.viewDidLayoutSubviews()
         topDockView.layer.cornerRadius = max(22, topDockView.bounds.height / 2)
         headerGradientLayer.frame = headerGradientView.bounds
+        updateBridgeSafeAreaInsets()
+        // Liquid Glass install moved to applyChromeState, triggered by the
+        // first JS publish where showsTopChrome=true. Build 174 confirmed
+        // installing during viewDidLayoutSubviews disturbs WKWebView's
+        // first paint (WebView blanks while chrome renders Swift defaults).
+        // By gating install on a JS chrome publish, React has clearly
+        // mounted by the time install runs.
     }
 
     override var preferredStatusBarStyle: UIStatusBarStyle {
@@ -602,10 +638,51 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
 
     deinit {
         NotificationCenter.default.removeObserver(self)
+        startupChromeFallbackWorkItem?.cancel()
         prepareBridgeForShutdown()
     }
 
-    fileprivate func applyChromeState(_ state: HiItsMeShellChromeState, animated: Bool = true) {
+    private func scheduleStartupChromeFallback() {
+        startupChromeFallbackWorkItem?.cancel()
+
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self, !self.hasReceivedWebChromeState else {
+                return
+            }
+
+            self.applyChromeState(
+                HiItsMeShellChromeState(
+                    title: "H.I.M.",
+                    subtitle: nil,
+                    mode: .sheet,
+                    activeTab: .im,
+                    tabBarVisibility: .hidden,
+                    leadingAction: nil,
+                    trailingActions: [],
+                    accentTone: .blue,
+                    canGoBack: false,
+                    isDark: self.chromeState.isDark,
+                    isAdminUser: false,
+                    unreadDirectCount: 0,
+                    showsTopChrome: false,
+                    showsBottomChrome: false
+                ),
+                animated: true,
+                fromWeb: false
+            )
+        }
+
+        startupChromeFallbackWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: workItem)
+    }
+
+    fileprivate func applyChromeState(_ state: HiItsMeShellChromeState, animated: Bool = true, fromWeb: Bool = true) {
+        if fromWeb {
+            hasReceivedWebChromeState = true
+            startupChromeFallbackWorkItem?.cancel()
+            startupChromeFallbackWorkItem = nil
+        }
+
         chromeState = state
         overrideUserInterfaceStyle = state.isDark ? .dark : .light
         view.backgroundColor = state.isDark ? .himBg : .himLightBg
@@ -613,6 +690,19 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         titleLabel.text = state.title
         subtitleLabel.text = state.subtitle
         subtitleLabel.isHidden = state.subtitle == nil
+
+        // Install the SwiftUI Liquid Glass dock background on the FIRST JS
+        // publish where the chrome wants to be visible. Two reasons:
+        // 1. JS publishing setChromeState proves React is mounted, so the
+        //    UIHostingController install can't interfere with the WebView's
+        //    initial paint window (build 174 evidence).
+        // 2. Install must happen BEFORE updateChromeAppearance below so the
+        //    `useLiquidGlass` gate in applyDockAppearance evaluates true on
+        //    this same frame — otherwise the dock paints blur, then glass on
+        //    the next state update (visible flash).
+        if #available(iOS 26.0, *), state.showsTopChrome {
+            installLiquidGlassDockBackgroundIfAvailable()
+        }
 
         updateNavigationItems()
         updateTabSelection()
@@ -622,6 +712,16 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
     }
 
     func tabBar(_ tabBar: UITabBar, didSelect item: UITabBarItem) {
+        // App Review fix: while the web app is on an unauthenticated route, the JS
+        // side has no tab content to swap in. UIKit still flips the tab selection
+        // visually on tap, which reviewers read as "responds but does nothing"
+        // (Guideline 2.1(a), build 2.0/167). Revert the selection and skip the
+        // bridge dispatch so the tab bar reads as inert on the sign-in screen.
+        if isUnauthenticatedRoute() {
+            restoreSelectedTabItem()
+            return
+        }
+
         switch item {
         case imTabItem:
             dispatchCommand(type: "selectTab", valueKey: "tab", value: HiItsMeShellTab.im.rawValue)
@@ -633,6 +733,34 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
             dispatchCommand(type: "selectTab", valueKey: "tab", value: HiItsMeShellTab.profile.rawValue)
         default:
             return
+        }
+    }
+
+    private func isUnauthenticatedRoute() -> Bool {
+        // Default to "unauthenticated" if the WebView hasn't reported a URL yet,
+        // so taps during the cold-launch loading window are also inert.
+        guard let path = bridgeViewController.webView?.url?.path else {
+            return true
+        }
+        let trimmed = path.hasSuffix("/") && path.count > 1 ? String(path.dropLast()) : path
+        switch trimmed {
+        case "", "/", "/index.html":
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func restoreSelectedTabItem() {
+        switch chromeState.activeTab {
+        case .im:
+            tabBar.selectedItem = imTabItem
+        case .chat:
+            tabBar.selectedItem = chatTabItem
+        case .buddy:
+            tabBar.selectedItem = buddyTabItem
+        case .profile:
+            tabBar.selectedItem = profileTabItem
         }
     }
 
@@ -831,6 +959,11 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         topChromeView.contentView.addSubview(topDockView)
         topDockView.contentView.addSubview(headerGradientView)
         topDockView.contentView.addSubview(navigationBar)
+        // SwiftUI Liquid Glass install moved to viewDidLayoutSubviews — see
+        // installLiquidGlassDockBackgroundIfAvailable() guard. Installing the
+        // UIHostingController in viewDidLoad before the parent VC is in a
+        // window was the suspected cause of the TestFlight blank-screen on
+        // build 168 (CFBundleVersion before this fix).
 
         NSLayoutConstraint.activate([
             topChromeView.topAnchor.constraint(equalTo: view.topAnchor),
@@ -875,6 +1008,11 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         bridgeViewController.view.translatesAutoresizingMaskIntoConstraints = false
         view.insertSubview(bridgeViewController.view, at: 0)
 
+        // The bridge always runs edge-to-edge so its gradient background extends
+        // behind the native chrome. Liquid Glass (iOS 26) samples the content
+        // behind it — by rendering the web gradient under the chrome, the glass
+        // blends with the actual app background instead of a solid UIColor.
+        // The old chrome-constrained layout is no longer used.
         bridgeTopWithChromeConstraint = bridgeViewController.view.topAnchor.constraint(equalTo: topChromeView.bottomAnchor)
         bridgeTopFullscreenConstraint = bridgeViewController.view.topAnchor.constraint(equalTo: view.topAnchor)
         bridgeBottomWithChromeConstraint = bridgeViewController.view.bottomAnchor.constraint(equalTo: tabBar.topAnchor)
@@ -901,6 +1039,7 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
             self.topChromeView.alpha = shouldShowTopChrome ? 1 : 0
             self.tabBar.alpha = shouldShowBottomChrome ? 1 : 0
             self.view.layoutIfNeeded()
+            self.updateBridgeSafeAreaInsets()
         }
 
         if animated {
@@ -910,11 +1049,53 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         }
     }
 
+    private func updateBridgeSafeAreaInsets() {
+        // The WebView runs edge-to-edge so its gradient extends behind the
+        // native chrome (Liquid Glass samples what's behind it). Push the web
+        // content below/above the chrome via additionalSafeAreaInsets so
+        // env(safe-area-inset-*) in CSS includes the chrome height.
+        let deviceSafeArea = view.safeAreaInsets
+        let topInset = chromeState.showsTopChrome
+            ? max(topChromeView.frame.height - deviceSafeArea.top, 0)
+            : 0
+        let bottomInset = chromeState.resolvedShowsBottomChrome
+            ? max(tabBar.frame.height - deviceSafeArea.bottom, 0)
+            : 0
+        bridgeViewController.additionalSafeAreaInsets = UIEdgeInsets(
+            top: topInset,
+            left: 0,
+            bottom: bottomInset,
+            right: 0
+        )
+        publishShellInsetsToWeb(deviceSafeArea: deviceSafeArea)
+    }
+
+    private func publishShellInsetsToWeb(deviceSafeArea: UIEdgeInsets) {
+        // WKWebView does NOT reliably fold additionalSafeAreaInsets into
+        // env(safe-area-inset-*) — the top dock is much taller than the device
+        // notch, so env() alone leaves content under the dock (the bug). Publish
+        // the real chrome height as explicit CSS variables the web reads for its
+        // top/bottom inset (see RetroWindow + page.tsx overlay positioning).
+        let topTotal = chromeState.showsTopChrome ? topChromeView.frame.height : deviceSafeArea.top
+        let bottomTotal = chromeState.resolvedShowsBottomChrome ? tabBar.frame.height : deviceSafeArea.bottom
+        guard topTotal > 0 || bottomTotal > 0 else { return }
+        guard abs(topTotal - lastPublishedShellTopInset) > 0.5
+            || abs(bottomTotal - lastPublishedShellBottomInset) > 0.5 else { return }
+        lastPublishedShellTopInset = topTotal
+        lastPublishedShellBottomInset = bottomTotal
+        let script = "(function(){var s=document.documentElement.style;"
+            + "s.setProperty('--hiitsme-shell-top-inset','\(Int(topTotal.rounded()))px');"
+            + "s.setProperty('--hiitsme-shell-bottom-inset','\(Int(bottomTotal.rounded()))px');})();"
+        bridgeViewController.webView?.evaluateJavaScript(script, completionHandler: nil)
+    }
+
     private func updateBridgeChromeConstraints() {
-        bridgeTopWithChromeConstraint?.isActive = chromeState.showsTopChrome
-        bridgeTopFullscreenConstraint?.isActive = !chromeState.showsTopChrome
-        bridgeBottomWithChromeConstraint?.isActive = chromeState.resolvedShowsBottomChrome
-        bridgeBottomFullscreenConstraint?.isActive = !chromeState.resolvedShowsBottomChrome
+        // Always keep the WebView edge-to-edge. Liquid Glass samples the
+        // content behind it, so the web gradient must extend under the chrome.
+        bridgeTopWithChromeConstraint?.isActive = false
+        bridgeTopFullscreenConstraint?.isActive = true
+        bridgeBottomWithChromeConstraint?.isActive = false
+        bridgeBottomFullscreenConstraint?.isActive = true
     }
 
     private func updateNavigationItems() {
@@ -1050,10 +1231,85 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         overlayColor: UIColor,
         borderColor: UIColor
     ) {
-        dockView.effect = UIBlurEffect(style: blurStyle)
-        dockView.contentView.backgroundColor = overlayColor
+        // On iOS 26+, the top dock paints its background with a SwiftUI
+        // `glassEffect` hosted behind the navigation content. We only swap out
+        // the legacy UIBlurEffect AFTER the SwiftUI hosting controller has
+        // actually mounted (gated on liquidGlassDockHostingController != nil).
+        // If the hosting controller hasn't installed yet, OR fails to mount,
+        // the legacy blur stays as a backstop so the dock is never empty. This
+        // is the fix for the 168 TestFlight blank-screen — c933171 nuked the
+        // blur unconditionally on iOS 26, leaving the dock transparent if the
+        // SwiftUI mount silently failed.
+        let useLiquidGlass: Bool
+        if #available(iOS 26.0, *) {
+            useLiquidGlass = (dockView === topDockView) && (liquidGlassDockHostingController != nil)
+        } else {
+            useLiquidGlass = false
+        }
+
+        if useLiquidGlass {
+            dockView.effect = nil
+            dockView.contentView.backgroundColor = .clear
+            if #available(iOS 26.0, *) {
+                updateLiquidGlassDockBackground()
+            }
+        } else {
+            dockView.effect = UIBlurEffect(style: blurStyle)
+            dockView.contentView.backgroundColor = overlayColor
+        }
         dockView.layer.borderWidth = 0.75
         dockView.layer.borderColor = borderColor.cgColor
+    }
+
+    private func installLiquidGlassDockBackgroundIfAvailable() {
+        if #available(iOS 26.0, *) {
+            installLiquidGlassDockBackground()
+        }
+    }
+
+    @available(iOS 26.0, *)
+    private func installLiquidGlassDockBackground() {
+        guard liquidGlassDockHostingController == nil else { return }
+
+        let hosting = UIHostingController(rootView: makeLiquidGlassDockBackground())
+        hosting.view.translatesAutoresizingMaskIntoConstraints = false
+        hosting.view.backgroundColor = .clear
+        hosting.view.isUserInteractionEnabled = false
+
+        addChild(hosting)
+        // Insert at index 0 so the SwiftUI glass sits behind the gradient
+        // header and navigation bar inside the dock pill.
+        topDockView.contentView.insertSubview(hosting.view, at: 0)
+
+        NSLayoutConstraint.activate([
+            hosting.view.topAnchor.constraint(equalTo: topDockView.contentView.topAnchor),
+            hosting.view.leadingAnchor.constraint(equalTo: topDockView.contentView.leadingAnchor),
+            hosting.view.trailingAnchor.constraint(equalTo: topDockView.contentView.trailingAnchor),
+            hosting.view.bottomAnchor.constraint(equalTo: topDockView.contentView.bottomAnchor)
+        ])
+
+        hosting.didMove(toParent: self)
+        liquidGlassDockHostingController = hosting
+        // No applyChromeState re-entry here. The caller (applyChromeState)
+        // continues into updateChromeAppearance with the hosting now set,
+        // so applyDockAppearance's `useLiquidGlass` gate picks up the glass
+        // path on this same frame. The earlier re-entry (build 169) ran
+        // updateBridgeChromeConstraints again during the WebView's initial
+        // paint window, which thrashed the WebView's frame and killed JS
+        // bootstrap.
+    }
+
+    @available(iOS 26.0, *)
+    private func updateLiquidGlassDockBackground() {
+        guard let hosting = liquidGlassDockHostingController as? UIHostingController<HiItsMeLiquidGlassDockBackground> else {
+            return
+        }
+        hosting.rootView = makeLiquidGlassDockBackground()
+    }
+
+    @available(iOS 26.0, *)
+    private func makeLiquidGlassDockBackground() -> HiItsMeLiquidGlassDockBackground {
+        HiItsMeLiquidGlassDockBackground(isDark: chromeState.isDark)
     }
 
     private func makeBarButtonItem(for action: HiItsMeShellAction) -> UIBarButtonItem? {
@@ -1084,7 +1340,7 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
                 accessibilityLabel: "More options",
                 menu: makeOverflowMenu()
             )
-        case .openPrivacy, .openAdminReset, .signOff, .goBack:
+        case .openAccount, .openPrivacy, .openAdminReset, .signOff, .goBack:
             return nil
         }
     }
@@ -1140,6 +1396,11 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
 
     private func makeOverflowMenu() -> UIMenu {
         var actions: [UIAction] = [
+            // Account opens the in-app Account screen (email/password + Delete account).
+            // Required so account deletion is reachable on iOS (App Review 5.1.1(v)).
+            UIAction(title: "Account", image: UIImage(systemName: "person.crop.circle")) { [weak self] _ in
+                self?.dispatchAction(.openAccount)
+            },
             UIAction(title: "Privacy", image: UIImage(systemName: "hand.raised.fill")) { [weak self] _ in
                 self?.presentPrivacySheet()
             }
@@ -1343,9 +1604,9 @@ fileprivate final class PrivacySheetViewController: UIViewController {
         let heroCard = makeCardView()
         let heroIcon = UIImageView(image: UIImage(systemName: "hand.raised.fill"))
         heroIcon.translatesAutoresizingMaskIntoConstraints = false
-        heroIcon.tintColor = .himRose
+        heroIcon.tintColor = .himChiraag
         heroIcon.preferredSymbolConfiguration = .init(pointSize: 20, weight: .semibold)
-        heroIcon.backgroundColor = UIColor.himRose.withAlphaComponent(0.16)
+        heroIcon.backgroundColor = UIColor.himChiraag.withAlphaComponent(0.16)
         heroIcon.layer.cornerRadius = 22
         heroIcon.clipsToBounds = true
 
@@ -1381,10 +1642,10 @@ fileprivate final class PrivacySheetViewController: UIViewController {
         feedbackLabel.numberOfLines = 0
         feedbackLabel.isHidden = true
         feedbackLabel.textColor = .himMuted
-        loadSpinner.color = .himRose
-        shareReadReceiptsSwitch.onTintColor = .himRose
-        screenShieldSwitch.onTintColor = .himRose
-        notificationPreviewControl.selectedSegmentTintColor = .himRose
+        loadSpinner.color = .himChiraag
+        shareReadReceiptsSwitch.onTintColor = .himChiraag
+        screenShieldSwitch.onTintColor = .himChiraag
+        notificationPreviewControl.selectedSegmentTintColor = .himChiraag
 
         let statusRow = UIStackView(arrangedSubviews: [loadSpinner, feedbackLabel])
         statusRow.axis = .horizontal
@@ -1495,7 +1756,7 @@ fileprivate final class PrivacySheetViewController: UIViewController {
         openAdvancedButton.configuration?.title = "Open Full Controls"
         openAdvancedButton.configuration?.image = UIImage(systemName: "arrow.up.right.square")
         openAdvancedButton.configuration?.imagePadding = 8
-        openAdvancedButton.configuration?.baseForegroundColor = .himRose
+        openAdvancedButton.configuration?.baseForegroundColor = .himChiraag
         openAdvancedButton.configuration?.background.backgroundColor = UIColor.himBg3
         openAdvancedButton.addTarget(self, action: #selector(handleOpenAdvancedControls), for: .touchUpInside)
 
@@ -1531,7 +1792,7 @@ fileprivate final class PrivacySheetViewController: UIViewController {
         }
 
         guard let shellController else {
-            showFeedback("H.I.M. is still loading.", color: .himRose)
+            showFeedback("H.I.M. is still loading.", color: .himChiraag)
             return
         }
 
@@ -1552,7 +1813,7 @@ fileprivate final class PrivacySheetViewController: UIViewController {
                 switch result {
                 case .success(let response):
                     guard response.ok, let state = response.state else {
-                        self.showFeedback(response.error ?? "Could not load privacy settings.", color: .himRose)
+                        self.showFeedback(response.error ?? "Could not load privacy settings.", color: .himChiraag)
                         return
                     }
 
@@ -1563,7 +1824,7 @@ fileprivate final class PrivacySheetViewController: UIViewController {
                         self.feedbackLabel.isHidden = true
                     }
                 case .failure(let error):
-                    self.showFeedback(error.localizedDescription, color: .himRose)
+                    self.showFeedback(error.localizedDescription, color: .himChiraag)
                 }
             }
         }
@@ -1611,7 +1872,7 @@ fileprivate final class PrivacySheetViewController: UIViewController {
 
         guard let shellController else {
             applyState(previousState)
-            showFeedback("H.I.M. is still loading.", color: .himRose)
+            showFeedback("H.I.M. is still loading.", color: .himChiraag)
             return
         }
 
@@ -1632,7 +1893,7 @@ fileprivate final class PrivacySheetViewController: UIViewController {
                 case .success(let response):
                     guard response.ok, let state = response.state else {
                         self.applyState(previousState)
-                        self.showFeedback(response.error ?? "Could not update privacy.", color: .himRose)
+                        self.showFeedback(response.error ?? "Could not update privacy.", color: .himChiraag)
                         return
                     }
 
@@ -1644,7 +1905,7 @@ fileprivate final class PrivacySheetViewController: UIViewController {
                     }
                 case .failure(let error):
                     self.applyState(previousState)
-                    self.showFeedback(error.localizedDescription, color: .himRose)
+                    self.showFeedback(error.localizedDescription, color: .himChiraag)
                 }
             }
         }
@@ -1816,9 +2077,9 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
         let heroCard = makeCardView()
         let heroIcon = UIImageView(image: UIImage(systemName: "shield.lefthalf.filled"))
         heroIcon.translatesAutoresizingMaskIntoConstraints = false
-        heroIcon.tintColor = .himRose
+        heroIcon.tintColor = .himChiraag
         heroIcon.preferredSymbolConfiguration = .init(pointSize: 20, weight: .semibold)
-        heroIcon.backgroundColor = UIColor.himRose.withAlphaComponent(0.16)
+        heroIcon.backgroundColor = UIColor.himChiraag.withAlphaComponent(0.16)
         heroIcon.layer.cornerRadius = 22
         heroIcon.clipsToBounds = true
 
@@ -1884,7 +2145,7 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
         let confirmLabel = makeLabel(textStyle: .subheadline, weight: .medium)
         confirmLabel.text = "I verified this request and will deliver the reset handoff through a trusted channel."
         confirmLabel.numberOfLines = 0
-        confirmationSwitch.onTintColor = .himRose
+        confirmationSwitch.onTintColor = .himChiraag
         let confirmRow = UIStackView(arrangedSubviews: [confirmLabel, confirmationSwitch])
         confirmRow.axis = .horizontal
         confirmRow.alignment = .center
@@ -1905,7 +2166,7 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
         issueButton.configuration?.title = "Issue Secure Ticket"
         issueButton.configuration?.image = UIImage(systemName: "paperplane.fill")
         issueButton.configuration?.imagePadding = 8
-        issueButton.configuration?.baseBackgroundColor = .himRose
+        issueButton.configuration?.baseBackgroundColor = .himChiraag
         issueButton.configuration?.baseForegroundColor = .white
         issueButton.addTarget(self, action: #selector(handleIssue), for: .touchUpInside)
 
@@ -1924,7 +2185,7 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
         feedbackLabel.isHidden = true
         feedbackLabel.textColor = .himMuted
         issueSpinner.color = .white
-        auditSpinner.color = .himRose
+        auditSpinner.color = .himChiraag
 
         resultCard.isHidden = true
         resultCard.backgroundColor = .himBg2
@@ -1945,14 +2206,14 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
         copyTicketButton.configuration = .tinted()
         copyTicketButton.configuration?.cornerStyle = .medium
         copyTicketButton.configuration?.title = "Copy Ticket"
-        copyTicketButton.configuration?.baseForegroundColor = .himRose
+        copyTicketButton.configuration?.baseForegroundColor = .himChiraag
         copyTicketButton.configuration?.background.backgroundColor = .himBg3
         copyTicketButton.addTarget(self, action: #selector(handleCopyTicket), for: .touchUpInside)
 
         copyHandoffButton.configuration = .tinted()
         copyHandoffButton.configuration?.cornerStyle = .medium
         copyHandoffButton.configuration?.title = "Copy Secure Handoff"
-        copyHandoffButton.configuration?.baseForegroundColor = .himRose
+        copyHandoffButton.configuration?.baseForegroundColor = .himChiraag
         copyHandoffButton.configuration?.background.backgroundColor = .himBg3
         copyHandoffButton.addTarget(self, action: #selector(handleCopyHandoff), for: .touchUpInside)
 
@@ -1978,7 +2239,7 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
         refreshButton.configuration = .tinted()
         refreshButton.configuration?.cornerStyle = .medium
         refreshButton.configuration?.title = "Refresh"
-        refreshButton.configuration?.baseForegroundColor = .himRose
+        refreshButton.configuration?.baseForegroundColor = .himChiraag
         refreshButton.configuration?.background.backgroundColor = .himBg3
         refreshButton.addTarget(self, action: #selector(handleRefresh), for: .touchUpInside)
 
@@ -2094,7 +2355,7 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
         }
 
         emptyAuditLabel.text = message
-        emptyAuditLabel.textColor = .himRose
+        emptyAuditLabel.textColor = .himChiraag
         emptyAuditLabel.isHidden = false
     }
 
@@ -2148,7 +2409,7 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
 
     private func showFeedback(_ message: String, isError: Bool) {
         feedbackLabel.text = message
-        feedbackLabel.textColor = isError ? .himRose : .himGreen
+        feedbackLabel.textColor = isError ? .himChiraag : .himGreen
         feedbackLabel.isHidden = false
     }
 
