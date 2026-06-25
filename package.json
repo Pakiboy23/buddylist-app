@@ -21,6 +21,8 @@
     "ios:sync:hosted": "CAPACITOR_HOSTED=1 npx cap sync ios && node scripts/prepare-ios-swift-packages.mjs",
     "ios:open": "npx cap open ios",
     "ios:preflight": "node scripts/ios-release-preflight.mjs",
+    "android:preflight": "node scripts/android-release-preflight.mjs",
+    "android:version:bump": "node scripts/bump-android-version.mjs",
     "android:bundle:release": "cd android && ./gradlew bundleRelease",
     "android:bundle:release:clean": "cd android && ./gradlew clean bundleRelease",
     "postinstall": "patch-package"

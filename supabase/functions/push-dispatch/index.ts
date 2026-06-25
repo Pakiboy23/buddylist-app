@@ -5,6 +5,14 @@ import { importPKCS8, SignJWT } from 'npm:jose';
 
 type NotificationPreviewMode = 'full' | 'name_only' | 'hidden';
 type ApnsEnvironment = 'sandbox' | 'production';
+type PushPlatform = 'ios' | 'android';
+
+interface PushTokenRow {
+  token: string;
+  user_id: string;
+  platform: PushPlatform;
+  push_environment?: string | null;
+}
 
 const APNS_PRODUCTION_HOST = 'https://api.push.apple.com';
 const APNS_SANDBOX_HOST = 'https://api.sandbox.push.apple.com';
@@ -140,6 +148,129 @@ async function sendApnsNotification(
   return { status: res.status, body: await res.text() };
 }
 
+// ── FCM (Android) ─────────────────────────────────────────────────────────────
+// Android push goes through Firebase Cloud Messaging HTTP v1. Auth is a short-lived
+// OAuth2 access token minted from a Google service account (RS256 JWT → Google token
+// endpoint). One access token is cached per request and reused across every Android
+// token, mirroring the APNs JWT cache above. If FCM is not configured the dispatcher
+// skips Android tokens silently so iOS delivery still succeeds.
+
+const FCM_SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
+const GOOGLE_TOKEN_URI = 'https://oauth2.googleapis.com/token';
+
+interface FcmServiceAccount {
+  clientEmail: string;
+  privateKey: string;
+  projectId: string;
+  tokenUri: string;
+}
+
+// undefined = not yet read this request; null = read and not configured.
+let cachedFcmConfig: FcmServiceAccount | null | undefined;
+
+function getFcmServiceAccount(): FcmServiceAccount | null {
+  if (cachedFcmConfig !== undefined) return cachedFcmConfig;
+
+  const raw = Deno.env.get('FCM_SERVICE_ACCOUNT_JSON')?.trim();
+  if (!raw) {
+    cachedFcmConfig = null;
+    return null;
+  }
+
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error('FCM_SERVICE_ACCOUNT_JSON is not valid JSON.');
+  }
+
+  const clientEmail = String(parsed.client_email ?? '').trim();
+  // The service-account PEM may arrive with literal \n if stored single-line.
+  const privateKey = String(parsed.private_key ?? '').replace(/\\n/g, '\n').trim();
+  const projectId = String(parsed.project_id ?? '').trim();
+  const tokenUri = String(parsed.token_uri ?? '').trim() || GOOGLE_TOKEN_URI;
+  if (!clientEmail || !privateKey || !projectId) {
+    throw new Error('FCM_SERVICE_ACCOUNT_JSON must include client_email, private_key, and project_id.');
+  }
+
+  cachedFcmConfig = { clientEmail, privateKey, projectId, tokenUri };
+  return cachedFcmConfig;
+}
+
+let cachedFcmAccessToken: { token: string; projectId: string } | null = null;
+
+async function getFcmAccessToken(account: FcmServiceAccount): Promise<{ token: string; projectId: string }> {
+  if (cachedFcmAccessToken) return cachedFcmAccessToken;
+
+  const privateKey = await importPKCS8(account.privateKey, 'RS256');
+  const assertion = await new SignJWT({ scope: FCM_SCOPE })
+    .setProtectedHeader({ alg: 'RS256', typ: 'JWT' })
+    .setIssuer(account.clientEmail)
+    .setSubject(account.clientEmail)
+    .setAudience(account.tokenUri)
+    .setIssuedAt()
+    .setExpirationTime('1h')
+    .sign(privateKey);
+
+  const res = await fetch(account.tokenUri, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion,
+    }),
+  });
+  const body = await res.text();
+  if (!res.ok) throw new Error(`FCM token exchange failed (${res.status}): ${body}`);
+
+  let accessToken = '';
+  try { accessToken = (JSON.parse(body) as { access_token?: string }).access_token ?? ''; } catch { /* handled below */ }
+  if (!accessToken) throw new Error('FCM token exchange returned no access_token.');
+
+  cachedFcmAccessToken = { token: accessToken, projectId: account.projectId };
+  return cachedFcmAccessToken;
+}
+
+async function sendFcmNotification(
+  projectId: string,
+  accessToken: string,
+  deviceToken: string,
+  message: { title: string; body: string; data: Record<string, string> },
+): Promise<{ status: number; body: string }> {
+  const res = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${accessToken}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      message: {
+        token: deviceToken,
+        notification: { title: message.title, body: message.body },
+        data: message.data,
+        android: {
+          priority: 'high',
+          notification: { sound: 'default' },
+        },
+      },
+    }),
+  });
+  return { status: res.status, body: await res.text() };
+}
+
+// FCM v1 returns 404 (UNREGISTERED) or 400 INVALID_ARGUMENT for permanently dead
+// tokens — prune those. Transient 5xx and auth (401/403) errors must NOT prune.
+function shouldPruneFcmToken(status: number, body: string): boolean {
+  if (status === 404) return true;
+  if (status !== 400) return false;
+  try {
+    const errorStatus = (JSON.parse(body) as { error?: { status?: string } }).error?.status ?? '';
+    return errorStatus === 'INVALID_ARGUMENT' || errorStatus === 'NOT_FOUND' || errorStatus === 'UNREGISTERED';
+  } catch {
+    return false;
+  }
+}
+
 // ── main handler ──────────────────────────────────────────────────────────────
 
 const CORS_HEADERS = {
@@ -149,8 +280,10 @@ const CORS_HEADERS = {
 };
 
 Deno.serve(async (req: Request) => {
-  // Reset per-request JWT cache (Deno may reuse the module across invocations).
+  // Reset per-request auth caches (Deno may reuse the module across invocations).
   cachedApnsJwt = null;
+  cachedFcmConfig = undefined;
+  cachedFcmAccessToken = null;
 
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS_HEADERS });
   if (req.method !== 'POST') return Response.json({ error: 'Method not allowed.' }, { status: 405, headers: CORS_HEADERS });
@@ -196,19 +329,19 @@ Deno.serve(async (req: Request) => {
   async function getPushTokens(recipientIds: string[]) {
     const resp = await admin
       .from('user_push_tokens')
-      .select('token,user_id,push_environment')
-      .eq('platform', 'ios')
+      .select('token,user_id,platform,push_environment')
+      .in('platform', ['ios', 'android'])
       .in('user_id', recipientIds);
     if (isPushEnvironmentSchemaMissingError(resp.error)) {
       const legacy = await admin
         .from('user_push_tokens')
-        .select('token,user_id')
-        .eq('platform', 'ios')
+        .select('token,user_id,platform')
+        .in('platform', ['ios', 'android'])
         .in('user_id', recipientIds);
-      return (legacy.data ?? []) as { token: string; user_id: string; push_environment?: string | null }[];
+      return (legacy.data ?? []) as PushTokenRow[];
     }
     if (resp.error) throw new Error(resp.error.message);
-    return (resp.data ?? []) as { token: string; user_id: string; push_environment?: string | null }[];
+    return (resp.data ?? []) as PushTokenRow[];
   }
 
   async function dispatchToRecipients(input: {
@@ -225,12 +358,34 @@ Deno.serve(async (req: Request) => {
       getPreviewModes(input.recipientIds),
     ]);
 
-    const tokensByUser = new Map<string, { token: string; env: ApnsEnvironment | null }[]>();
+    const tokensByUser = new Map<string, { token: string; platform: PushPlatform; env: ApnsEnvironment | null }[]>();
     for (const row of tokens) {
       const list = tokensByUser.get(row.user_id) ?? [];
       if (!list.some((e) => e.token === row.token)) {
-        list.push({ token: row.token, env: normalizePushEnvironment(row.push_environment) });
+        const platform: PushPlatform = row.platform === 'android' ? 'android' : 'ios';
+        list.push({ token: row.token, platform, env: normalizePushEnvironment(row.push_environment) });
         tokensByUser.set(row.user_id, list);
+      }
+    }
+
+    // Resolve FCM credentials lazily, once, and only if Android tokens are present.
+    // A missing or broken FCM config skips Android delivery without failing iOS.
+    let fcmCreds: { projectId: string; accessToken: string } | null = null;
+    let fcmResolved = false;
+    async function ensureFcm(): Promise<{ projectId: string; accessToken: string } | null> {
+      if (fcmResolved) return fcmCreds;
+      fcmResolved = true;
+      try {
+        const account = getFcmServiceAccount();
+        if (!account) {
+          console.warn('FCM not configured (FCM_SERVICE_ACCOUNT_JSON unset); skipping Android push.');
+          return (fcmCreds = null);
+        }
+        const { token, projectId } = await getFcmAccessToken(account);
+        return (fcmCreds = { projectId, accessToken: token });
+      } catch (e) {
+        console.error('FCM auth failed; skipping Android push:', e);
+        return (fcmCreds = null);
       }
     }
 
@@ -262,6 +417,36 @@ Deno.serve(async (req: Request) => {
       };
 
       for (const entry of userTokens) {
+        // Android → FCM HTTP v1.
+        if (entry.platform === 'android') {
+          const creds = await ensureFcm();
+          if (!creds) continue;
+          attempted++;
+          try {
+            const res = await sendFcmNotification(creds.projectId, creds.accessToken, entry.token, {
+              title: preview.senderName,
+              body: preview.messagePreview,
+              data: {
+                senderName: preview.senderName,
+                messagePreview: preview.messagePreview,
+                targetPath: input.targetPath,
+                variant: input.variant,
+              },
+            });
+            if (res.status >= 200 && res.status < 300) {
+              delivered++;
+            } else if (shouldPruneFcmToken(res.status, res.body)) {
+              await admin.from('user_push_tokens').delete().eq('token', entry.token);
+            } else {
+              console.error('FCM delivery failed:', res.status, res.body);
+            }
+          } catch (e) {
+            console.error('FCM delivery failed:', e);
+          }
+          continue;
+        }
+
+        // iOS → APNs.
         attempted++;
         const hosts = resolveApnsHosts(entry.env);
         let deliveredThis = false, sawResponse = false, allPrunable = true;
