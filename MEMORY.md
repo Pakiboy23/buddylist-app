@@ -1,15 +1,15 @@
 # Project Memory
-Last updated: 2026-06-12 | Session 9 | Branch: main
+Last updated: 2026-06-26 | Session 10 | Branch: claude/android-play-prep
 Memory health: 9/10
 
 ## Project Overview
-H.I.M. (`hiitsme`) — retro AIM-style mobile-first messaging app. Vite + React 19 + React Router v7 web app, deployed on Vercel (web) and wrapped via Capacitor 8 for iOS + Android. Supabase for auth/Postgres/realtime/edge-functions. **In App Store review** (com.hiitsme.app, v2.0).
+H.I.M. (`hiitsme`) — retro AIM-style mobile-first messaging app. Vite + React 19 + React Router v7 web app, deployed on Vercel (web) and wrapped via Capacitor 8 for iOS + Android. Supabase for auth/Postgres/realtime/edge-functions. **Approved & live on the App Store** (com.hiitsme.app). Now preparing the **Google Play** release.
 
 ## Where We Left Off
-- **Current task:** Resubmission after second rejection (5.1.1(v) account deletion + 1.5 Support URL). All four deletion bugs fixed and verified; Support URL live.
-- **Status:** PR #64 open (legacy-trigger migration, applied to prod + verified against a data-bearing account). PRs #59–#63 merged. Builds 199/200 exist in ASC; Account-menu fix (#63) needs a NEW build.
-- **Next immediate step:** Merge PR #64 → bump `CURRENT_PROJECT_VERSION` ≥ 201 → Xcode Cloud build → TestFlight on physical iPhone → record the deletion flow → Resolution Center reply (text drafted in session) → attach new build to v2.0 → resubmit.
-- **Open question:** Delete the stale 6.5" screenshot set in ASC? whatsNew text?
+- **Current task:** Ship the same app to Google Play. Core Android work landed in **PR #67** (FCM HTTP v1 in `push-dispatch`, `POST_NOTIFICATIONS`, `android:preflight`/`android:version:bump`, `android-release.yml` CI, `.gitignore` for `*.p8`). Session 10 added the store assets + verified the build.
+- **Status:** `npm run android:preflight` passes. Signed release `.aab` builds successfully (verified with a throwaway keystore; JDK = Android Studio JBR 21). Play listing copy, 1024×500 feature graphic, and 18 Android screenshots (phone+7"+10") generated. All committed to branch `claude/android-play-prep` (not pushed).
+- **Next immediate step (blocked on Haaris):** (1) create the REAL upload keystore + enroll Play App Signing; (2) set `FCM_SERVICE_ACCOUNT_JSON` on `push-dispatch` + redeploy; (3) confirm `public/.well-known/assetlinks.json` SHA-256 matches the Play App Signing cert; (4) create the Play Console app, upload the `.aab`, complete Data safety / content rating / target audience; (5) legal sign-off on Data Safety. See `ANDROID_PLAY_PREP_REPORT.md`.
+- **Open question:** Curate/replace the generated screenshots with credentialed live captures before submission?
 
 ## Completed (Session 9 — 2026-06-07 → 06-12)
 - ASC API automation: `scripts/asc/asc.mjs` (zero-dep ES256 JWT client) + `scripts/asc/upload-screenshots.mjs`. Full metadata remediation via API: age rating 9+→18+, Support URL → hiitsme.app/support, reviewer notes lead with deletion steps, description fixes, 8× 6.9" screenshots uploaded (`scripts/store-screenshots.mjs`).

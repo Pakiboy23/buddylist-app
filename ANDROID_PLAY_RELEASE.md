@@ -153,6 +153,12 @@ Complete these in **Play Console → your app**, mostly under *App content* and 
 - [ ] **Government apps / News / COVID** — No.
 - [ ] **Store listing** — app name (H.I.M.), short + full description, app icon (512×512), feature graphic (1024×500), phone screenshots (min 2), category (Communication / Social).
 
+### Store assets (generated in this repo)
+
+- **Listing copy** — name, short/full description, content-rating notes, and an App-content checklist: [docs/play-store/listing.md](./docs/play-store/listing.md). App-facing copy uses the broadened "friendship-first" framing (per commit #60); the internal GTM kit's "for gay men" positioning is deliberately *not* used in the public listing.
+- **Feature graphic** (1024×500, required): `npm run play:feature-graphic` → `screenshots/play-store/feature-graphic.png`.
+- **Phone + tablet screenshots**: `npm run play:screenshots` → `screenshots/play-store/{phone,tablet-7,tablet-10}/`. Unauthenticated screens are captured live; authenticated screens use faithful mockups unless `PLAYWRIGHT_USER_A_SCREENNAME` / `PLAYWRIGHT_USER_A_PASSWORD` are set. ⚠️ The iOS App Store screenshots (1290×2796 ≈ 2.17:1) exceed Play's 2:1 aspect cap and will be **rejected** — use this Android set (phone is 1080×1920).
+
 ---
 
 ## 8) Upload and roll out
