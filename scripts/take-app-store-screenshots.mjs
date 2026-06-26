@@ -21,7 +21,7 @@
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { spawn } from 'node:child_process';
 import { chromium } from '@playwright/test';
 
@@ -63,7 +63,7 @@ const DEVICES = [
 
 // ─── CSS design tokens (matches src/app/globals.css) ─────────────────────────
 
-const DESIGN = {
+export const DESIGN = {
   // Light mode warm stone background
   bodyBg: `radial-gradient(circle at 8% 4%, #F0E8D2 0%, #F5F1E8 38%, #EDE7D9 70%, #E5DDC8 100%)`,
   inkDark: '#0F1424',
@@ -195,7 +195,7 @@ function tabBar(w, h, activeTab = 'buddies') {
 
 // ─── Screen mockup generators ────────────────────────────────────────────────
 
-function buddyListMockup(w, h) {
+export function buddyListMockup(w, h) {
   const sb = Math.round(w * 0.082);
   const tb = Math.round(w * 0.18);
   const contentH = h - sb - tb;
@@ -338,7 +338,7 @@ function buddyListMockup(w, h) {
   `);
 }
 
-function dmConversationMockup(w, h) {
+export function dmConversationMockup(w, h) {
   const sb = Math.round(w * 0.082);
   const tb = Math.round(w * 0.18);
   const contentH = h - sb - tb;
@@ -480,7 +480,7 @@ function dmConversationMockup(w, h) {
   `);
 }
 
-function roomsBrowseMockup(w, h) {
+export function roomsBrowseMockup(w, h) {
   const sb = Math.round(w * 0.082);
   const tb = Math.round(w * 0.18);
   const px = Math.round(w * 0.045);
@@ -821,4 +821,8 @@ async function main() {
   }
 }
 
-await main();
+const invokedDirectly =
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (invokedDirectly) {
+  await main();
+}

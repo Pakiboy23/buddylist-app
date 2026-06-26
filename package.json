@@ -25,6 +25,8 @@
     "android:version:bump": "node scripts/bump-android-version.mjs",
     "android:bundle:release": "cd android && ./gradlew bundleRelease",
     "android:bundle:release:clean": "cd android && ./gradlew clean bundleRelease",
+    "play:screenshots": "node scripts/generate-play-screenshots.mjs",
+    "play:feature-graphic": "node scripts/generate-play-feature-graphic.mjs",
     "postinstall": "patch-package"
   },
   "dependencies": {
