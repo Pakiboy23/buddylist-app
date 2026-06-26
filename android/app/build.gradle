@@ -14,6 +14,18 @@ def releaseKeyAlias = keystoreProperties['keyAlias'] ?: System.getenv('ANDROID_K
 def releaseKeyPassword = keystoreProperties['keyPassword'] ?: System.getenv('ANDROID_KEY_PASSWORD')
 def hasReleaseSigning = releaseStoreFile && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
 
+// Version is overridable for CI/release without editing this file. Precedence:
+// ANDROID_VERSION_CODE/NAME env vars -> -PandroidVersionCode/Name Gradle props -> defaults.
+// scripts/bump-android-version.mjs edits the defaults below for committed bumps.
+def defaultVersionCode = 1
+def defaultVersionName = "1.0"
+def resolvedVersionCode = (System.getenv('ANDROID_VERSION_CODE')
+    ?: project.findProperty('androidVersionCode')
+    ?: defaultVersionCode).toString().trim().toInteger()
+def resolvedVersionName = (System.getenv('ANDROID_VERSION_NAME')
+    ?: project.findProperty('androidVersionName')
+    ?: defaultVersionName).toString().trim()
+
 android {
     namespace = "com.hiitsme.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -21,8 +33,8 @@ android {
         applicationId "com.hiitsme.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode resolvedVersionCode
+        versionName resolvedVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

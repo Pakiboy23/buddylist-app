@@ -179,13 +179,13 @@ H.I.M. does not access the device SMS inbox.
 | Field | Answer |
 |---|---|
 | Collected? | **Yes** |
-| Shared with third parties? | **Yes** — Apple APNs (preview only) |
+| Shared with third parties? | **Yes** — Apple APNs / Google FCM (preview only) |
 | Optional or required? | **Required** |
 | Purposes | App functionality |
 
 **Data stored:** Direct message body (`public.messages.content`) and room message body (`public.room_messages.body`). These are the core payload of the app.
 
-**Third-party sharing:** When push notifications are enabled, up to 140 characters of message content may be transmitted to Apple APNs as `messagePreview` in the notification payload. This is gated by the user's **Notification Privacy** setting (full / name only / hidden). Users who set the preference to `name_only` or `hidden` share no message content with APNs. The default is `full`. ⚠️ **Legal review:** Consider changing the default to `name_only` to minimise APNs exposure.
+**Third-party sharing:** When push notifications are enabled, up to 140 characters of message content may be transmitted to the platform push gateway (Apple APNs on iOS, Google FCM on Android) as the notification `body`/`messagePreview`. This is gated by the recipient's **Notification Privacy** setting (full / name only / hidden). Users who set the preference to `name_only` or `hidden` share no message content with the gateway. Recipients with no stored preference default to `name_only` (privacy-forward). ⚠️ **Legal review:** Consider changing the default to `name_only` to minimise APNs exposure.
 
 ---
 
@@ -363,13 +363,13 @@ H.I.M. does not integrate Firebase Crashlytics, Sentry, or any crash-reporting S
 | Field | Answer |
 |---|---|
 | Collected? | **Yes** |
-| Shared with third parties? | **Yes** — Apple APNs |
+| Shared with third parties? | **Yes** — Apple APNs (iOS) and Google FCM (Android) |
 | Optional or required? | **Optional** |
 | Purposes | App functionality |
 
-**Data stored:** APNs device push token (`public.user_push_tokens.token`). Registered when the user grants notification permission; stored linked to the user's account; pruned after 90 days of inactivity or on account deletion.
+**Data stored:** Push device token (`public.user_push_tokens.token`) — an APNs token on iOS or an FCM registration token on Android (`platform` column distinguishes them). Registered when the user grants notification permission; stored linked to the user's account; pruned on permanent-failure responses or on account deletion.
 
-**Third-party sharing:** The push token is transmitted to Apple APNs as the delivery address for each push notification. Apple receives no other user data alongside the token beyond the notification payload (see §4 Messages).
+**Third-party sharing:** The push token is transmitted to the platform push gateway — Apple APNs on iOS, Google Firebase Cloud Messaging on Android — as the delivery address for each push notification. The gateway receives no other user data alongside the token beyond the notification payload (see §4 Messages). On Android the FCM notification preview is subject to the same `notification_preview_mode` gating as iOS.
 
 **Why Optional:** Users can use all core messaging features — send and receive DMs, participate in rooms — without enabling push notifications. The token is only registered if the user explicitly grants the Android POST_NOTIFICATIONS permission.
 
@@ -392,7 +392,7 @@ H.I.M. does not integrate Firebase Crashlytics, Sentry, or any crash-reporting S
 | Personal info → Other (bio, avatar, status) | Yes | No | Optional | App functionality |
 | Financial info | No | — | — | — |
 | Health & fitness | No | — | — | — |
-| Messages → Other in-app messages | Yes | Yes — APNs (preview) | Required | App functionality |
+| Messages → Other in-app messages | Yes | Yes — APNs/FCM (preview) | Required | App functionality |
 | Photos → Photos | Yes | No | Optional | App functionality |
 | Photos → Videos | Yes | No | Optional | App functionality |
 | Audio → Voice recordings | Yes | No | Optional | App functionality |
@@ -405,7 +405,7 @@ H.I.M. does not integrate Firebase Crashlytics, Sentry, or any crash-reporting S
 | App activity → Other actions (IP/sign-in) | Yes | No | Required | App functionality, Security |
 | Web browsing | No | — | — | — |
 | App info & performance (crash, diagnostics) | No | — | — | — |
-| Device or other IDs (APNs token) | Yes | Yes — APNs | Optional | App functionality |
+| Device or other IDs (push token) | Yes | Yes — APNs/FCM | Optional | App functionality |
 
 ---
 
@@ -439,7 +439,7 @@ H.I.M. does not integrate Firebase Crashlytics, Sentry, or any crash-reporting S
 
 **If Google asks:** "You share a Device ID with Apple APNs. Is this used for advertising or cross-app tracking?"
 
-> The device identifier we share is the APNs push token issued by Apple's own infrastructure. It is transmitted to Apple solely to route push notifications to the correct device. It is not shared with advertising networks, data brokers, analytics firms, or any entity other than Apple. It cannot be used for cross-app tracking because it is scoped to the H.I.M. app bundle and rotates when the user reinstalls or resets permissions. When the user disables notifications or deletes their account, the token is removed from our database within the same session. Google's definition of Advertising ID (GAID) does not apply here.
+> The device identifier we share is the platform push token — an APNs token on iOS or a Firebase Cloud Messaging (FCM) registration token on Android. On Android the token is issued by Google's own FCM infrastructure and is transmitted back to Google solely to route push notifications to the correct device; on iOS the equivalent token routes through Apple APNs. It is not shared with advertising networks, data brokers, analytics firms, or any entity other than the platform push gateway. It cannot be used for cross-app tracking because it is scoped to the H.I.M. app and rotates when the user reinstalls or resets permissions. When the user disables notifications or deletes their account, the token is removed from our database. Google's definition of Advertising ID (GAID) does not apply here — we never request or store the GAID.
 
 ---
 
@@ -461,4 +461,4 @@ H.I.M. does not integrate Firebase Crashlytics, Sentry, or any crash-reporting S
 | 4 | Consider changing `notification_preview_mode` default to `name_only` to reduce APNs message-content sharing | Product + Legal |
 | 5 | Confirm `consent_timestamps` migration records consent for all new registrations and is auditable | Engineering |
 | 6 | Execute Data Safety section review with counsel before Play Store submission | Legal |
-| 7 | Note: FCM (Android push) is not yet implemented. When shipped, revisit Device ID → Optional/Required status and re-check sharing with Google (FCM) | Engineering |
+| 7 | ✅ Resolved — FCM (Android push) is implemented in `supabase/functions/push-dispatch`. Push token and message preview are shared with Google FCM on Android, mirroring APNs on iOS; disclosures above updated accordingly. Confirm `FCM_SERVICE_ACCOUNT_JSON` is set on the deployed function before launch | Engineering |
