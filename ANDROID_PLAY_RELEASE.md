@@ -130,13 +130,20 @@ Output bundle:
 
 `android/app/build/outputs/bundle/release/app-release.aab`
 
-### CI alternative
+### CI alternative (build + optional auto-publish)
 
-`.github/workflows/android-release.yml` (manual *Run workflow*) builds the signed `.aab`
-in GitHub Actions and uploads it as an artifact. It needs these repo secrets:
-`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`,
-`ANDROID_KEY_PASSWORD`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. Generate the
-keystore secret with `base64 -w0 ~/keys/hiitsme-upload.jks`.
+`.github/workflows/android-release.yml` (Actions → *Android Release Bundle* →
+*Run workflow*) builds the signed `.aab` in GitHub Actions, uploads it as an artifact,
+and can publish it straight to Google Play. Inputs:
+
+- `version_code` / `version_name` — optional overrides for this build.
+- `play_track` — `none` (artifact only, the default), `internal`, `alpha`, `beta`, or
+  `production`. Anything other than `none` uploads the `.aab` to that track.
+
+Required repo secrets (Settings → Secrets and variables → Actions): `ANDROID_KEYSTORE_BASE64`
+(`base64 -w0 ~/keys/hiitsme-upload.jks`), `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`,
+`ANDROID_KEY_PASSWORD`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and — only to
+publish — `PLAY_SERVICE_ACCOUNT_JSON` (see §8b).
 
 ---
 
@@ -157,10 +164,42 @@ Complete these in **Play Console → your app**, mostly under *App content* and 
 
 ## 8) Upload and roll out
 
+### 8a) Manual (first release)
+
 - Play Console → **Test and release** → start with **Internal testing**, then promote to
   **Production**.
 - Create release → upload `app-release.aab` → add release notes → review → roll out.
 - First-time apps go through a review (can take days); subsequent updates are faster.
+
+Do the **first** release manually so you can accept the Play App Signing terms and see the
+App signing key fingerprint for §4. After that, automate with §8b.
+
+### 8b) Automated upload (Play Developer API)
+
+One-time setup so CI can push builds to Play without touching the Console:
+
+1. **Enable the API.** Play Console → **Setup → API access** → link (or create) a Google
+   Cloud project → enable the *Google Play Android Developer API*.
+2. **Create a service account.** In that Cloud project: IAM & Admin → Service Accounts →
+   create one → add a JSON key. Download the key JSON.
+3. **Grant Play permissions.** Back in Play Console → **Users and permissions** → *Invite
+   user* → the service account's email → grant *Release to testing tracks* (and
+   *Release to production* if you want production pushes) for this app.
+4. **Add the secret.** Repo → Settings → Secrets and variables → Actions →
+   `PLAY_SERVICE_ACCOUNT_JSON` = the full contents of the key JSON.
+
+Then publish from CI: Actions → **Android Release Bundle** → *Run workflow*, set
+`play_track` to `internal` (or `alpha`/`beta`/`production`). The workflow builds the signed
+`.aab` and uploads it to that track via `r0adkll/upload-google-play` (status `completed`).
+
+Notes:
+- `versionCode` must still exceed the last upload — bump it with the input or
+  `npm run android:version:bump` before running.
+- The very first API upload to a brand-new app can be rejected with *"changes cannot be
+  sent for review."* If so, do that first release manually (§8a), or flip
+  `changesNotSentForReview: true` once in the workflow for a single run.
+- For a staged production rollout instead of full release, publish to `production` then
+  set the rollout percentage in the Console (or extend the workflow with `userFraction`).
 
 ---
 
@@ -173,6 +212,7 @@ Complete these in **Play Console → your app**, mostly under *App content* and 
 - [ ] Signing configured (keystore.properties or `ANDROID_KEYSTORE_*`); keystore backed up.
 - [ ] Data safety, content rating, target audience, privacy policy completed in Play Console.
 - [ ] Store listing assets uploaded (icon, feature graphic, screenshots).
+- [ ] (Optional) `PLAY_SERVICE_ACCOUNT_JSON` secret set + service account granted release permission for automated uploads (§8b).
 
 ## Notes
 
