@@ -30,6 +30,8 @@ import {
 import { hapticLight, hapticSuccess, hapticWarning } from '@/lib/haptics';
 import { buildReactionMutationKey, summarizeReactionRows } from '@/lib/messageReactions';
 import { playMessageSendSound, playUiSound } from '@/lib/sound';
+import { resolveChatMediaUrl } from '@/lib/chatMediaUrl';
+import { useChatMediaUrl } from '@/hooks/useChatMediaUrl';
 import { useKeyboardViewport } from '@/hooks/useKeyboardViewport';
 import { useSwipeBack } from '@/hooks/useSwipeBack';
 import {
@@ -190,6 +192,86 @@ function getAttachmentKind(mimeType: string | null | undefined) {
     return 'audio' as const;
   }
   return 'file' as const;
+}
+
+function AttachmentPreview({
+  attachment,
+  isMine,
+  previewType,
+}: {
+  attachment: MessageAttachmentRow;
+  isMine: boolean;
+  previewType?: string | null;
+}) {
+  const kind = getAttachmentKind(attachment.mime_type);
+  // Signed URL (with public-URL fallback) so the chat-media bucket can go
+  // private without a client change — see docs/storage-privacy-rollout.md.
+  const mediaUrl = useChatMediaUrl(attachment.bucket, attachment.storage_path);
+  const linkToneClass = isMine ? 'text-blue-200' : 'text-blue-600';
+
+  if (kind === 'image') {
+    return (
+      <a
+        href={mediaUrl}
+        target="_blank"
+        rel="noreferrer"
+        className="ui-focus-ring block overflow-hidden rounded-[1rem] border border-white/30 bg-[var(--bg)]/5"
+        aria-label={`Open image attachment ${attachment.file_name}`}
+      >
+        <img src={mediaUrl} alt={attachment.file_name} className="max-h-64 w-full object-cover" />
+      </a>
+    );
+  }
+
+  if (kind === 'video') {
+    return (
+      <video
+        controls
+        preload="metadata"
+        playsInline
+        className="block max-h-64 w-full rounded-[1rem] border border-white/30 bg-[var(--bg)]/20"
+        src={mediaUrl}
+      />
+    );
+  }
+
+  if (kind === 'audio') {
+    return (
+      <div
+        className={`rounded-[1rem] border px-3 py-2 ${
+          isMine
+            ? 'border-white/20 bg-white/10'
+            : 'border-slate-200 bg-slate-100/80 dark:border-slate-700 dark:bg-[#0F1424]/70'
+        }`}
+      >
+        <div className="mb-2 flex items-center gap-2">
+          <AppIcon kind="mic" className={`h-3.5 w-3.5 ${linkToneClass}`} />
+          <p className={`text-[length:var(--ui-text-2xs)] font-semibold ${linkToneClass}`}>
+            {previewType === 'voice_note' ? 'Voice note' : attachment.file_name}
+            {attachment.size_bytes ? ` · ${formatFileSize(attachment.size_bytes)}` : ''}
+          </p>
+        </div>
+        <audio controls preload="metadata" className="w-full" src={mediaUrl} />
+      </div>
+    );
+  }
+
+  return (
+    <a
+      href={mediaUrl}
+      target="_blank"
+      rel="noreferrer"
+      className={`ui-focus-ring block rounded-lg text-[length:var(--ui-text-2xs)] underline ${linkToneClass}`}
+      title={attachment.storage_path}
+      aria-label={`Open attachment ${attachment.file_name}${attachment.size_bytes ? `, ${formatFileSize(attachment.size_bytes)}` : ''}`}
+    >
+      <span className="inline-flex items-center gap-1">
+        <AppIcon kind="attachment" className="h-3 w-3" />
+        <span>{attachment.file_name}</span>
+      </span>
+      {attachment.size_bytes ? ` (${formatFileSize(attachment.size_bytes)})` : ''}
+    </a>
+  );
 }
 
 export default function ChatWindow({
@@ -702,24 +784,47 @@ export default function ChatWindow({
     return null;
   }, [currentUserId, visibleMessages]);
   const replyingToMessage = replyingToMessageId ? messagesById.get(replyingToMessageId) ?? null : null;
-  const mediaGalleryItems = useMemo<ChatMediaGalleryItem[]>(() => {
-    return visibleMessages
-      .flatMap((message) => {
-        const senderLabel = message.sender_id === currentUserId ? 'You' : buddyScreenname;
-        return (attachmentsByMessageId.get(message.id) ?? []).map((attachment) => {
-          const { data } = supabase.storage.from(attachment.bucket).getPublicUrl(attachment.storage_path);
-          return {
-            id: attachment.id,
-            fileName: attachment.file_name,
-            mimeType: attachment.mime_type,
-            sizeBytes: attachment.size_bytes,
-            publicUrl: data.publicUrl,
-            createdAt: message.created_at,
-            senderLabel,
-          };
-        });
-      })
-      .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt));
+  const [mediaGalleryItems, setMediaGalleryItems] = useState<ChatMediaGalleryItem[]>([]);
+  useEffect(() => {
+    let isCancelled = false;
+    const entries = visibleMessages.flatMap((message) => {
+      const senderLabel = message.sender_id === currentUserId ? 'You' : buddyScreenname;
+      return (attachmentsByMessageId.get(message.id) ?? []).map((attachment) => ({
+        attachment,
+        senderLabel,
+        createdAt: message.created_at,
+      }));
+    });
+
+    if (entries.length === 0) {
+      setMediaGalleryItems([]);
+      return;
+    }
+
+    const buildItems = async () => {
+      // Signed URLs (public-URL fallback) — see docs/storage-privacy-rollout.md.
+      const items = await Promise.all(
+        entries.map(async ({ attachment, senderLabel, createdAt }) => ({
+          id: attachment.id,
+          fileName: attachment.file_name,
+          mimeType: attachment.mime_type,
+          sizeBytes: attachment.size_bytes,
+          publicUrl: await resolveChatMediaUrl(attachment.bucket, attachment.storage_path),
+          createdAt,
+          senderLabel,
+        })),
+      );
+      if (!isCancelled) {
+        setMediaGalleryItems(
+          items.sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt)),
+        );
+      }
+    };
+
+    void buildItems();
+    return () => {
+      isCancelled = true;
+    };
   }, [attachmentsByMessageId, buddyScreenname, currentUserId, visibleMessages]);
 
   const clearPendingAttachments = useCallback(() => {
@@ -1149,83 +1254,6 @@ export default function ChatWindow({
       label: 'Sent',
       detail: null,
     };
-  };
-
-  const renderAttachmentPreview = (
-    attachment: MessageAttachmentRow,
-    options: { isMine: boolean; previewType?: string | null },
-  ) => {
-    const kind = getAttachmentKind(attachment.mime_type);
-    const { data } = supabase.storage.from(attachment.bucket).getPublicUrl(attachment.storage_path);
-    const linkToneClass = options.isMine ? 'text-blue-200' : 'text-blue-600';
-
-    if (kind === 'image') {
-      return (
-        <a
-          key={attachment.id}
-          href={data.publicUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="ui-focus-ring block overflow-hidden rounded-[1rem] border border-white/30 bg-[var(--bg)]/5"
-          aria-label={`Open image attachment ${attachment.file_name}`}
-        >
-          <img src={data.publicUrl} alt={attachment.file_name} className="max-h-64 w-full object-cover" />
-        </a>
-      );
-    }
-
-    if (kind === 'video') {
-      return (
-        <video
-          key={attachment.id}
-          controls
-          preload="metadata"
-          playsInline
-          className="block max-h-64 w-full rounded-[1rem] border border-white/30 bg-[var(--bg)]/20"
-          src={data.publicUrl}
-        />
-      );
-    }
-
-    if (kind === 'audio') {
-      return (
-        <div
-          key={attachment.id}
-          className={`rounded-[1rem] border px-3 py-2 ${
-            options.isMine
-              ? 'border-white/20 bg-white/10'
-              : 'border-slate-200 bg-slate-100/80 dark:border-slate-700 dark:bg-[#0F1424]/70'
-          }`}
-        >
-          <div className="mb-2 flex items-center gap-2">
-            <AppIcon kind="mic" className={`h-3.5 w-3.5 ${linkToneClass}`} />
-            <p className={`text-[length:var(--ui-text-2xs)] font-semibold ${linkToneClass}`}>
-              {options.previewType === 'voice_note' ? 'Voice note' : attachment.file_name}
-              {attachment.size_bytes ? ` · ${formatFileSize(attachment.size_bytes)}` : ''}
-            </p>
-          </div>
-          <audio controls preload="metadata" className="w-full" src={data.publicUrl} />
-        </div>
-      );
-    }
-
-    return (
-      <a
-        key={attachment.id}
-        href={data.publicUrl}
-        target="_blank"
-        rel="noreferrer"
-        className={`ui-focus-ring block rounded-lg text-[length:var(--ui-text-2xs)] underline ${linkToneClass}`}
-        title={attachment.storage_path}
-        aria-label={`Open attachment ${attachment.file_name}${attachment.size_bytes ? `, ${formatFileSize(attachment.size_bytes)}` : ''}`}
-      >
-        <span className="inline-flex items-center gap-1">
-          <AppIcon kind="attachment" className="h-3 w-3" />
-          <span>{attachment.file_name}</span>
-        </span>
-        {attachment.size_bytes ? ` (${formatFileSize(attachment.size_bytes)})` : ''}
-      </a>
-    );
   };
 
   const disappearingTimerShortLabel = formatDisappearingTimerLabel(disappearingTimerSeconds, { short: true });
@@ -1943,12 +1971,14 @@ export default function ChatWindow({
 
                               {!isDeleted && messageAttachments.length > 0 ? (
                                 <div className={`-mt-1 mb-1 space-y-1 ${isMine ? 'text-right' : ''}`}>
-                                  {messageAttachments.map((attachment) =>
-                                    renderAttachmentPreview(attachment, {
-                                      isMine,
-                                      previewType: message.preview_type,
-                                    }),
-                                  )}
+                                  {messageAttachments.map((attachment) => (
+                                    <AttachmentPreview
+                                      key={attachment.id}
+                                      attachment={attachment}
+                                      isMine={isMine}
+                                      previewType={message.preview_type}
+                                    />
+                                  ))}
                                 </div>
                               ) : null}
                               {latestOutgoingMessageId === message.id && isMine && !isEditing && !isDeleted && message.preview_type !== 'buzz' ? (
