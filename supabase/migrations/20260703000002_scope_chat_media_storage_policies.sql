@@ -6,7 +6,9 @@
 -- prefixes. This scopes both:
 --
 --   * chat-media SELECT  -> object owner, or a participant of the DM the object
---                           is attached to, or (future) any room attachment.
+--                           is attached to. (Rooms v2 archived
+--                           room_message_attachments and no room-attachment UI
+--                           exists; extend this policy when rooms media ships.)
 --   * chat-media INSERT  -> only under the caller's own `<uid>/...` prefix
 --                           (matches buildStoragePath in src/lib/chatMedia.ts).
 --   * buddy-icons SELECT -> owner only. Avatar display uses public object URLs
@@ -24,11 +26,9 @@
 -- auth.uid() is wrapped in a scalar subquery per the repo's auth_rls_initplan
 -- convention (see 20260607000003_advisor_hardening.sql).
 
--- Supporting indexes for the storage_path lookups the new SELECT policy performs.
+-- Supporting index for the storage_path lookup the new SELECT policy performs.
 create index if not exists message_attachments_storage_path_idx
   on public.message_attachments (storage_path);
-create index if not exists room_message_attachments_storage_path_idx
-  on public.room_message_attachments (storage_path);
 
 -- 1. chat-media: participant-scoped SELECT ------------------------------------
 drop policy if exists chat_media_read_authenticated on storage.objects;
@@ -47,11 +47,6 @@ using (
       join public.messages m on m.id = ma.message_id
       where ma.storage_path = storage.objects.name
         and ((select auth.uid()) = m.sender_id or (select auth.uid()) = m.receiver_id)
-    )
-    or exists (
-      select 1
-      from public.room_message_attachments rma
-      where rma.storage_path = storage.objects.name
     )
   )
 );
