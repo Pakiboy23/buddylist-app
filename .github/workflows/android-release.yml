@@ -1,19 +1,23 @@
 name: Android Release Bundle
 
-# Builds a signed Play Store bundle (.aab) on demand and uploads it as a workflow
-# artifact. This does NOT publish to Play — download the artifact and upload it in
-# the Play Console, or wire a later step to the Play Developer API once trusted.
+# Builds a signed Play Store bundle (.aab) on demand, uploads it as a workflow
+# artifact, and — when a Play track is chosen — publishes it to Google Play via the
+# Play Developer API. Choose play_track = none to only produce the artifact.
 #
 # Required repository secrets (Settings -> Secrets and variables -> Actions):
-#   ANDROID_KEYSTORE_BASE64   - base64 of your upload keystore (.jks):
-#                               base64 -w0 upload-keystore.jks | pbcopy
-#   ANDROID_KEYSTORE_PASSWORD - keystore store password
-#   ANDROID_KEY_ALIAS         - signing key alias (e.g. "upload")
-#   ANDROID_KEY_PASSWORD      - signing key password
-#   VITE_SUPABASE_URL         - production Supabase URL (baked into the web bundle)
-#   VITE_SUPABASE_ANON_KEY    - production Supabase anon key
+#   ANDROID_KEYSTORE_BASE64    - base64 of your upload keystore (.jks):
+#                                base64 -w0 upload-keystore.jks | pbcopy
+#   ANDROID_KEYSTORE_PASSWORD  - keystore store password
+#   ANDROID_KEY_ALIAS          - signing key alias (e.g. "upload")
+#   ANDROID_KEY_PASSWORD       - signing key password
+#   VITE_SUPABASE_URL          - production Supabase URL (baked into the web bundle)
+#   VITE_SUPABASE_ANON_KEY     - production Supabase anon key
+#   PLAY_SERVICE_ACCOUNT_JSON  - Google Play service-account JSON (only needed to
+#                                publish; see ANDROID_PLAY_RELEASE.md for setup)
 #
 # The release fails fast if signing secrets are absent (see android/app/build.gradle).
+# Publishing prerequisites: the app must already exist in Play Console and the
+# service account must have "Release to testing/production" permission.
 
 on:
   workflow_dispatch:
@@ -26,6 +30,17 @@ on:
         description: 'versionName (user-facing, e.g. 1.0.1). Blank = use build.gradle default.'
         required: false
         type: string
+      play_track:
+        description: 'Publish the built .aab to this Play track. "none" = build artifact only, no upload.'
+        required: false
+        default: none
+        type: choice
+        options:
+          - none
+          - internal
+          - alpha
+          - beta
+          - production
 
 permissions:
   contents: read
@@ -92,6 +107,19 @@ jobs:
           path: android/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
           retention-days: 14
+
+      - name: Publish to Google Play
+        if: ${{ inputs.play_track != 'none' }}
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.hiitsme.app
+          releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
+          track: ${{ inputs.play_track }}
+          status: completed
+          # First upload to a brand-new app can't be auto-reviewed; flip to true only
+          # if Play returns "changes cannot be sent for review" on the very first push.
+          changesNotSentForReview: false
 
       - name: Clean up keystore
         if: always()
