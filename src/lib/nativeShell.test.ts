@@ -20,7 +20,28 @@ vi.mock('@capacitor/core', () => ({
   }),
 }));
 
-import { confirmNativeShellAvailable } from '@/lib/nativeShell';
+import { confirmNativeShellAvailable, routeOwnsNativeShellChrome } from '@/lib/nativeShell';
+
+describe('routeOwnsNativeShellChrome', () => {
+  it('lets the main shell page own the chrome, with or without the native trailing slash', () => {
+    expect(routeOwnsNativeShellChrome('/hi-its-me')).toBe(true);
+    expect(routeOwnsNativeShellChrome('/hi-its-me/')).toBe(true);
+  });
+
+  it('hides the native chrome on standalone /hi-its-me sub-routes so their taps are never dropped', () => {
+    // Regression: these routes have no native-command subscriber. Leaving the
+    // chrome up made the tab bar and back button dead, which users reported as
+    // the app freezing after opening a chat room.
+    expect(routeOwnsNativeShellChrome('/hi-its-me/rooms')).toBe(false);
+    expect(routeOwnsNativeShellChrome('/hi-its-me/rooms/new')).toBe(false);
+    expect(routeOwnsNativeShellChrome('/hi-its-me/rooms/123e4567/preview')).toBe(false);
+  });
+
+  it('hides the native chrome on non-shell routes', () => {
+    expect(routeOwnsNativeShellChrome('/account')).toBe(false);
+    expect(routeOwnsNativeShellChrome('/')).toBe(false);
+  });
+});
 
 describe('confirmNativeShellAvailable', () => {
   const originalWindow = globalThis.window;
