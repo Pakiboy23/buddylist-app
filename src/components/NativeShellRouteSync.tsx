@@ -1,9 +1,11 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { isNativeIosShell, publishNativeShellChromeState } from '@/lib/nativeShell';
+import {
+  isNativeIosShell,
+  publishNativeShellChromeState,
+  routeOwnsNativeShellChrome,
+} from '@/lib/nativeShell';
 import { useTheme } from '@/hooks/useTheme';
-
-const HI_ITS_ME_PATH = '/hi-its-me';
 
 export default function NativeShellRouteSync() {
   const { pathname } = useLocation();
@@ -14,7 +16,7 @@ export default function NativeShellRouteSync() {
       return;
     }
 
-    if (pathname.startsWith(HI_ITS_ME_PATH)) {
+    if (routeOwnsNativeShellChrome(pathname)) {
       return;
     }
 

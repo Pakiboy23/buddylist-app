@@ -135,6 +135,20 @@ export function isNativeIosShell() {
   return typeof window !== 'undefined' && Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
 }
 
+const MAIN_SHELL_PATH = '/hi-its-me';
+
+/**
+ * True only for the main /hi-its-me shell page — the one route that publishes
+ * its own chrome state and subscribes to native shell commands. Sub-routes
+ * (/hi-its-me/rooms, /hi-its-me/rooms/:id/preview, …) are standalone pages
+ * with no command subscriber, so the native chrome must be hidden there:
+ * otherwise its tab bar and back button dispatch commands nobody handles and
+ * the app appears frozen until force-quit.
+ */
+export function routeOwnsNativeShellChrome(pathname: string): boolean {
+  return pathname === MAIN_SHELL_PATH || pathname === `${MAIN_SHELL_PATH}/`;
+}
+
 /**
  * Confirms that the native shell is genuinely hosting the web view and can render
  * its own chrome (top nav + tab bar). This is stronger than {@link isNativeIosShell}:

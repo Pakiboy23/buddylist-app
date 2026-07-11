@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import RetroWindow from '@/components/RetroWindow';
 import { supabase } from '@/lib/supabase';
 import RoomListClient from './RoomListClient';
@@ -14,6 +15,7 @@ export interface RoomRow {
 }
 
 export default function RoomsPage() {
+  const navigate = useNavigate();
   const [rooms, setRooms] = useState<RoomRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -35,7 +37,11 @@ export default function RoomsPage() {
   }, []);
 
   return (
-    <RetroWindow title="Chat Rooms">
+    <RetroWindow
+      title="Chat Rooms"
+      showBackButton
+      onBack={() => navigate('/hi-its-me?tab=chat')}
+    >
       {isLoading ? <div className="h-20" /> : <RoomListClient rooms={rooms} />}
     </RetroWindow>
   );
