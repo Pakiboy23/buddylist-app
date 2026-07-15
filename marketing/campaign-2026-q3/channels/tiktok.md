@@ -9,13 +9,13 @@
 
 ## 0. One divergence from the strategy of record — flagged up front
 
-`campaign-strategy.md` §5.1 sets TikTok cadence at 4–6 posts/week and a KPI of ≥30 posts shipped. **This plan commits to 2–3 posts/week (12–18 posts over the flight).** Rationale:
+`campaign-strategy.md` §5.1 originally set TikTok cadence at 4–6 posts/week and a KPI of ≥30 posts shipped (both since reconciled to this plan — see the resolution below). **This plan commits to 2–3 posts/week (12–18 posts over the flight).** Rationale:
 
 - Strategy §9 budgets the founder's *total* weekly content load across all channels at ~8–12 hours. Six TikToks/week plus IG, X, Reddit, community ops, and the scorecard does not fit inside that number for one person; the §5.1 figure came from the generic trend-research §d benchmark, not from founder capacity.
 - The strategy's own kill-criteria philosophy (§6, §9) prefers a cadence that holds for 6 straight weeks over one that collapses in week 3. Consistency is the differentiator (trend research §d); a broken streak is worse than a modest one.
 - The batching plan below can *yield* extra cuts in a good week — 4+/wk is welcome upside, not the commitment.
 
-**Requires campaign-lead sign-off** at or before the Aug 17 phase gate. The posts-shipped KPI in §8 is re-anchored to the honest cadence. Nothing else in §5.1 (role, format, search posture, consent guardrail, volatility clause) changes.
+**RESOLVED — founder signed off 2026-07-15:** 2–3/wk is the cadence of record and `campaign-strategy.md` §5.1 has been updated to match. The posts-shipped KPI in §8 stays anchored to 12–18. Nothing else in §5.1 (role, format, search posture, consent guardrail, volatility clause) changes.
 
 ---
 
@@ -28,7 +28,7 @@
 5. **Look:** portrait 9:16 (the app is iPhone-only portrait — a native fit). Hero look is dark mode: midnight indigo + amber, boot splash, monospace wordmark, amber pip (brand brief §3). Light cream mode is the approved secondary for daytime-feel posts.
 6. **Sound:** no concept depends on a specific licensed track (see §6). Never recreate another company's sign-on/door/buddy sound effects (brand brief §7.5).
 7. **Every end card:** "H.I.M." wordmark styled per brand brief §4, `hiitsme.app`, and "18+" (claims #21, #23). CTA points into a **specific room**, not a generic download (strategy §7.1).
-8. **Taglines:** Tier 1–3 approved lines only (brand brief §6). "The light's on." does not ship unless founder sign-off lands (strategy §1.1); every script below already works without it.
+8. **Taglines:** Tier 1–3 approved lines only (brand brief §6). "The light's on." received founder sign-off 2026-07-15 (now brand brief §6 Tier 1) and may be used; every script below already works without it.
 
 ---
 

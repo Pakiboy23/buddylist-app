@@ -5,7 +5,7 @@
 **Governing docs (this plan executes, never overrides):** `strategy/campaign-strategy.md` §5.4 (X channel architecture), `strategy/brand-brief.md` (voice, naming, nostalgia policy), `strategy/claims-register.md` (only allowed claims), `strategy/baseline-audit.md` §3.2 (measurement sources), `strategy/growth-plan.md` GH-02 / GH-03 / GH-04 / GH-11.
 **Channel role (strategy §5.4, binding):** X is the **build-in-public founder channel** — founder narrative + community replies. It is NOT a link channel: non-Premium link posts get near-zero reach (trend-research §d), so links live in bio and self-replies only. KPI currency is replies and profile click-throughs, never impressions or followers (strategy non-goal 2).
 
-**Copy status:** every post below is built from claims-register APPROVED claims and brand-brief Tier 1–3 vocabulary or founder-voice product truth. The candidate tagline "The light's on." is NOT used anywhere in this plan — it still needs founder sign-off (strategy §1.1). Posts speak in Haaris's first person; he should feel free to retype any of them in his own words as long as the claim content survives the pre-publish checklist (§9).
+**Copy status:** every post below is built from claims-register APPROVED claims and brand-brief Tier 1–3 vocabulary or founder-voice product truth. The tagline "The light's on." is not used anywhere in this plan as drafted; it received founder sign-off on 2026-07-15 (brand brief §6 Tier 1) and may now close ship-logs (see §8's note). Posts speak in Haaris's first person; he should feel free to retype any of them in his own words as long as the claim content survives the pre-publish checklist (§9).
 
 ---
 
@@ -440,7 +440,7 @@ Weekly readout lands in `marketing/campaign-2026-q3/reporting/weekly-scorecard.m
 - Unshipped features, roadmap commitments, or "H.I.M. Pro" (brand brief §9; non-goal 12)
 - Competitor names, in any register (brand brief §5)
 - The word "lonely" addressed at users (strategy §1.1 two-track rule)
-- "The light's on." — unless and until founder sign-off lands (strategy §1.1); on sign-off it may close ship-logs
+- ~~"The light's on."~~ — removed from this list: founder sign-off landed 2026-07-15; the line is approved and may close ship-logs
 - Fake UI, mocked-up activity, member content without logged consent, DM content in any form (brand brief §3; strategy §5.1)
 
 ## 9. Pre-publish checklist (every post, ~60 seconds)

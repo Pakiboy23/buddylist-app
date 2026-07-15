@@ -20,7 +20,7 @@ Per baseline audit §1 ("Editability during the flight"):
 | Play listing (title / short / long) | n/a — app is **not live** on Play | **Drawer copy only** (DNC #6). Drafted in §2 of this doc, filed, unpublished. Zero public Android mentions this flight |
 | Web meta tags (`index.html`) | Anytime via `dist/` redeploy | Out of scope here — owned by web/landing workstream; noted because ASC "Web Referrer" attribution depends on hiitsme.app links staying live |
 
-**Decision tree for the July build (founder decides by ~Jul 31, logged in the pre-flight checklist):**
+**Decision tree for the July build — DECIDED 2026-07-15: the build SHIPS (founder sign-off; submit by ~Jul 31, logged in the pre-flight checklist).** Execution follows the first branch; the second remains only as the fallback if the submission slips:
 
 - **Build ships in July** → keyword Option A (§1.3), full-description corrections (§1.4), and the refreshed screenshot set (§4) all ride it; live approximately Aug 3; keyword hypotheses H1–H2 read against the full flight.
 - **No July build** → promotional text (§5) is the entire live ASO motion; §1.3–1.4 and §4 are staged for the next natural release; H1–H2 reads shift to whenever the build lands (they are written to survive either timeline); H3 is unaffected (it reads from ASA probes and social correlation, not the keyword field).
@@ -225,7 +225,7 @@ The one always-editable iOS surface (170 chars). Rotations land on the strategy 
 | **v3 — Aug 31** | Aug 31–Sep 13+ | Wk 5 "Night Owls & Sunday Reset" + Wk 6 "Buddy List Week" (rituals register) | `Up at 1am? Late Night is up too. Planning your week from the sofa? That's Sunday Reset. Set an away message, buzz a buddy, and stay a while. Friendship first.` | 158 | #1, #3, #7; S4 segment register |
 | Post-flight | Sep 14 → | Until Q4 plan | Revert to the LD §A baseline text or keep v3 — wrap-report decision | — | — |
 
-Notes: v2 deliberately avoids "new city, no crew" verbatim in public copy (it's an internal theme name; "Just moved?" is the approved audience register — GTM §2 "Gay men who just moved somewhere new"). No version uses "lonely" (strategy §1.1 two-track rule), user counts (DNC #10), or "The light's on." (unsigned — every version works without it). Entry task each gate day: paste into ASC → verify the console char counter → save; ~5 minutes, belongs to the Monday scorecard block for weeks 3 and 5, and to the Aug 3 launch checklist for v1.
+Notes: v2 deliberately avoids "new city, no crew" verbatim in public copy (it's an internal theme name; "Just moved?" is the approved audience register — GTM §2 "Gay men who just moved somewhere new"). No version uses "lonely" (strategy §1.1 two-track rule), user counts (DNC #10), or "The light's on." (signed off 2026-07-15 after these versions were locked — they ship as written; the line is available for post-flight rotations). Entry task each gate day: paste into ASC → verify the console char counter → save; ~5 minutes, belongs to the Monday scorecard block for weeks 3 and 5, and to the Aug 3 launch checklist for v1.
 
 ---
 

@@ -28,7 +28,7 @@ Posture consequences, binding:
 3. **Never on camera:** credential entry, anyone's face or legal name except the founder by his own choice, location-revealing content, any mechanic pressuring a member to reveal identity (brand brief §2 rule 6; strategy non-goal #9).
 4. **Vocabulary:** no AOL/AIM/ICQ marks or trade dress anywhere — image text, caption, audio, alt text, hashtags (brand brief §7). No dating vocabulary (match, swipe-as-offer, singles, nearby, flirt). "Hookup" only as the negation "not a hookup app." The word "lonely" never appears (strategy §1.1 two-track rule). Away-message examples on cards are **brand-authored** in the shipped register ("doomscrolling," "finally cleaning my apartment") — never presented as a real member's status.
 5. **Every post carries:** "H.I.M." styled per naming rules (never HIM/Him), lowercase `hiitsme.app`, and "18+" in the caption or closing card (claims #21, #23). CTAs point into a **specific room**, never a generic download (strategy §7.1).
-6. **Taglines:** brand brief §6 Tier 1–3 lines only. "The light's on." does not ship unless founder sign-off lands (strategy §1.1); nothing below depends on it.
+6. **Taglines:** brand brief §6 Tier 1–3 lines only. "The light's on." received founder sign-off 2026-07-15 (now Tier 1) and may be used; nothing below depends on it.
 7. **Accessibility standard:** custom alt text on every feed image and carousel slide (specs below); Reels ship with burned-in captions/subtitles (Instagram has no custom alt text for Reels — the cover frame gets descriptive text in the caption's first line instead of "link in bio" filler).
 
 ---

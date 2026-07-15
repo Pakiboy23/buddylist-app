@@ -40,8 +40,8 @@ This is the post-launch acquisition + engagement campaign for H.I.M. — the fri
 ## Start here — first 10 actions (pre-flight, week of Jul 27)
 
 1. **Take the baseline snapshot** (blocking — flight deltas are unrecoverable without it): ASC metrics + the measurement-plan SQL suite → `reporting/baseline-snapshot-2026-07-27.md`.
-2. Decide the two open sign-offs: TikTok cadence (2–3/wk as the file proposes vs strategy's 4–6/wk) and the "The light's on." tagline (approve or fall back to Tier 1 lines).
-3. Decide: July build yes/no — it carries the keyword revision + the two mandated store-description corrections (18+; "a copy of your data").
+2. **Done (2026-07-15):** TikTok cadence signed off at 2–3/wk; "The light's on." approved and added to the brand brief's Tier 1 tagline system.
+3. **Done (2026-07-15): July build is a GO** — submit by ~Jul 31; it carries the keyword revision + the two mandated store-description corrections (18+; "a copy of your data").
 4. Calibrate + freeze the Monday SQL suite (measurement-plan §4) — this is what makes weekly reporting a 20-minute job.
 5. Lock UTMs into every link template (measurement-plan §3) and set up the founder's X profile + parked brand handle (twitter.md §1).
 6. Batch weeks 1–2 content (calendar pre-flight list) using the existing screenshot scripts; capture room/buddy footage with consenting seed members only, consent logged.

@@ -10,7 +10,7 @@
 
 ## Pre-flight · week of Jul 27 (blocking items)
 
-Baseline snapshot (strategy §3 — without it, flight deltas are unrecoverable) · UTM convention locked (`measurement-plan.md` §3) · SQL suite calibrated and frozen · promo text v1–v3 approved · July-build keyword decision (ASO §0) · press list refreshed + AIM-sentence rewrite (brand brief §7.4) · seed community briefed (rituals, first-replier, ambassador ask) · weeks 1–2 content batched (TikTok C1–C3 + recuts, IG R1/CA/R2/S1, X T1–T6 drafted) · Reddit account readiness (reddit.md §2) + live subreddit-rules audit · Play drawer copy filed unpublished · TikTok cadence divergence + "The light's on." sign-offs resolved (see README open items).
+Baseline snapshot (strategy §3 — without it, flight deltas are unrecoverable) · UTM convention locked (`measurement-plan.md` §3) · SQL suite calibrated and frozen · promo text v1–v3 approved · July-build keyword decision (ASO §0) · press list refreshed + AIM-sentence rewrite (brand brief §7.4) · seed community briefed (rituals, first-replier, ambassador ask) · weeks 1–2 content batched (TikTok C1–C3 + recuts, IG R1/CA/R2/S1, X T1–T6 drafted) · Reddit account readiness (reddit.md §2) + live subreddit-rules audit · Play drawer copy filed unpublished · founder sign-offs landed 2026-07-15: TikTok cadence 2–3/wk · "The light's on." approved · July build YES (submit by ~Jul 31).
 
 ## Week-by-week grid
 
@@ -25,7 +25,7 @@ Baseline snapshot (strategy §3 — without it, flight deltas are unrecoverable)
 
 ## Day-level grid — ignition (weeks 1–2)
 
-Cadence notes: X posts go out when the founder can hang in replies for 30–60 min. TikTok shown at the file's proposed 2–3/wk (see README open item — if the strategy's 4–6/wk is upheld at sign-off, flex slots fill from C1–C3 recuts). IG stories run 4–5 days/wk on top of feed posts.
+Cadence notes: X posts go out when the founder can hang in replies for 30–60 min. TikTok at the signed-off 2–3/wk (founder, 2026-07-15); flex slots fill from C1–C3 recuts as upside in good weeks. IG stories run 4–5 days/wk on top of feed posts.
 
 | Day | Channel actions |
 |---|---|
