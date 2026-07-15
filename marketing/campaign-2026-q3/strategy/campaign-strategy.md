@@ -29,7 +29,7 @@ Internal only — never appears in public copy. The image: the amber online pip 
 - **User-facing track:** sell the fun and the specificity. "A room that's awake at 1am." "Your away message for a Sunday you refuse to leave the house." Never diagnose the user; the word "lonely" does not appear in ads, posts, or captions.
 - **Press/earned track:** the friendship-recession + queer-third-places story with a solo-gay-founder protagonist. "Lonely" is allowed in pitches to journalists as sociology, never as a user address.
 
-**Candidate campaign line (needs founder sign-off before public use, per brand brief §6):** "The light's on." — built from era-generic vocabulary, pairs with the amber pip visual, and degrades gracefully into approved Tier 1 lines ("Friendship first." / "Your screenname, your status, your people.") if not approved. All other public copy in this campaign uses the approved Tier 1–3 tagline system as-is.
+**Campaign line — APPROVED (founder sign-off 2026-07-15, recorded in brand brief §6 Tier 1):** "The light's on." — built from era-generic vocabulary, pairs with the amber pip visual. Assets drafted before sign-off ship as written; the line is now available anywhere the Tier 1 system applies. All other public copy in this campaign uses the approved Tier 1–3 tagline system as-is.
 
 ### 1.2 How this continues the GTM plan (not a restart)
 
@@ -130,9 +130,9 @@ Weighting follows trend research §e: TikTok + Reddit + owned channels carry the
 - **Format:** screen recordings of the real app — signing on, setting an away message ("doomscrolling," "finally cleaning my apartment"), a buddy signing on, a Buzz shaking the window, a room scrolling at 1am. Zero production budget, natively on-trend, and satisfies brand brief §3 ("lean on real UI"; never mock up fake activity).
 - **Member-consent guardrail (binding, all brand-published captures on any channel):** brand-published screen recordings and screenshots may show other members' screennames or messages **only with those members' explicit consent** (practical path: use consenting S0 seed members for room and buddy-list captures, consent logged). Otherwise crop or blur ALL non-consenting screennames and message content before publishing. **Never publish DM content.** Mirrors growth-plan Loop 1 verbatim: "other people's screennames are pseudonymous but not ours to broadcast"; "the norm we model is cropping others' screennames." Rationale: brand brief §2 rule 6 (never outing-adjacent) extends to not exposing a member's pseudonymous presence in a gay app without consent.
 - **Search optimization:** captions/on-screen text/spoken words carry query phrases — "gay friendship app," "how to make gay friends in nyc/chicago/atlanta/la," "apps that aren't dating apps," "not a dating app." 3–5 focused hashtags max; keywords in captions outrank hashtags.
-- **Cadence:** 4–6 posts/week for all 6 weeks (trend research §d: consistency is the 2026 differentiator; expect no traction before ~8 weeks — this flight builds the base).
+- **Cadence:** 2–3 posts/week for all 6 weeks (founder sign-off 2026-07-15, reconciling to the channel plan's solo-founder capacity case — `channels/tiktok.md` §0; batching may yield 4+/wk as upside, never as commitment). Consistency is the 2026 differentiator (trend research §d); expect no traction before ~8 weeks — this flight builds the base.
 - **Volatility clause:** TikTok US algorithm is being retrained post-JV (trend research §e); judge tactics on 2-week windows, never single posts.
-- **KPI (secondary to §3 objectives):** ≥30 posts shipped; ≥3 posts over 2,500 organic views; presence in "gay friendship app" search results by flight end.
+- **KPI (secondary to §3 objectives):** 12–18 posts shipped (per the signed-off cadence); ≥3 posts over 2,500 organic views; presence in "gay friendship app" search results by flight end.
 
 ### 5.2 Instagram — the send-this-to-the-group-chat engine
 
@@ -161,7 +161,7 @@ Weighting follows trend research §e: TikTok + Reddit + owned channels carry the
 Grounded in baseline audit §1–2; respects editability constraints:
 
 - **Now (pre-flight, no build needed):** fix the two stale full-description lines at next metadata touch — "full copy of your data" → "Download a copy of your data anytime" (claims #19 / DNC #2) and "17+" → 18+ (claims #23). Refresh iOS **promotional text** (editable anytime) at each phase gate: Aug 3 (ignition), Aug 17 (amplify/relocation), Aug 31 (sustain/rituals). Promotional text is the one live ASO lever during the flight.
-- **Keyword revision:** the baseline audit §2.3 revised string (`community,chat,rooms,buddy,lgbtq,queer,messenger,social,men,talk,group,penpal,platonic,screenname`) requires a new binary — it must ride a build submitted in **July** to be live for Aug 3. Founder sign-off required. If no July build ships, the revision waits for the next natural release; do not force a submission for keywords alone.
+- **Keyword revision:** the baseline audit §2.3 revised string (`community,chat,rooms,buddy,lgbtq,queer,messenger,social,men,talk,group,penpal,platonic,screenname`) requires a new binary — it must ride a build submitted in **July** to be live for Aug 3. **Signed off 2026-07-15: the July build ships** (submit by ~Jul 31). If the submission slips anyway, the revision waits for the next natural release; do not force a submission for keywords alone.
 - **Validation:** first-ever check of ASC search-source trends against the keyword set happens during this flight (O9). Log findings in the weekly scorecard.
 - **Play Store:** draft the missing short description (80 chars) and full description (4,000 chars) from the corrected iOS listing so they're ready the day the founder submits — but per DNC #6 this is drawer copy; nothing public.
 
@@ -193,7 +193,7 @@ Gifted access + genuine relationships with small queer creators (10K–100K), pe
 ### Phase 1 — IGNITION (weeks 1–2)
 
 **Week 1 · Aug 3–9 · "Sign-On Week"** — introduce the world.
-- Content: what H.I.M. is in its own furniture — sign-on flow, screenname-first, the seven rooms, the absence enumeration ("No swiping. No radar. No grid."). TikTok launches at 4–6/wk; IG at 3–4/wk; X build-in-public thread #1 ("what I shipped and why"); Reddit = pure participation.
+- Content: what H.I.M. is in its own furniture — sign-on flow, screenname-first, the seven rooms, the absence enumeration ("No swiping. No radar. No grid."). TikTok launches at 2–3/wk (signed-off cadence); IG at 3–4/wk; X build-in-public thread #1 ("what I shipped and why"); Reddit = pure participation.
 - Product surface: promotional text v1 live Aug 3; room programming rituals begin (§7.2) — Sunday Reset thread Aug 9 kicks the standing cadence.
 - Claims leaned on: #1, #2, #21, #22.
 
@@ -304,10 +304,11 @@ Organic-first. Cap: **$500/month** (~$750 total for the 6-week flight). Expected
 - [ ] Baseline snapshot captured week of Jul 27 (§3) — blocking; without it, flight deltas are unrecoverable (baseline audit gap 5)
 - [ ] UTM convention locked; every campaign link template tagged (§6 pre-flight)
 - [ ] Promotional text v1/v2/v3 drafted and approved (§5.5)
-- [ ] Decision: July build for keyword revision — yes/no (§5.5)
+- [x] Decision: July build for keyword revision — **YES** (founder sign-off 2026-07-15; submit by ~Jul 31) (§5.5)
+- [x] TikTok cadence — **2–3/wk signed off** (founder, 2026-07-15); §5.1 and `channels/tiktok.md` §0 reconciled
 - [ ] Stale store-description lines corrected at next metadata touch (18+; "a copy of your data") (§5.5)
 - [ ] Press list refreshed; AIM sentence rewritten per brand brief §7.4 (§5.6)
-- [ ] "The light's on." tagline — founder sign-off or fallback to approved Tier 1 lines (§1.1)
+- [x] "The light's on." tagline — **APPROVED** (founder sign-off 2026-07-15; added to brand-brief §6 Tier 1) (§1.1)
 - [ ] Seed community briefed: rituals, first-replier duty, ambassador ask (§7)
 - [ ] Weeks 1–2 content batch produced (§6 pre-flight)
 - [ ] Play drawer copy drafted and filed, unpublished (§5.5)

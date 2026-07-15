@@ -171,6 +171,7 @@ Tier 1 — canonical, use anywhere:
 | "Not a hookup app." | IDX meta description (line 17) |
 | "Friends, Not Dates" | LD §A App Name |
 | "Gay friendship, retro style" | LD §A Subtitle |
+| "The light's on." | Q3 campaign line (strategy §1.1) — founder sign-off 2026-07-15 |
 
 Tier 2 — approved supporting lines:
 

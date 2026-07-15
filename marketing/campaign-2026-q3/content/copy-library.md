@@ -167,7 +167,7 @@ Provenance is cited per line. **Existing** = already approved and in use (GTM ki
 | 7 | "Status as self-expression, the way it used to be." | Existing — READY | LD §A full description |
 | 8 | "Small rooms. Real conversations." | Existing — READY | Claims register DNC #10 "what to say instead" column (register-approved phrasing) |
 | 9 | "Sign on. Say hi. Stay a while." | **New — SIGN-OFF** | Built from brand vocabulary ("sign on" — brand brief §4.8; the room-welcome "say hi" register — LD §E.3) |
-| 10 | "The light's on." | **New — SIGN-OFF** (already queued for founder decision, strategy §1.1 / pre-flight checklist) | Campaign candidate line; pairs with the amber pip visual. If not approved, every asset slot planned for it falls back to lines 1–2 |
+| 10 | "The light's on." | **New — APPROVED** (founder sign-off 2026-07-15; brand brief §6 Tier 1) | Campaign line; pairs with the amber pip visual |
 
 Descriptive lines like "a room that's awake at 1am" (strategy §1.1, user-facing track) are caption copy built from claim #1, not taglines — usable in body copy without tagline sign-off, subject to normal claims discipline.
 
