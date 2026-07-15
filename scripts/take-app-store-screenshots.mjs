@@ -491,12 +491,18 @@ function roomsBrowseMockup(w, h) {
   const cardPad = Math.round(w * 0.042);
   const iconSz = Math.round(w * 0.11);
 
+  // The 7 shipped launch rooms — names, blurbs, and kinds verbatim from
+  // supabase/migrations/20260509184623_rooms_v2_launch_schema.sql. No member
+  // counts anywhere: the real app renders none (liveCount is gated off), and
+  // fabricated activity is banned (marketing claims register DNC #10).
   const rooms = [
-    { emoji: '🗽', name: 'New York', desc: 'The city that never sleeps', members: 847, kind: 'regional' },
-    { emoji: '🌴', name: 'LA Vibes', desc: 'Chill, sun, and good company', members: 613, kind: 'regional' },
-    { emoji: '🎵', name: 'Music Heads', desc: 'What are you listening to?', members: 1204, kind: 'vibe' },
-    { emoji: '✈️', name: 'Travel Talk', desc: 'Share your adventures', members: 445, kind: 'vibe' },
-    { emoji: '🏀', name: 'Sports Central', desc: 'Live reactions, hot takes', members: 932, kind: 'vibe' },
+    { emoji: '🗽', name: 'New York City', desc: 'The city that never sleeps.', kind: 'regional' },
+    { emoji: '🌴', name: 'Los Angeles', desc: 'West Coast vibes, sun and screens.', kind: 'regional' },
+    { emoji: '🌆', name: 'Chicago', desc: 'Chi-town. The Second City. Our kind of town.', kind: 'regional' },
+    { emoji: '🍑', name: 'Atlanta', desc: 'ATL forever.', kind: 'regional' },
+    { emoji: '🌍', name: 'Everywhere Else', desc: 'Not NYC, LA, Chicago, or ATL? This is your room.', kind: 'regional' },
+    { emoji: '🌙', name: 'Late Night', desc: 'For the night owls. No judgment.', kind: 'vibe' },
+    { emoji: '🛋️', name: 'Sunday Reset', desc: 'Prep, reflect, recharge. See you Monday.', kind: 'vibe' },
   ];
 
   function roomCard(room) {
@@ -523,7 +529,7 @@ function roomsBrowseMockup(w, h) {
             background: ${DESIGN.accent}18; border: 1px solid ${DESIGN.accent}33;
             border-radius: 999px; font-size: ${Math.round(w*0.022)}px;
             font-weight: 600; color: ${DESIGN.accentStrong};
-          ">${room.members.toLocaleString()} online</span>
+          ">${room.kind}</span>
         </div>
         <span style="
           display: block; margin-top: ${Math.round(w*0.008)}px;
@@ -566,7 +572,7 @@ function roomsBrowseMockup(w, h) {
         font-size: ${Math.round(w*0.024)}px; font-weight: 700; letter-spacing: 0.08em;
         text-transform: uppercase; color: ${DESIGN.inkFaint};
         margin-bottom: ${Math.round(w*0.02)}px;
-      ">All Rooms · ${rooms.length} active</div>
+      ">All rooms · ${rooms.length}</div>
       ${rooms.map(roomCard).join('')}
     </div>
   </div>
@@ -762,7 +768,15 @@ async function main() {
     console.log(`  Detected existing server at ${BASE_URL}`);
   }
 
-  const browser = await chromium.launch({ headless: true });
+  // PLAYWRIGHT_CHROMIUM_EXECUTABLE: use a system-provided Chromium instead of
+  // Playwright's downloaded revision (needed in sandboxed/CI environments where
+  // browser downloads are disabled and a pinned revision may be absent).
+  const browser = await chromium.launch({
+    headless: true,
+    ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
+      ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE }
+      : {}),
+  });
 
   const allResults = {};
 
