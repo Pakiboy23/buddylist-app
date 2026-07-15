@@ -90,7 +90,7 @@ Growth-plan GH-11 sets the **floor** at 3 founder posts/week. This plan runs at 
 |---|---|---|
 | **Screenname drop** (GH-04 — default CTA) | "I'm Pakiboy24 in the app — add me." / "Add me: Pakiboy24. Search it in the app." | Supabase: buddy requests to the founder's account in 72h post-post windows (baseline-audit §3.2-D, `public.buddies`) |
 | **Room-specific link** (strategy §7.1: every asset points into a specific room) | Self-reply: "Link below — head for the [room name] room when you land." + UTM link | Vercel UTM by `utm_content` (§3.2-C) |
-| **Store search** | "Search 'H.I.M.' on the App Store." (no link needed) | ASC App Store Search source bucket, directional (§3.2-A) |
+| **Store search** | "Search 'H.I.M. friends not dates' on the App Store." (no link needed) — **always the full distinctive phrase, never bare "H.I.M."** Brand-collision rule (2026-07-15): bare-term results are crowded by Hims and other HIM-named apps; the compound phrase matches our exact App Name. Prefer the hiitsme.app link CTA whenever a link slot is available. | ASC App Store Search source bucket, directional (§3.2-A) |
 
 Only the founder ever drops a screenname publicly, and only his own — claims #24: members are never asked to post theirs (framed opt-in always).
 
@@ -136,7 +136,7 @@ All copy ≤280 chars per tweet (Premium allows longer; we don't use it — shor
 >
 > That's the whole app. That's H.I.M.
 
-*Media: none, or a single real-UI screenshot of the rooms list. CTA (self-reply): "Search 'H.I.M.' on the App Store." Claims: #1, #4, #22.*
+*Media: none, or a single real-UI screenshot of the rooms list. CTA (self-reply): "Search 'H.I.M. friends not dates' on the App Store." Claims: #1, #4, #22.*
 
 ---
 
@@ -182,7 +182,7 @@ All copy ≤280 chars per tweet (Premium allows longer; we don't use it — shor
 >
 > DM-only. Buzz responsibly.
 
-*Media: screen recording of a Buzz between the founder's two test accounts — never a real member's DM (strategy §5.1: never publish DM content). Tone check per growth-plan: playful, never framed as pressure to respond or chasing someone who went quiet. CTA: "Search 'H.I.M.' on the App Store." Claims: #7.*
+*Media: screen recording of a Buzz between the founder's two test accounts — never a real member's DM (strategy §5.1: never publish DM content). Tone check per growth-plan: playful, never framed as pressure to respond or chasing someone who went quiet. CTA: "Search 'H.I.M. friends not dates' on the App Store." Claims: #7.*
 
 ---
 
@@ -288,7 +288,7 @@ All copy ≤280 chars per tweet (Premium allows longer; we don't use it — shor
 >
 > I'm told I can't say it "works offline," because the rest of the app still wants internet. Fine. It's "polite about tunnels."
 
-*Media: optional clip of a queued message sending on reconnect (founder's own accounts). The joke does the honest-phrasing work: claim #10's guidance verbatim, "works offline" explicitly disclaimed (DNC #12). CTA: "Search 'H.I.M.' on the App Store." Claims: #10.*
+*Media: optional clip of a queued message sending on reconnect (founder's own accounts). The joke does the honest-phrasing work: claim #10's guidance verbatim, "works offline" explicitly disclaimed (DNC #12). CTA: "Search 'H.I.M. friends not dates' on the App Store." Claims: #10.*
 
 ---
 
@@ -441,6 +441,7 @@ Weekly readout lands in `marketing/campaign-2026-q3/reporting/weekly-scorecard.m
 - Competitor names, in any register (brand brief §5)
 - The word "lonely" addressed at users (strategy §1.1 two-track rule)
 - ~~"The light's on."~~ — removed from this list: founder sign-off landed 2026-07-15; the line is approved and may close ship-logs
+- A bare "Search 'H.I.M.'" store CTA — always the full "H.I.M. friends not dates" phrase or the hiitsme.app link (brand-collision rule, §3.2: bare-term results are crowded by Hims and other HIM-named apps)
 - Fake UI, mocked-up activity, member content without logged consent, DM content in any form (brand brief §3; strategy §5.1)
 
 ## 9. Pre-publish checklist (every post, ~60 seconds)

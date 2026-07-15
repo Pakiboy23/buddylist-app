@@ -26,6 +26,12 @@ community,chat,rooms,buddy,lgbtq,queer,messenger,social,men,talk,group,penpal,pl
 
 Drops the name/subtitle duplicates (`gay`, `friends`, `friendship`) and `im,away,messaging`; adds `messenger,social,men,talk,group,penpal`. No dating vocabulary, no competitor names, no legacy-IM marks (standing exclusions, §1.3).
 
+**Optional — needs your sign-off: Variant C** swaps `penpal` → `hiitsme` (98/100) so anyone typing the domain token after hearing the name gets an exact match — mitigation for the crowded HIM/Hims search results (`channels/app-store-optimization.md` §1.3 Variant C). Paste Option A **or** Variant C, not both:
+
+```
+community,chat,rooms,buddy,lgbtq,queer,messenger,social,men,talk,group,hiitsme,platonic,screenname
+```
+
 ### Full Description (corrected — 4 edits vs the live listing)
 
 Edits applied: (1) 17+ → **18+** · (2) "full copy of your data whenever you want" → **"a copy of your data anytime"** · (3) deletion line loses the absolutism ("everything erased" → **"your account and your content are deleted"**) · (4) content-filter line now matches how the filter actually works (**"before recipients see them"**). Edits 1–2 were mandated by the baseline audit; 3–4 are the claims-register precision edits proposed in §1.4 — all four are included below; strike 3–4 before pasting if you disagree.
