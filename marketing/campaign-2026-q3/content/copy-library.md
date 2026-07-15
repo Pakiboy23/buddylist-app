@@ -166,7 +166,7 @@ Provenance is cited per line. **Existing** = already approved and in use (GTM ki
 | 6 | "No swiping. No radar. No grid." | Existing — READY | Claims register #22 phrasing guidance (long form: LD §A absence enumeration) |
 | 7 | "Status as self-expression, the way it used to be." | Existing — READY | LD §A full description |
 | 8 | "Small rooms. Real conversations." | Existing — READY | Claims register DNC #10 "what to say instead" column (register-approved phrasing) |
-| 9 | "Sign on. Say hi. Stay a while." | **New — SIGN-OFF** | Built from brand vocabulary ("sign on" — brand brief §4.8; the room-welcome "say hi" register — LD §E.3) |
+| 9 | "Sign on. Say hi. Stay a while." | **DECLINED** (founder, 2026-07-15) — do not use | Was built from brand vocabulary ("sign on" — brand brief §4.8; the room-welcome "say hi" register — LD §E.3); kept in the bank only as a record of the decision |
 | 10 | "The light's on." | **New — APPROVED** (founder sign-off 2026-07-15; brand brief §6 Tier 1) | Campaign line; pairs with the amber pip visual |
 
 Descriptive lines like "a room that's awake at 1am" (strategy §1.1, user-facing track) are caption copy built from claim #1, not taglines — usable in body copy without tagline sign-off, subject to normal claims discipline.
