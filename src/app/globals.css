@@ -2769,6 +2769,12 @@ html:not(.dark) .ui-room-tag[data-tone='ghost'] {
   box-shadow: none;
 }
 
+/* Presence unknown — neutral ring, no glow, no animation. */
+.presence-ring-unknown {
+  --tw-ring-color: rgba(156, 142, 130, 0.28) !important;
+  box-shadow: none;
+}
+
 .presence-dot-available {
   background: #4EC97A !important;
   box-shadow: 0 0 6px #4EC97A;

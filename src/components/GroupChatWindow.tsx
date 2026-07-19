@@ -280,6 +280,10 @@ export default function GroupChatWindow({
   }, [buddies, isInviting, roomId, selectedInviteIds]);
 
   const swipeBack = useSwipeBack({ onSwipeBack: handleBack });
+  const activeParticipantIds = useMemo(
+    () => new Set(participants.map((participant) => participant.userId)),
+    [participants],
+  );
   const [isSending, setIsSending] = useState(false);
   const [hasLiveMessageSinceOpen, setHasLiveMessageSinceOpen] = useState(false);
   const [typingMap, setTypingMap] = useState<Record<string, string>>({});
@@ -1593,6 +1597,7 @@ export default function GroupChatWindow({
                       <ProfileAvatar
                         screenname={senderName}
                         buddyIconPath={buddyIconMap[message.user_id] ?? null}
+                        presenceState={activeParticipantIds.has(message.user_id) ? 'available' : null}
                         tone="slate"
                         size="sm"
                         className="mb-1"
