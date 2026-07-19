@@ -280,6 +280,18 @@ export default function GroupChatWindow({
   }, [buddies, isInviting, roomId, selectedInviteIds]);
 
   const swipeBack = useSwipeBack({ onSwipeBack: handleBack });
+  // Only presence-synced entries carry a non-null onlineAt; the invite flow
+  // optimistically appends invitees with onlineAt: null, and those must not
+  // light up as "actively in the room".
+  const activeParticipantIds = useMemo(
+    () =>
+      new Set(
+        participants
+          .filter((participant) => participant.onlineAt !== null)
+          .map((participant) => participant.userId),
+      ),
+    [participants],
+  );
   const [isSending, setIsSending] = useState(false);
   const [hasLiveMessageSinceOpen, setHasLiveMessageSinceOpen] = useState(false);
   const [typingMap, setTypingMap] = useState<Record<string, string>>({});
@@ -1593,6 +1605,7 @@ export default function GroupChatWindow({
                       <ProfileAvatar
                         screenname={senderName}
                         buddyIconPath={buddyIconMap[message.user_id] ?? null}
+                        presenceState={activeParticipantIds.has(message.user_id) ? 'available' : null}
                         tone="slate"
                         size="sm"
                         className="mb-1"
