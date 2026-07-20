@@ -10,6 +10,7 @@ import type { OutboxItem } from '@/lib/outbox';
 import { getJSON, setJSON } from '@/lib/clientStorage';
 import { hapticLight, hapticSuccess, hapticWarning } from '@/lib/haptics';
 import { sendOrAcceptBuddyRequest, type BuddyRequestStatus } from '@/lib/buddyRequest';
+import { countSeenByOthers, formatSeenByLabel } from '@/lib/roomReadReceipts';
 import { useKeyboardViewport } from '@/hooks/useKeyboardViewport';
 import { useSwipeBack } from '@/hooks/useSwipeBack';
 import {
@@ -221,6 +222,7 @@ export default function GroupChatWindow({
   const [inviteError, setInviteError] = useState<string | null>(null);
 
   const [rosterMembers, setRosterMembers] = useState<RosterMember[]>([]);
+  const [memberLastSeenById, setMemberLastSeenById] = useState<Record<string, string>>({});
   const [isRosterInitialLoading, setIsRosterInitialLoading] = useState(true);
   const rosterLoadedOnceRef = useRef(false);
   const [rosterProfileId, setRosterProfileId] = useState<string | null>(null);
@@ -280,6 +282,21 @@ export default function GroupChatWindow({
   }, [buddies, isInviting, roomId, selectedInviteIds]);
 
   const swipeBack = useSwipeBack({ onSwipeBack: handleBack });
+  const lastOwnMessage = useMemo(() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      if (messages[index].user_id === currentUserId) {
+        return messages[index];
+      }
+    }
+    return null;
+  }, [currentUserId, messages]);
+  const lastOwnMessageSeenLabel = useMemo(
+    () =>
+      lastOwnMessage
+        ? formatSeenByLabel(countSeenByOthers(memberLastSeenById, currentUserId, lastOwnMessage.created_at))
+        : null,
+    [currentUserId, lastOwnMessage, memberLastSeenById],
+  );
   // Only presence-synced entries carry a non-null onlineAt; the invite flow
   // optimistically appends invitees with onlineAt: null, and those must not
   // light up as "actively in the room".
@@ -490,13 +507,19 @@ export default function GroupChatWindow({
 
   const loadRoster = useCallback(async () => {
     const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    // Full membership (no cutoff): rosterMembers keeps the 5-minute "active"
+    // window, while the complete last_seen_at map powers "Seen by" counts on
+    // own messages.
     const { data } = await supabase
       .from('room_memberships')
       .select('user_id, last_seen_at')
       .eq('room_id', roomId)
-      .gte('last_seen_at', cutoff)
       .order('last_seen_at', { ascending: false });
-    const rows = (data ?? []) as RosterMember[];
+    const allRows = (data ?? []) as RosterMember[];
+    setMemberLastSeenById(
+      Object.fromEntries(allRows.map((row) => [row.user_id, row.last_seen_at])),
+    );
+    const rows = allRows.filter((row) => row.last_seen_at >= cutoff);
     setRosterMembers(rows);
     void ensureScreennames(rows.map((r) => r.user_id));
     if (!rosterLoadedOnceRef.current) {
@@ -733,6 +756,9 @@ export default function GroupChatWindow({
       (payload) => {
         const row = payload.new as { room_id?: string; user_id?: string; last_seen_at?: string };
         if (row.room_id !== roomId || !row.user_id || !row.last_seen_at) return;
+        setMemberLastSeenById((prev) =>
+          prev[row.user_id!] === row.last_seen_at ? prev : { ...prev, [row.user_id!]: row.last_seen_at! },
+        );
         const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
         setRosterMembers((prev) => {
           const next = prev.filter((m) => m.user_id !== row.user_id);
@@ -752,6 +778,12 @@ export default function GroupChatWindow({
         const row = payload.old as { room_id?: string; user_id?: string };
         if (row.room_id !== roomId) return;
         setRosterMembers((prev) => prev.filter((m) => m.user_id !== row.user_id));
+        setMemberLastSeenById((prev) => {
+          if (!row.user_id || !(row.user_id in prev)) return prev;
+          const next = { ...prev };
+          delete next[row.user_id];
+          return next;
+        });
       },
     );
 
@@ -1703,6 +1735,12 @@ export default function GroupChatWindow({
                                   dangerouslySetInnerHTML={{ __html: richTextPresentation.html }}
                                 />
                               </div>
+
+                              {isMine && message.id === lastOwnMessage?.id && lastOwnMessageSeenLabel ? (
+                                <p className="mb-1.5 pr-1 text-right text-[10px] font-medium uppercase tracking-[0.12em] text-slate-400">
+                                  {lastOwnMessageSeenLabel}
+                                </p>
+                              ) : null}
 
                               <div
                                 data-swipe-ignore="true"

@@ -7712,7 +7712,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Share read receipts</p>
-                    <p className="text-[11px] text-slate-400">Let buddies know when you have read their messages.</p>
+                    <p className="text-[11px] text-slate-400">Let buddies see when you&rsquo;ve read their messages. When off, you also won&rsquo;t see when buddies read yours.</p>
                   </div>
                   <button
                     type="button"
