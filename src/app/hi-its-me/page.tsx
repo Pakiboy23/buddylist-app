@@ -3335,7 +3335,26 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       }
 
       const leftUserId = typeof payload.key === 'string' ? payload.key : '';
-      if (!leftUserId || leftUserId === userId || !acceptedBuddyIdsRef.current.has(leftUserId)) {
+      if (!leftUserId || leftUserId === userId) {
+        return;
+      }
+
+      // We just watched this buddy go offline, so "last seen" is right now.
+      // Their stored last_active_at is stale by design (heartbeat-only writes
+      // are dropped by the users-UPDATE handler to avoid re-rendering the
+      // whole list every minute), so stamp the row at the moment it matters —
+      // the offline row is what displays "Last active".
+      const leftAtIso = new Date().toISOString();
+      setBuddyRows((previous) => {
+        if (!previous.some((buddy) => buddy.id === leftUserId)) {
+          return previous;
+        }
+        return previous.map((buddy) =>
+          buddy.id === leftUserId ? { ...buddy, last_active_at: leftAtIso } : buddy,
+        );
+      });
+
+      if (!acceptedBuddyIdsRef.current.has(leftUserId)) {
         return;
       }
 
@@ -4054,6 +4073,20 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     autoAwayTriggeredRef.current = false;
     let didCompleteSignOut = false;
     try {
+      // Best-effort final presence stamp so buddies see an accurate
+      // "Last active" after we disappear — the activity heartbeat is
+      // throttled to one write per minute, so without this the stored
+      // value can lag the true sign-off moment.
+      if (userId) {
+        try {
+          await supabase
+            .from('users')
+            .update({ last_active_at: new Date().toISOString() })
+            .eq('id', userId);
+        } catch {
+          // Never block sign-off on a failed stamp.
+        }
+      }
       const activePresenceChannel = presenceChannelRef.current;
       if (activePresenceChannel) {
         await activePresenceChannel.untrack();
