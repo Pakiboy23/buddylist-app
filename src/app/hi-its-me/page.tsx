@@ -88,6 +88,7 @@ import {
 import { hapticLight, hapticWarning, hapticSelection } from '@/lib/haptics';
 import { initSoundSystem, playFallbackTone, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
+import { upsertOwnProfileWithRepair } from '@/lib/profileRepair';
 import { normalizeRoomKey, sameRoom } from '@/lib/roomName';
 import { htmlToPlainText } from '@/lib/richText';
 import {
@@ -2940,28 +2941,37 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         is_online: true,
       };
 
+      let appliedProfilePayload: Record<string, unknown> = bootstrapProfilePayload;
       let { error: upsertError } = await supabase.from('users').upsert(bootstrapProfilePayload, {
         onConflict: 'id',
       });
 
       if (isProfileSchemaMissingError(upsertError)) {
         markProfileSchemaUnavailable(upsertError);
-        ({ error: upsertError } = await supabase.from('users').upsert(
-          {
-            id: session.user.id,
-            email: userEmail,
-            screenname: metadataScreenname || resolvedScreenname,
-            status: resolvedStatusState.status,
-            away_message: resolvedStatusState.awayMessage || null,
-            status_msg: resolvedStatusState.statusMessage,
-            is_online: true,
-          },
-          { onConflict: 'id' },
-        ));
+        appliedProfilePayload = {
+          id: session.user.id,
+          email: userEmail,
+          screenname: metadataScreenname || resolvedScreenname,
+          status: resolvedStatusState.status,
+          away_message: resolvedStatusState.awayMessage || null,
+          status_msg: resolvedStatusState.statusMessage,
+          is_online: true,
+        };
+        ({ error: upsertError } = await supabase
+          .from('users')
+          .upsert(appliedProfilePayload, { onConflict: 'id' }));
       }
 
       if (upsertError) {
-        console.error('Failed to sync profile:', upsertError.message);
+        // This upsert is the only thing that (re)creates a missing profile
+        // row. If it keeps failing (e.g. an orphaned row from a half-finished
+        // account deletion holds this screenname/email), every FK to
+        // users(id) breaks: buddy requests, room joins, discoverability.
+        // Repair server-side and retry instead of just logging.
+        const repairOutcome = await upsertOwnProfileWithRepair(appliedProfilePayload);
+        if (repairOutcome.error) {
+          console.error('Failed to sync profile:', repairOutcome.error.message);
+        }
       }
 
       setUserId(session.user.id);
