@@ -88,6 +88,7 @@ import {
 import { hapticLight, hapticWarning, hapticSelection } from '@/lib/haptics';
 import { initSoundSystem, playFallbackTone, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
+import { upsertOwnProfileWithRepair } from '@/lib/profileRepair';
 import { normalizeRoomKey, sameRoom } from '@/lib/roomName';
 import { htmlToPlainText } from '@/lib/richText';
 import {
@@ -974,6 +975,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   const [profileSheetError, setProfileSheetError] = useState<string | null>(null);
   const [profileSheetFeedback, setProfileSheetFeedback] = useState<string | null>(null);
   const [showSystemStatusSheet, setShowSystemStatusSheet] = useState(false);
+  const [profileSyncError, setProfileSyncError] = useState<string | null>(null);
   const [buddyActivityToasts, setBuddyActivityToasts] = useState<BuddyActivityToast[]>([]);
 
   const [showRoomsWindow, setShowRoomsWindow] = useState(false);
@@ -2940,28 +2942,42 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         is_online: true,
       };
 
+      let appliedProfilePayload: Record<string, unknown> = bootstrapProfilePayload;
       let { error: upsertError } = await supabase.from('users').upsert(bootstrapProfilePayload, {
         onConflict: 'id',
       });
 
       if (isProfileSchemaMissingError(upsertError)) {
         markProfileSchemaUnavailable(upsertError);
-        ({ error: upsertError } = await supabase.from('users').upsert(
-          {
-            id: session.user.id,
-            email: userEmail,
-            screenname: metadataScreenname || resolvedScreenname,
-            status: resolvedStatusState.status,
-            away_message: resolvedStatusState.awayMessage || null,
-            status_msg: resolvedStatusState.statusMessage,
-            is_online: true,
-          },
-          { onConflict: 'id' },
-        ));
+        appliedProfilePayload = {
+          id: session.user.id,
+          email: userEmail,
+          screenname: metadataScreenname || resolvedScreenname,
+          status: resolvedStatusState.status,
+          away_message: resolvedStatusState.awayMessage || null,
+          status_msg: resolvedStatusState.statusMessage,
+          is_online: true,
+        };
+        ({ error: upsertError } = await supabase
+          .from('users')
+          .upsert(appliedProfilePayload, { onConflict: 'id' }));
       }
 
       if (upsertError) {
-        console.error('Failed to sync profile:', upsertError.message);
+        // This upsert is the only thing that (re)creates a missing profile
+        // row. If it keeps failing (e.g. an orphaned row from a half-finished
+        // account deletion holds this screenname/email), every FK to
+        // users(id) breaks: buddy requests, room joins, discoverability.
+        // Repair server-side and retry instead of just logging.
+        const repairOutcome = await upsertOwnProfileWithRepair(appliedProfilePayload);
+        if (repairOutcome.error) {
+          console.error('Failed to sync profile:', repairOutcome.error.message);
+          setProfileSyncError(repairOutcome.error.message ?? 'Profile sync failed.');
+        } else {
+          setProfileSyncError(null);
+        }
+      } else {
+        setProfileSyncError(null);
       }
 
       setUserId(session.user.id);
@@ -5750,7 +5766,11 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     return outboxItems.filter((item) => item.type === 'room' && item.targetId === activeRoomId);
   }, [activeRoomId, outboxItems]);
   const shouldShowSystemStatusChip =
-    syncState === 'hydrating' || syncState === 'syncing' || syncState === 'error' || pendingOutboxCount > 0;
+    syncState === 'hydrating' ||
+    syncState === 'syncing' ||
+    syncState === 'error' ||
+    pendingOutboxCount > 0 ||
+    Boolean(profileSyncError);
   const isConversationOverlayOpen = Boolean(activeChatBuddy || activeRoom);
   const activeTab =
     showAwayModal || showPrivacySheet
@@ -6404,19 +6424,21 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                         >
                           <div className="flex min-w-0 items-center gap-1.5">
                             <span className={`h-1.5 w-1.5 rounded-full ${
-                              syncState === 'error' ? 'bg-red-400' :
+                              profileSyncError || syncState === 'error' ? 'bg-red-400' :
                               isChatSyncBusy ? 'bg-amber-400 animate-pulse' :
                               pendingOutboxCount > 0 ? 'bg-[#E8A23A]' :
                               'bg-emerald-400'
                             }`} />
                             <span className="truncate">
-                              {syncState === 'error'
-                                ? 'Sync issue'
-                                : isChatSyncBusy
-                                  ? chatSyncSummary
-                                  : pendingOutboxCount > 0
-                                    ? outboxSummary
-                                    : 'System status'}
+                              {profileSyncError
+                                ? 'Profile sync issue'
+                                : syncState === 'error'
+                                  ? 'Sync issue'
+                                  : isChatSyncBusy
+                                    ? chatSyncSummary
+                                    : pendingOutboxCount > 0
+                                      ? outboxSummary
+                                      : 'System status'}
                             </span>
                           </div>
                           <span className="shrink-0 rounded-full border border-white/70 bg-white/80 px-2 py-0.5 text-[10px] font-semibold text-slate-500 dark:border-slate-700 dark:bg-[#0F1424]/70 dark:text-slate-300">
@@ -7619,6 +7641,16 @@ const [showAddWindow, setShowAddWindow] = useState(false);
             </div>
 
             <div className="space-y-3 px-5 pb-2">
+              {profileSyncError ? (
+                <div className="ui-panel-card rounded-2xl px-3.5 py-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Profile</p>
+                  <p className="mt-1 text-[14px] font-semibold text-slate-800 dark:text-slate-100">Profile sync failed</p>
+                  <p className="ui-note-error mt-2">{profileSyncError}</p>
+                  <p className="mt-1 text-[12px] text-slate-500">
+                    Buddy requests and room joins may not work until this clears. It retries automatically each time you sign on.
+                  </p>
+                </div>
+              ) : null}
               <div className="ui-panel-card rounded-2xl px-3.5 py-3">
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Sync</p>
                 <p className="mt-1 text-[14px] font-semibold text-slate-800 dark:text-slate-100">{chatSyncSummary}</p>

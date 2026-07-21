@@ -10,6 +10,7 @@ import { navigateAppPath } from '@/lib/appNavigation';
 import { CONSENT_ERROR_MESSAGES, validateSignupConsent } from '@/lib/signupConsent';
 import { initSoundSystem, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
+import { upsertOwnProfileWithRepair } from '@/lib/profileRepair';
 import { logSecurityEvent } from '@/lib/securityEvent';
 
 const SIGN_ON_SOUND = '/sounds/aol-welcome.mp3';
@@ -193,19 +194,30 @@ export default function Home() {
 
       if (data.session) {
         const consentTimestamp = new Date().toISOString();
-        await supabase.from('users').upsert(
-          {
-            id: data.session.user.id,
-            email: trimmedEmail,
-            screenname: trimmedScreenname,
-            status: 'available',
-            is_online: true,
-            last_active_at: consentTimestamp,
-            age_confirmed_at: consentTimestamp,
-            art9_consent_at: consentTimestamp,
-          },
-          { onConflict: 'id' },
-        );
+        // A failed profile insert here strands the account: auth exists, but
+        // every FK to users(id) breaks. Repair + retry, and surface failure.
+        const profileOutcome = await upsertOwnProfileWithRepair({
+          id: data.session.user.id,
+          email: trimmedEmail,
+          screenname: trimmedScreenname,
+          status: 'available',
+          is_online: true,
+          last_active_at: consentTimestamp,
+          age_confirmed_at: consentTimestamp,
+          art9_consent_at: consentTimestamp,
+        });
+        if (profileOutcome.error) {
+          // Don't march the user into a broken account: without a users row,
+          // buddy requests and room joins all fail with FK errors. The auth
+          // account exists, so signing on again retries the repair.
+          console.error('Signup profile creation failed:', profileOutcome.error.message);
+          setStatusMsg(
+            'Account created, but profile setup did not finish. Sign on with your new screen name to retry.',
+          );
+          isCompletingSignUpProtectionRef.current = false;
+          setIsLoading(false);
+          return;
+        }
         logSecurityEvent({ event_type: 'auth.signup.success', user_id: data.session.user.id, outcome: 'success', metadata: { screenname: trimmedScreenname } });
         isCompletingSignUpProtectionRef.current = false;
         setStatusMsg('Account created. Opening H.I.M....');
