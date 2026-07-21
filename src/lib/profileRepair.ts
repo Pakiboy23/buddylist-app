@@ -35,13 +35,21 @@ export async function upsertOwnProfileWithRepair(
     return { error: first.error, repaired: false };
   }
 
-  // Retry WITHOUT the unique identity fields: the RPC already set email and
-  // screenname (possibly suffixed when a live account holds the name), and
-  // re-applying the originals would recreate the exact collision that broke
-  // the first upsert.
+  // After a successful RPC the row is guaranteed to exist ('exists' or
+  // 'repaired'), so retry as a plain UPDATE — and WITHOUT the unique identity
+  // fields: the RPC already set email and screenname (possibly suffixed when
+  // a live account holds the name), and re-applying the originals would
+  // recreate the exact collision that broke the first upsert. An upsert can't
+  // do this: PostgREST evaluates the INSERT arm first, so omitting the
+  // NOT NULL email fails even when the UPDATE arm would apply (seen in prod
+  // as "null value in column \"email\"").
   const retryPayload: Record<string, unknown> = { ...payload };
+  delete retryPayload.id;
   delete retryPayload.screenname;
   delete retryPayload.email;
-  const second = await supabase.from('users').upsert(retryPayload, { onConflict: 'id' });
+  const second = await supabase
+    .from('users')
+    .update(retryPayload)
+    .eq('id', payload.id as string);
   return { error: second.error, repaired: !second.error };
 }
