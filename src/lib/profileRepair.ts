@@ -35,6 +35,13 @@ export async function upsertOwnProfileWithRepair(
     return { error: first.error, repaired: false };
   }
 
-  const second = await supabase.from('users').upsert(payload, { onConflict: 'id' });
+  // Retry WITHOUT the unique identity fields: the RPC already set email and
+  // screenname (possibly suffixed when a live account holds the name), and
+  // re-applying the originals would recreate the exact collision that broke
+  // the first upsert.
+  const retryPayload: Record<string, unknown> = { ...payload };
+  delete retryPayload.screenname;
+  delete retryPayload.email;
+  const second = await supabase.from('users').upsert(retryPayload, { onConflict: 'id' });
   return { error: second.error, repaired: !second.error };
 }

@@ -1,1 +1,0 @@
-import{s as r}from"./index-iSuepAbh.js";async function a(e){const o=await r.from("users").upsert(e,{onConflict:"id"});if(!o.error)return{error:null,repaired:!1};const{error:s}=await r.rpc("repair_own_profile");if(s)return{error:o.error,repaired:!1};const i=await r.from("users").upsert(e,{onConflict:"id"});return{error:i.error,repaired:!i.error}}export{a as u};

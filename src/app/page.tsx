@@ -207,7 +207,16 @@ export default function Home() {
           art9_consent_at: consentTimestamp,
         });
         if (profileOutcome.error) {
+          // Don't march the user into a broken account: without a users row,
+          // buddy requests and room joins all fail with FK errors. The auth
+          // account exists, so signing on again retries the repair.
           console.error('Signup profile creation failed:', profileOutcome.error.message);
+          setStatusMsg(
+            'Account created, but profile setup did not finish. Sign on with your new screen name to retry.',
+          );
+          isCompletingSignUpProtectionRef.current = false;
+          setIsLoading(false);
+          return;
         }
         logSecurityEvent({ event_type: 'auth.signup.success', user_id: data.session.user.id, outcome: 'success', metadata: { screenname: trimmedScreenname } });
         isCompletingSignUpProtectionRef.current = false;

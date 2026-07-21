@@ -43,6 +43,18 @@ describe('upsertOwnProfileWithRepair', () => {
     expect(result).toEqual({ error: null, repaired: true });
   });
 
+  it('retries without the unique identity fields so the RPC-chosen screenname survives', async () => {
+    upsertMock.mockResolvedValueOnce({ error: FK_ERROR }).mockResolvedValueOnce({ error: null });
+    rpcMock.mockResolvedValueOnce({ error: null });
+
+    await upsertOwnProfileWithRepair({ ...PAYLOAD, email: 'pakiboy24@hiitsme.app', status: 'available' });
+
+    const retryPayload = upsertMock.mock.calls[1][0];
+    expect(retryPayload).not.toHaveProperty('screenname');
+    expect(retryPayload).not.toHaveProperty('email');
+    expect(retryPayload).toMatchObject({ id: 'user-1', status: 'available' });
+  });
+
   it('reports the original error when the repair RPC is unavailable', async () => {
     upsertMock.mockResolvedValueOnce({ error: FK_ERROR });
     rpcMock.mockResolvedValueOnce({ error: { message: 'function does not exist' } });
