@@ -23,6 +23,13 @@ import { humanizeDbError } from '@/lib/friendlyError';
 import { getAppApiUrl, getEdgeFunctionUrl } from '@/lib/appApi';
 import { navigateAppPath, replaceAppPathInPlace, useAppRouter } from '@/lib/appNavigation';
 import {
+  buildHiItsMePath,
+  HI_ITS_ME_PATH,
+  normalizeShellSection,
+  SHELL_SECTION_QUERY_KEY,
+  type ShellSection,
+} from '@/lib/shellNavigation';
+import {
   aggregateBuddyRelationships,
   type BuddyRelationshipRecord,
 } from '@/lib/buddyRelationships';
@@ -89,7 +96,7 @@ import { hapticLight, hapticWarning, hapticSelection } from '@/lib/haptics';
 import { initSoundSystem, playFallbackTone, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
 import { upsertOwnProfileWithRepair } from '@/lib/profileRepair';
-import { normalizeRoomKey, sameRoom } from '@/lib/roomName';
+import { normalizeRoomKey } from '@/lib/roomName';
 import { htmlToPlainText } from '@/lib/richText';
 import {
   DEFAULT_USER_PRIVACY_SETTINGS,
@@ -175,7 +182,6 @@ interface Buddy {
 }
 
 type BuddySortMode = 'online_then_alpha' | 'alpha' | 'recent_activity';
-type ShellSection = 'profile' | 'im' | 'chat' | 'buddy';
 
 interface PendingRequest {
   senderId: string;
@@ -276,8 +282,6 @@ const BUDDY_SIGN_OFF_SOUND = '/sounds/door_slam.mp3';
 const BUDDY_GOING_AWAY_SOUND = '/sounds/door_slam.mp3';
 const INCOMING_MESSAGE_SOUND = '/sounds/im_receive.mp3';
 const NEW_MESSAGE_SOUND = '/sounds/aim-instant-message.mp3';
-const HI_ITS_ME_PATH = '/hi-its-me';
-const SHELL_SECTION_QUERY_KEY = 'tab';
 const AVAILABLE_STATUS = 'Available';
 const AWAY_STATUS = 'Away';
 const KNOWN_STATUSES = ['Available', 'Away', 'Invisible', 'Busy', 'Be Right Back'] as const;
@@ -310,32 +314,6 @@ const DEFAULT_AWAY_PRESETS: AwayPreset[] = [
   { id: 'cooking', label: 'Cooking', message: "cooking. don't talk to me until there is food", builtIn: true },
   { id: 'snacks', label: 'Snacks', message: 'do not disturb unless you are bringing snacks', builtIn: true },
 ];
-
-function normalizeShellSection(value: string | null | undefined): ShellSection {
-  return value === 'im' || value === 'chat' || value === 'buddy' || value === 'profile' ? value : 'profile';
-}
-
-function buildHiItsMePath(options: {
-  section?: ShellSection;
-  roomName?: string | null;
-  dmBuddyId?: string | null;
-} = {}) {
-  const params = new URLSearchParams();
-  const section = options.section ?? 'profile';
-
-  if (section !== 'profile') {
-    params.set(SHELL_SECTION_QUERY_KEY, section);
-  }
-  if (options.roomName) {
-    params.set('room', options.roomName);
-  }
-  if (options.dmBuddyId) {
-    params.set('dm', options.dmBuddyId);
-  }
-
-  const query = params.toString();
-  return query ? `${HI_ITS_ME_PATH}?${query}` : HI_ITS_ME_PATH;
-}
 
 interface UiDraftState {
   dm: Record<string, string>;
@@ -845,7 +823,7 @@ const DirectMessageRow = memo(function DirectMessageRow({
           </div>
           <p className="truncate text-[11px] text-slate-400" title={recentActivity?.message || presenceDetail}>
             {isTypingActive ? (
-              <span className="italic text-[var(--rose)]">typing…</span>
+              <span className="font-medium text-[var(--rose)]">typing…</span>
             ) : (
               lastMessagePreview || presenceDetail
             )}
@@ -903,7 +881,6 @@ function HiItsMeContent() {
   const [isAutoAwayEnabled, setIsAutoAwayEnabled] = useState(true);
   const [autoAwayMinutes, setAutoAwayMinutes] = useState<number>(10);
   const [autoReturnOnActivity, setAutoReturnOnActivity] = useState(true);
-  const [awaySinceAt, setAwaySinceAt] = useState<string | null>(null);
   const [awayModalError, setAwayModalError] = useState<string | null>(null);
   const [isProfileSchemaUnavailable, setIsProfileSchemaUnavailable] = useState(false);
   const [isSavingAwayMessage, setIsSavingAwayMessage] = useState(false);
@@ -966,7 +943,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   const [isRemovingBuddyId, setIsRemovingBuddyId] = useState<string | null>(null);
   const [isBlockingBuddyId, setIsBlockingBuddyId] = useState<string | null>(null);
   const [isReportingBuddyId, setIsReportingBuddyId] = useState<string | null>(null);
-  const [bodyShellSection, setBodyShellSection] = useState<ShellSection>('profile');
+  const [bodyShellSection, setBodyShellSection] = useState<ShellSection>('im');
   const [chatSubSection, setChatSubSection] = useState<'rooms' | 'browse' | 'search'>('rooms');
   const [isDiscoverable, setIsDiscoverable] = useState(true);
   const [isSavingDiscoverable, setIsSavingDiscoverable] = useState(false);
@@ -1076,7 +1053,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     };
   }, []);
   const {
-    activeRooms,
     joinedRooms,
     unreadMessages,
     joinRoom,
@@ -1701,15 +1677,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     },
     [userId],
   );
-
-  const parseRoomTags = useCallback((roomName: string) => {
-    const tokens = roomName
-      .toLowerCase()
-      .split(/[^a-z0-9]+/)
-      .filter(Boolean);
-    const allowed = ['30s', 'city', 'single', 'divorced', 'late-night', 'music', 'parents', 'local'];
-    return allowed.filter((tag) => tokens.includes(tag.replace('-', '')) || roomName.toLowerCase().includes(tag)).slice(0, 3);
-  }, []);
 
   const upsertConversationPreference = useCallback(
     async (
@@ -2999,7 +2966,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       setLastActiveAt(existingProfile?.last_active_at ?? new Date().toISOString());
       lastActivityAtRef.current = Date.now();
       lastPresenceWriteAtRef.current = Date.now();
-      setAwaySinceAt(resolvedStatusState.status === AWAY_STATUS ? new Date().toISOString() : null);
 
       let adminFlag = false;
       if (session.access_token && !isNativeIosShell()) {
@@ -3297,9 +3263,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
             setStatusMsg(resolvedStatusState.statusMessage);
             setUserStatus(resolvedStatusState.status);
             setAwayMessage(resolvedStatusState.awayMessage);
-            setAwaySinceAt((previous) =>
-              resolvedStatusState.status === AWAY_STATUS ? previous ?? new Date().toISOString() : null,
-            );
           }
         }
       })
@@ -4067,7 +4030,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     setIsUiCacheHydrated(false);
     setDraftCache({ dm: {}, rooms: {} });
     setAwayReplyCooldowns({});
-    setAwaySinceAt(null);
     setIdleSinceAt(null);
     setLastActiveAt(null);
     setShowAwayModal(false);
@@ -4183,9 +4145,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         setIdleSinceAt(null);
         setLastActiveAt(nowIso);
         lastPresenceWriteAtRef.current = Date.now();
-        setAwaySinceAt((previous) =>
-          normalizedStatus === AWAY_STATUS ? previous ?? new Date().toISOString() : null,
-        );
         if (!wasAway && normalizedStatus === AWAY_STATUS) {
           playSound(BUDDY_GOING_AWAY_SOUND);
         } else if (wasAway && normalizedStatus !== AWAY_STATUS) {
@@ -4214,9 +4173,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       setIdleSinceAt(null);
       setLastActiveAt(nowIso);
       lastPresenceWriteAtRef.current = Date.now();
-      setAwaySinceAt((previous) =>
-        normalizedStatus === AWAY_STATUS ? previous ?? new Date().toISOString() : null,
-      );
       if (!wasAway && normalizedStatus === AWAY_STATUS) {
         playSound(BUDDY_GOING_AWAY_SOUND);
       } else if (wasAway && normalizedStatus !== AWAY_STATUS) {
@@ -4472,7 +4428,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
 
   const handleImBack = useCallback(() => {
     autoAwayTriggeredRef.current = false;
-    setAwaySinceAt(null);
     void updateStatus(AVAILABLE_STATUS, null);
   }, [updateStatus]);
 
@@ -5662,7 +5617,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     if (activeRoom) {
       replaceAppPathInPlace(buildHiItsMePath({ section: 'chat', roomName: activeRoom.slug }));
     } else {
-      replaceAppPathInPlace(buildHiItsMePath({ section: bodyShellSection === 'profile' ? 'im' : bodyShellSection }));
+      replaceAppPathInPlace(buildHiItsMePath({ section: bodyShellSection }));
     }
   }, [activeRoom, bodyShellSection]);
 
@@ -5710,7 +5665,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     focusMainShellSection('chat');
   }, [focusMainShellSection]);
 
-  const isCurrentUserAway = currentUserPresenceState === 'away';
   const isCurrentUserIdle = currentUserPresenceState === 'idle';
   const activePendingRequest = pendingRequests[0] ?? null;
   const activeChatBuddyPresenceSummary = activeChatBuddy ? getBuddyPresenceSummary(activeChatBuddy) : null;
@@ -5773,8 +5727,10 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     Boolean(profileSyncError);
   const isConversationOverlayOpen = Boolean(activeChatBuddy || activeRoom);
   const activeTab =
-    showAwayModal || showPrivacySheet
+    showPrivacySheet || (showAwayModal && awayModalMode === 'profile')
       ? 'profile'
+      : showAwayModal
+        ? 'im'
       : Boolean(activeRoom)
         ? 'chat'
         : bodyShellSection;
@@ -5893,7 +5849,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       isAdminResetOpen ||
       showAwayModal ||
       isHeaderMenuOpen ||
-      bodyShellSection !== 'profile',
+      bodyShellSection !== 'im',
   );
   const nativeShellShowsBottomChrome = !isConversationOverlayOpen;
   const shellIsDark = isDark || (typeof document !== 'undefined' && document.documentElement.classList.contains('dark'));
@@ -5910,14 +5866,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
             : (['toggleTheme', 'openMenu'] as const),
     [bodyShellSection, nativeShellMode],
   );
-  const nativeShellAccentTone =
-    activeRoom || bodyShellSection === 'chat'
-      ? 'violet'
-      : bodyShellSection === 'buddy'
-        ? 'emerald'
-        : bodyShellSection === 'profile'
-          ? 'slate'
-          : 'blue';
+  const nativeShellAccentTone = 'amber' as const;
   const headerActionButtonClass =
     'ui-focus-ring ui-window-header-button min-h-[40px] px-3 text-[11px] font-semibold';
 
@@ -6101,8 +6050,8 @@ const [showAddWindow, setShowAddWindow] = useState(false);
           handleBackFromRoom();
           return;
         }
-        if (bodyShellSection !== 'profile') {
-          focusMainShellSection('profile');
+        if (bodyShellSection !== 'im') {
+          focusMainShellSection('im');
         }
         return;
       default:
@@ -6231,7 +6180,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
             </button>
           </>
         )}
-        onXpClose={bodyShellSection !== 'profile' ? () => focusMainShellSection('profile') : undefined}
+        onXpClose={bodyShellSection !== 'im' ? () => focusMainShellSection('im') : undefined}
         onXpSignOff={() => setIsHeaderMenuOpen((previous) => !previous)}
       >
         <div
@@ -6353,7 +6302,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                           <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-400">{currentUserPresenceDetail}</p>
                         ) : null}
                         {profileBio ? (
-                          <p className="mt-2 text-[11px] italic text-slate-400 dark:text-slate-400">{profileBio}</p>
+                          <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-400">{profileBio}</p>
                         ) : null}
                         <p className="mt-2 text-[10px] font-semibold text-slate-400 dark:text-slate-500">
                           {buddyIconPath ? 'Tap your avatar to change your photo.' : 'Tap your avatar to add a profile photo.'}
@@ -6474,11 +6423,17 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                         ) : null}
                       </div>
                       <form onSubmit={handleSearch} className="mt-3 flex gap-2">
+                        <label htmlFor="find-buddies-input" className="sr-only">Search screen names</label>
                         <input
+                          id="find-buddies-input"
+                          type="search"
                           value={searchTerm}
                           onChange={(event) => setSearchTerm(event.target.value)}
                           className={xpModalInputClass}
                           placeholder="Search screen names..."
+                          autoComplete="off"
+                          autoCapitalize="none"
+                          autoCorrect="off"
                         />
                         <button
                           type="submit"
@@ -6493,10 +6448,10 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                       {(isSearching || searchTerm.trim() !== '' || searchResults.length > 0) ? (
                         <div className="mt-3 max-h-56 overflow-y-auto rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-[inset_0_1px_1px_rgba(15,23,42,0.05)] dark:border-slate-700 dark:bg-[#0F1424]/50">
                           {isSearching ? (
-                            <p className="p-2 text-sm italic text-slate-500">Searching screen names...</p>
+                            <p className="p-2 text-sm text-slate-500">Searching screen names...</p>
                           ) : null}
                           {!isSearching && searchTerm.trim() !== '' && searchResults.length === 0 ? (
-                            <p className="p-2 text-sm italic text-slate-500">No screen names found.</p>
+                            <p className="p-2 text-sm text-slate-500">No screen names found.</p>
                           ) : null}
                           {!isSearching &&
                             searchResults.map((profile) => {
@@ -6514,7 +6469,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                                 >
                                   <div className="min-w-0">
                                     <p className="ui-screenname truncate font-bold">{profile.screenname || 'Unknown User'}</p>
-                                    <p className="truncate text-[11px] italic text-slate-500">
+                                    <p className="truncate text-[11px] text-slate-500">
                                       {isProfileAway
                                         ? `Away: ${resolvedProfileStatus.awayMessage || 'Away'}`
                                         : resolvedProfileStatus.statusMessage}
@@ -6837,7 +6792,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                             Pending ({pendingBuddies.length})
                           </p>
                           {pendingBuddies.map((buddy) => (
-                            <p key={buddy.id} data-away-text="true" className="ui-screenname mt-0.5 truncate text-[12px] italic">
+                            <p key={buddy.id} data-away-text="true" className="ui-screenname mt-0.5 truncate text-[12px]">
                               {buddy.screenname}
                             </p>
                           ))}
@@ -6950,12 +6905,13 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                               <button
                                 type="button"
                                 onClick={() => void handleOpenActiveRoom(room)}
+                                disabled={isJoiningRoom}
                                 data-testid={`room-row-${normalizedRoomKey}`}
                                 data-room-name={room.name}
                                 data-room-unread={unreadCount}
                                 data-active={isRoomSelected ? 'true' : 'false'}
                                 data-live={meta.liveCount > 0 ? 'true' : 'false'}
-                                className="ui-list-row ui-room-card flex-1 text-left"
+                                className="ui-list-row ui-room-card flex-1 text-left disabled:cursor-wait disabled:opacity-60"
                               >
                                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[0.9rem] border border-[rgba(232,162,58,0.18)] bg-[rgba(232,162,58,0.14)] text-[13px] font-bold text-[var(--gold)]">
                                   #
@@ -7020,20 +6976,10 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                 <div className="grid h-16 grid-cols-4 items-center">
                   <button
                     type="button"
-                    onClick={handleSetupAction}
-                    className="ui-focus-ring ui-tabbar-button"
-                    data-active={activeTab === 'profile' ? 'true' : 'false'}
-                  >
-                    <span className="ui-tabbar-icon">
-                      <HiItsMeTabIcon kind="profile" className="h-5 w-5 text-current" />
-                    </span>
-                    <span className="ui-tabbar-label">Profile</span>
-                  </button>
-                  <button
-                    type="button"
                     onClick={handleOpenImFromActionBar}
                     className="ui-focus-ring ui-tabbar-button"
                     data-active={activeTab === 'im' ? 'true' : 'false'}
+                    aria-current={activeTab === 'im' ? 'page' : undefined}
                   >
                     <span className="ui-tabbar-icon relative">
                       <HiItsMeTabIcon kind="im" className="h-5 w-5 text-current" />
@@ -7043,29 +6989,43 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                         </span>
                       ) : null}
                     </span>
-                    <span className="ui-tabbar-label">IM</span>
+                    <span className="ui-tabbar-label">Buddy List</span>
                   </button>
                   <button
                     type="button"
                     onClick={openRoomsWindow}
                     className="ui-focus-ring ui-tabbar-button"
                     data-active={activeTab === 'chat' ? 'true' : 'false'}
+                    aria-current={activeTab === 'chat' ? 'page' : undefined}
                   >
                     <span className="ui-tabbar-icon">
                       <HiItsMeTabIcon kind="chat" className="h-5 w-5 text-current" />
                     </span>
-                    <span className="ui-tabbar-label">Group Chats</span>
+                    <span className="ui-tabbar-label">Rooms</span>
                   </button>
                   <button
                     type="button"
                     onClick={openAddWindow}
                     className="ui-focus-ring ui-tabbar-button"
                     data-active={activeTab === 'buddy' ? 'true' : 'false'}
+                    aria-current={activeTab === 'buddy' ? 'page' : undefined}
                   >
                     <span className="ui-tabbar-icon">
                       <HiItsMeTabIcon kind="buddy" className="h-5 w-5 text-current" />
                     </span>
-                    <span className="ui-tabbar-label">Buddy</span>
+                    <span className="ui-tabbar-label">Find</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSetupAction}
+                    className="ui-focus-ring ui-tabbar-button"
+                    data-active={activeTab === 'profile' ? 'true' : 'false'}
+                    aria-current={activeTab === 'profile' ? 'page' : undefined}
+                  >
+                    <span className="ui-tabbar-icon">
+                      <HiItsMeTabIcon kind="profile" className="h-5 w-5 text-current" />
+                    </span>
+                    <span className="ui-tabbar-label">Profile</span>
                   </button>
                 </div>
               </div>
@@ -7176,7 +7136,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                   ) : null}
 
                   {!adminAuditError && !isLoadingAdminAudit && adminAuditEntries.length === 0 ? (
-                    <p className="mt-2 italic text-slate-500">No recent events.</p>
+                    <p className="mt-2 text-slate-500">No recent events.</p>
                   ) : null}
 
                   {adminAuditEntries.length > 0 ? (
@@ -7389,27 +7349,31 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                 </div>
 
                 <div className="mt-3">
-                  <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Status Line</p>
+                  <label htmlFor="profile-status-input" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-widest text-slate-400">Status Line</label>
                   <input
+                    id="profile-status-input"
                     value={profileStatusDraft}
                     onChange={(event) => setProfileStatusDraft(event.target.value.slice(0, PROFILE_STATUS_MAX_LENGTH))}
                     className={xpModalInputClass}
                     placeholder="What should buddies see?"
                     maxLength={PROFILE_STATUS_MAX_LENGTH}
+                    aria-describedby="profile-status-count"
                   />
-                  <p className="mt-1 text-right text-[10px] text-slate-400">{profileStatusDraft.length}/{PROFILE_STATUS_MAX_LENGTH}</p>
+                  <p id="profile-status-count" className="mt-1 text-right text-[10px] text-slate-400">{profileStatusDraft.length}/{PROFILE_STATUS_MAX_LENGTH}</p>
                 </div>
 
                 <div className="mt-3">
-                  <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Bio</p>
+                  <label htmlFor="profile-bio-input" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-widest text-slate-400">Bio</label>
                   <textarea
+                    id="profile-bio-input"
                     value={profileBioDraft}
                     onChange={(event) => setProfileBioDraft(event.target.value.slice(0, PROFILE_BIO_MAX_LENGTH))}
                     className={`${xpModalInputClass} min-h-[84px] resize-none`}
                     placeholder="Add a short AIM-style profile blurb…"
                     maxLength={PROFILE_BIO_MAX_LENGTH}
+                    aria-describedby="profile-bio-count"
                   />
-                  <p className="mt-1 text-right text-[10px] text-slate-400">{profileBioDraft.length}/{PROFILE_BIO_MAX_LENGTH}</p>
+                  <p id="profile-bio-count" className="mt-1 text-right text-[10px] text-slate-400">{profileBioDraft.length}/{PROFILE_BIO_MAX_LENGTH}</p>
                 </div>
               </div>
 
@@ -7452,7 +7416,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
               <div>
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Mood</p>
-                  <span className="text-[10px] italic text-slate-500">{activeAwayMood.hint}</span>
+                  <span className="text-[10px] text-slate-500">{activeAwayMood.hint}</span>
                 </div>
                 <div className="mt-2 grid grid-cols-5 gap-2">
                   {AWAY_MOOD_OPTIONS.map((option) => (
@@ -7473,7 +7437,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
 
               {/* Message textarea */}
               <div>
-                <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Message</p>
+                <label htmlFor="away-message-input" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-widest text-slate-400">Message</label>
                 <textarea
                   id="away-message-input"
                   ref={awayMessageFieldRef}
@@ -7482,10 +7446,11 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                   className={`${xpModalInputClass} min-h-[90px] resize-none`}
                   placeholder="what's going on with you right now…"
                   maxLength={320}
+                  aria-describedby="away-message-help away-message-count"
                 />
                 <div className="mt-1 flex items-center justify-between gap-2">
-                  <p className="text-[10px] italic text-slate-500">Use %n for names, %t for time, %d for date.</p>
-                  <p className="text-right text-[10px] text-slate-400">{awayText.length}/320</p>
+                  <p id="away-message-help" className="text-[10px] text-slate-500">Use %n for names, %t for time, %d for date.</p>
+                  <p id="away-message-count" className="text-right text-[10px] text-slate-400">{awayText.length}/320</p>
                 </div>
               </div>
 
@@ -7513,12 +7478,14 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                     className={`ios-toggle ${isAutoAwayEnabled ? 'on' : ''}`}
                     role="switch"
                     aria-checked={isAutoAwayEnabled}
+                    aria-label="Show Idle when inactive"
                   />
                 </div>
                 {isAutoAwayEnabled ? (
                   <div className="flex items-center justify-between">
-                    <p className="text-[12px] text-slate-600">Idle timeout</p>
+                    <label htmlFor="idle-timeout-select" className="text-[12px] text-slate-600">Idle timeout</label>
                     <select
+                      id="idle-timeout-select"
                       value={autoAwayMinutes}
                       onChange={(event) => setAutoAwayMinutes(Number(event.target.value))}
                       className={`${xpModalSelectClass} w-auto py-1 pl-3 pr-8 text-[12px]`}
@@ -7541,6 +7508,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                     className={`ios-toggle ${autoReturnOnActivity && isAutoAwayEnabled ? 'on' : ''} disabled:opacity-50`}
                     role="switch"
                     aria-checked={autoReturnOnActivity}
+                    aria-label="Clear idle on activity"
                   />
                 </div>
                 <div className="flex items-center justify-between">
@@ -7551,6 +7519,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                     className={`ios-toggle ${saveAwayPreset ? 'on' : ''}`}
                     role="switch"
                     aria-checked={saveAwayPreset}
+                    aria-label="Save as preset"
                   />
                 </div>
                 {saveAwayPreset ? (
@@ -7754,14 +7723,16 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                     className={`ios-toggle ${privacySettings.shareReadReceipts ? 'on' : ''}`}
                     role="switch"
                     aria-checked={privacySettings.shareReadReceipts}
+                    aria-label="Share read receipts"
                   />
                 </div>
               </div>
 
               <div className="ui-panel-card rounded-2xl px-4 py-4">
-                <p className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Notification previews</p>
+                <label htmlFor="notification-preview-select" className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Notification previews</label>
                 <p className="mt-1 text-[11px] text-slate-400">Choose how much message detail appears in banners.</p>
                 <select
+                  id="notification-preview-select"
                   value={privacySettings.notificationPreviewMode}
                   onChange={(event) =>
                     void updatePrivacyPreferences({
@@ -7789,6 +7760,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                     className={`ios-toggle ${privacySettings.screenShieldEnabled ? 'on' : ''}`}
                     role="switch"
                     aria-checked={privacySettings.screenShieldEnabled}
+                    aria-label="Screen shield"
                   />
                 </div>
               </div>
@@ -7818,6 +7790,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                     className={`ios-toggle ${appLockSettings.enabled ? 'on' : ''}`}
                     role="switch"
                     aria-checked={appLockSettings.enabled}
+                    aria-label="App lock"
                   />
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -8060,11 +8033,17 @@ const [showAddWindow, setShowAddWindow] = useState(false);
               <div className={`${xpModalHeaderClass} mb-2`}>Add Buddy</div>
               <div className="flex flex-col gap-3 px-2 pb-2 text-[11px]">
                 <form onSubmit={handleSearch} className="flex gap-2">
+                  <label htmlFor="add-buddy-search-input" className="sr-only">Search screen names</label>
                   <input
+                    id="add-buddy-search-input"
+                    type="search"
                     value={searchTerm}
                     onChange={(event) => setSearchTerm(event.target.value)}
                     className={xpModalInputClass}
                     placeholder="Search screen names..."
+                    autoComplete="off"
+                    autoCapitalize="none"
+                    autoCorrect="off"
                   />
                   <button
                     type="submit"
@@ -8078,10 +8057,10 @@ const [showAddWindow, setShowAddWindow] = useState(false);
 
                 <div className="max-h-56 overflow-y-auto rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-[inset_0_1px_1px_rgba(15,23,42,0.05)] dark:border-slate-700 dark:bg-[#0F1424]/50">
                   {isSearching && (
-                    <p className="p-2 text-sm italic text-slate-500">Searching screen names...</p>
+                    <p className="p-2 text-sm text-slate-500">Searching screen names...</p>
                   )}
                   {!isSearching && searchTerm.trim() !== '' && searchResults.length === 0 && (
-                    <p className="p-2 text-sm italic text-slate-500">No screen names found.</p>
+                    <p className="p-2 text-sm text-slate-500">No screen names found.</p>
                   )}
                   {!isSearching &&
                     searchResults.map((profile) => {
@@ -8099,7 +8078,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                         >
                           <div className="min-w-0">
                             <p className="ui-screenname truncate font-bold">{profile.screenname || 'Unknown User'}</p>
-                            <p className="truncate text-[11px] italic text-slate-500">
+                            <p className="truncate text-[11px] text-slate-500">
                               {isProfileAway
                                 ? `Away: ${resolvedProfileStatus.awayMessage || 'Away'}`
                                 : resolvedProfileStatus.statusMessage}

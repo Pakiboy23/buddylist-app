@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import RetroWindow from '@/components/RetroWindow';
 import { supabase } from '@/lib/supabase';

@@ -1365,7 +1365,7 @@ export default function ChatWindow({
                     ) : null}
                     {buddyStatusMessage ? (
                       <p
-                        className="aim-rich-html mt-0.5 truncate italic text-[11px] text-slate-400 dark:text-slate-500"
+                        className="aim-rich-html mt-0.5 truncate text-[11px] text-slate-400 dark:text-slate-500"
                         dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(buddyStatusMessage) }}
                       />
                     ) : buddyBio ? (
@@ -1809,7 +1809,7 @@ export default function ChatWindow({
                                       </div>
                                     </div>
                                   ) : isDeleted ? (
-                                    <span className="italic opacity-50">Message deleted</span>
+                                    <span className="opacity-50">Message deleted</span>
                                   ) : (
                                     <div className="space-y-1.5">
                                       {message.forward_source_message_id ? (

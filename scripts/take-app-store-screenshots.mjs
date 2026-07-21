@@ -146,15 +146,6 @@ function himWordmark(size) {
   </svg>`;
 }
 
-// Sparkle icon (app brand mark)
-function sparkleIcon(size, color = DESIGN.accent) {
-  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none">
-    <path d="M12 2 L13.5 8.5 L20 10 L13.5 11.5 L12 18 L10.5 11.5 L4 10 L10.5 8.5 Z" fill="${color}"/>
-    <circle cx="19" cy="4" r="1.5" fill="${color}" opacity="0.6"/>
-    <circle cx="5" cy="19" r="1" fill="${color}" opacity="0.4"/>
-  </svg>`;
-}
-
 // Bottom tab bar
 function tabBar(w, h, activeTab = 'buddies') {
   const tbH = Math.round(w * 0.18);
@@ -198,13 +189,11 @@ function tabBar(w, h, activeTab = 'buddies') {
 function buddyListMockup(w, h) {
   const sb = Math.round(w * 0.082);
   const tb = Math.round(w * 0.18);
-  const contentH = h - sb - tb;
   const px = Math.round(w * 0.045);
   const titleFz = Math.round(w * 0.065);
   const nameFz = Math.round(w * 0.038);
   const bodyFz = Math.round(w * 0.028);
   const avatarSz = Math.round(w * 0.115);
-  const cardR = Math.round(w * 0.042);
   const rowH = Math.round(w * 0.16);
 
   const buddies = [
@@ -341,7 +330,6 @@ function buddyListMockup(w, h) {
 function dmConversationMockup(w, h) {
   const sb = Math.round(w * 0.082);
   const tb = Math.round(w * 0.18);
-  const contentH = h - sb - tb;
   const px = Math.round(w * 0.045);
   const nameFz = Math.round(w * 0.04);
   const msgFz = Math.round(w * 0.033);

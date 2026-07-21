@@ -18,26 +18,20 @@ export default function SearchPanel({ currentUserId }: SearchPanelProps) {
   const [results, setResults] = useState<SearchUser[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const blockedIdsRef = useRef<string[]>([]);
+  const requestVersionRef = useRef(0);
   const inputId = useId();
-
-  useEffect(() => {
-    void supabase
-      .from('blocked_users')
-      .select('blocked_id')
-      .eq('blocker_id', currentUserId)
-      .then(({ data }) => {
-        blockedIdsRef.current = (data ?? []).map((r) => (r as { blocked_id: string }).blocked_id);
-      });
-  }, [currentUserId]);
 
   const runSearch = useCallback(async (query: string) => {
     if (!query.trim()) {
-      setResults([]);
       return;
     }
+    const requestVersion = ++requestVersionRef.current;
     setIsSearching(true);
+    const { data: blockedRows } = await supabase
+      .from('blocked_users')
+      .select('blocked_id')
+      .eq('blocker_id', currentUserId);
+    const blockedIds = (blockedRows ?? []).map((row) => (row as { blocked_id: string }).blocked_id);
     let q = supabase
       .from('users')
       .select('id,screenname,away_message')
@@ -46,27 +40,37 @@ export default function SearchPanel({ currentUserId }: SearchPanelProps) {
       .ilike('screenname', `${query.trim()}%`)
       .order('screenname', { ascending: true })
       .limit(30);
-    if (blockedIdsRef.current.length > 0) {
-      q = q.not('id', 'in', `(${blockedIdsRef.current.join(',')})`);
+    if (blockedIds.length > 0) {
+      q = q.not('id', 'in', `(${blockedIds.join(',')})`);
     }
     const { data } = await q;
+    if (requestVersion !== requestVersionRef.current) {
+      return;
+    }
     setResults((data ?? []) as SearchUser[]);
     setIsSearching(false);
   }, [currentUserId]);
 
   useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
     if (!term.trim()) {
+      return;
+    }
+    const timeoutId = setTimeout(() => void runSearch(term), 280);
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [term, runSearch]);
+
+  const handleTermChange = (nextTerm: string) => {
+    setTerm(nextTerm);
+    requestVersionRef.current += 1;
+    if (!nextTerm.trim()) {
       setResults([]);
       setIsSearching(false);
       return;
     }
     setIsSearching(true);
-    debounceRef.current = setTimeout(() => void runSearch(term), 280);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [term, runSearch]);
+  };
 
   const hasQuery = term.trim().length > 0;
 
@@ -78,7 +82,7 @@ export default function SearchPanel({ currentUserId }: SearchPanelProps) {
         <input
           id={inputId}
           value={term}
-          onChange={(e) => setTerm(e.target.value)}
+          onChange={(event) => handleTermChange(event.target.value)}
           placeholder="Search screennames…"
           autoComplete="off"
           autoCorrect="off"
@@ -88,7 +92,7 @@ export default function SearchPanel({ currentUserId }: SearchPanelProps) {
         {term ? (
           <button
             type="button"
-            onClick={() => { setTerm(''); setResults([]); }}
+            onClick={() => handleTermChange('')}
             className="ui-focus-ring ui-conversation-action"
             aria-label="Clear search"
           >
@@ -130,7 +134,7 @@ export default function SearchPanel({ currentUserId }: SearchPanelProps) {
                     {user.screenname}
                   </p>
                   {user.away_message ? (
-                    <p className="mt-0.5 truncate text-[11px] italic text-slate-500 dark:text-slate-400">
+                    <p className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">
                       &ldquo;{user.away_message}&rdquo;
                     </p>
                   ) : null}

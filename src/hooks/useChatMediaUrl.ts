@@ -10,20 +10,22 @@ import { peekChatMediaUrl, resolveChatMediaUrl } from '@/lib/chatMediaUrl';
  * transition (docs/storage-privacy-rollout.md).
  */
 export function useChatMediaUrl(bucket: string, storagePath: string): string {
-  const [url, setUrl] = useState(() => peekChatMediaUrl(bucket, storagePath));
+  const requestKey = `${bucket}\u0000${storagePath}`;
+  const [resolvedUrl, setResolvedUrl] = useState<{ requestKey: string; url: string } | null>(null);
 
   useEffect(() => {
     let isCancelled = false;
-    setUrl(peekChatMediaUrl(bucket, storagePath));
     void resolveChatMediaUrl(bucket, storagePath).then((resolved) => {
       if (!isCancelled) {
-        setUrl(resolved);
+        setResolvedUrl({ requestKey, url: resolved });
       }
     });
     return () => {
       isCancelled = true;
     };
-  }, [bucket, storagePath]);
+  }, [bucket, requestKey, storagePath]);
 
-  return url;
+  return resolvedUrl?.requestKey === requestKey
+    ? resolvedUrl.url
+    : peekChatMediaUrl(bucket, storagePath);
 }

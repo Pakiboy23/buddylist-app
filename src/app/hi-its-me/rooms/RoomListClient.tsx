@@ -23,7 +23,9 @@ export default function RoomListClient({ rooms }: { rooms: RoomRow[] }) {
 
   return (
     <div className="space-y-3">
+      <label htmlFor="room-filter-input" className="sr-only">Filter rooms</label>
       <input
+        id="room-filter-input"
         type="search"
         value={query}
         onChange={(e) => setQuery(e.target.value)}

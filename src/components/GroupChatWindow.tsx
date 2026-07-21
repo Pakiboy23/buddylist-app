@@ -8,7 +8,7 @@ import RichTextToolbar from '@/components/RichTextToolbar';
 import SwipeActionFrame from '@/components/SwipeActionFrame';
 import type { OutboxItem } from '@/lib/outbox';
 import { getJSON, setJSON } from '@/lib/clientStorage';
-import { hapticLight, hapticSuccess, hapticWarning } from '@/lib/haptics';
+import { hapticLight, hapticSuccess } from '@/lib/haptics';
 import { sendOrAcceptBuddyRequest, type BuddyRequestStatus } from '@/lib/buddyRequest';
 import { countSeenByOthers, formatSeenByLabel } from '@/lib/roomReadReceipts';
 import { useKeyboardViewport } from '@/hooks/useKeyboardViewport';
@@ -211,8 +211,6 @@ export default function GroupChatWindow({
   const longPressRoomTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [composerAreaHeight, setComposerAreaHeight] = useState(0);
   const [isComposerFocused, setIsComposerFocused] = useState(false);
-  const [enableSupplementalRealtime, setEnableSupplementalRealtime] = useState(false);
-
   const [isClosing, setIsClosing] = useState(false);
   const [relativeTimeTick, setRelativeTimeTick] = useState(0);
 
@@ -379,34 +377,6 @@ export default function GroupChatWindow({
   useEffect(() => {
     setJSON(RICH_TEXT_FORMAT_STORAGE_KEY, normalizeRichTextFormat(format));
   }, [format]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-    let idleCallbackId: number | null = null;
-
-    const enableRealtime = () => {
-      setEnableSupplementalRealtime(true);
-    };
-
-    if ('requestIdleCallback' in window) {
-      idleCallbackId = window.requestIdleCallback(enableRealtime, { timeout: 350 });
-    } else {
-      timeoutId = setTimeout(enableRealtime, 180);
-    }
-
-    return () => {
-      if (idleCallbackId !== null && 'cancelIdleCallback' in window) {
-        window.cancelIdleCallback(idleCallbackId);
-      }
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-    };
-  }, []);
 
   useEffect(() => {
     const composerArea = composerAreaRef.current;
@@ -846,7 +816,7 @@ export default function GroupChatWindow({
       Object.values(typingTimeoutsRef.current).forEach((timeoutId) => clearTimeout(timeoutId));
       typingTimeoutsRef.current = {};
     };
-  }, [clearUnreads, currentUserId, currentUserScreenname, ensureScreennames, roomId, roomName]);
+  }, [clearUnreads, currentUserId, currentUserScreenname, ensureScreennames, loadRoster, roomId, roomName]);
 
 
   const handleSendMessage = async (event: FormEvent<HTMLFormElement>) => {
@@ -1486,7 +1456,7 @@ export default function GroupChatWindow({
                     <div>
                       <p className="text-[22px] font-bold text-slate-100">{rosterProfile.screenname}</p>
                       {rosterProfile.awayMessage ? (
-                        <p className="mt-1 text-[13px] italic text-slate-400">&ldquo;{rosterProfile.awayMessage}&rdquo;</p>
+                        <p className="mt-1 text-[13px] text-slate-400">&ldquo;{rosterProfile.awayMessage}&rdquo;</p>
                       ) : null}
                       {rosterProfile.bio ? (
                         <p className="mt-2 text-[13px] leading-relaxed text-slate-300">{rosterProfile.bio}</p>

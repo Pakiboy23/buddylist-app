@@ -192,10 +192,11 @@ export default function ResetPasswordPage() {
               ) : (
                 <div className="mt-5 space-y-4 ui-fade-in">
                   <div>
-                    <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                    <label htmlFor="reset-new-password" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                       New password
                     </label>
                     <input
+                      id="reset-new-password"
                       type="password"
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
@@ -206,10 +207,11 @@ export default function ResetPasswordPage() {
                     />
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                    <label htmlFor="reset-confirm-password" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                       Confirm new password
                     </label>
                     <input
+                      id="reset-confirm-password"
                       type="password"
                       value={confirmPassword}
                       onChange={(event) => setConfirmPassword(event.target.value)}

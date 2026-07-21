@@ -28,7 +28,7 @@ export default function NativeShellRouteSync() {
       tabBarVisibility: 'hidden',
       leadingAction: null,
       trailingActions: [],
-      accentTone: 'blue',
+      accentTone: 'amber',
       canGoBack: false,
       isDark,
       showsTopChrome: false,
