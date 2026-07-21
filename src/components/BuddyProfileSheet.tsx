@@ -231,7 +231,7 @@ export default function BuddyProfileSheet({
                 <p data-away-label="true" className="text-[length:var(--ui-text-2xs)] font-semibold uppercase tracking-widest">
                   Away Message
                 </p>
-                <p data-away-text="true" className="mt-1 text-[length:var(--ui-text-md)] italic">
+                <p data-away-text="true" className="mt-1 text-[length:var(--ui-text-md)]">
                   {buddy.awayMessage}
                 </p>
               </div>
@@ -455,13 +455,15 @@ export default function BuddyProfileSheet({
               {showReportForm ? (
                 <div className="mt-3 space-y-3 rounded-[1.2rem] border border-slate-200/80 bg-white/80 px-3 py-3 dark:border-slate-800 dark:bg-[#0F1424]/50">
                   <div>
-                    <label className="mb-1 block text-[length:var(--ui-text-2xs)] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                    <label htmlFor="buddy-profile-report-category" className="mb-1 block text-[length:var(--ui-text-2xs)] font-semibold uppercase tracking-[0.12em] text-slate-400">
                       Category
                     </label>
                     <select
+                      id="buddy-profile-report-category"
                       value={reportCategory}
                       onChange={(event) => setReportCategory(event.target.value as AbuseReportCategory)}
                       className="ui-focus-ring w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[length:var(--ui-text-sm)] text-slate-700 dark:border-slate-700 dark:bg-[#0F1424] dark:text-slate-100"
+                      aria-describedby="buddy-profile-report-category-help"
                     >
                       {ABUSE_REPORT_CATEGORY_OPTIONS.map((option) => (
                         <option key={option.value} value={option.value}>
@@ -469,15 +471,16 @@ export default function BuddyProfileSheet({
                         </option>
                       ))}
                     </select>
-                    <p className="mt-1 text-[length:var(--ui-text-2xs)] text-slate-400">
+                    <p id="buddy-profile-report-category-help" className="mt-1 text-[length:var(--ui-text-2xs)] text-slate-400">
                       {ABUSE_REPORT_CATEGORY_OPTIONS.find((option) => option.value === reportCategory)?.helper}
                     </p>
                   </div>
                   <div>
-                    <label className="mb-1 block text-[length:var(--ui-text-2xs)] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                    <label htmlFor="buddy-profile-report-notes" className="mb-1 block text-[length:var(--ui-text-2xs)] font-semibold uppercase tracking-[0.12em] text-slate-400">
                       Notes
                     </label>
                     <textarea
+                      id="buddy-profile-report-notes"
                       value={reportDetails}
                       onChange={(event) => setReportDetails(event.target.value)}
                       rows={3}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import AppIcon from '@/components/AppIcon';
 import DiscoveryProfileSheet from '@/components/DiscoveryProfileSheet';
 import { supabase } from '@/lib/supabase';
@@ -35,22 +35,12 @@ export default function BrowsePanel({ currentUserId }: BrowsePanelProps) {
   const [offset, setOffset] = useState(0);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const loadedOnceRef = useRef(false);
-  const blockedIdsRef = useRef<string[]>([]);
-
-  useEffect(() => {
-    void supabase
+  const fetchPage = useCallback(async (pageOffset: number, replace: boolean) => {
+    const { data: blockedRows } = await supabase
       .from('blocked_users')
       .select('blocked_id')
-      .eq('blocker_id', currentUserId)
-      .then(({ data }) => {
-        blockedIdsRef.current = (data ?? []).map((r) => (r as { blocked_id: string }).blocked_id);
-      });
-  }, [currentUserId]);
-
-  const fetchPage = useCallback(async (pageOffset: number, replace: boolean) => {
-    if (replace) setIsLoading(true);
-    else setIsLoadingMore(true);
+      .eq('blocker_id', currentUserId);
+    const blockedIds = (blockedRows ?? []).map((row) => (row as { blocked_id: string }).blocked_id);
 
     let query = supabase
       .from('users')
@@ -62,8 +52,8 @@ export default function BrowsePanel({ currentUserId }: BrowsePanelProps) {
       .order('last_active_at', { ascending: false, nullsFirst: false })
       .range(pageOffset, pageOffset + PAGE_SIZE - 1);
 
-    if (blockedIdsRef.current.length > 0) {
-      query = query.not('id', 'in', `(${blockedIdsRef.current.join(',')})`);
+    if (blockedIds.length > 0) {
+      query = query.not('id', 'in', `(${blockedIds.join(',')})`);
     }
 
     const { data } = await query;
@@ -79,16 +69,19 @@ export default function BrowsePanel({ currentUserId }: BrowsePanelProps) {
     }
 
     setHasMore(rows.length === PAGE_SIZE);
-    loadedOnceRef.current = true;
   }, [currentUserId]);
 
   useEffect(() => {
-    void fetchPage(0, true);
+    const timeoutId = window.setTimeout(() => {
+      void fetchPage(0, true);
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
   }, [fetchPage]);
 
   const handleLoadMore = () => {
     const nextOffset = offset + PAGE_SIZE;
     setOffset(nextOffset);
+    setIsLoadingMore(true);
     void fetchPage(nextOffset, false);
   };
 
@@ -135,7 +128,7 @@ export default function BrowsePanel({ currentUserId }: BrowsePanelProps) {
                       ) : null}
                     </div>
                     {user.away_message ? (
-                      <p className="mt-0.5 truncate text-[11px] italic text-slate-500 dark:text-slate-400">
+                      <p className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">
                         &ldquo;{user.away_message}&rdquo;
                       </p>
                     ) : null}

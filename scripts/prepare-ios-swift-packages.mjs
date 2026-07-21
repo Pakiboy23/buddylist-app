@@ -142,8 +142,12 @@ function rewriteCapAppPackage(packageText) {
   let next = packageText;
 
   for (const pkg of packages) {
+    // Capacitor writes paths relative to this worktree when node_modules is
+    // local, and paths through the source checkout when a git worktree shares
+    // node_modules via symlink. Match either form, then replace it with the
+    // deterministic vendored path used by Xcode and CI.
     const pattern = new RegExp(
-      String.raw`\.package\(name: "${pkg.packageName}", path: "\.\./\.\./\.\./node_modules/[^"]+"\)`,
+      String.raw`\.package\(name: "${pkg.packageName}", path: "[^"]*node_modules/[^"]+"\)`,
       'g',
     );
     const replacement = `.package(name: "${pkg.packageName}", path: "../CapacitorVendor/${pkg.vendorDir}")`;

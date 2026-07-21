@@ -60,7 +60,7 @@ export default function MessageReportSheet({
 
         {trimmedPreview ? (
           <p
-            className="mt-3 rounded-[1.2rem] border border-slate-200/80 bg-slate-50/80 px-3 py-2 text-[12px] italic text-slate-600 dark:border-slate-700 dark:bg-[#181D32] dark:text-slate-300"
+            className="mt-3 rounded-[1.2rem] border border-slate-200/80 bg-slate-50/80 px-3 py-2 text-[12px] text-slate-600 dark:border-slate-700 dark:bg-[#181D32] dark:text-slate-300"
             data-testid="message-report-preview"
           >
             “{trimmedPreview.length > 160 ? `${trimmedPreview.slice(0, 159)}…` : trimmedPreview}”
@@ -69,15 +69,17 @@ export default function MessageReportSheet({
 
         <div className="mt-4 space-y-3">
           <div>
-            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+            <label htmlFor="message-report-category" className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
               Category
             </label>
             <select
+              id="message-report-category"
               value={category}
               onChange={(event) => setCategory(event.target.value as AbuseReportCategory)}
               disabled={isSubmitting}
               className="ui-focus-ring w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[14px] text-slate-700 dark:border-slate-700 dark:bg-[#0F1424] dark:text-slate-100"
               data-testid="message-report-category"
+              aria-describedby={helper ? 'message-report-category-help' : undefined}
             >
               {ABUSE_REPORT_CATEGORY_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -86,15 +88,16 @@ export default function MessageReportSheet({
               ))}
             </select>
             {helper ? (
-              <p className="mt-1 text-[11px] text-slate-400">{helper}</p>
+              <p id="message-report-category-help" className="mt-1 text-[11px] text-slate-400">{helper}</p>
             ) : null}
           </div>
 
           <div>
-            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+            <label htmlFor="message-report-notes" className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
               Notes (optional)
             </label>
             <textarea
+              id="message-report-notes"
               value={details}
               onChange={(event) => setDetails(event.target.value)}
               rows={3}

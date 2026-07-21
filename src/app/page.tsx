@@ -433,10 +433,11 @@ export default function Home() {
                     </div>
                   ) : (
                     <div>
-                      <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                      <label htmlFor="auth-email" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                         Email address
                       </label>
                       <input
+                        id="auth-email"
                         type="email"
                         value={email}
                         onChange={(event) => setEmail(event.target.value)}
@@ -453,10 +454,11 @@ export default function Home() {
                   <>
                     {/* Screen name — shown for sign in and sign up */}
                     <div>
-                      <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                      <label htmlFor="auth-screenname" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                         Screen name
                       </label>
                       <input
+                        id="auth-screenname"
                         type="text"
                         value={screenname}
                         onChange={(event) => setScreenname(event.target.value)}
@@ -473,10 +475,11 @@ export default function Home() {
                     {/* Email — sign up only */}
                     {isSignUp && (
                       <div>
-                        <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                        <label htmlFor="auth-email" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                           Email address
                         </label>
                         <input
+                          id="auth-email"
                           type="email"
                           value={email}
                           onChange={(event) => setEmail(event.target.value)}
@@ -492,10 +495,11 @@ export default function Home() {
 
                     {/* Password */}
                     <div>
-                      <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                      <label htmlFor="auth-password" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                         Password
                       </label>
                       <input
+                        id="auth-password"
                         type="password"
                         value={password}
                         onChange={(event) => setPassword(event.target.value)}

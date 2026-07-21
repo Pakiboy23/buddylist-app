@@ -106,7 +106,7 @@ fileprivate struct HiItsMeShellChromeState: Decodable, Equatable {
         tabBarVisibility: HiItsMeShellTabBarVisibility = .visible,
         leadingAction: HiItsMeShellAction? = nil,
         trailingActions: [HiItsMeShellAction] = [],
-        accentTone: HiItsMeShellAccentTone = .blue,
+        accentTone: HiItsMeShellAccentTone = .amber,
         canGoBack: Bool = false,
         isDark: Bool = true,
         isAdminUser: Bool = false,
@@ -163,7 +163,7 @@ fileprivate struct HiItsMeShellChromeState: Decodable, Equatable {
         leadingAction = try container.decodeIfPresent(HiItsMeShellAction.self, forKey: .leadingAction)
         trailingActions = try container.decodeIfPresent([HiItsMeShellAction].self, forKey: .trailingActions)
             ?? []
-        accentTone = try container.decodeIfPresent(HiItsMeShellAccentTone.self, forKey: .accentTone) ?? .blue
+        accentTone = try container.decodeIfPresent(HiItsMeShellAccentTone.self, forKey: .accentTone) ?? .amber
         canGoBack = try container.decodeIfPresent(Bool.self, forKey: .canGoBack) ?? false
         isDark = try container.decodeIfPresent(Bool.self, forKey: .isDark) ?? false
         isAdminUser = try container.decodeIfPresent(Bool.self, forKey: .isAdminUser) ?? false
@@ -573,17 +573,17 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         return stackView
     }()
     private lazy var imTabItem = UITabBarItem(
-        title: "IM",
-        image: UIImage(systemName: "message.fill"),
-        selectedImage: UIImage(systemName: "message.fill")
+        title: "Buddy List",
+        image: UIImage(systemName: "person.2.fill"),
+        selectedImage: UIImage(systemName: "person.2.fill")
     )
     private lazy var chatTabItem = UITabBarItem(
-        title: "Chat",
+        title: "Rooms",
         image: UIImage(systemName: "bubble.left.and.bubble.right.fill"),
         selectedImage: UIImage(systemName: "bubble.left.and.bubble.right.fill")
     )
     private lazy var buddyTabItem = UITabBarItem(
-        title: "Buddy",
+        title: "Find",
         image: UIImage(systemName: "person.badge.plus"),
         selectedImage: UIImage(systemName: "person.badge.plus.fill")
     )
@@ -659,7 +659,7 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
                     tabBarVisibility: .hidden,
                     leadingAction: nil,
                     trailingActions: [],
-                    accentTone: .blue,
+                    accentTone: .amber,
                     canGoBack: false,
                     isDark: self.chromeState.isDark,
                     isAdminUser: false,

@@ -152,10 +152,11 @@ export default function DeleteAccountPage() {
             </div>
 
             <div>
-              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+              <label htmlFor="delete-confirm-screenname" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                 Your screenname
               </label>
               <input
+                id="delete-confirm-screenname"
                 type="text"
                 value={typedConfirm}
                 onChange={(event) => {

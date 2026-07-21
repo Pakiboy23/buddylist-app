@@ -1662,12 +1662,7 @@ body.privacy-shield-active::after {
   -webkit-text-fill-color: transparent;
   background-clip: text;
   color: var(--chiraag);
-  text-shadow:
-    1px 0 0 rgba(15, 20, 36, 0.95),
-    -1px 0 0 rgba(15, 20, 36, 0.95),
-    0 1px 0 rgba(15, 20, 36, 0.95),
-    0 -1px 0 rgba(15, 20, 36, 0.95),
-    0 0 18px rgba(232, 162, 58, 0.22);
+  text-shadow: 0 0 18px rgba(232, 162, 58, 0.28);
 }
 
 /* H.I.M. wordmark letter + pip treatment */
@@ -1991,7 +1986,6 @@ body.privacy-shield-active::after {
 
 .ui-list-row p.text-slate-400 {
   color: var(--muted) !important;
-  font-style: italic;
   font-size: 12px !important;
 }
 
@@ -2237,7 +2231,6 @@ body.privacy-shield-active::after {
   margin-left: 0.45rem;
   color: var(--muted);
   font-size: 12px;
-  font-style: italic;
   line-height: 1.5;
 }
 
@@ -2309,7 +2302,6 @@ body.privacy-shield-active::after {
   margin-top: 0.45rem;
   color: var(--text);
   font-size: 12px;
-  font-style: italic;
   line-height: 1.55;
 }
 
@@ -2549,7 +2541,6 @@ html:not(.dark) .ui-room-tag[data-tone='ghost'] {
 
 .ui-away-card [data-away-text='true'] {
   color: var(--muted);
-  font-style: italic;
 }
 
 .ui-away-card[data-mood='chaotic'] {

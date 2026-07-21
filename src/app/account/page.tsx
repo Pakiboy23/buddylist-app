@@ -314,10 +314,11 @@ export default function AccountPage() {
             </div>
 
             <div>
-              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+              <label htmlFor="account-new-email" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                 New email
               </label>
               <input
+                id="account-new-email"
                 type="email"
                 value={newEmail}
                 onChange={(event) => setNewEmail(event.target.value)}
@@ -364,10 +365,11 @@ export default function AccountPage() {
             </div>
 
             <div>
-              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+              <label htmlFor="account-new-password" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                 New password
               </label>
               <input
+                id="account-new-password"
                 type="password"
                 value={newPassword}
                 onChange={(event) => setNewPassword(event.target.value)}
@@ -379,10 +381,11 @@ export default function AccountPage() {
             </div>
 
             <div>
-              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+              <label htmlFor="account-confirm-password" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                 Confirm new password
               </label>
               <input
+                id="account-confirm-password"
                 type="password"
                 value={confirmPassword}
                 onChange={(event) => setConfirmPassword(event.target.value)}

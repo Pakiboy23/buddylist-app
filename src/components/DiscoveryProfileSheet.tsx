@@ -159,7 +159,7 @@ export default function DiscoveryProfileSheet({ userId, currentUserId, onClose }
             <div>
               <p className="text-[22px] font-bold text-slate-100">{profile.screenname}</p>
               {profile.awayMessage ? (
-                <p className="mt-1 text-[13px] italic text-slate-400">&ldquo;{profile.awayMessage}&rdquo;</p>
+                <p className="mt-1 text-[13px] text-slate-400">&ldquo;{profile.awayMessage}&rdquo;</p>
               ) : null}
               {profile.bio ? (
                 <p className="mt-2 text-[13px] leading-relaxed text-slate-300">{profile.bio}</p>
@@ -217,6 +217,7 @@ export default function DiscoveryProfileSheet({ userId, currentUserId, onClose }
                       key={value}
                       type="button"
                       onClick={() => setReportReason(value)}
+                      aria-pressed={reportReason === value}
                       className={[
                         'ui-focus-ring rounded-xl px-3 py-2 text-[12px] font-medium transition-colors',
                         reportReason === value
@@ -232,6 +233,7 @@ export default function DiscoveryProfileSheet({ userId, currentUserId, onClose }
                   value={reportNotes}
                   onChange={(e) => setReportNotes(e.target.value)}
                   placeholder="Additional details (optional)"
+                  aria-label="Additional report details"
                   rows={2}
                   maxLength={1200}
                   className="w-full resize-none rounded-xl bg-[var(--bg2)] px-3 py-2 text-[13px] text-slate-200 placeholder-slate-500 focus:outline-none"
