@@ -50,6 +50,7 @@ function clampPreview(content: string): string {
 
 function resolvePreviewText(content: string, previewType?: string | null): string {
   if (previewType === 'buzz') return '⚡ Buzz!';
+  if (previewType === 'knock') return '👋 Knock — wants to talk.';
   if (previewType === 'voice_note') return 'Sent a voice note.';
   if (previewType === 'attachment') return 'Sent an attachment.';
   return clampPreview(htmlToPlainText(content));

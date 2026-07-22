@@ -1081,6 +1081,23 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         )
     }
 
+    fileprivate func nativeMilestoneSendKnock(
+        buddyID: String,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.sendKnock) {
+                return { ok: false, error: "Knock bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.sendKnock(buddyID);
+            """,
+            arguments: ["buddyID": buddyID],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
     fileprivate func nativeMilestoneCloseConversation(
         completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
     ) {
@@ -1428,6 +1445,9 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
                 content: content,
                 completion: completion
             )
+        }
+        nativeMilestoneOneModel.onSendKnock = { [weak self] buddyID, completion in
+            self?.nativeMilestoneSendKnock(buddyID: buddyID, completion: completion)
         }
         nativeMilestoneOneModel.onCloseConversation = { [weak self] completion in
             self?.nativeMilestoneCloseConversation(completion: completion)

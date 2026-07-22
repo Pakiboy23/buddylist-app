@@ -233,6 +233,7 @@ export interface NativeMilestoneOneBridge {
     action: 'accept' | 'decline',
   ): Promise<NativeMilestoneOneActionResult>;
   sendMessage(buddyId: string, content: string): Promise<NativeMilestoneOneActionResult>;
+  sendKnock(buddyId: string): Promise<NativeMilestoneOneActionResult>;
   closeConversation(): Promise<NativeMilestoneOneActionResult>;
   sendTypingPulse(buddyId: string): Promise<NativeMilestoneOneActionResult>;
   sendRoomMessage(roomId: string, content: string): Promise<NativeMilestoneOneActionResult>;

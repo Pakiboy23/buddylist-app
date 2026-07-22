@@ -29,6 +29,13 @@ describe('applyNotificationPreview', () => {
     });
   });
 
+  it('hidden with Knock preview still shows no identifying info', () => {
+    expect(applyNotificationPreview({ senderName: 'Alex', messagePreview: '👋 Knock — wants to talk.' }, 'hidden')).toEqual({
+      senderName: 'H.I.M.',
+      messagePreview: 'New message',
+    });
+  });
+
   it.each<NotificationPreviewMode>(['full', 'name_only', 'hidden'])(
     '%s: result messagePreview is never empty',
     (mode) => {

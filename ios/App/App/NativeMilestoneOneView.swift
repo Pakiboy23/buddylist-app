@@ -243,6 +243,8 @@ final class NativeMilestoneOneViewModel: ObservableObject, @unchecked Sendable {
     @Published private(set) var isUpdatingPresence = false
     @Published private(set) var isSendingMessage = false
     @Published private(set) var isSendingRoomMessage = false
+    @Published private(set) var processingKnockBuddyID: String?
+    @Published private(set) var recentlyKnockedBuddyID: String?
     @Published private(set) var processingRequestID: String?
     @Published private(set) var processingConversationAction: String?
     @Published private(set) var actionError: String?
@@ -256,6 +258,7 @@ final class NativeMilestoneOneViewModel: ObservableObject, @unchecked Sendable {
     var onUpdatePresence: ((String, String, @escaping ActionCompletion) -> Void)?
     var onRespondToBuddyRequest: ((String, String, @escaping ActionCompletion) -> Void)?
     var onSendMessage: ((String, String, @escaping ActionCompletion) -> Void)?
+    var onSendKnock: ((String, @escaping ActionCompletion) -> Void)?
     var onCloseConversation: ((@escaping ActionCompletion) -> Void)?
     var onSendTypingPulse: ((String, @escaping ActionCompletion) -> Void)?
     var onSendRoomMessage: ((String, String, @escaping ActionCompletion) -> Void)?
@@ -458,6 +461,32 @@ final class NativeMilestoneOneViewModel: ObservableObject, @unchecked Sendable {
                         continuation.resume(returning: response.ok)
                     } else {
                         continuation.resume(returning: false)
+                    }
+                }
+            }
+        }
+    }
+
+    func sendKnock(buddyID: String) {
+        guard let onSendKnock else {
+            actionError = "Knock is still connecting."
+            return
+        }
+        guard processingKnockBuddyID == nil else { return }
+
+        actionError = nil
+        processingKnockBuddyID = buddyID
+        onSendKnock(buddyID) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.processingKnockBuddyID = nil
+                self.consume(result)
+                if case .success(let response) = result, response.ok {
+                    self.recentlyKnockedBuddyID = buddyID
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+                        if self?.recentlyKnockedBuddyID == buddyID {
+                            self?.recentlyKnockedBuddyID = nil
+                        }
                     }
                 }
             }
@@ -889,8 +918,11 @@ private struct NativeBuddyListView: View {
                         NativeBuddyRow(
                             buddy: buddy,
                             isDark: model.state.isDark,
+                            isKnocking: model.processingKnockBuddyID == buddy.id,
+                            didKnock: model.recentlyKnockedBuddyID == buddy.id,
                             open: { model.openBuddy(buddy.id) },
-                            reply: { model.replyToAwayMessage(buddy) }
+                            reply: { model.replyToAwayMessage(buddy) },
+                            knock: { model.sendKnock(buddyID: buddy.id) }
                         )
                         .listRowBackground(NativeMilestonePalette.card(isDark: model.state.isDark))
                         .listRowSeparatorTint(NativeMilestonePalette.separator(isDark: model.state.isDark))
@@ -1347,7 +1379,10 @@ private struct NativeConversationView: View {
                 NativeConversationHeader(
                     conversation: conversation,
                     isDark: model.state.isDark,
+                    isKnocking: model.processingKnockBuddyID == conversation.buddyId,
+                    didKnock: model.recentlyKnockedBuddyID == conversation.buddyId,
                     close: model.closeConversation,
+                    knock: { model.sendKnock(buddyID: conversation.buddyId) },
                     openControls: {
                         controlsDestination = NativeConversationControlsDestination(buddyID: conversation.buddyId)
                     }
@@ -1564,7 +1599,10 @@ private struct NativeConversationControlsDestination: Identifiable {
 private struct NativeConversationHeader: View {
     let conversation: NativeMilestoneOneConversation
     let isDark: Bool
+    let isKnocking: Bool
+    let didKnock: Bool
     let close: () -> Void
+    let knock: () -> Void
     let openControls: () -> Void
 
     var body: some View {
@@ -1595,6 +1633,22 @@ private struct NativeConversationHeader: View {
             }
 
             Spacer()
+
+            Button(action: knock) {
+                if isKnocking {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Image(systemName: didKnock ? "checkmark" : "hand.wave.fill")
+                        .font(.subheadline.weight(.bold))
+                }
+            }
+            .frame(width: 36, height: 36)
+            .background(NativeMilestonePalette.gold.opacity(0.14), in: Circle())
+            .buttonStyle(.plain)
+            .foregroundColor(NativeMilestonePalette.gold)
+            .disabled(isKnocking || didKnock)
+            .accessibilityLabel(didKnock ? "Knock sent" : "Knock \(conversation.screenname)")
 
             Button(action: openControls) {
                 Image(systemName: "ellipsis.circle.fill")
@@ -1767,12 +1821,7 @@ private struct NativeMessageBubble: View {
             }
 
             VStack(alignment: message.isMine ? .trailing : .leading, spacing: 4) {
-                Text(message.content.isEmpty ? " " : message.content)
-                    .font(.body)
-                    .foregroundColor(message.isMine ? Color.black.opacity(0.88) : NativeMilestonePalette.text(isDark: isDark))
-                    .padding(.horizontal, 13)
-                    .padding(.vertical, 10)
-                    .background(bubbleBackground, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                messageContent
 
                 Text(NativeMilestoneFormatters.messageTime(message.createdAt))
                     .font(.caption2.weight(.semibold))
@@ -1798,6 +1847,45 @@ private struct NativeMessageBubble: View {
             }
         }
         .padding(.horizontal, 16)
+    }
+
+    @ViewBuilder
+    private var messageContent: some View {
+        if message.previewType == "knock", !message.isDeleted {
+            HStack(spacing: 7) {
+                Text("👋")
+                Text(message.isMine ? "You knocked" : "Knock — wants to talk")
+                    .font(.body.weight(.semibold))
+            }
+            .foregroundColor(NativeMilestonePalette.gold)
+            .padding(.horizontal, 13)
+            .padding(.vertical, 10)
+            .background(
+                NativeMilestonePalette.gold.opacity(isDark ? 0.12 : 0.1),
+                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(NativeMilestonePalette.gold.opacity(0.3), lineWidth: 1)
+            }
+        } else if message.previewType == "buzz", !message.isDeleted {
+            HStack(spacing: 7) {
+                Image(systemName: "bolt.fill")
+                Text(message.isMine ? "You buzzed" : "Buzz!")
+                    .font(.body.weight(.bold))
+            }
+            .foregroundColor(NativeMilestonePalette.gold)
+            .padding(.horizontal, 13)
+            .padding(.vertical, 10)
+            .background(bubbleBackground, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        } else {
+            Text(message.content.isEmpty ? " " : message.content)
+                .font(.body)
+                .foregroundColor(message.isMine ? Color.black.opacity(0.88) : NativeMilestonePalette.text(isDark: isDark))
+                .padding(.horizontal, 13)
+                .padding(.vertical, 10)
+                .background(bubbleBackground, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
     }
 
     private var bubbleBackground: Color {
@@ -2201,8 +2289,11 @@ private struct NativePendingRequestRow: View {
 private struct NativeBuddyRow: View {
     let buddy: NativeMilestoneOneBuddy
     let isDark: Bool
+    let isKnocking: Bool
+    let didKnock: Bool
     let open: () -> Void
     let reply: () -> Void
+    let knock: () -> Void
 
     var body: some View {
         HStack(spacing: 13) {
@@ -2245,11 +2336,25 @@ private struct NativeBuddyRow: View {
                     .buttonStyle(.bordered)
                     .tint(NativeMilestonePalette.gold)
                     .accessibilityLabel("Reply to \(buddy.screenname)'s away message")
-            } else {
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.bold))
-                    .foregroundColor(NativeMilestonePalette.muted(isDark: isDark).opacity(0.7))
             }
+            Button(action: knock) {
+                if isKnocking {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    HStack(spacing: 4) {
+                        Image(systemName: didKnock ? "checkmark" : "hand.wave.fill")
+                        if buddy.presence != .away {
+                            Text(didKnock ? "Sent" : "Knock")
+                        }
+                    }
+                }
+            }
+            .font(.caption.weight(.bold))
+            .buttonStyle(.bordered)
+            .tint(NativeMilestonePalette.gold)
+            .disabled(isKnocking || didKnock)
+            .accessibilityLabel(didKnock ? "Knock sent to \(buddy.screenname)" : "Knock \(buddy.screenname)")
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())

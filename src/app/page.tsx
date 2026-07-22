@@ -348,6 +348,9 @@ export default function Home() {
       async sendMessage() {
         return { ok: false, error: 'Sign in to send messages.' };
       },
+      async sendKnock() {
+        return { ok: false, error: 'Sign in to send a Knock.' };
+      },
       async closeConversation() {
         return { ok: true };
       },

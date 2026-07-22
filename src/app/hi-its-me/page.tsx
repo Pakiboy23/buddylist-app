@@ -713,6 +713,7 @@ interface DirectMessageRowProps {
   openBuddyProfile: (buddyId: string) => void;
   handleOpenChat: (buddyId: string) => void;
   handleReplyToAwayMessage: (buddyId: string, awayMessage: string) => void;
+  handleKnockBuddy: (buddyId: string) => void;
 }
 
 function areDirectMessageRowPropsEqual(prev: DirectMessageRowProps, next: DirectMessageRowProps): boolean {
@@ -738,7 +739,8 @@ function areDirectMessageRowPropsEqual(prev: DirectMessageRowProps, next: Direct
     prev.lastMessagePreview === next.lastMessagePreview &&
     prev.openBuddyProfile === next.openBuddyProfile &&
     prev.handleOpenChat === next.handleOpenChat &&
-    prev.handleReplyToAwayMessage === next.handleReplyToAwayMessage
+    prev.handleReplyToAwayMessage === next.handleReplyToAwayMessage &&
+    prev.handleKnockBuddy === next.handleKnockBuddy
   );
 }
 
@@ -755,6 +757,7 @@ const DirectMessageRow = memo(function DirectMessageRow({
   openBuddyProfile,
   handleOpenChat,
   handleReplyToAwayMessage,
+  handleKnockBuddy,
 }: DirectMessageRowProps) {
   const resolvedStatus = resolveStatusFields({
     status: buddy.status,
@@ -867,6 +870,17 @@ const DirectMessageRow = memo(function DirectMessageRow({
         >
           {unreadCount}
         </span>
+      ) : null}
+      {!isBlocked ? (
+        <button
+          type="button"
+          onClick={() => handleKnockBuddy(buddy.id)}
+          className="ui-focus-ring ui-button-secondary ui-button-compact shrink-0"
+          aria-label={`Knock ${buddy.screenname}`}
+          title="Let them know you want to talk"
+        >
+          👋
+        </button>
       ) : null}
       <button
         type="button"
@@ -2504,7 +2518,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       replyToMessageId?: number | null;
       forwardSourceMessageId?: number | null;
       forwardSourceSenderId?: string | null;
-      previewType?: 'text' | 'attachment' | 'forwarded' | 'voice_note' | 'buzz';
+      previewType?: 'text' | 'attachment' | 'forwarded' | 'voice_note' | 'buzz' | 'knock';
     }) => {
       if (!userId) {
         return null;
@@ -3884,6 +3898,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
           latestMessage.preview_type === 'attachment' ? '📎 Attachment'
             : latestMessage.preview_type === 'voice_note' ? '🎤 Voice note'
             : latestMessage.preview_type === 'buzz' ? '⚡ Buzz!'
+            : latestMessage.preview_type === 'knock' ? '👋 Knock'
             : htmlToPlainText(latestMessage.content).trim().slice(0, 80) || '';
         if (previewText) {
           setBuddyLastMessagePreview((previous) => ({
@@ -4159,6 +4174,9 @@ const [showAddWindow, setShowAddWindow] = useState(false);
             setTimeout(() => document.body.classList.remove('buzz-flash'), 600);
             void hapticWarning();
             void playUiSound('/sounds/aim.mp3', { volume: 0.6 });
+          } else if (incomingMessage.preview_type === 'knock') {
+            void hapticLight();
+            void playUiSound('/sounds/aim-instant-message.mp3', { volume: 0.32 });
           } else {
             void hapticLight();
             playFallbackTone();
@@ -5336,21 +5354,25 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       content: string;
       attachments?: File[];
       replyToMessageId?: number | null;
-      previewType?: 'text' | 'attachment' | 'forwarded' | 'voice_note' | 'buzz';
+      previewType?: 'text' | 'attachment' | 'forwarded' | 'voice_note' | 'buzz' | 'knock';
     }) => {
       if (!userId || !activeChatBuddyId) {
         return;
       }
 
       const isBuzz = previewType === 'buzz';
+      const isKnock = previewType === 'knock';
+      const isSignal = isBuzz || isKnock;
       const trimmedContent = content.trim();
       const normalizedAttachments = Array.isArray(attachments) ? attachments : [];
-      if (!isBuzz && !trimmedContent && normalizedAttachments.length === 0) {
+      if (!isSignal && !trimmedContent && normalizedAttachments.length === 0) {
         return;
       }
 
       const messageContent = isBuzz
         ? '⚡ Buzz!'
+        : isKnock
+          ? '👋 Knock'
         : trimmedContent
           ? content
           : normalizedAttachments.length === 1
@@ -5470,6 +5492,80 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     },
     [activeChatBuddyId, dmPreferencesByBuddyId, queueOutboxMessage, removeOutboxItem, userId],
   );
+
+  const handleSendKnockToBuddy = useCallback(async (buddyId: string) => {
+    if (!userId || !acceptedBuddyIdsRef.current.has(buddyId)) {
+      throw new Error('Knocks are only available for buddies.');
+    }
+
+    const clientMessageId = createClientMessageId();
+    const content = '👋 Knock';
+    const expiresAt = getMessageExpiresAt(
+      getDmPreference(dmPreferencesByBuddyId, buddyId).disappearingTimerSeconds,
+    );
+    const trackedOutboxItem = queueOutboxMessage({
+      type: 'dm',
+      targetId: buddyId,
+      content,
+      clientMessageId,
+      status: 'sending',
+      expiresAt,
+      previewType: 'knock',
+    });
+
+    const { data, error } = await sendDirectMessageWithClientMessageId({
+      senderId: userId,
+      receiverId: buddyId,
+      content,
+      clientMessageId,
+      expiresAt,
+      previewType: 'knock',
+    });
+
+    if (error) {
+      const isLikelyNetworkIssue =
+        (typeof navigator !== 'undefined' && !navigator.onLine) ||
+        /network|fetch|offline|timeout/i.test(error.message);
+      if (trackedOutboxItem && isLikelyNetworkIssue) {
+        setOutboxItems((previous) =>
+          normalizeOutboxItems(
+            previous.map((item) =>
+              item.id === trackedOutboxItem.id ? markOutboxAttemptFailure(item, error.message) : item,
+            ),
+          ),
+        );
+        return;
+      }
+      if (trackedOutboxItem) {
+        removeOutboxItem(trackedOutboxItem.id);
+      }
+      throw error;
+    }
+
+    if (trackedOutboxItem) {
+      removeOutboxItem(trackedOutboxItem.id);
+    }
+
+    const insertedMessage = data as ChatMessage;
+    setBuddyLastMessageAt((previous) => ({
+      ...previous,
+      [buddyId]: insertedMessage.created_at,
+    }));
+    setBuddyLastMessagePreview((previous) => ({ ...previous, [buddyId]: '👋 Knock' }));
+    if (activeChatBuddyIdRef.current === buddyId) {
+      setChatMessages((previous) =>
+        previous.some((message) => message.id === insertedMessage.id)
+          ? previous
+          : [...previous, insertedMessage],
+      );
+    }
+  }, [dmPreferencesByBuddyId, queueOutboxMessage, removeOutboxItem, userId]);
+
+  const handleKnockBuddy = useCallback((buddyId: string) => {
+    void handleSendKnockToBuddy(buddyId).catch((error) => {
+      setChatError(error instanceof Error ? error.message : 'Could not send that Knock.');
+    });
+  }, [handleSendKnockToBuddy]);
 
   const handleQueueRoomMessage = useCallback(
     ({
@@ -5871,7 +5967,13 @@ const [showAddWindow, setShowAddWindow] = useState(false);
 
       const latestOutgoingMessageId = [...chatMessages]
         .reverse()
-        .find((message) => message.sender_id === userId && !message.deleted_at && message.preview_type !== 'buzz')
+        .find(
+          (message) =>
+            message.sender_id === userId &&
+            !message.deleted_at &&
+            message.preview_type !== 'buzz' &&
+            message.preview_type !== 'knock',
+        )
         ?.id;
 
       return chatMessages.map((message) => {
@@ -5880,7 +5982,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         const plainContent = htmlToPlainText(message.content).trim();
         const moderatedContent = displayBodyForMessage(
           message,
-          plainContent || (message.preview_type === 'buzz' ? 'Buzz!' : ''),
+          plainContent || (message.preview_type === 'buzz' ? 'Buzz!' : message.preview_type === 'knock' ? 'Knock' : ''),
           isMine,
         );
 
@@ -6510,6 +6612,24 @@ const [showAddWindow, setShowAddWindow] = useState(false);
           };
         }
       },
+      async sendKnock(buddyId) {
+        if (!userId) {
+          return { ok: false, error: 'Your session is still loading.' };
+        }
+        if (!acceptedBuddyIdsRef.current.has(buddyId)) {
+          return { ok: false, error: 'Knocks are only available for buddies.' };
+        }
+
+        try {
+          await handleSendKnockToBuddy(buddyId);
+          return { ok: true };
+        } catch (error) {
+          return {
+            ok: false,
+            error: error instanceof Error ? error.message : 'Could not send that Knock.',
+          };
+        }
+      },
       async closeConversation() {
         closeChatWindow();
         return { ok: true };
@@ -6623,6 +6743,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     handleAcceptPendingRequest,
     activeRoom,
     handleDeclinePendingRequest,
+    handleSendKnockToBuddy,
     handleSendMessage,
     handleOpenChat,
     handleBackFromRoom,
@@ -7424,6 +7545,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                           openBuddyProfile={openBuddyProfile}
                           handleOpenChat={handleOpenChat}
                           handleReplyToAwayMessage={handleReplyToAwayMessage}
+                          handleKnockBuddy={handleKnockBuddy}
                         />
                       ))}
 
@@ -7450,6 +7572,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                                   openBuddyProfile={openBuddyProfile}
                                   handleOpenChat={handleOpenChat}
                                   handleReplyToAwayMessage={handleReplyToAwayMessage}
+                                  handleKnockBuddy={handleKnockBuddy}
                                 />
                               ))}
                             </section>

@@ -74,7 +74,7 @@ export interface ChatComposeSubmitPayload {
   content: string;
   attachments?: File[];
   replyToMessageId?: number | null;
-  previewType?: 'text' | 'attachment' | 'forwarded' | 'voice_note' | 'buzz';
+  previewType?: 'text' | 'attachment' | 'forwarded' | 'voice_note' | 'buzz' | 'knock';
 }
 
 interface ChatWindowProps {
@@ -1724,7 +1724,12 @@ export default function ChatWindow({
                           {incomingAvatar}
                           <SwipeActionFrame
                             align={isMine ? 'end' : 'start'}
-                            enabled={!isDeleted && !isEditing && message.preview_type !== 'buzz'}
+                            enabled={
+                              !isDeleted &&
+                              !isEditing &&
+                              message.preview_type !== 'buzz' &&
+                              message.preview_type !== 'knock'
+                            }
                             label={swipeLabel}
                             onTrigger={() => startReplyingToMessage(message)}
                             className="max-w-[82%]"
@@ -1773,7 +1778,14 @@ export default function ChatWindow({
                                 </div>
                               ) : null}
 
-                              {message.preview_type !== 'buzz' ? (
+                              {message.preview_type === 'knock' && !isDeleted ? (
+                                <div className="my-2 flex items-center justify-center gap-2 rounded-2xl border border-[rgba(232,162,58,0.28)] bg-[rgba(232,162,58,0.09)] px-4 py-2.5 text-[length:var(--ui-text-sm)] font-semibold text-[var(--gold)]">
+                                  <span aria-hidden="true">👋</span>
+                                  <span>{isMine ? 'You knocked' : `${buddyScreenname} knocked — wants to talk`}</span>
+                                </div>
+                              ) : null}
+
+                              {message.preview_type !== 'buzz' && message.preview_type !== 'knock' ? (
                                 <div
                                   className={`relative msg-enter px-3 py-2 ${
                                     hasCustomStyling
@@ -2005,7 +2017,7 @@ export default function ChatWindow({
                                   ))}
                                 </div>
                               ) : null}
-                              {latestOutgoingMessageId === message.id && isMine && !isEditing && !isDeleted && message.preview_type !== 'buzz' ? (
+                              {latestOutgoingMessageId === message.id && isMine && !isEditing && !isDeleted && message.preview_type !== 'buzz' && message.preview_type !== 'knock' ? (
                                 <p className="mt-1 flex items-center justify-end gap-1 text-right text-[length:var(--ui-text-2xs)] text-slate-400">
                                   {showReadReceipts && message.read_at ? (
                                     <svg width="14" height="8" viewBox="0 0 14 8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-blue-400" aria-hidden="true">
@@ -2221,6 +2233,20 @@ export default function ChatWindow({
               <div className="ui-toolbar-surface space-y-3 rounded-2xl px-3 py-3">
                 {composerToolsExpanded ? (
                   <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void hapticLight();
+                        void playUiSound('/sounds/aim-instant-message.mp3', { volume: 0.32 });
+                        void onSendMessage({ content: '', previewType: 'knock' });
+                      }}
+                      className={`${xpTinyToolbarButtonClass()} h-8 gap-1.5 px-3 text-[var(--gold)]`}
+                      aria-label={`Knock ${buddyScreenname}`}
+                      title="Knock — let them know you want to talk"
+                    >
+                      <span aria-hidden="true">👋</span>
+                      <span>Knock</span>
+                    </button>
                     <button
                       type="button"
                       onClick={() => attachmentInputRef.current?.click()}
