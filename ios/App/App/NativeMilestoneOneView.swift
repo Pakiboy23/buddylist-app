@@ -61,8 +61,42 @@ struct NativeMilestoneOneConversation: Decodable, Equatable {
     let error: String?
 }
 
+enum NativeMilestoneOneSection: String, Decodable {
+    case buddies
+    case rooms
+}
+
+struct NativeMilestoneOneRoom: Decodable, Equatable, Identifiable {
+    let id: String
+    let slug: String
+    let name: String
+    let subtitle: String
+    let unreadCount: Int
+}
+
+struct NativeMilestoneOneRoomMessage: Decodable, Equatable, Identifiable {
+    let id: String
+    let senderId: String
+    let senderScreenname: String
+    let content: String
+    let createdAt: String
+    let isMine: Bool
+}
+
+struct NativeMilestoneOneRoomConversation: Decodable, Equatable {
+    let roomId: String
+    let roomName: String
+    let activeCount: Int
+    let messages: [NativeMilestoneOneRoomMessage]
+    let isLoading: Bool
+    let isSending: Bool
+    let typingText: String?
+    let error: String?
+}
+
 struct NativeMilestoneOneState: Decodable, Equatable {
     let phase: NativeMilestoneOnePhase
+    let selectedSection: NativeMilestoneOneSection
     let screenname: String?
     let currentPresence: NativeMilestoneOnePresence?
     let currentPresenceDetail: String?
@@ -75,9 +109,12 @@ struct NativeMilestoneOneState: Decodable, Equatable {
     let isDark: Bool
     let error: String?
     let activeConversation: NativeMilestoneOneConversation?
+    let rooms: [NativeMilestoneOneRoom]
+    let activeRoomConversation: NativeMilestoneOneRoomConversation?
 
     static let loading = NativeMilestoneOneState(
         phase: .loading,
+        selectedSection: .buddies,
         screenname: nil,
         currentPresence: nil,
         currentPresenceDetail: nil,
@@ -89,11 +126,14 @@ struct NativeMilestoneOneState: Decodable, Equatable {
         isRefreshing: false,
         isDark: true,
         error: nil,
-        activeConversation: nil
+        activeConversation: nil,
+        rooms: [],
+        activeRoomConversation: nil
     )
 
     init(
         phase: NativeMilestoneOnePhase,
+        selectedSection: NativeMilestoneOneSection,
         screenname: String?,
         currentPresence: NativeMilestoneOnePresence?,
         currentPresenceDetail: String?,
@@ -105,9 +145,12 @@ struct NativeMilestoneOneState: Decodable, Equatable {
         isRefreshing: Bool,
         isDark: Bool,
         error: String?,
-        activeConversation: NativeMilestoneOneConversation?
+        activeConversation: NativeMilestoneOneConversation?,
+        rooms: [NativeMilestoneOneRoom],
+        activeRoomConversation: NativeMilestoneOneRoomConversation?
     ) {
         self.phase = phase
+        self.selectedSection = selectedSection
         self.screenname = screenname
         self.currentPresence = currentPresence
         self.currentPresenceDetail = currentPresenceDetail
@@ -120,10 +163,13 @@ struct NativeMilestoneOneState: Decodable, Equatable {
         self.isDark = isDark
         self.error = error
         self.activeConversation = activeConversation
+        self.rooms = rooms
+        self.activeRoomConversation = activeRoomConversation
     }
 
     private enum CodingKeys: String, CodingKey {
         case phase
+        case selectedSection
         case screenname
         case currentPresence
         case currentPresenceDetail
@@ -136,11 +182,14 @@ struct NativeMilestoneOneState: Decodable, Equatable {
         case isDark
         case error
         case activeConversation
+        case rooms
+        case activeRoomConversation
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         phase = try container.decodeIfPresent(NativeMilestoneOnePhase.self, forKey: .phase) ?? .hidden
+        selectedSection = try container.decodeIfPresent(NativeMilestoneOneSection.self, forKey: .selectedSection) ?? .buddies
         screenname = try container.decodeIfPresent(String.self, forKey: .screenname)
         currentPresence = try container.decodeIfPresent(NativeMilestoneOnePresence.self, forKey: .currentPresence)
         currentPresenceDetail = try container.decodeIfPresent(String.self, forKey: .currentPresenceDetail)
@@ -156,6 +205,8 @@ struct NativeMilestoneOneState: Decodable, Equatable {
         isDark = try container.decodeIfPresent(Bool.self, forKey: .isDark) ?? true
         error = try container.decodeIfPresent(String.self, forKey: .error)
         activeConversation = try container.decodeIfPresent(NativeMilestoneOneConversation.self, forKey: .activeConversation)
+        rooms = try container.decodeIfPresent([NativeMilestoneOneRoom].self, forKey: .rooms) ?? []
+        activeRoomConversation = try container.decodeIfPresent(NativeMilestoneOneRoomConversation.self, forKey: .activeRoomConversation)
     }
 }
 
@@ -174,18 +225,24 @@ final class NativeMilestoneOneViewModel: ObservableObject, @unchecked Sendable {
     @Published private(set) var isRefreshing = false
     @Published private(set) var isUpdatingPresence = false
     @Published private(set) var isSendingMessage = false
+    @Published private(set) var isSendingRoomMessage = false
     @Published private(set) var processingRequestID: String?
     @Published private(set) var processingConversationAction: String?
     @Published private(set) var actionError: String?
 
     var onSignIn: ((String, String, @escaping ActionCompletion) -> Void)?
     var onRefresh: ((@escaping ActionCompletion) -> Void)?
+    var onRefreshRooms: ((@escaping ActionCompletion) -> Void)?
     var onOpenBuddy: ((String, @escaping ActionCompletion) -> Void)?
+    var onOpenRoom: ((String, @escaping ActionCompletion) -> Void)?
     var onUpdatePresence: ((String, String, @escaping ActionCompletion) -> Void)?
     var onRespondToBuddyRequest: ((String, String, @escaping ActionCompletion) -> Void)?
     var onSendMessage: ((String, String, @escaping ActionCompletion) -> Void)?
     var onCloseConversation: ((@escaping ActionCompletion) -> Void)?
     var onSendTypingPulse: ((String, @escaping ActionCompletion) -> Void)?
+    var onSendRoomMessage: ((String, String, @escaping ActionCompletion) -> Void)?
+    var onCloseRoomConversation: ((@escaping ActionCompletion) -> Void)?
+    var onSendRoomTypingPulse: ((String, @escaping ActionCompletion) -> Void)?
     var onOpenProfile: ((String, @escaping ActionCompletion) -> Void)?
     var onTogglePinned: ((String, @escaping ActionCompletion) -> Void)?
     var onToggleMuted: ((String, @escaping ActionCompletion) -> Void)?
@@ -208,6 +265,9 @@ final class NativeMilestoneOneViewModel: ObservableObject, @unchecked Sendable {
         }
         if nextState.activeConversation?.isSending == false {
             isSendingMessage = false
+        }
+        if nextState.activeRoomConversation?.isSending == false {
+            isSendingRoomMessage = false
         }
     }
 
@@ -249,9 +309,34 @@ final class NativeMilestoneOneViewModel: ObservableObject, @unchecked Sendable {
         }
     }
 
+    func refreshRooms() async {
+        guard let onRefreshRooms, !isRefreshing else { return }
+        await withCheckedContinuation { continuation in
+            DispatchQueue.main.async { [weak self] in
+                self?.isRefreshing = true
+            }
+            onRefreshRooms { [weak self] result in
+                DispatchQueue.main.async {
+                    self?.isRefreshing = false
+                    self?.consume(result)
+                    continuation.resume()
+                }
+            }
+        }
+    }
+
     func openBuddy(_ buddyID: String) {
         guard let onOpenBuddy else { return }
         onOpenBuddy(buddyID) { [weak self] result in
+            DispatchQueue.main.async {
+                self?.consume(result)
+            }
+        }
+    }
+
+    func openRoom(_ roomID: String) {
+        guard let onOpenRoom else { return }
+        onOpenRoom(roomID) { [weak self] result in
             DispatchQueue.main.async {
                 self?.consume(result)
             }
@@ -355,6 +440,54 @@ final class NativeMilestoneOneViewModel: ObservableObject, @unchecked Sendable {
     func sendTypingPulse(buddyID: String) {
         guard let onSendTypingPulse else { return }
         onSendTypingPulse(buddyID) { _ in }
+    }
+
+    func sendRoomMessage(roomID: String, content: String) async -> Bool {
+        let trimmedContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedContent.isEmpty else {
+            actionError = "Type a message first."
+            return false
+        }
+        guard let onSendRoomMessage else {
+            actionError = "Room messages are still connecting."
+            return false
+        }
+        guard !isSendingRoomMessage else { return false }
+
+        actionError = nil
+        isSendingRoomMessage = true
+        return await withCheckedContinuation { continuation in
+            onSendRoomMessage(roomID, trimmedContent) { [weak self] result in
+                DispatchQueue.main.async {
+                    guard let self else {
+                        continuation.resume(returning: false)
+                        return
+                    }
+
+                    self.isSendingRoomMessage = false
+                    self.consume(result)
+                    if case .success(let response) = result {
+                        continuation.resume(returning: response.ok)
+                    } else {
+                        continuation.resume(returning: false)
+                    }
+                }
+            }
+        }
+    }
+
+    func closeRoomConversation() {
+        guard let onCloseRoomConversation else { return }
+        onCloseRoomConversation { [weak self] result in
+            DispatchQueue.main.async {
+                self?.consume(result)
+            }
+        }
+    }
+
+    func sendRoomTypingPulse(roomID: String) {
+        guard let onSendRoomTypingPulse else { return }
+        onSendRoomTypingPulse(roomID) { _ in }
     }
 
     func openProfile(buddyID: String) async -> Bool {
@@ -474,6 +607,10 @@ struct NativeMilestoneOneRootView: View {
             case .signedIn:
                 if let conversation = model.state.activeConversation {
                     NativeConversationView(model: model, conversation: conversation)
+                } else if let roomConversation = model.state.activeRoomConversation {
+                    NativeRoomConversationView(model: model, conversation: roomConversation)
+                } else if model.state.selectedSection == .rooms {
+                    NativeRoomsView(model: model)
                 } else {
                     NativeBuddyListView(model: model)
                 }
@@ -744,6 +881,339 @@ private struct NativeBuddyListView: View {
         }
         .listStyle(.plain)
         .environment(\.defaultMinListRowHeight, 56)
+    }
+}
+
+private struct NativeRoomsView: View {
+    @ObservedObject var model: NativeMilestoneOneViewModel
+
+    var body: some View {
+        configuredList
+            .refreshable { await model.refreshRooms() }
+            .background(NativeMilestonePalette.background(isDark: model.state.isDark).ignoresSafeArea())
+    }
+
+    @ViewBuilder
+    private var configuredList: some View {
+        if #available(iOS 16.0, *) {
+            listContent.scrollContentBackground(.hidden)
+        } else {
+            listContent
+        }
+    }
+
+    private var listContent: some View {
+        List {
+            if let error = model.actionError {
+                Section {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .font(.footnote)
+                        .foregroundColor(.red)
+                        .listRowBackground(NativeMilestonePalette.card(isDark: model.state.isDark))
+                }
+            }
+
+            Section {
+                if model.state.rooms.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "bubble.left.and.bubble.right")
+                            .font(.system(size: 32, weight: .semibold))
+                            .foregroundColor(NativeMilestonePalette.gold)
+                        Text("No joined rooms yet")
+                            .font(.headline)
+                            .foregroundColor(NativeMilestonePalette.text(isDark: model.state.isDark))
+                        Text("Browse rooms on the web surface to join one. Joined rooms will appear here.")
+                            .font(.subheadline)
+                            .foregroundColor(NativeMilestonePalette.muted(isDark: model.state.isDark))
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 36)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                } else {
+                    ForEach(model.state.rooms) { room in
+                        Button {
+                            model.openRoom(room.id)
+                        } label: {
+                            NativeRoomRow(room: room, isDark: model.state.isDark)
+                        }
+                        .buttonStyle(.plain)
+                        .listRowBackground(NativeMilestonePalette.card(isDark: model.state.isDark))
+                        .listRowSeparatorTint(NativeMilestonePalette.separator(isDark: model.state.isDark))
+                    }
+                }
+            } header: {
+                HStack {
+                    Text("Joined Rooms")
+                    Spacer()
+                    Text("\(model.state.rooms.count)")
+                        .foregroundColor(NativeMilestonePalette.gold)
+                }
+                .font(.caption.weight(.bold))
+            }
+        }
+        .listStyle(.plain)
+        .environment(\.defaultMinListRowHeight, 62)
+    }
+}
+
+private struct NativeRoomRow: View {
+    let room: NativeMilestoneOneRoom
+    let isDark: Bool
+
+    var body: some View {
+        HStack(spacing: 13) {
+            Image(systemName: "number")
+                .font(.headline.weight(.black))
+                .foregroundColor(Color.black.opacity(0.82))
+                .frame(width: 44, height: 44)
+                .background(NativeMilestonePalette.gold, in: Circle())
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(room.name)
+                    .font(.body.weight(.bold))
+                    .foregroundColor(NativeMilestonePalette.text(isDark: isDark))
+                    .lineLimit(1)
+                Text(room.subtitle)
+                    .font(.caption)
+                    .foregroundColor(NativeMilestonePalette.muted(isDark: isDark))
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 8)
+
+            if room.unreadCount > 0 {
+                Text("\(room.unreadCount)")
+                    .font(.caption2.weight(.bold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 4)
+                    .background(NativeMilestonePalette.gold, in: Capsule())
+                    .accessibilityLabel("\(room.unreadCount) unread messages")
+            }
+
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.bold))
+                .foregroundColor(NativeMilestonePalette.muted(isDark: isDark).opacity(0.7))
+        }
+        .padding(.vertical, 5)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(room.name), \(room.subtitle)")
+        .accessibilityHint("Opens the room")
+    }
+}
+
+private struct NativeRoomConversationView: View {
+    @ObservedObject var model: NativeMilestoneOneViewModel
+    let conversation: NativeMilestoneOneRoomConversation
+    @State private var draft = ""
+    @FocusState private var composerFocused: Bool
+
+    var body: some View {
+        ZStack {
+            NativeMilestonePalette.background(isDark: model.state.isDark).ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                NativeRoomConversationHeader(
+                    conversation: conversation,
+                    isDark: model.state.isDark,
+                    close: model.closeRoomConversation
+                )
+
+                Divider()
+                    .overlay(NativeMilestonePalette.separator(isDark: model.state.isDark))
+
+                messageScrollback
+
+                NativeConversationComposer(
+                    draft: $draft,
+                    isSending: model.isSendingRoomMessage || conversation.isSending,
+                    isDark: model.state.isDark,
+                    send: sendDraft,
+                    typing: {
+                        model.sendRoomTypingPulse(roomID: conversation.roomId)
+                    }
+                )
+                .focused($composerFocused)
+            }
+        }
+        .onAppear { composerFocused = true }
+    }
+
+    private var messageScrollback: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 10) {
+                    if conversation.isLoading && conversation.messages.isEmpty {
+                        ProgressView("Loading room...")
+                            .tint(NativeMilestonePalette.gold)
+                            .foregroundColor(NativeMilestonePalette.muted(isDark: model.state.isDark))
+                            .padding(.top, 28)
+                    } else if conversation.messages.isEmpty {
+                        NativeEmptyRoomConversationView(roomName: conversation.roomName, isDark: model.state.isDark)
+                            .padding(.top, 42)
+                    }
+
+                    ForEach(conversation.messages) { message in
+                        NativeRoomMessageBubble(message: message, isDark: model.state.isDark)
+                    }
+
+                    if let typingText = conversation.typingText, !typingText.isEmpty {
+                        Text(typingText)
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(NativeMilestonePalette.gold)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 18)
+                    }
+
+                    if let error = conversation.error, !error.isEmpty {
+                        Label(error, systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(.red)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 18)
+                    }
+
+                    Color.clear
+                        .frame(height: 1)
+                        .id("native-room-conversation-bottom")
+                }
+                .padding(.vertical, 14)
+            }
+            .onAppear { scrollToBottom(proxy) }
+            .onChange(of: conversation.messages.count) { _ in
+                scrollToBottom(proxy)
+            }
+        }
+    }
+
+    private func sendDraft() {
+        let trimmedDraft = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedDraft.isEmpty else { return }
+
+        Task {
+            let didSend = await model.sendRoomMessage(roomID: conversation.roomId, content: trimmedDraft)
+            if didSend {
+                draft = ""
+            }
+        }
+    }
+
+    private func scrollToBottom(_ proxy: ScrollViewProxy) {
+        DispatchQueue.main.async {
+            withAnimation(.easeOut(duration: 0.2)) {
+                proxy.scrollTo("native-room-conversation-bottom", anchor: .bottom)
+            }
+        }
+    }
+}
+
+private struct NativeRoomConversationHeader: View {
+    let conversation: NativeMilestoneOneRoomConversation
+    let isDark: Bool
+    let close: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Button(action: close) {
+                Image(systemName: "chevron.left")
+                    .font(.headline.weight(.bold))
+                    .frame(width: 34, height: 34)
+                    .background(NativeMilestonePalette.card(isDark: isDark), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(NativeMilestonePalette.text(isDark: isDark))
+            .accessibilityLabel("Back to rooms")
+
+            Image(systemName: "number")
+                .font(.headline.weight(.black))
+                .foregroundColor(Color.black.opacity(0.82))
+                .frame(width: 42, height: 42)
+                .background(NativeMilestonePalette.gold, in: Circle())
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(conversation.roomName)
+                    .font(.headline.weight(.bold))
+                    .foregroundColor(NativeMilestonePalette.text(isDark: isDark))
+                    .lineLimit(1)
+                Text(conversation.activeCount == 1 ? "1 active now" : "\(conversation.activeCount) active now")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(conversation.activeCount > 0
+                        ? NativeMilestonePalette.green
+                        : NativeMilestonePalette.muted(isDark: isDark))
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 10)
+    }
+}
+
+private struct NativeRoomMessageBubble: View {
+    let message: NativeMilestoneOneRoomMessage
+    let isDark: Bool
+
+    var body: some View {
+        HStack {
+            if message.isMine {
+                Spacer(minLength: 44)
+            }
+
+            VStack(alignment: message.isMine ? .trailing : .leading, spacing: 4) {
+                if !message.isMine {
+                    Text(message.senderScreenname)
+                        .font(.caption2.weight(.bold))
+                        .foregroundColor(NativeMilestonePalette.gold)
+                        .padding(.horizontal, 4)
+                }
+
+                Text(message.content.isEmpty ? " " : message.content)
+                    .font(.body)
+                    .foregroundColor(message.isMine ? Color.black.opacity(0.88) : NativeMilestonePalette.text(isDark: isDark))
+                    .padding(.horizontal, 13)
+                    .padding(.vertical, 10)
+                    .background(
+                        message.isMine ? NativeMilestonePalette.gold : NativeMilestonePalette.card(isDark: isDark),
+                        in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    )
+
+                Text(NativeMilestoneFormatters.messageTime(message.createdAt))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundColor(NativeMilestonePalette.muted(isDark: isDark).opacity(0.82))
+                    .padding(.horizontal, 4)
+            }
+            .frame(maxWidth: 300, alignment: message.isMine ? .trailing : .leading)
+
+            if !message.isMine {
+                Spacer(minLength: 44)
+            }
+        }
+        .padding(.horizontal, 16)
+    }
+}
+
+private struct NativeEmptyRoomConversationView: View {
+    let roomName: String
+    let isDark: Bool
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "number")
+                .font(.system(size: 34, weight: .bold))
+                .foregroundColor(NativeMilestonePalette.gold)
+            Text("No room messages yet")
+                .font(.headline)
+                .foregroundColor(NativeMilestonePalette.text(isDark: isDark))
+            Text("Start the conversation in \(roomName).")
+                .font(.subheadline)
+                .foregroundColor(NativeMilestonePalette.muted(isDark: isDark))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 28)
     }
 }
 

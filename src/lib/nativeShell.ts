@@ -153,8 +153,39 @@ export interface NativeMilestoneOneConversation {
   error?: string | null;
 }
 
+export type NativeMilestoneOneSection = 'buddies' | 'rooms';
+
+export interface NativeMilestoneOneRoom {
+  id: string;
+  slug: string;
+  name: string;
+  subtitle: string;
+  unreadCount: number;
+}
+
+export interface NativeMilestoneOneRoomMessage {
+  id: string;
+  senderId: string;
+  senderScreenname: string;
+  content: string;
+  createdAt: string;
+  isMine: boolean;
+}
+
+export interface NativeMilestoneOneRoomConversation {
+  roomId: string;
+  roomName: string;
+  activeCount: number;
+  messages: NativeMilestoneOneRoomMessage[];
+  isLoading: boolean;
+  isSending: boolean;
+  typingText?: string | null;
+  error?: string | null;
+}
+
 export interface NativeMilestoneOneState {
   phase: NativeMilestoneOnePhase;
+  selectedSection?: NativeMilestoneOneSection;
   screenname?: string | null;
   currentPresence?: NativeMilestoneOnePresence | null;
   currentPresenceDetail?: string | null;
@@ -167,6 +198,8 @@ export interface NativeMilestoneOneState {
   isDark?: boolean;
   error?: string | null;
   activeConversation?: NativeMilestoneOneConversation | null;
+  rooms?: NativeMilestoneOneRoom[];
+  activeRoomConversation?: NativeMilestoneOneRoomConversation | null;
 }
 
 export type NativeMilestoneOneActionResult =
@@ -176,7 +209,9 @@ export type NativeMilestoneOneActionResult =
 export interface NativeMilestoneOneBridge {
   signIn(screenname: string, password: string): Promise<NativeMilestoneOneActionResult>;
   refreshBuddyList(): Promise<NativeMilestoneOneActionResult>;
+  refreshRooms(): Promise<NativeMilestoneOneActionResult>;
   openBuddy(buddyId: string): Promise<NativeMilestoneOneActionResult>;
+  openRoom(roomId: string): Promise<NativeMilestoneOneActionResult>;
   updatePresence(
     status: 'available' | 'away',
     awayMessage: string | null,
@@ -188,12 +223,20 @@ export interface NativeMilestoneOneBridge {
   sendMessage(buddyId: string, content: string): Promise<NativeMilestoneOneActionResult>;
   closeConversation(): Promise<NativeMilestoneOneActionResult>;
   sendTypingPulse(buddyId: string): Promise<NativeMilestoneOneActionResult>;
+  sendRoomMessage(roomId: string, content: string): Promise<NativeMilestoneOneActionResult>;
+  closeRoomConversation(): Promise<NativeMilestoneOneActionResult>;
+  sendRoomTypingPulse(roomId: string): Promise<NativeMilestoneOneActionResult>;
   openProfile(buddyId: string): Promise<NativeMilestoneOneActionResult>;
   togglePinned(buddyId: string): Promise<NativeMilestoneOneActionResult>;
   toggleMuted(buddyId: string): Promise<NativeMilestoneOneActionResult>;
   toggleArchived(buddyId: string): Promise<NativeMilestoneOneActionResult>;
   signOut(): Promise<NativeMilestoneOneActionResult>;
   showWebAuth(mode: 'signup' | 'forgotPassword'): Promise<NativeMilestoneOneActionResult>;
+}
+
+export interface NativeMilestoneOneRoomBridge {
+  sendMessage(content: string): Promise<NativeMilestoneOneActionResult>;
+  sendTypingPulse(): void;
 }
 
 export type NativeShellCommand =

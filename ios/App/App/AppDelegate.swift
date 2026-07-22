@@ -968,6 +968,22 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         )
     }
 
+    fileprivate func nativeMilestoneRefreshRooms(
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.refreshRooms) {
+                return { ok: false, error: "Rooms bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.refreshRooms();
+            """,
+            arguments: [:],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
     fileprivate func nativeMilestoneOpenBuddy(
         buddyID: String,
         completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
@@ -980,6 +996,23 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
             return await window.__hiItsMeNativeMilestoneOne.openBuddy(buddyID);
             """,
             arguments: ["buddyID": buddyID],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneOpenRoom(
+        roomID: String,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.openRoom) {
+                return { ok: false, error: "Rooms bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.openRoom(roomID);
+            """,
+            arguments: ["roomID": roomID],
             as: NativeMilestoneOneActionResponse.self,
             completion: completion
         )
@@ -1076,6 +1109,60 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
             return await window.__hiItsMeNativeMilestoneOne.sendTypingPulse(buddyID);
             """,
             arguments: ["buddyID": buddyID],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneSendRoomMessage(
+        roomID: String,
+        content: String,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.sendRoomMessage) {
+                return { ok: false, error: "Room message bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.sendRoomMessage(
+                roomID,
+                content
+            );
+            """,
+            arguments: ["roomID": roomID, "content": content],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneCloseRoomConversation(
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.closeRoomConversation) {
+                return { ok: false, error: "Room conversation bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.closeRoomConversation();
+            """,
+            arguments: [:],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneSendRoomTypingPulse(
+        roomID: String,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.sendRoomTypingPulse) {
+                return { ok: false, error: "Room typing bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.sendRoomTypingPulse(roomID);
+            """,
+            arguments: ["roomID": roomID],
             as: NativeMilestoneOneActionResponse.self,
             completion: completion
         )
@@ -1312,8 +1399,14 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         nativeMilestoneOneModel.onRefresh = { [weak self] completion in
             self?.nativeMilestoneRefresh(completion: completion)
         }
+        nativeMilestoneOneModel.onRefreshRooms = { [weak self] completion in
+            self?.nativeMilestoneRefreshRooms(completion: completion)
+        }
         nativeMilestoneOneModel.onOpenBuddy = { [weak self] buddyID, completion in
             self?.nativeMilestoneOpenBuddy(buddyID: buddyID, completion: completion)
+        }
+        nativeMilestoneOneModel.onOpenRoom = { [weak self] roomID, completion in
+            self?.nativeMilestoneOpenRoom(roomID: roomID, completion: completion)
         }
         nativeMilestoneOneModel.onUpdatePresence = { [weak self] status, awayMessage, completion in
             self?.nativeMilestoneUpdatePresence(
@@ -1341,6 +1434,19 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         }
         nativeMilestoneOneModel.onSendTypingPulse = { [weak self] buddyID, completion in
             self?.nativeMilestoneSendTypingPulse(buddyID: buddyID, completion: completion)
+        }
+        nativeMilestoneOneModel.onSendRoomMessage = { [weak self] roomID, content, completion in
+            self?.nativeMilestoneSendRoomMessage(
+                roomID: roomID,
+                content: content,
+                completion: completion
+            )
+        }
+        nativeMilestoneOneModel.onCloseRoomConversation = { [weak self] completion in
+            self?.nativeMilestoneCloseRoomConversation(completion: completion)
+        }
+        nativeMilestoneOneModel.onSendRoomTypingPulse = { [weak self] roomID, completion in
+            self?.nativeMilestoneSendRoomTypingPulse(roomID: roomID, completion: completion)
         }
         nativeMilestoneOneModel.onOpenProfile = { [weak self] buddyID, completion in
             self?.nativeMilestoneOpenProfile(buddyID: buddyID, completion: completion)

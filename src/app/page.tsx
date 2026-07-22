@@ -330,8 +330,14 @@ export default function Home() {
       async refreshBuddyList() {
         return { ok: false, error: 'Sign in to refresh your BuddyList.' };
       },
+      async refreshRooms() {
+        return { ok: false, error: 'Sign in to refresh rooms.' };
+      },
       async openBuddy() {
         return { ok: false, error: 'Sign in to open a buddy.' };
+      },
+      async openRoom() {
+        return { ok: false, error: 'Sign in to open a room.' };
       },
       async updatePresence() {
         return { ok: false, error: 'Sign in to update your presence.' };
@@ -346,6 +352,15 @@ export default function Home() {
         return { ok: true };
       },
       async sendTypingPulse() {
+        return { ok: true };
+      },
+      async sendRoomMessage() {
+        return { ok: false, error: 'Sign in to send room messages.' };
+      },
+      async closeRoomConversation() {
+        return { ok: true };
+      },
+      async sendRoomTypingPulse() {
         return { ok: true };
       },
       async openProfile() {

@@ -153,12 +153,17 @@ describe('native milestone-one request bridge', () => {
     const bridge: NativeMilestoneOneBridge = {
       signIn: vi.fn(async () => ({ ok: true as const })),
       refreshBuddyList: vi.fn(async () => ({ ok: true as const })),
+      refreshRooms: vi.fn(async () => ({ ok: true as const })),
       openBuddy: vi.fn(async () => ({ ok: true as const })),
+      openRoom: vi.fn(async () => ({ ok: true as const })),
       updatePresence: vi.fn(async () => ({ ok: true as const })),
       respondToBuddyRequest,
       sendMessage: vi.fn(async () => ({ ok: true as const })),
       closeConversation: vi.fn(async () => ({ ok: true as const })),
       sendTypingPulse: vi.fn(async () => ({ ok: true as const })),
+      sendRoomMessage: vi.fn(async () => ({ ok: true as const })),
+      closeRoomConversation: vi.fn(async () => ({ ok: true as const })),
+      sendRoomTypingPulse: vi.fn(async () => ({ ok: true as const })),
       openProfile: vi.fn(async () => ({ ok: true as const })),
       togglePinned: vi.fn(async () => ({ ok: true as const })),
       toggleMuted: vi.fn(async () => ({ ok: true as const })),
@@ -188,6 +193,47 @@ describe('native milestone-one request bridge', () => {
       expect.objectContaining({
         pendingRequestCount: 1,
         pendingRequests: [{ id: 'requester-1', screenname: 'newbuddy' }],
+      }),
+    );
+  });
+
+  it('publishes joined rooms and the active native room conversation', async () => {
+    await publishNativeMilestoneOneState({
+      phase: 'signedIn',
+      selectedSection: 'rooms',
+      rooms: [
+        {
+          id: 'room-1',
+          slug: 'new-york',
+          name: 'New York',
+          subtitle: 'local plans and people',
+          unreadCount: 2,
+        },
+      ],
+      activeRoomConversation: {
+        roomId: 'room-1',
+        roomName: 'New York',
+        activeCount: 3,
+        messages: [
+          {
+            id: 'message-1',
+            senderId: 'user-1',
+            senderScreenname: 'Pakiboy24',
+            content: 'hello room',
+            createdAt: '2026-07-22T12:00:00.000Z',
+            isMine: true,
+          },
+        ],
+        isLoading: false,
+        isSending: false,
+      },
+    });
+
+    expect(setMilestoneOneState).toHaveBeenCalledWith(
+      expect.objectContaining({
+        selectedSection: 'rooms',
+        rooms: [expect.objectContaining({ id: 'room-1', unreadCount: 2 })],
+        activeRoomConversation: expect.objectContaining({ roomId: 'room-1', activeCount: 3 }),
       }),
     );
   });

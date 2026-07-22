@@ -138,6 +138,9 @@ import {
   type NativeMilestoneOneBuddy,
   type NativeMilestoneOneConversation,
   type NativeMilestoneOneMessage,
+  type NativeMilestoneOneRoom,
+  type NativeMilestoneOneRoomBridge,
+  type NativeMilestoneOneRoomConversation,
   type NativeShellAdminAuditItem,
   type NativeShellAdminAuditResult,
   type NativeShellAdminIssueResult,
@@ -966,6 +969,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   const [roomJoinError, setRoomJoinError] = useState<string | null>(null);
   const [isJoiningRoom, setIsJoiningRoom] = useState(false);
   const [activeRoom, setActiveRoom] = useState<ChatRoom | null>(null);
+  const [nativeRoomConversation, setNativeRoomConversation] = useState<NativeMilestoneOneRoomConversation | null>(null);
   const [isAdminUser, setIsAdminUser] = useState(false);
   const [isAdminResetOpen, setIsAdminResetOpen] = useState(false);
   const [adminResetScreenname, setAdminResetScreenname] = useState('');
@@ -1000,6 +1004,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   const hasPresenceSyncedRef = useRef(false);
   const isSigningOffRef = useRef(false);
   const activeChatBuddyIdRef = useRef<string | null>(null);
+  const nativeRoomBridgeRef = useRef<NativeMilestoneOneRoomBridge | null>(null);
   const acceptedBuddyIdsRef = useRef<Set<string>>(new Set());
   const blockedUserIdsRef = useRef<Set<string>>(new Set());
   const buddyRowsRef = useRef<Buddy[]>([]);
@@ -1070,6 +1075,19 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     lastSyncedAt,
     lastSyncError,
   } = useChatContext();
+
+  const handleNativeRoomStateChange = useCallback((conversation: NativeMilestoneOneRoomConversation) => {
+    setNativeRoomConversation(conversation);
+  }, []);
+
+  useEffect(() => {
+    setNativeRoomConversation((previous) =>
+      previous?.roomId === activeRoom?.id ? previous : null,
+    );
+    if (!activeRoom) {
+      nativeRoomBridgeRef.current = null;
+    }
+  }, [activeRoom]);
 
   useEffect(() => {
     activeChatBuddyIdRef.current = activeChatBuddyId;
@@ -5879,6 +5897,38 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       })),
     [joinedRooms],
   );
+  const nativeMilestoneOneRooms = useMemo<NativeMilestoneOneRoom[]>(
+    () =>
+      joinedRooms.map((room) => {
+        const meta = getHimRoomMeta(room.slug);
+        return {
+          id: room.id,
+          slug: room.slug,
+          name: room.name,
+          subtitle: meta.blurb,
+          unreadCount: room.unreadCount,
+        };
+      }),
+    [joinedRooms],
+  );
+  const nativeMilestoneOneRoomConversation = useMemo<NativeMilestoneOneRoomConversation | null>(() => {
+    if (!activeRoom) {
+      return null;
+    }
+    if (nativeRoomConversation?.roomId === activeRoom.id) {
+      return nativeRoomConversation;
+    }
+    return {
+      roomId: activeRoom.id,
+      roomName: activeRoom.name,
+      activeCount: 0,
+      messages: [],
+      isLoading: true,
+      isSending: false,
+      typingText: null,
+      error: null,
+    };
+  }, [activeRoom, nativeRoomConversation]);
   const roomFilterOptions = useMemo(
     () => buildRoomFilterOptions(joinedRooms.map((r) => r.slug)),
     [joinedRooms],
@@ -6198,12 +6248,35 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         await loadBuddies(userId);
         return { ok: true };
       },
+      async refreshRooms() {
+        if (!userId) {
+          return { ok: false, error: 'Your session is still loading.' };
+        }
+        await syncFromServer();
+        return { ok: true };
+      },
       async openBuddy(buddyId) {
         if (!acceptedBuddyIdsRef.current.has(buddyId)) {
           return { ok: false, error: 'That buddy is no longer available.' };
         }
         handleOpenChat(buddyId);
         return { ok: true };
+      },
+      async openRoom(roomId) {
+        const room = joinedRooms.find((candidate) => candidate.id === roomId);
+        if (!room) {
+          return { ok: false, error: 'That room is no longer in your list.' };
+        }
+
+        try {
+          await openRoomView(room);
+          return { ok: true };
+        } catch (error) {
+          return {
+            ok: false,
+            error: error instanceof Error ? error.message : 'Could not open that room.',
+          };
+        }
       },
       async updatePresence(nativeStatus, nativeAwayMessage) {
         if (!userId) {
@@ -6288,6 +6361,26 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         }
         return { ok: true };
       },
+      async sendRoomMessage(roomId, content) {
+        if (!activeRoom || activeRoom.id !== roomId) {
+          return { ok: false, error: 'That room is no longer open.' };
+        }
+        const bridge = nativeRoomBridgeRef.current;
+        if (!bridge) {
+          return { ok: false, error: 'The room is still connecting.' };
+        }
+        return bridge.sendMessage(content);
+      },
+      async closeRoomConversation() {
+        handleBackFromRoom();
+        return { ok: true };
+      },
+      async sendRoomTypingPulse(roomId) {
+        if (activeRoom?.id === roomId) {
+          nativeRoomBridgeRef.current?.sendTypingPulse();
+        }
+        return { ok: true };
+      },
       async openProfile(buddyId) {
         if (activeChatBuddyIdRef.current !== buddyId) {
           return { ok: false, error: 'That conversation is no longer open.' };
@@ -6369,16 +6462,21 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     };
   }, [
     handleAcceptPendingRequest,
+    activeRoom,
     handleDeclinePendingRequest,
     handleSendMessage,
     handleOpenChat,
+    handleBackFromRoom,
     handleSignOff,
     closeChatWindow,
     dmPreferencesByBuddyId,
     loadBuddies,
+    joinedRooms,
     nativeShellActive,
     openBuddyProfile,
+    openRoomView,
     sendDmTypingPulse,
+    syncFromServer,
     updateStatus,
     upsertConversationPreference,
     userId,
@@ -6396,6 +6494,12 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       !isHeaderMenuOpen &&
       !isAppLocked &&
       !showAppLockSheet;
+    const showsNativeRoomList =
+      bodyShellSection === 'chat' &&
+      nativeShellMode === 'standard' &&
+      !isHeaderMenuOpen &&
+      !isAppLocked &&
+      !showAppLockSheet;
     const showsNativeConversation =
       bodyShellSection === 'im' &&
       nativeShellMode === 'conversation' &&
@@ -6404,14 +6508,22 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       !isHeaderMenuOpen &&
       !isAppLocked &&
       !showAppLockSheet;
+    const showsNativeRoomConversation =
+      bodyShellSection === 'chat' &&
+      nativeShellMode === 'conversation' &&
+      Boolean(nativeMilestoneOneRoomConversation) &&
+      !isHeaderMenuOpen &&
+      !isAppLocked &&
+      !showAppLockSheet;
 
-    if (!showsNativeBuddyList && !showsNativeConversation) {
+    if (!showsNativeBuddyList && !showsNativeRoomList && !showsNativeConversation && !showsNativeRoomConversation) {
       void publishNativeMilestoneOneState({ phase: 'hidden', isDark: shellIsDark });
       return;
     }
 
     void publishNativeMilestoneOneState({
       phase: isBootstrapping ? 'loading' : 'signedIn',
+      selectedSection: bodyShellSection === 'chat' ? 'rooms' : 'buddies',
       screenname,
       currentPresence: currentUserPresenceState,
       currentPresenceDetail: currentUserPresenceDetail,
@@ -6423,10 +6535,12 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       })),
       onlineCount: onlineBuddies.length,
       pendingRequestCount: pendingRequests.length,
-      isRefreshing: isLoadingBuddies,
+      isRefreshing: bodyShellSection === 'chat' ? syncState === 'syncing' : isLoadingBuddies,
       isDark: shellIsDark,
-      error: profileSyncError,
+      error: bodyShellSection === 'chat' ? (roomJoinError || lastSyncError) : profileSyncError,
       activeConversation: showsNativeConversation ? nativeMilestoneOneConversation : null,
+      rooms: nativeMilestoneOneRooms,
+      activeRoomConversation: showsNativeRoomConversation ? nativeMilestoneOneRoomConversation : null,
     });
   }, [
     bodyShellSection,
@@ -6437,17 +6551,22 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     isBootstrapping,
     isHeaderMenuOpen,
     isLoadingBuddies,
+    lastSyncError,
     nativeMilestoneOneBuddies,
     nativeMilestoneOneConversation,
+    nativeMilestoneOneRoomConversation,
+    nativeMilestoneOneRooms,
     nativeShellActive,
     nativeShellMode,
     onlineBuddies.length,
     pendingRequests,
     profileSheetBuddyId,
     profileSyncError,
+    roomJoinError,
     screenname,
     shellIsDark,
     showAppLockSheet,
+    syncState,
   ]);
 
   useEffect(() => {
@@ -8739,6 +8858,8 @@ const [showAddWindow, setShowAddWindow] = useState(false);
           onBlockRoomUser={(payload) => {
             void handleBlockUserById(payload.userId);
           }}
+          nativeBridgeRef={nativeRoomBridgeRef}
+          onNativeStateChange={handleNativeRoomStateChange}
         />
       )}
 
