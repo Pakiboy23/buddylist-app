@@ -197,6 +197,46 @@ describe('native milestone-one request bridge', () => {
     );
   });
 
+  it('publishes replyable away messages for native buddies and conversations', async () => {
+    await publishNativeMilestoneOneState({
+      phase: 'signedIn',
+      buddies: [
+        {
+          id: 'buddy-1',
+          screenname: 'coffeehound',
+          presence: 'away',
+          presenceLabel: 'Away',
+          presenceDetail: 'grabbing coffee',
+          awayMessage: 'grabbing coffee',
+          unreadCount: 0,
+          isPinned: false,
+        },
+      ],
+      activeConversation: {
+        buddyId: 'buddy-1',
+        screenname: 'coffeehound',
+        presence: 'away',
+        presenceLabel: 'Away',
+        presenceDetail: 'grabbing coffee',
+        statusLine: null,
+        awayMessage: 'grabbing coffee',
+        isPinned: false,
+        isMuted: false,
+        isArchived: false,
+        messages: [],
+        isLoading: false,
+        isSending: false,
+      },
+    });
+
+    expect(setMilestoneOneState).toHaveBeenCalledWith(
+      expect.objectContaining({
+        buddies: [expect.objectContaining({ awayMessage: 'grabbing coffee' })],
+        activeConversation: expect.objectContaining({ awayMessage: 'grabbing coffee' }),
+      }),
+    );
+  });
+
   it('publishes joined rooms and the active native room conversation', async () => {
     await publishNativeMilestoneOneState({
       phase: 'signedIn',

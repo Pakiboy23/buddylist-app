@@ -20,6 +20,7 @@ struct NativeMilestoneOneBuddy: Decodable, Equatable, Identifiable {
     let presence: NativeMilestoneOnePresence
     let presenceLabel: String
     let presenceDetail: String
+    let awayMessage: String?
     let unreadCount: Int
     let isPinned: Bool
 }
@@ -51,6 +52,7 @@ struct NativeMilestoneOneConversation: Decodable, Equatable {
     let presenceLabel: String
     let presenceDetail: String
     let statusLine: String?
+    let awayMessage: String?
     let isPinned: Bool
     let isMuted: Bool
     let isArchived: Bool
@@ -225,6 +227,11 @@ struct NativeMilestoneOneActionResponse: Decodable {
     let error: String?
 }
 
+private struct NativeAwayReplyIntent {
+    let buddyID: String
+    let awayMessage: String
+}
+
 final class NativeMilestoneOneViewModel: ObservableObject, @unchecked Sendable {
     typealias ActionCompletion = (Result<NativeMilestoneOneActionResponse, Error>) -> Void
 
@@ -239,6 +246,7 @@ final class NativeMilestoneOneViewModel: ObservableObject, @unchecked Sendable {
     @Published private(set) var processingRequestID: String?
     @Published private(set) var processingConversationAction: String?
     @Published private(set) var actionError: String?
+    private var pendingAwayReply: NativeAwayReplyIntent?
 
     var onSignIn: ((String, String, @escaping ActionCompletion) -> Void)?
     var onRefresh: ((@escaping ActionCompletion) -> Void)?
@@ -342,6 +350,24 @@ final class NativeMilestoneOneViewModel: ObservableObject, @unchecked Sendable {
                 self?.consume(result)
             }
         }
+    }
+
+    func replyToAwayMessage(_ buddy: NativeMilestoneOneBuddy) {
+        guard let awayMessage = buddy.awayMessage?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !awayMessage.isEmpty else {
+            openBuddy(buddy.id)
+            return
+        }
+
+        pendingAwayReply = NativeAwayReplyIntent(buddyID: buddy.id, awayMessage: awayMessage)
+        openBuddy(buddy.id)
+    }
+
+    func takePendingAwayReply(for buddyID: String) -> String? {
+        guard pendingAwayReply?.buddyID == buddyID else { return nil }
+        let awayMessage = pendingAwayReply?.awayMessage
+        pendingAwayReply = nil
+        return awayMessage
     }
 
     func openRoom(_ roomID: String) {
@@ -860,12 +886,12 @@ private struct NativeBuddyListView: View {
                         .listRowSeparator(.hidden)
                 } else {
                     ForEach(model.state.buddies) { buddy in
-                        Button {
-                            model.openBuddy(buddy.id)
-                        } label: {
-                            NativeBuddyRow(buddy: buddy, isDark: model.state.isDark)
-                        }
-                        .buttonStyle(.plain)
+                        NativeBuddyRow(
+                            buddy: buddy,
+                            isDark: model.state.isDark,
+                            open: { model.openBuddy(buddy.id) },
+                            reply: { model.replyToAwayMessage(buddy) }
+                        )
                         .listRowBackground(NativeMilestonePalette.card(isDark: model.state.isDark))
                         .listRowSeparatorTint(NativeMilestonePalette.separator(isDark: model.state.isDark))
                     }
@@ -1309,6 +1335,7 @@ private struct NativeConversationView: View {
     @ObservedObject var model: NativeMilestoneOneViewModel
     let conversation: NativeMilestoneOneConversation
     @State private var draft = ""
+    @State private var awayReplyQuote: String?
     @State private var controlsDestination: NativeConversationControlsDestination?
     @FocusState private var composerFocused: Bool
 
@@ -1326,10 +1353,31 @@ private struct NativeConversationView: View {
                     }
                 )
 
+                if let awayMessage = conversation.awayMessage?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !awayMessage.isEmpty {
+                    NativeAwayMessageCard(
+                        awayMessage: awayMessage,
+                        isDark: model.state.isDark,
+                        isReplying: awayReplyQuote != nil,
+                        reply: {
+                            awayReplyQuote = awayMessage
+                            composerFocused = true
+                        }
+                    )
+                }
+
                 Divider()
                     .overlay(NativeMilestonePalette.separator(isDark: model.state.isDark))
 
                 messageScrollback
+
+                if let awayReplyQuote {
+                    NativeAwayReplyComposerContext(
+                        awayMessage: awayReplyQuote,
+                        isDark: model.state.isDark,
+                        cancel: { self.awayReplyQuote = nil }
+                    )
+                }
 
                 NativeConversationComposer(
                     draft: $draft,
@@ -1344,6 +1392,9 @@ private struct NativeConversationView: View {
             }
         }
         .onAppear {
+            if awayReplyQuote == nil {
+                awayReplyQuote = model.takePendingAwayReply(for: conversation.buddyId)
+            }
             composerFocused = true
         }
         .sheet(item: $controlsDestination) { destination in
@@ -1404,10 +1455,14 @@ private struct NativeConversationView: View {
         let trimmedDraft = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedDraft.isEmpty else { return }
 
+        let content = awayReplyQuote.map { formatAwayMessageReply(awayMessage: $0, reply: trimmedDraft) }
+            ?? trimmedDraft
+
         Task {
-            let didSend = await model.sendMessage(buddyID: conversation.buddyId, content: trimmedDraft)
+            let didSend = await model.sendMessage(buddyID: conversation.buddyId, content: content)
             if didSend {
                 draft = ""
+                awayReplyQuote = nil
             }
         }
     }
@@ -1418,6 +1473,85 @@ private struct NativeConversationView: View {
                 proxy.scrollTo("native-conversation-bottom", anchor: .bottom)
             }
         }
+    }
+}
+
+private func formatAwayMessageReply(awayMessage: String, reply: String) -> String {
+    let normalizedAwayMessage = awayMessage
+        .split(whereSeparator: { $0.isWhitespace })
+        .joined(separator: " ")
+    return "Replying to away message:\n“\(normalizedAwayMessage)”\n\n\(reply)"
+}
+
+private struct NativeAwayMessageCard: View {
+    let awayMessage: String
+    let isDark: Bool
+    let isReplying: Bool
+    let reply: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "quote.bubble.fill")
+                .foregroundColor(NativeMilestonePalette.gold)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("AWAY MESSAGE")
+                    .font(.caption2.weight(.black))
+                    .foregroundColor(NativeMilestonePalette.gold)
+                Text(awayMessage)
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(NativeMilestonePalette.text(isDark: isDark))
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 8)
+
+            Button(isReplying ? "Replying" : "Reply", action: reply)
+                .font(.caption.weight(.bold))
+                .buttonStyle(.bordered)
+                .tint(NativeMilestonePalette.gold)
+                .disabled(isReplying)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(NativeMilestonePalette.gold.opacity(isDark ? 0.08 : 0.1))
+        .accessibilityElement(children: .contain)
+    }
+}
+
+private struct NativeAwayReplyComposerContext: View {
+    let awayMessage: String
+    let isDark: Bool
+    let cancel: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Rectangle()
+                .fill(NativeMilestonePalette.gold)
+                .frame(width: 3)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Replying to away message")
+                    .font(.caption2.weight(.black))
+                    .foregroundColor(NativeMilestonePalette.gold)
+                Text(awayMessage)
+                    .font(.caption)
+                    .foregroundColor(NativeMilestonePalette.muted(isDark: isDark))
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 8)
+
+            Button(action: cancel) {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundColor(NativeMilestonePalette.muted(isDark: isDark))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Cancel away message reply")
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 9)
+        .background(NativeMilestonePalette.card(isDark: isDark))
     }
 }
 
@@ -2067,26 +2201,34 @@ private struct NativePendingRequestRow: View {
 private struct NativeBuddyRow: View {
     let buddy: NativeMilestoneOneBuddy
     let isDark: Bool
+    let open: () -> Void
+    let reply: () -> Void
 
     var body: some View {
         HStack(spacing: 13) {
-            NativeBuddyAvatar(name: buddy.screenname, presence: buddy.presence, size: 44)
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    Text(buddy.screenname)
-                        .font(.body.weight(.semibold))
-                        .foregroundColor(NativeMilestonePalette.text(isDark: isDark))
-                    if buddy.isPinned {
-                        Image(systemName: "pin.fill")
-                            .font(.caption2)
-                            .foregroundColor(NativeMilestonePalette.gold)
+            Button(action: open) {
+                HStack(spacing: 13) {
+                    NativeBuddyAvatar(name: buddy.screenname, presence: buddy.presence, size: 44)
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 6) {
+                            Text(buddy.screenname)
+                                .font(.body.weight(.semibold))
+                                .foregroundColor(NativeMilestonePalette.text(isDark: isDark))
+                            if buddy.isPinned {
+                                Image(systemName: "pin.fill")
+                                    .font(.caption2)
+                                    .foregroundColor(NativeMilestonePalette.gold)
+                            }
+                        }
+                        Text(buddy.presenceDetail)
+                            .font(.caption)
+                            .foregroundColor(NativeMilestonePalette.muted(isDark: isDark))
+                            .lineLimit(1)
                     }
                 }
-                Text(buddy.presenceDetail)
-                    .font(.caption)
-                    .foregroundColor(NativeMilestonePalette.muted(isDark: isDark))
-                    .lineLimit(1)
             }
+            .buttonStyle(.plain)
+
             Spacer(minLength: 8)
             if buddy.unreadCount > 0 {
                 Text("\(buddy.unreadCount)")
@@ -2097,15 +2239,21 @@ private struct NativeBuddyRow: View {
                     .background(NativeMilestonePalette.gold, in: Capsule())
                     .accessibilityLabel("\(buddy.unreadCount) unread messages")
             }
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.bold))
-                .foregroundColor(NativeMilestonePalette.muted(isDark: isDark).opacity(0.7))
+            if buddy.presence == .away, buddy.awayMessage?.isEmpty == false {
+                Button("Reply", action: reply)
+                    .font(.caption.weight(.bold))
+                    .buttonStyle(.bordered)
+                    .tint(NativeMilestonePalette.gold)
+                    .accessibilityLabel("Reply to \(buddy.screenname)'s away message")
+            } else {
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundColor(NativeMilestonePalette.muted(isDark: isDark).opacity(0.7))
+            }
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(buddy.screenname), \(buddy.presenceLabel), \(buddy.presenceDetail)")
-        .accessibilityHint("Opens your conversation")
+        .accessibilityElement(children: .contain)
     }
 }
 

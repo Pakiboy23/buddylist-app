@@ -83,6 +83,7 @@ import {
 } from '@/lib/messageIdempotency';
 import { dispatchBuddyAcceptedPush, dispatchBuddyRequestPush } from '@/lib/pushDispatch';
 import { displayBodyForMessage } from '@/lib/contentModeration';
+import { buildAwayMessageReplyDraft } from '@/lib/awayMessageReply';
 import {
   EXTENDED_USER_PROFILE_SELECT_FIELDS,
   EXTENDED_USER_PROFILE_WITH_EMAIL_SELECT_FIELDS,
@@ -711,6 +712,7 @@ interface DirectMessageRowProps {
   lastMessagePreview: string;
   openBuddyProfile: (buddyId: string) => void;
   handleOpenChat: (buddyId: string) => void;
+  handleReplyToAwayMessage: (buddyId: string, awayMessage: string) => void;
 }
 
 function areDirectMessageRowPropsEqual(prev: DirectMessageRowProps, next: DirectMessageRowProps): boolean {
@@ -735,7 +737,8 @@ function areDirectMessageRowPropsEqual(prev: DirectMessageRowProps, next: Direct
     prev.isTypingActive === next.isTypingActive &&
     prev.lastMessagePreview === next.lastMessagePreview &&
     prev.openBuddyProfile === next.openBuddyProfile &&
-    prev.handleOpenChat === next.handleOpenChat
+    prev.handleOpenChat === next.handleOpenChat &&
+    prev.handleReplyToAwayMessage === next.handleReplyToAwayMessage
   );
 }
 
@@ -751,6 +754,7 @@ const DirectMessageRow = memo(function DirectMessageRow({
   lastMessagePreview,
   openBuddyProfile,
   handleOpenChat,
+  handleReplyToAwayMessage,
 }: DirectMessageRowProps) {
   const resolvedStatus = resolveStatusFields({
     status: buddy.status,
@@ -866,10 +870,25 @@ const DirectMessageRow = memo(function DirectMessageRow({
       ) : null}
       <button
         type="button"
-        onClick={() => (isBlocked ? openBuddyProfile(buddy.id) : handleOpenChat(buddy.id))}
+        onClick={() => {
+          if (isBlocked) {
+            openBuddyProfile(buddy.id);
+          } else if (presenceState === 'away' && awayLine) {
+            handleReplyToAwayMessage(buddy.id, awayLine);
+          } else {
+            handleOpenChat(buddy.id);
+          }
+        }}
         className={`ui-focus-ring shrink-0 ${isSelected && !isBlocked ? 'ui-button-primary' : 'ui-button-secondary'} ui-button-compact`}
+        aria-label={
+          isBlocked
+            ? `View ${buddy.screenname}`
+            : presenceState === 'away' && awayLine
+              ? `Reply to ${buddy.screenname}'s away message`
+              : `IM ${buddy.screenname}`
+        }
       >
-        {isBlocked ? 'View' : 'IM'}
+        {isBlocked ? 'View' : presenceState === 'away' && awayLine ? 'Reply' : 'IM'}
       </button>
     </div>
   );
@@ -3746,6 +3765,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
           presence: presence.presenceState,
           presenceLabel: presence.presenceLabel,
           presenceDetail: presence.presenceDetail,
+          awayMessage: presence.presenceState === 'away' ? presence.awayLine : null,
           unreadCount: unreadDirectMessages[buddy.id] ?? 0,
           isPinned: preference.isPinned,
         };
@@ -5282,6 +5302,18 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     openChatWindowForId(buddyId);
   }, [openChatWindowForId]);
 
+  const handleReplyToAwayMessage = useCallback((buddyId: string, buddyAwayMessage: string) => {
+    setDraftCache((previous) => ({
+      ...previous,
+      dm: {
+        ...previous.dm,
+        [buddyId]: buildAwayMessageReplyDraft(buddyAwayMessage, previous.dm[buddyId] ?? '')
+          .slice(0, UI_MAX_DRAFT_LENGTH),
+      },
+    }));
+    openChatWindowForId(buddyId);
+  }, [openChatWindowForId]);
+
   const openBuddyProfile = useCallback((buddyId: string) => {
     setProfileSheetError(null);
     setProfileSheetFeedback(null);
@@ -5894,6 +5926,9 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       presenceLabel: activeChatBuddyPresenceSummary.presenceLabel,
       presenceDetail: activeChatBuddyPresenceSummary.presenceDetail,
       statusLine: activeChatBuddyPresenceSummary.resolvedStatus.statusMessage ?? null,
+      awayMessage: activeChatBuddyPresenceSummary.presenceState === 'away'
+        ? activeChatBuddyPresenceSummary.awayLine
+        : null,
       isPinned: activeConversationPreference.isPinned,
       isMuted: activeConversationPreference.isMuted,
       isArchived: activeConversationPreference.isArchived,
@@ -7388,6 +7423,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                           lastMessagePreview={buddyLastMessagePreview[buddy.id] ?? ''}
                           openBuddyProfile={openBuddyProfile}
                           handleOpenChat={handleOpenChat}
+                          handleReplyToAwayMessage={handleReplyToAwayMessage}
                         />
                       ))}
 
@@ -7413,6 +7449,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                                   lastMessagePreview={buddyLastMessagePreview[buddy.id] ?? ''}
                                   openBuddyProfile={openBuddyProfile}
                                   handleOpenChat={handleOpenChat}
+                                  handleReplyToAwayMessage={handleReplyToAwayMessage}
                                 />
                               ))}
                             </section>

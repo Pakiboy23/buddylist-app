@@ -48,6 +48,7 @@ import {
   formatDisappearingTimerLabel,
 } from '@/lib/trustSafety';
 import { MESSAGE_HIDDEN_PLACEHOLDER } from '@/lib/contentModeration';
+import { buildAwayMessageReplyDraft } from '@/lib/awayMessageReply';
 
 export interface ChatMessage {
   id: number;
@@ -1048,6 +1049,17 @@ export default function ChatWindow({
     }
   };
 
+  const beginAwayMessageReply = () => {
+    if (!buddyStatusMessage) {
+      return;
+    }
+
+    const nextDraft = buildAwayMessageReplyDraft(buddyStatusMessage, draft);
+    handleDraftChange(nextDraft);
+    void hapticLight();
+    window.requestAnimationFrame(focusComposer);
+  };
+
   const removePendingAttachment = (targetIndex: number) => {
     setPendingAttachments((previous) => {
       const next = previous.filter((_, index) => index !== targetIndex);
@@ -1383,12 +1395,24 @@ export default function ChatWindow({
                   <AppIcon kind="menu" className="h-4 w-4" />
                 </button>
               </div>
-              {buddyPresenceState === 'away' && buddyStatusLine ? (
+              {buddyPresenceState === 'away' && buddyStatusMessage ? (
                 <div className="ui-away-card mt-3">
-                  <p data-away-label="true">Away Message</p>
-                  <p data-away-text="true" className="mt-1 text-[11px] font-medium">
-                    {buddyStatusLine}
-                  </p>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p data-away-label="true">Away Message</p>
+                      <p data-away-text="true" className="mt-1 text-[11px] font-medium">
+                        {buddyStatusMessage}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={beginAwayMessageReply}
+                      className="ui-focus-ring ui-button-secondary ui-button-compact shrink-0"
+                      aria-label={`Reply to ${buddyScreenname}'s away message`}
+                    >
+                      Reply
+                    </button>
+                  </div>
                 </div>
               ) : null}
             </div>

@@ -112,6 +112,7 @@ export interface NativeMilestoneOneBuddy {
   presence: NativeMilestoneOnePresence;
   presenceLabel: string;
   presenceDetail: string;
+  awayMessage?: string | null;
   unreadCount: number;
   isPinned: boolean;
 }
@@ -143,6 +144,7 @@ export interface NativeMilestoneOneConversation {
   presenceLabel: string;
   presenceDetail: string;
   statusLine?: string | null;
+  awayMessage?: string | null;
   isPinned: boolean;
   isMuted: boolean;
   isArchived: boolean;
