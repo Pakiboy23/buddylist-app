@@ -750,7 +750,12 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
             options: [.curveEaseInOut, .beginFromCurrentState]
         ) {
             hostingView.alpha = shouldShow ? 1 : 0
-        } completion: { _ in
+        } completion: { finished in
+            // Only commit isHidden when this animation actually finished. A newer
+            // show/hide publish uses `.beginFromCurrentState`, which cancels this
+            // one and fires its completion with finished == false — ignoring that
+            // stale completion keeps a just-shown overlay from being re-hidden.
+            guard finished else { return }
             hostingView.isHidden = !shouldShow
         }
     }

@@ -7084,7 +7084,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         id: request.senderId,
         screenname: request.screenname,
       })),
-      onlineCount: onlineBuddies.length,
+      onlineCount: onlineBuddies.filter((buddy) => !presenceHiddenBuddyIds.has(buddy.id)).length,
       pendingRequestCount: pendingRequests.length,
       isRefreshing: bodyShellSection === 'chat'
         ? syncState === 'syncing' || isLoadingNativeRoomDirectory
@@ -7116,8 +7116,9 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     nativeRoomDirectoryError,
     nativeShellActive,
     nativeShellMode,
-    onlineBuddies.length,
+    onlineBuddies,
     pendingRequests,
+    presenceHiddenBuddyIds,
     profileSheetBuddyId,
     profileSyncError,
     roomJoinError,
