@@ -29,6 +29,30 @@ struct NativeMilestoneOnePendingRequest: Decodable, Equatable, Identifiable {
     let screenname: String
 }
 
+struct NativeMilestoneOneMessage: Decodable, Equatable, Identifiable {
+    let id: String
+    let senderId: String
+    let content: String
+    let createdAt: String
+    let isMine: Bool
+    let isDeleted: Bool
+    let previewType: String?
+}
+
+struct NativeMilestoneOneConversation: Decodable, Equatable {
+    let buddyId: String
+    let screenname: String
+    let presence: NativeMilestoneOnePresence
+    let presenceLabel: String
+    let presenceDetail: String
+    let statusLine: String?
+    let messages: [NativeMilestoneOneMessage]
+    let isLoading: Bool
+    let isSending: Bool
+    let typingText: String?
+    let error: String?
+}
+
 struct NativeMilestoneOneState: Decodable, Equatable {
     let phase: NativeMilestoneOnePhase
     let screenname: String?
@@ -42,6 +66,7 @@ struct NativeMilestoneOneState: Decodable, Equatable {
     let isRefreshing: Bool
     let isDark: Bool
     let error: String?
+    let activeConversation: NativeMilestoneOneConversation?
 
     static let loading = NativeMilestoneOneState(
         phase: .loading,
@@ -55,7 +80,8 @@ struct NativeMilestoneOneState: Decodable, Equatable {
         pendingRequestCount: 0,
         isRefreshing: false,
         isDark: true,
-        error: nil
+        error: nil,
+        activeConversation: nil
     )
 
     init(
@@ -70,7 +96,8 @@ struct NativeMilestoneOneState: Decodable, Equatable {
         pendingRequestCount: Int,
         isRefreshing: Bool,
         isDark: Bool,
-        error: String?
+        error: String?,
+        activeConversation: NativeMilestoneOneConversation?
     ) {
         self.phase = phase
         self.screenname = screenname
@@ -84,6 +111,7 @@ struct NativeMilestoneOneState: Decodable, Equatable {
         self.isRefreshing = isRefreshing
         self.isDark = isDark
         self.error = error
+        self.activeConversation = activeConversation
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -99,6 +127,7 @@ struct NativeMilestoneOneState: Decodable, Equatable {
         case isRefreshing
         case isDark
         case error
+        case activeConversation
     }
 
     init(from decoder: Decoder) throws {
@@ -118,6 +147,7 @@ struct NativeMilestoneOneState: Decodable, Equatable {
         isRefreshing = try container.decodeIfPresent(Bool.self, forKey: .isRefreshing) ?? false
         isDark = try container.decodeIfPresent(Bool.self, forKey: .isDark) ?? true
         error = try container.decodeIfPresent(String.self, forKey: .error)
+        activeConversation = try container.decodeIfPresent(NativeMilestoneOneConversation.self, forKey: .activeConversation)
     }
 }
 
@@ -135,6 +165,7 @@ final class NativeMilestoneOneViewModel: ObservableObject, @unchecked Sendable {
     @Published private(set) var isPerformingAction = false
     @Published private(set) var isRefreshing = false
     @Published private(set) var isUpdatingPresence = false
+    @Published private(set) var isSendingMessage = false
     @Published private(set) var processingRequestID: String?
     @Published private(set) var actionError: String?
 
@@ -143,6 +174,9 @@ final class NativeMilestoneOneViewModel: ObservableObject, @unchecked Sendable {
     var onOpenBuddy: ((String, @escaping ActionCompletion) -> Void)?
     var onUpdatePresence: ((String, String, @escaping ActionCompletion) -> Void)?
     var onRespondToBuddyRequest: ((String, String, @escaping ActionCompletion) -> Void)?
+    var onSendMessage: ((String, String, @escaping ActionCompletion) -> Void)?
+    var onCloseConversation: ((@escaping ActionCompletion) -> Void)?
+    var onSendTypingPulse: ((String, @escaping ActionCompletion) -> Void)?
     var onSignOut: ((@escaping ActionCompletion) -> Void)?
     var onShowWebAuth: ((String, @escaping ActionCompletion) -> Void)?
 
@@ -158,6 +192,9 @@ final class NativeMilestoneOneViewModel: ObservableObject, @unchecked Sendable {
         }
         if nextState.phase == .signedIn || nextState.phase == .hidden {
             isPerformingAction = false
+        }
+        if nextState.activeConversation?.isSending == false {
+            isSendingMessage = false
         }
     }
 
@@ -259,6 +296,54 @@ final class NativeMilestoneOneViewModel: ObservableObject, @unchecked Sendable {
         }
     }
 
+    func sendMessage(buddyID: String, content: String) async -> Bool {
+        let trimmedContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedContent.isEmpty else {
+            actionError = "Type a message first."
+            return false
+        }
+        guard let onSendMessage else {
+            actionError = "Messages are still connecting."
+            return false
+        }
+        guard !isSendingMessage else { return false }
+
+        actionError = nil
+        isSendingMessage = true
+        return await withCheckedContinuation { continuation in
+            onSendMessage(buddyID, trimmedContent) { [weak self] result in
+                DispatchQueue.main.async {
+                    guard let self else {
+                        continuation.resume(returning: false)
+                        return
+                    }
+
+                    self.isSendingMessage = false
+                    self.consume(result)
+                    if case .success(let response) = result {
+                        continuation.resume(returning: response.ok)
+                    } else {
+                        continuation.resume(returning: false)
+                    }
+                }
+            }
+        }
+    }
+
+    func closeConversation() {
+        guard let onCloseConversation else { return }
+        onCloseConversation { [weak self] result in
+            DispatchQueue.main.async {
+                self?.consume(result)
+            }
+        }
+    }
+
+    func sendTypingPulse(buddyID: String) {
+        guard let onSendTypingPulse else { return }
+        onSendTypingPulse(buddyID) { _ in }
+    }
+
     func signOut() {
         guard let onSignOut, !isPerformingAction else { return }
         isPerformingAction = true
@@ -302,7 +387,11 @@ struct NativeMilestoneOneRootView: View {
             case .signedOut:
                 NativeMilestoneSignInView(model: model)
             case .signedIn:
-                NativeBuddyListView(model: model)
+                if let conversation = model.state.activeConversation {
+                    NativeConversationView(model: model, conversation: conversation)
+                } else {
+                    NativeBuddyListView(model: model)
+                }
             case .hidden:
                 Color.clear
             }
@@ -425,7 +514,6 @@ private struct NativeMilestoneSignInView: View {
                 .frame(maxWidth: 520)
                 .frame(maxWidth: .infinity)
             }
-            .scrollDismissesKeyboard(.interactively)
         }
         .onAppear { focusedField = .screenname }
     }
@@ -440,7 +528,6 @@ private struct NativeMilestoneFieldLabel: View {
             .font(.caption.weight(.bold))
             .foregroundColor(.white.opacity(0.72))
             .textCase(.uppercase)
-            .tracking(0.8)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.bottom, -10)
     }
@@ -575,6 +662,266 @@ private struct NativeBuddyListView: View {
     }
 }
 
+private struct NativeConversationView: View {
+    @ObservedObject var model: NativeMilestoneOneViewModel
+    let conversation: NativeMilestoneOneConversation
+    @State private var draft = ""
+    @FocusState private var composerFocused: Bool
+
+    var body: some View {
+        ZStack {
+            NativeMilestonePalette.background(isDark: model.state.isDark).ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                NativeConversationHeader(
+                    conversation: conversation,
+                    isDark: model.state.isDark,
+                    close: model.closeConversation
+                )
+
+                Divider()
+                    .overlay(NativeMilestonePalette.separator(isDark: model.state.isDark))
+
+                messageScrollback
+
+                NativeConversationComposer(
+                    draft: $draft,
+                    isSending: model.isSendingMessage || conversation.isSending,
+                    isDark: model.state.isDark,
+                    send: sendDraft,
+                    typing: {
+                        model.sendTypingPulse(buddyID: conversation.buddyId)
+                    }
+                )
+                .focused($composerFocused)
+            }
+        }
+        .onAppear {
+            composerFocused = true
+        }
+    }
+
+    private var messageScrollback: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 10) {
+                    if conversation.isLoading && conversation.messages.isEmpty {
+                        ProgressView("Loading messages...")
+                            .tint(NativeMilestonePalette.gold)
+                            .foregroundColor(NativeMilestonePalette.muted(isDark: model.state.isDark))
+                            .padding(.top, 28)
+                    } else if conversation.messages.isEmpty {
+                        NativeEmptyConversationView(screenname: conversation.screenname, isDark: model.state.isDark)
+                            .padding(.top, 42)
+                    }
+
+                    ForEach(conversation.messages) { message in
+                        NativeMessageBubble(message: message, isDark: model.state.isDark)
+                    }
+
+                    if let typingText = conversation.typingText, !typingText.isEmpty {
+                        Text(typingText)
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(NativeMilestonePalette.gold)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 18)
+                    }
+
+                    if let error = conversation.error, !error.isEmpty {
+                        Label(error, systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(.red)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 18)
+                    }
+
+                    Color.clear
+                        .frame(height: 1)
+                        .id("native-conversation-bottom")
+                }
+                .padding(.vertical, 14)
+            }
+            .onAppear {
+                scrollToBottom(proxy)
+            }
+            .onChange(of: conversation.messages.count) { _ in
+                scrollToBottom(proxy)
+            }
+        }
+    }
+
+    private func sendDraft() {
+        let trimmedDraft = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedDraft.isEmpty else { return }
+
+        Task {
+            let didSend = await model.sendMessage(buddyID: conversation.buddyId, content: trimmedDraft)
+            if didSend {
+                draft = ""
+            }
+        }
+    }
+
+    private func scrollToBottom(_ proxy: ScrollViewProxy) {
+        DispatchQueue.main.async {
+            withAnimation(.easeOut(duration: 0.2)) {
+                proxy.scrollTo("native-conversation-bottom", anchor: .bottom)
+            }
+        }
+    }
+}
+
+private struct NativeConversationHeader: View {
+    let conversation: NativeMilestoneOneConversation
+    let isDark: Bool
+    let close: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Button(action: close) {
+                Image(systemName: "chevron.left")
+                    .font(.headline.weight(.bold))
+                    .frame(width: 34, height: 34)
+                    .background(NativeMilestonePalette.card(isDark: isDark), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(NativeMilestonePalette.text(isDark: isDark))
+            .accessibilityLabel("Back to BuddyList")
+
+            NativeBuddyAvatar(name: conversation.screenname, presence: conversation.presence, size: 42)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(conversation.screenname)
+                    .font(.headline.weight(.bold))
+                    .foregroundColor(NativeMilestonePalette.text(isDark: isDark))
+                    .lineLimit(1)
+                Text(conversation.statusLine?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+                    ? conversation.statusLine ?? conversation.presenceDetail
+                    : conversation.presenceDetail)
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(NativeMilestonePalette.muted(isDark: isDark))
+                    .lineLimit(1)
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 10)
+    }
+}
+
+private struct NativeMessageBubble: View {
+    let message: NativeMilestoneOneMessage
+    let isDark: Bool
+
+    var body: some View {
+        HStack {
+            if message.isMine {
+                Spacer(minLength: 44)
+            }
+
+            VStack(alignment: message.isMine ? .trailing : .leading, spacing: 4) {
+                Text(message.content.isEmpty ? " " : message.content)
+                    .font(.body)
+                    .foregroundColor(message.isMine ? Color.black.opacity(0.88) : NativeMilestonePalette.text(isDark: isDark))
+                    .padding(.horizontal, 13)
+                    .padding(.vertical, 10)
+                    .background(bubbleBackground, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+
+                Text(NativeMilestoneFormatters.messageTime(message.createdAt))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundColor(NativeMilestonePalette.muted(isDark: isDark).opacity(0.82))
+                    .padding(.horizontal, 4)
+            }
+            .frame(maxWidth: 300, alignment: message.isMine ? .trailing : .leading)
+
+            if !message.isMine {
+                Spacer(minLength: 44)
+            }
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private var bubbleBackground: Color {
+        if message.isDeleted {
+            return NativeMilestonePalette.muted(isDark: isDark).opacity(0.16)
+        }
+        return message.isMine ? NativeMilestonePalette.gold : NativeMilestonePalette.card(isDark: isDark)
+    }
+}
+
+private struct NativeConversationComposer: View {
+    @Binding var draft: String
+    let isSending: Bool
+    let isDark: Bool
+    let send: () -> Void
+    let typing: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            TextField("Message", text: $draft)
+                .textInputAutocapitalization(.sentences)
+                .padding(.horizontal, 13)
+                .padding(.vertical, 11)
+                .background(NativeMilestonePalette.card(isDark: isDark), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(NativeMilestonePalette.separator(isDark: isDark), lineWidth: 1)
+                }
+                .onChange(of: draft) { _ in
+                    typing()
+                }
+                .submitLabel(.send)
+                .onSubmit(send)
+
+            Button(action: send) {
+                if isSending {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Image(systemName: "paperplane.fill")
+                        .font(.headline.weight(.bold))
+                }
+            }
+            .frame(width: 44, height: 44)
+            .background(canSend ? NativeMilestonePalette.gold : NativeMilestonePalette.muted(isDark: isDark).opacity(0.24), in: Circle())
+            .foregroundColor(canSend ? Color.black.opacity(0.88) : NativeMilestonePalette.muted(isDark: isDark))
+            .disabled(!canSend || isSending)
+            .accessibilityLabel("Send message")
+        }
+        .padding(.horizontal, 14)
+        .padding(.top, 10)
+        .padding(.bottom, 12)
+        .background(.ultraThinMaterial)
+    }
+
+    private var canSend: Bool {
+        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+}
+
+private struct NativeEmptyConversationView: View {
+    let screenname: String
+    let isDark: Bool
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "bubble.left.and.bubble.right")
+                .font(.system(size: 34, weight: .semibold))
+                .foregroundColor(NativeMilestonePalette.gold)
+            Text("No messages yet")
+                .font(.headline)
+                .foregroundColor(NativeMilestonePalette.text(isDark: isDark))
+            Text("Say hi to \(screenname).")
+                .font(.subheadline)
+                .foregroundColor(NativeMilestonePalette.muted(isDark: isDark))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 28)
+    }
+}
+
 private enum NativeEditablePresence: String, CaseIterable, Identifiable {
     case available
     case away
@@ -699,7 +1046,7 @@ private struct NativePresenceEditorSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationView {
             Form {
                 Section("Presence") {
                     Picker("Presence status", selection: $selectedPresence) {
@@ -722,7 +1069,6 @@ private struct NativePresenceEditorSheet: View {
                             }
                             TextEditor(text: $awayMessage)
                                 .frame(minHeight: 112)
-                                .scrollContentBackground(.hidden)
                                 .background(Color.clear)
                         }
                         Text("\(awayMessage.count)/320")
@@ -746,8 +1092,7 @@ private struct NativePresenceEditorSheet: View {
             }
             .navigationTitle("Presence")
             .navigationBarTitleDisplayMode(.inline)
-            .scrollDismissesKeyboard(.interactively)
-            .onChange(of: awayMessage) { _, nextValue in
+            .onChange(of: awayMessage) { nextValue in
                 if nextValue.count > 320 {
                     awayMessage = String(nextValue.prefix(320))
                 }
@@ -1034,6 +1379,33 @@ private enum NativeMilestonePalette {
         case .offline:
             return Color(red: 122 / 255, green: 115 / 255, blue: 108 / 255)
         }
+    }
+}
+
+private enum NativeMilestoneFormatters {
+    private static let isoWithFractionalSeconds: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static let isoStandard: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+
+    private static let shortTime: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        formatter.dateStyle = .none
+        return formatter
+    }()
+
+    static func messageTime(_ rawValue: String) -> String {
+        let date = isoWithFractionalSeconds.date(from: rawValue) ?? isoStandard.date(from: rawValue)
+        guard let date else { return "" }
+        return shortTime.string(from: date)
     }
 }
 

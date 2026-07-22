@@ -121,6 +121,30 @@ export interface NativeMilestoneOnePendingRequest {
   screenname: string;
 }
 
+export interface NativeMilestoneOneMessage {
+  id: string;
+  senderId: string;
+  content: string;
+  createdAt: string;
+  isMine: boolean;
+  isDeleted?: boolean;
+  previewType?: string | null;
+}
+
+export interface NativeMilestoneOneConversation {
+  buddyId: string;
+  screenname: string;
+  presence: NativeMilestoneOnePresence;
+  presenceLabel: string;
+  presenceDetail: string;
+  statusLine?: string | null;
+  messages: NativeMilestoneOneMessage[];
+  isLoading: boolean;
+  isSending: boolean;
+  typingText?: string | null;
+  error?: string | null;
+}
+
 export interface NativeMilestoneOneState {
   phase: NativeMilestoneOnePhase;
   screenname?: string | null;
@@ -134,6 +158,7 @@ export interface NativeMilestoneOneState {
   isRefreshing?: boolean;
   isDark?: boolean;
   error?: string | null;
+  activeConversation?: NativeMilestoneOneConversation | null;
 }
 
 export type NativeMilestoneOneActionResult =
@@ -152,6 +177,9 @@ export interface NativeMilestoneOneBridge {
     senderId: string,
     action: 'accept' | 'decline',
   ): Promise<NativeMilestoneOneActionResult>;
+  sendMessage(buddyId: string, content: string): Promise<NativeMilestoneOneActionResult>;
+  closeConversation(): Promise<NativeMilestoneOneActionResult>;
+  sendTypingPulse(buddyId: string): Promise<NativeMilestoneOneActionResult>;
   signOut(): Promise<NativeMilestoneOneActionResult>;
   showWebAuth(mode: 'signup' | 'forgotPassword'): Promise<NativeMilestoneOneActionResult>;
 }

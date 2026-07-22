@@ -339,6 +339,15 @@ export default function Home() {
       async respondToBuddyRequest() {
         return { ok: false, error: 'Sign in to manage buddy requests.' };
       },
+      async sendMessage() {
+        return { ok: false, error: 'Sign in to send messages.' };
+      },
+      async closeConversation() {
+        return { ok: true };
+      },
+      async sendTypingPulse() {
+        return { ok: true };
+      },
       async signOut() {
         return { ok: true };
       },

@@ -1027,6 +1027,60 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         )
     }
 
+    fileprivate func nativeMilestoneSendMessage(
+        buddyID: String,
+        content: String,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.sendMessage) {
+                return { ok: false, error: "Message bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.sendMessage(
+                buddyID,
+                content
+            );
+            """,
+            arguments: ["buddyID": buddyID, "content": content],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneCloseConversation(
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.closeConversation) {
+                return { ok: false, error: "Conversation bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.closeConversation();
+            """,
+            arguments: [:],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneSendTypingPulse(
+        buddyID: String,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.sendTypingPulse) {
+                return { ok: false, error: "Typing bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.sendTypingPulse(buddyID);
+            """,
+            arguments: ["buddyID": buddyID],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
     fileprivate func nativeMilestoneSignOut(
         completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
     ) {
@@ -1206,6 +1260,19 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
                 action: action,
                 completion: completion
             )
+        }
+        nativeMilestoneOneModel.onSendMessage = { [weak self] buddyID, content, completion in
+            self?.nativeMilestoneSendMessage(
+                buddyID: buddyID,
+                content: content,
+                completion: completion
+            )
+        }
+        nativeMilestoneOneModel.onCloseConversation = { [weak self] completion in
+            self?.nativeMilestoneCloseConversation(completion: completion)
+        }
+        nativeMilestoneOneModel.onSendTypingPulse = { [weak self] buddyID, completion in
+            self?.nativeMilestoneSendTypingPulse(buddyID: buddyID, completion: completion)
         }
         nativeMilestoneOneModel.onSignOut = { [weak self] completion in
             self?.nativeMilestoneSignOut(completion: completion)

@@ -82,6 +82,7 @@ import {
   sendRoomMessageWithClientMessageId,
 } from '@/lib/messageIdempotency';
 import { dispatchBuddyAcceptedPush, dispatchBuddyRequestPush } from '@/lib/pushDispatch';
+import { displayBodyForMessage } from '@/lib/contentModeration';
 import {
   EXTENDED_USER_PROFILE_SELECT_FIELDS,
   EXTENDED_USER_PROFILE_WITH_EMAIL_SELECT_FIELDS,
@@ -135,6 +136,8 @@ import {
   registerNativeShellBridge,
   subscribeNativeShellCommands,
   type NativeMilestoneOneBuddy,
+  type NativeMilestoneOneConversation,
+  type NativeMilestoneOneMessage,
   type NativeShellAdminAuditItem,
   type NativeShellAdminAuditResult,
   type NativeShellAdminIssueResult,
@@ -5698,6 +5701,62 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   const isCurrentUserIdle = currentUserPresenceState === 'idle';
   const activePendingRequest = pendingRequests[0] ?? null;
   const activeChatBuddyPresenceSummary = activeChatBuddy ? getBuddyPresenceSummary(activeChatBuddy) : null;
+  const nativeMilestoneOneMessages = useMemo<NativeMilestoneOneMessage[]>(
+    () => {
+      if (!userId) {
+        return [];
+      }
+
+      return chatMessages.map((message) => {
+        const isMine = message.sender_id === userId;
+        const isDeleted = Boolean(message.deleted_at);
+        const plainContent = htmlToPlainText(message.content).trim();
+        const moderatedContent = displayBodyForMessage(
+          message,
+          plainContent || (message.preview_type === 'buzz' ? 'Buzz!' : ''),
+          isMine,
+        );
+
+        return {
+          id: String(message.id),
+          senderId: message.sender_id,
+          content: isDeleted ? 'Message deleted' : moderatedContent,
+          createdAt: message.created_at,
+          isMine,
+          isDeleted,
+          previewType: message.preview_type ?? 'text',
+        };
+      });
+    },
+    [chatMessages, userId],
+  );
+  const nativeMilestoneOneConversation = useMemo<NativeMilestoneOneConversation | null>(() => {
+    if (!activeChatBuddy || !activeChatBuddyPresenceSummary) {
+      return null;
+    }
+
+    return {
+      buddyId: activeChatBuddy.id,
+      screenname: activeChatBuddy.screenname,
+      presence: activeChatBuddyPresenceSummary.presenceState,
+      presenceLabel: activeChatBuddyPresenceSummary.presenceLabel,
+      presenceDetail: activeChatBuddyPresenceSummary.presenceDetail,
+      statusLine: activeChatBuddyPresenceSummary.resolvedStatus.statusMessage ?? null,
+      messages: nativeMilestoneOneMessages,
+      isLoading: isChatLoading,
+      isSending: isSendingMessage,
+      typingText: activeDmTypingText,
+      error: chatError,
+    };
+  }, [
+    activeChatBuddy,
+    activeChatBuddyPresenceSummary,
+    activeDmTypingText,
+    chatError,
+    isChatLoading,
+    isSendingMessage,
+    nativeMilestoneOneMessages,
+  ]);
   const xpModalFrameClass = 'ui-modal-frame';
   const xpModalHeaderClass = 'ui-modal-header';
   const xpModalBodyClass = 'ui-modal-body';
@@ -6171,6 +6230,38 @@ const [showAddWindow, setShowAddWindow] = useState(false);
 
         return { ok: true };
       },
+      async sendMessage(buddyId, content) {
+        if (!userId) {
+          return { ok: false, error: 'Your session is still loading.' };
+        }
+        if (activeChatBuddyIdRef.current !== buddyId) {
+          return { ok: false, error: 'That conversation is no longer open.' };
+        }
+        const trimmedContent = content.trim();
+        if (!trimmedContent) {
+          return { ok: false, error: 'Type a message first.' };
+        }
+
+        try {
+          await handleSendMessage({ content: trimmedContent });
+          return { ok: true };
+        } catch (error) {
+          return {
+            ok: false,
+            error: error instanceof Error ? error.message : 'Could not send that message.',
+          };
+        }
+      },
+      async closeConversation() {
+        closeChatWindow();
+        return { ok: true };
+      },
+      async sendTypingPulse(buddyId) {
+        if (activeChatBuddyIdRef.current === buddyId) {
+          sendDmTypingPulse();
+        }
+        return { ok: true };
+      },
       async signOut() {
         void handleSignOff();
         return { ok: true };
@@ -6186,10 +6277,13 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   }, [
     handleAcceptPendingRequest,
     handleDeclinePendingRequest,
+    handleSendMessage,
     handleOpenChat,
     handleSignOff,
+    closeChatWindow,
     loadBuddies,
     nativeShellActive,
+    sendDmTypingPulse,
     updateStatus,
     userId,
   ]);
@@ -6206,8 +6300,16 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       !isHeaderMenuOpen &&
       !isAppLocked &&
       !showAppLockSheet;
+    const showsNativeConversation =
+      bodyShellSection === 'im' &&
+      nativeShellMode === 'conversation' &&
+      Boolean(nativeMilestoneOneConversation) &&
+      !profileSheetBuddyId &&
+      !isHeaderMenuOpen &&
+      !isAppLocked &&
+      !showAppLockSheet;
 
-    if (!showsNativeBuddyList) {
+    if (!showsNativeBuddyList && !showsNativeConversation) {
       void publishNativeMilestoneOneState({ phase: 'hidden', isDark: shellIsDark });
       return;
     }
@@ -6228,6 +6330,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       isRefreshing: isLoadingBuddies,
       isDark: shellIsDark,
       error: profileSyncError,
+      activeConversation: showsNativeConversation ? nativeMilestoneOneConversation : null,
     });
   }, [
     bodyShellSection,
@@ -6239,6 +6342,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     isHeaderMenuOpen,
     isLoadingBuddies,
     nativeMilestoneOneBuddies,
+    nativeMilestoneOneConversation,
     nativeShellActive,
     nativeShellMode,
     onlineBuddies.length,
