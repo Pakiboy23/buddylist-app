@@ -161,6 +161,15 @@ export interface NativeMilestoneOneRoom {
   name: string;
   subtitle: string;
   unreadCount: number;
+  isJoined: boolean;
+  activeCount: number;
+  activeScreennames: string[];
+}
+
+export interface NativeMilestoneOneRoomParticipant {
+  id: string;
+  screenname: string;
+  isMe: boolean;
 }
 
 export interface NativeMilestoneOneRoomMessage {
@@ -176,6 +185,7 @@ export interface NativeMilestoneOneRoomConversation {
   roomId: string;
   roomName: string;
   activeCount: number;
+  participants: NativeMilestoneOneRoomParticipant[];
   messages: NativeMilestoneOneRoomMessage[];
   isLoading: boolean;
   isSending: boolean;

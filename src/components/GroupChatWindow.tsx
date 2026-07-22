@@ -1075,6 +1075,13 @@ export default function GroupChatWindow({
       roomId,
       roomName,
       activeCount: activeParticipantIds.size,
+      participants: participants
+        .filter((participant) => participant.onlineAt !== null)
+        .map((participant) => ({
+          id: participant.userId,
+          screenname: participant.screenname,
+          isMe: participant.userId === currentUserId,
+        })),
       messages: messages.map((message) => {
         const viewerIsAuthor = message.user_id === currentUserId;
         const effectiveBody = message.flagged_at && !viewerIsAuthor
@@ -1105,6 +1112,7 @@ export default function GroupChatWindow({
     isSending,
     messages,
     onNativeStateChange,
+    participants,
     roomId,
     roomName,
     screennameMap,

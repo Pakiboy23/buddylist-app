@@ -214,6 +214,19 @@ interface ChatRoom {
   name: string;
 }
 
+interface RoomLobbyPresenceMeta {
+  userId?: string;
+  screenname?: string;
+  roomId?: string;
+  roomName?: string;
+  onlineAt?: string;
+}
+
+interface RoomLobbyParticipant {
+  id: string;
+  screenname: string;
+}
+
 interface AdminMeResponse {
   isAdmin: boolean;
 }
@@ -969,6 +982,10 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   const [roomJoinError, setRoomJoinError] = useState<string | null>(null);
   const [isJoiningRoom, setIsJoiningRoom] = useState(false);
   const [activeRoom, setActiveRoom] = useState<ChatRoom | null>(null);
+  const [nativeRoomDirectory, setNativeRoomDirectory] = useState<ChatRoom[]>([]);
+  const [isLoadingNativeRoomDirectory, setIsLoadingNativeRoomDirectory] = useState(false);
+  const [nativeRoomDirectoryError, setNativeRoomDirectoryError] = useState<string | null>(null);
+  const [nativeRoomPresenceById, setNativeRoomPresenceById] = useState<Record<string, RoomLobbyParticipant[]>>({});
   const [nativeRoomConversation, setNativeRoomConversation] = useState<NativeMilestoneOneRoomConversation | null>(null);
   const [isAdminUser, setIsAdminUser] = useState(false);
   const [isAdminResetOpen, setIsAdminResetOpen] = useState(false);
@@ -1079,6 +1096,101 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   const handleNativeRoomStateChange = useCallback((conversation: NativeMilestoneOneRoomConversation) => {
     setNativeRoomConversation(conversation);
   }, []);
+
+  const loadNativeRoomDirectory = useCallback(async () => {
+    setIsLoadingNativeRoomDirectory(true);
+    setNativeRoomDirectoryError(null);
+    const { data, error } = await supabase
+      .from('rooms')
+      .select('id,slug,name')
+      .eq('is_active', true)
+      .order('display_order', { ascending: true });
+
+    setIsLoadingNativeRoomDirectory(false);
+    if (error) {
+      setNativeRoomDirectoryError(error.message);
+      return false;
+    }
+
+    setNativeRoomDirectory((data ?? []) as ChatRoom[]);
+    return true;
+  }, []);
+
+  useEffect(() => {
+    if (!userId) {
+      setNativeRoomDirectory([]);
+      setNativeRoomDirectoryError(null);
+      return;
+    }
+    void loadNativeRoomDirectory();
+  }, [loadNativeRoomDirectory, userId]);
+
+  useEffect(() => {
+    if (!userId) {
+      setNativeRoomPresenceById({});
+      return;
+    }
+
+    const channel = supabase.channel('global_room_presence', {
+      config: {
+        presence: {
+          key: userId,
+        },
+      },
+    });
+
+    const updatePresenceDirectory = () => {
+      const presenceState = channel.presenceState() as Record<string, RoomLobbyPresenceMeta[]>;
+      const participantsByRoom = new Map<string, Map<string, RoomLobbyParticipant>>();
+
+      for (const metas of Object.values(presenceState)) {
+        for (const meta of metas) {
+          const participantId = typeof meta.userId === 'string' ? meta.userId : '';
+          const participantScreenname = typeof meta.screenname === 'string' ? meta.screenname.trim() : '';
+          const roomId = typeof meta.roomId === 'string' ? meta.roomId : '';
+          if (!participantId || !participantScreenname || !roomId) {
+            continue;
+          }
+
+          const roomParticipants = participantsByRoom.get(roomId) ?? new Map<string, RoomLobbyParticipant>();
+          roomParticipants.set(participantId, {
+            id: participantId,
+            screenname: participantScreenname,
+          });
+          participantsByRoom.set(roomId, roomParticipants);
+        }
+      }
+
+      setNativeRoomPresenceById(
+        Object.fromEntries(
+          Array.from(participantsByRoom.entries()).map(([roomId, participantsById]) => [
+            roomId,
+            Array.from(participantsById.values()).sort((left, right) =>
+              left.screenname.localeCompare(right.screenname, undefined, { sensitivity: 'base' }),
+            ),
+          ]),
+        ),
+      );
+    };
+
+    channel.on('presence', { event: 'sync' }, updatePresenceDirectory);
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED' && activeRoom) {
+        void channel.track({
+          userId,
+          screenname,
+          roomId: activeRoom.id,
+          roomName: activeRoom.name,
+          onlineAt: new Date().toISOString(),
+        });
+      }
+    });
+
+    return () => {
+      void channel.untrack();
+      channel.unsubscribe();
+    };
+  }, [activeRoom, screenname, userId]);
 
   useEffect(() => {
     setNativeRoomConversation((previous) =>
@@ -5876,8 +5988,9 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   if (pendingRequests.length > 0) {
     headerSummaryParts.push(`${pendingRequests.length} request${pendingRequests.length === 1 ? '' : 's'}`);
   }
-  if (joinedRooms.length > 0) {
-    headerSummaryParts.push(`${joinedRooms.length} room${joinedRooms.length === 1 ? '' : 's'}`);
+  const headerRoomCount = nativeShellActive ? nativeRoomDirectory.length : joinedRooms.length;
+  if (headerRoomCount > 0) {
+    headerSummaryParts.push(`${headerRoomCount} room${headerRoomCount === 1 ? '' : 's'}`);
   }
   const hiItsMeHeaderSummary = headerSummaryParts.join(' · ');
   const totalUnreadDirectCount = Object.values(unreadDirectMessages).reduce((sum, count) => sum + count, 0);
@@ -5899,17 +6012,22 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   );
   const nativeMilestoneOneRooms = useMemo<NativeMilestoneOneRoom[]>(
     () =>
-      joinedRooms.map((room) => {
+      nativeRoomDirectory.map((room) => {
         const meta = getHimRoomMeta(room.slug);
+        const joinedRoom = joinedRooms.find((candidate) => candidate.id === room.id);
+        const activeParticipants = nativeRoomPresenceById[room.id] ?? [];
         return {
           id: room.id,
           slug: room.slug,
           name: room.name,
           subtitle: meta.blurb,
-          unreadCount: room.unreadCount,
+          unreadCount: joinedRoom?.unreadCount ?? 0,
+          isJoined: Boolean(joinedRoom),
+          activeCount: activeParticipants.length,
+          activeScreennames: activeParticipants.map((participant) => participant.screenname),
         };
       }),
-    [joinedRooms],
+    [joinedRooms, nativeRoomDirectory, nativeRoomPresenceById],
   );
   const nativeMilestoneOneRoomConversation = useMemo<NativeMilestoneOneRoomConversation | null>(() => {
     if (!activeRoom) {
@@ -5922,6 +6040,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       roomId: activeRoom.id,
       roomName: activeRoom.name,
       activeCount: 0,
+      participants: [],
       messages: [],
       isLoading: true,
       isSending: false,
@@ -6252,8 +6371,13 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         if (!userId) {
           return { ok: false, error: 'Your session is still loading.' };
         }
-        await syncFromServer();
-        return { ok: true };
+        const [, didLoadDirectory] = await Promise.all([
+          syncFromServer(),
+          loadNativeRoomDirectory(),
+        ]);
+        return didLoadDirectory
+          ? { ok: true }
+          : { ok: false, error: 'Could not refresh the room directory.' };
       },
       async openBuddy(buddyId) {
         if (!acceptedBuddyIdsRef.current.has(buddyId)) {
@@ -6263,7 +6387,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         return { ok: true };
       },
       async openRoom(roomId) {
-        const room = joinedRooms.find((candidate) => candidate.id === roomId);
+        const room = nativeRoomDirectory.find((candidate) => candidate.id === roomId);
         if (!room) {
           return { ok: false, error: 'That room is no longer in your list.' };
         }
@@ -6472,7 +6596,9 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     dmPreferencesByBuddyId,
     loadBuddies,
     joinedRooms,
+    loadNativeRoomDirectory,
     nativeShellActive,
+    nativeRoomDirectory,
     openBuddyProfile,
     openRoomView,
     sendDmTypingPulse,
@@ -6535,9 +6661,13 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       })),
       onlineCount: onlineBuddies.length,
       pendingRequestCount: pendingRequests.length,
-      isRefreshing: bodyShellSection === 'chat' ? syncState === 'syncing' : isLoadingBuddies,
+      isRefreshing: bodyShellSection === 'chat'
+        ? syncState === 'syncing' || isLoadingNativeRoomDirectory
+        : isLoadingBuddies,
       isDark: shellIsDark,
-      error: bodyShellSection === 'chat' ? (roomJoinError || lastSyncError) : profileSyncError,
+      error: bodyShellSection === 'chat'
+        ? (roomJoinError || nativeRoomDirectoryError || lastSyncError)
+        : profileSyncError,
       activeConversation: showsNativeConversation ? nativeMilestoneOneConversation : null,
       rooms: nativeMilestoneOneRooms,
       activeRoomConversation: showsNativeRoomConversation ? nativeMilestoneOneRoomConversation : null,
@@ -6551,11 +6681,13 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     isBootstrapping,
     isHeaderMenuOpen,
     isLoadingBuddies,
+    isLoadingNativeRoomDirectory,
     lastSyncError,
     nativeMilestoneOneBuddies,
     nativeMilestoneOneConversation,
     nativeMilestoneOneRoomConversation,
     nativeMilestoneOneRooms,
+    nativeRoomDirectoryError,
     nativeShellActive,
     nativeShellMode,
     onlineBuddies.length,

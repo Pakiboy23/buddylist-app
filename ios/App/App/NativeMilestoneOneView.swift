@@ -72,6 +72,15 @@ struct NativeMilestoneOneRoom: Decodable, Equatable, Identifiable {
     let name: String
     let subtitle: String
     let unreadCount: Int
+    let isJoined: Bool
+    let activeCount: Int
+    let activeScreennames: [String]
+}
+
+struct NativeMilestoneOneRoomParticipant: Decodable, Equatable, Identifiable {
+    let id: String
+    let screenname: String
+    let isMe: Bool
 }
 
 struct NativeMilestoneOneRoomMessage: Decodable, Equatable, Identifiable {
@@ -87,6 +96,7 @@ struct NativeMilestoneOneRoomConversation: Decodable, Equatable {
     let roomId: String
     let roomName: String
     let activeCount: Int
+    let participants: [NativeMilestoneOneRoomParticipant]
     let messages: [NativeMilestoneOneRoomMessage]
     let isLoading: Bool
     let isSending: Bool
@@ -919,10 +929,10 @@ private struct NativeRoomsView: View {
                         Image(systemName: "bubble.left.and.bubble.right")
                             .font(.system(size: 32, weight: .semibold))
                             .foregroundColor(NativeMilestonePalette.gold)
-                        Text("No joined rooms yet")
+                        Text("No global rooms available")
                             .font(.headline)
                             .foregroundColor(NativeMilestonePalette.text(isDark: model.state.isDark))
-                        Text("Browse rooms on the web surface to join one. Joined rooms will appear here.")
+                        Text("Pull to refresh the room directory.")
                             .font(.subheadline)
                             .foregroundColor(NativeMilestonePalette.muted(isDark: model.state.isDark))
                             .multilineTextAlignment(.center)
@@ -945,7 +955,7 @@ private struct NativeRoomsView: View {
                 }
             } header: {
                 HStack {
-                    Text("Joined Rooms")
+                    Text("Global Rooms")
                     Spacer()
                     Text("\(model.state.rooms.count)")
                         .foregroundColor(NativeMilestonePalette.gold)
@@ -970,15 +980,41 @@ private struct NativeRoomRow: View {
                 .frame(width: 44, height: 44)
                 .background(NativeMilestonePalette.gold, in: Circle())
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(room.name)
-                    .font(.body.weight(.bold))
-                    .foregroundColor(NativeMilestonePalette.text(isDark: isDark))
-                    .lineLimit(1)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 7) {
+                    Text(room.name)
+                        .font(.body.weight(.bold))
+                        .foregroundColor(NativeMilestonePalette.text(isDark: isDark))
+                        .lineLimit(1)
+                    Text(room.isJoined ? "JOINED" : "JOIN")
+                        .font(.system(size: 9, weight: .black, design: .rounded))
+                        .foregroundColor(room.isJoined ? NativeMilestonePalette.green : NativeMilestonePalette.gold)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(
+                            (room.isJoined ? NativeMilestonePalette.green : NativeMilestonePalette.gold).opacity(0.12),
+                            in: Capsule()
+                        )
+                }
                 Text(room.subtitle)
                     .font(.caption)
                     .foregroundColor(NativeMilestonePalette.muted(isDark: isDark))
-                    .lineLimit(2)
+                    .lineLimit(1)
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(room.activeCount > 0 ? NativeMilestonePalette.green : NativeMilestonePalette.muted(isDark: isDark))
+                        .frame(width: 6, height: 6)
+                    Text(room.activeCount == 1 ? "1 active" : "\(room.activeCount) active")
+                        .foregroundColor(room.activeCount > 0
+                            ? NativeMilestonePalette.green
+                            : NativeMilestonePalette.muted(isDark: isDark))
+                    if !room.activeScreennames.isEmpty {
+                        Text("· \(room.activeScreennames.prefix(3).joined(separator: ", "))")
+                            .foregroundColor(NativeMilestonePalette.muted(isDark: isDark))
+                            .lineLimit(1)
+                    }
+                }
+                .font(.caption2.weight(.semibold))
             }
 
             Spacer(minLength: 8)
@@ -1000,8 +1036,8 @@ private struct NativeRoomRow: View {
         .padding(.vertical, 5)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(room.name), \(room.subtitle)")
-        .accessibilityHint("Opens the room")
+        .accessibilityLabel("\(room.name), \(room.isJoined ? "joined" : "not joined"), \(room.activeCount) active")
+        .accessibilityHint(room.isJoined ? "Opens the room" : "Joins and opens the room")
     }
 }
 
@@ -1020,6 +1056,11 @@ private struct NativeRoomConversationView: View {
                     conversation: conversation,
                     isDark: model.state.isDark,
                     close: model.closeRoomConversation
+                )
+
+                NativeRoomActiveRoster(
+                    participants: conversation.participants,
+                    isDark: model.state.isDark
                 )
 
                 Divider()
@@ -1150,6 +1191,53 @@ private struct NativeRoomConversationHeader: View {
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .padding(.bottom, 10)
+    }
+}
+
+private struct NativeRoomActiveRoster: View {
+    let participants: [NativeMilestoneOneRoomParticipant]
+    let isDark: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text("ACTIVE NOW")
+                .font(.caption2.weight(.black))
+                .foregroundColor(NativeMilestonePalette.muted(isDark: isDark))
+
+            if participants.isEmpty {
+                Text("No one else is active yet.")
+                    .font(.caption)
+                    .foregroundColor(NativeMilestonePalette.muted(isDark: isDark))
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(participants) { participant in
+                            HStack(spacing: 6) {
+                                Circle()
+                                    .fill(NativeMilestonePalette.green)
+                                    .frame(width: 7, height: 7)
+                                Text(participant.isMe ? "\(participant.screenname) (You)" : participant.screenname)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundColor(NativeMilestonePalette.text(isDark: isDark))
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 7)
+                            .background(
+                                NativeMilestonePalette.card(isDark: isDark),
+                                in: Capsule()
+                            )
+                            .overlay {
+                                Capsule()
+                                    .stroke(NativeMilestonePalette.separator(isDark: isDark), lineWidth: 1)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 10)
+        .accessibilityElement(children: .contain)
     }
 }
 

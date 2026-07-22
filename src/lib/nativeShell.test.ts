@@ -208,12 +208,19 @@ describe('native milestone-one request bridge', () => {
           name: 'New York',
           subtitle: 'local plans and people',
           unreadCount: 2,
+          isJoined: true,
+          activeCount: 2,
+          activeScreennames: ['Pakiboy24', 'newbuddy'],
         },
       ],
       activeRoomConversation: {
         roomId: 'room-1',
         roomName: 'New York',
         activeCount: 3,
+        participants: [
+          { id: 'user-1', screenname: 'Pakiboy24', isMe: true },
+          { id: 'user-2', screenname: 'newbuddy', isMe: false },
+        ],
         messages: [
           {
             id: 'message-1',
