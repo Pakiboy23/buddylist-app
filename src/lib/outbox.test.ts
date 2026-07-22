@@ -21,6 +21,18 @@ describe('createOutboxItem', () => {
     expect(item.content).toBe('hello there');
     expect(item.status).toBe('queued');
   });
+
+  it('preserves Knock as a typed offline DM', () => {
+    const item = createOutboxItem({
+      type: 'dm',
+      targetId: 'buddy-a',
+      content: '👋 Knock',
+      clientMessageId: 'knock-1',
+      previewType: 'knock',
+    });
+
+    expect(item.previewType).toBe('knock');
+  });
 });
 
 describe('normalizeOutboxItems', () => {

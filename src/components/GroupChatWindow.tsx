@@ -1,7 +1,8 @@
 'use client';
 
-import { FormEvent, KeyboardEvent, type CSSProperties, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { FormEvent, KeyboardEvent, type CSSProperties, type MutableRefObject, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import AppIcon from '@/components/AppIcon';
+import MutualContextCard from '@/components/MutualContextCard';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import RetroWindow from '@/components/RetroWindow';
 import RichTextToolbar from '@/components/RichTextToolbar';
@@ -18,7 +19,11 @@ import {
   formatConversationMetaTime,
   getConversationClusterMeta,
 } from '@/lib/conversationPresentation';
-import { isNativeIosShell } from '@/lib/nativeShell';
+import {
+  isNativeIosShell,
+  type NativeMilestoneOneRoomBridge,
+  type NativeMilestoneOneRoomConversation,
+} from '@/lib/nativeShell';
 import { supabase } from '@/lib/supabase';
 import {
   DEFAULT_RICH_TEXT_FORMAT,
@@ -40,6 +45,11 @@ import {
 } from '@/lib/profileSchema';
 import { useChatContext } from '@/context/ChatContext';
 import { createClientMessageId } from '@/lib/outbox';
+import {
+  createEmptyMutualContext,
+  loadMutualContext,
+  type MutualContext,
+} from '@/lib/mutualContext';
 import {
   LEGACY_ROOM_MESSAGE_SELECT_FIELDS,
   ROOM_MESSAGE_SELECT_FIELDS,
@@ -66,6 +76,8 @@ interface RosterProfile {
   screenname: string;
   awayMessage: string | null;
   bio: string | null;
+  mutualContext: MutualContext;
+  mutualContextError: string | null;
 }
 
 interface RoomParticipant {
@@ -111,7 +123,7 @@ interface GroupChatWindowProps {
     content: string;
     clientMessageId?: string;
     errorMessage?: string;
-  }) => void;
+  }) => boolean | void;
   onRetryOutboxMessage?: (itemId: string) => void;
   buddies?: BuddyStub[];
   onBack: () => void;
@@ -126,6 +138,8 @@ interface GroupChatWindowProps {
     contentPreview: string;
   }) => void;
   onBlockRoomUser?: (payload: { userId: string; screenname: string }) => void;
+  nativeBridgeRef?: MutableRefObject<NativeMilestoneOneRoomBridge | null>;
+  onNativeStateChange?: (conversation: NativeMilestoneOneRoomConversation) => void;
 }
 
 const GROUP_SENDER_COLOR_CLASSES = [
@@ -184,6 +198,8 @@ export default function GroupChatWindow({
   blockedUserIds = [],
   onReportRoomMessage,
   onBlockRoomUser,
+  nativeBridgeRef,
+  onNativeStateChange,
 }: GroupChatWindowProps) {
   const blockedUserIdSet = useMemo(() => new Set(blockedUserIds), [blockedUserIds]);
   const { clearUnreads } = useChatContext();
@@ -506,17 +522,27 @@ export default function GroupChatWindow({
     setRosterProfileStatus(null);
     setIsLoadingRosterProfile(true);
     try {
-      const { data } = await supabase
-        .from('users')
-        .select('id, screenname, away_message, profile_bio')
-        .eq('id', userId)
-        .maybeSingle();
+      const [{ data }, contextResult] = await Promise.all([
+        supabase
+          .from('users')
+          .select('id, screenname, away_message, profile_bio')
+          .eq('id', userId)
+          .maybeSingle(),
+        loadMutualContext(userId)
+          .then((context) => ({ context, error: null }))
+          .catch((error) => ({
+            context: createEmptyMutualContext(),
+            error: error instanceof Error ? error.message : 'Could not load shared context.',
+          })),
+      ]);
       if (data) {
         setRosterProfile({
           id: data.id as string,
           screenname: ((data.screenname as string) ?? '').trim() || screennameMapRef.current[userId] || 'Unknown User',
           awayMessage: (data.away_message as string | null) || null,
           bio: (data.profile_bio as string | null) || null,
+          mutualContext: contextResult.context,
+          mutualContextError: contextResult.error,
         });
       }
     } finally {
@@ -819,17 +845,22 @@ export default function GroupChatWindow({
   }, [clearUnreads, currentUserId, currentUserScreenname, ensureScreennames, loadRoster, roomId, roomName]);
 
 
-  const handleSendMessage = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const trimmed = draft.trim();
-    if (!trimmed || isSending) {
-      return;
+  const sendRoomContent = useCallback(async (
+    content: string,
+    options: { applyFormatting: boolean } = { applyFormatting: false },
+  ) => {
+    const trimmed = content.trim();
+    if (!trimmed) {
+      return { ok: false as const, error: 'Type a message first.' };
+    }
+    if (isSending) {
+      return { ok: false as const, error: 'A message is already sending.' };
     }
 
     setIsSending(true);
     setError(null);
 
-    const formatted = formatRichText(trimmed, format);
+    const formatted = options.applyFormatting ? formatRichText(trimmed, format) : trimmed;
     const clientMessageId = createClientMessageId();
     const { data, error: sendError } = await sendRoomMessageWithClientMessageId({
       roomId,
@@ -846,19 +877,20 @@ export default function GroupChatWindow({
         ((typeof navigator !== 'undefined' && !navigator.onLine) ||
           /network|fetch|offline|timeout/i.test(sendError.message));
       if (retryableNetworkError) {
-        onQueueRoomMessage?.({
+        const queued = onQueueRoomMessage?.({
           roomId,
           content: formatted,
           clientMessageId,
           errorMessage: sendError.message,
-        });
-        setDraft('');
-        onDraftChange?.('');
-        setError('Offline: message queued and will retry automatically.');
+        }) ?? false;
+        if (queued) {
+          setError('Offline: message queued and will retry automatically.');
+          return { ok: true as const };
+        }
       } else {
         setError(sendError.message);
       }
-      return;
+      return { ok: false as const, error: sendError.message };
     }
 
     const insertedMessage = data as RoomMessage;
@@ -869,6 +901,17 @@ export default function GroupChatWindow({
     );
     setHasLiveMessageSinceOpen(true);
     setMentioningMessageId(null);
+    void hapticSuccess();
+    return { ok: true as const };
+  }, [currentUserId, format, isSending, onQueueRoomMessage, roomId]);
+
+  const handleSendMessage = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const result = await sendRoomContent(draft, { applyFormatting: true });
+    if (!result.ok) {
+      return;
+    }
+
     setDraft('');
     onDraftChange?.('');
     if (typeof window !== 'undefined') {
@@ -876,7 +919,6 @@ export default function GroupChatWindow({
         focusComposer();
       });
     }
-    void hapticSuccess();
   };
 
   const handleDraftKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -907,7 +949,7 @@ export default function GroupChatWindow({
     textarea.form?.requestSubmit();
   };
 
-  const notifyTyping = () => {
+  const notifyTyping = useCallback(() => {
     const now = Date.now();
     if (now - lastTypingSentAtRef.current < 1200) {
       return;
@@ -927,7 +969,7 @@ export default function GroupChatWindow({
         screenname: currentUserScreenname,
       },
     });
-  };
+  }, [currentUserId, currentUserScreenname]);
 
   const handleDraftChange = (nextValue: string) => {
     setDraft(nextValue);
@@ -1023,6 +1065,77 @@ export default function GroupChatWindow({
     }
     return `${resolvedTypingUsers[0]}, ${resolvedTypingUsers[1]} +${resolvedTypingUsers.length - 2} more typing...`;
   }, [resolvedTypingUsers]);
+
+  useEffect(() => {
+    if (!nativeBridgeRef) {
+      return;
+    }
+
+    const bridge: NativeMilestoneOneRoomBridge = {
+      sendMessage: (content) => sendRoomContent(content),
+      sendTypingPulse: notifyTyping,
+    };
+    nativeBridgeRef.current = bridge;
+
+    return () => {
+      if (nativeBridgeRef.current === bridge) {
+        nativeBridgeRef.current = null;
+      }
+    };
+  }, [nativeBridgeRef, notifyTyping, sendRoomContent]);
+
+  useEffect(() => {
+    if (!onNativeStateChange) {
+      return;
+    }
+
+    onNativeStateChange({
+      roomId,
+      roomName,
+      activeCount: activeParticipantIds.size,
+      participants: participants
+        .filter((participant) => participant.onlineAt !== null)
+        .map((participant) => ({
+          id: participant.userId,
+          screenname: participant.screenname,
+          isMe: participant.userId === currentUserId,
+        })),
+      messages: messages.map((message) => {
+        const viewerIsAuthor = message.user_id === currentUserId;
+        const effectiveBody = message.flagged_at && !viewerIsAuthor
+          ? MESSAGE_HIDDEN_PLACEHOLDER
+          : message.body;
+        return {
+          id: message.id,
+          senderId: message.user_id,
+          senderScreenname:
+            screennameMap[message.user_id] ||
+            (viewerIsAuthor ? currentUserScreenname : 'Unknown User'),
+          content: htmlToPlainText(effectiveBody),
+          createdAt: message.created_at,
+          isMine: viewerIsAuthor,
+        };
+      }),
+      isLoading: isLoadingMessages,
+      isSending,
+      typingText,
+      error,
+    });
+  }, [
+    activeParticipantIds.size,
+    currentUserId,
+    currentUserScreenname,
+    error,
+    isLoadingMessages,
+    isSending,
+    messages,
+    onNativeStateChange,
+    participants,
+    roomId,
+    roomName,
+    screennameMap,
+    typingText,
+  ]);
 
   const richTextPresentationByMessageId = useMemo(() => {
     const presentation = new Map<string, ReturnType<typeof getRichTextPresentation>>();
@@ -1462,6 +1575,11 @@ export default function GroupChatWindow({
                         <p className="mt-2 text-[13px] leading-relaxed text-slate-300">{rosterProfile.bio}</p>
                       ) : null}
                     </div>
+                    <MutualContextCard
+                      context={rosterProfile.mutualContext}
+                      errorMessage={rosterProfile.mutualContextError}
+                      compact
+                    />
                     {rosterProfileFeedback ? (
                       <p className="text-[12px] font-semibold text-[var(--green)]">{rosterProfileFeedback}</p>
                     ) : null}

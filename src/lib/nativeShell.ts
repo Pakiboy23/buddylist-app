@@ -103,6 +103,185 @@ export interface NativeShellBridge {
   issueAdminResetTicket(screenname: string): Promise<NativeShellAdminIssueResult>;
 }
 
+export type NativeMilestoneOnePhase = 'loading' | 'signedOut' | 'signedIn' | 'hidden';
+export type NativeMilestoneOnePresence = 'available' | 'idle' | 'away' | 'offline';
+
+export interface NativeMilestoneOneBuddy {
+  id: string;
+  screenname: string;
+  presence: NativeMilestoneOnePresence;
+  presenceLabel: string;
+  presenceDetail: string;
+  awayMessage?: string | null;
+  unreadCount: number;
+  isPinned: boolean;
+  /** Owner-private circle this buddy is filed under, or null when Ungrouped. */
+  circleId?: string | null;
+  /** True when the buddy's circle hides presence (owner-side control). */
+  presenceHidden?: boolean;
+}
+
+export interface NativeMilestoneOneCircle {
+  id: string;
+  name: string;
+  showPresence: boolean;
+  muted: boolean;
+  memberCount: number;
+}
+
+export interface NativeMilestoneOnePendingRequest {
+  id: string;
+  screenname: string;
+}
+
+export interface NativeMilestoneOneMessage {
+  id: string;
+  senderId: string;
+  content: string;
+  createdAt: string;
+  isMine: boolean;
+  isDeleted?: boolean;
+  deliveredAt?: string | null;
+  readAt?: string | null;
+  deliveryStatus?: 'sent' | 'delivered' | 'read' | null;
+  deliveryStatusDetail?: string | null;
+  showDeliveryStatus?: boolean;
+  previewType?: string | null;
+}
+
+export interface NativeMilestoneOneSharedRoom {
+  id: string;
+  slug: string;
+  name: string;
+}
+
+export interface NativeMilestoneOneMutualBuddy {
+  id: string;
+  screenname: string;
+}
+
+export interface NativeMilestoneOneConversation {
+  buddyId: string;
+  screenname: string;
+  presence: NativeMilestoneOnePresence;
+  presenceLabel: string;
+  presenceDetail: string;
+  statusLine?: string | null;
+  awayMessage?: string | null;
+  isPinned: boolean;
+  isMuted: boolean;
+  isArchived: boolean;
+  sharedRooms: NativeMilestoneOneSharedRoom[];
+  mutualBuddies: NativeMilestoneOneMutualBuddy[];
+  mutualBuddyCount: number;
+  isLoadingMutualContext: boolean;
+  mutualContextError?: string | null;
+  messages: NativeMilestoneOneMessage[];
+  isLoading: boolean;
+  isSending: boolean;
+  typingText?: string | null;
+  error?: string | null;
+}
+
+export type NativeMilestoneOneSection = 'buddies' | 'rooms';
+
+export interface NativeMilestoneOneRoom {
+  id: string;
+  slug: string;
+  name: string;
+  subtitle: string;
+  unreadCount: number;
+  isJoined: boolean;
+  activeCount: number;
+  activeScreennames: string[];
+}
+
+export interface NativeMilestoneOneRoomParticipant {
+  id: string;
+  screenname: string;
+  isMe: boolean;
+}
+
+export interface NativeMilestoneOneRoomMessage {
+  id: string;
+  senderId: string;
+  senderScreenname: string;
+  content: string;
+  createdAt: string;
+  isMine: boolean;
+}
+
+export interface NativeMilestoneOneRoomConversation {
+  roomId: string;
+  roomName: string;
+  activeCount: number;
+  participants: NativeMilestoneOneRoomParticipant[];
+  messages: NativeMilestoneOneRoomMessage[];
+  isLoading: boolean;
+  isSending: boolean;
+  typingText?: string | null;
+  error?: string | null;
+}
+
+export interface NativeMilestoneOneState {
+  phase: NativeMilestoneOnePhase;
+  selectedSection?: NativeMilestoneOneSection;
+  screenname?: string | null;
+  currentPresence?: NativeMilestoneOnePresence | null;
+  currentPresenceDetail?: string | null;
+  currentAwayMessage?: string | null;
+  buddies?: NativeMilestoneOneBuddy[];
+  circles?: NativeMilestoneOneCircle[];
+  pendingRequests?: NativeMilestoneOnePendingRequest[];
+  onlineCount?: number;
+  pendingRequestCount?: number;
+  isRefreshing?: boolean;
+  isDark?: boolean;
+  error?: string | null;
+  activeConversation?: NativeMilestoneOneConversation | null;
+  rooms?: NativeMilestoneOneRoom[];
+  activeRoomConversation?: NativeMilestoneOneRoomConversation | null;
+}
+
+export type NativeMilestoneOneActionResult =
+  | { ok: true }
+  | { ok: false; error: string };
+
+export interface NativeMilestoneOneBridge {
+  signIn(screenname: string, password: string): Promise<NativeMilestoneOneActionResult>;
+  refreshBuddyList(): Promise<NativeMilestoneOneActionResult>;
+  refreshRooms(): Promise<NativeMilestoneOneActionResult>;
+  openBuddy(buddyId: string): Promise<NativeMilestoneOneActionResult>;
+  openRoom(roomId: string): Promise<NativeMilestoneOneActionResult>;
+  updatePresence(
+    status: 'available' | 'away',
+    awayMessage: string | null,
+  ): Promise<NativeMilestoneOneActionResult>;
+  respondToBuddyRequest(
+    senderId: string,
+    action: 'accept' | 'decline',
+  ): Promise<NativeMilestoneOneActionResult>;
+  sendMessage(buddyId: string, content: string): Promise<NativeMilestoneOneActionResult>;
+  sendKnock(buddyId: string): Promise<NativeMilestoneOneActionResult>;
+  closeConversation(): Promise<NativeMilestoneOneActionResult>;
+  sendTypingPulse(buddyId: string): Promise<NativeMilestoneOneActionResult>;
+  sendRoomMessage(roomId: string, content: string): Promise<NativeMilestoneOneActionResult>;
+  closeRoomConversation(): Promise<NativeMilestoneOneActionResult>;
+  sendRoomTypingPulse(roomId: string): Promise<NativeMilestoneOneActionResult>;
+  openProfile(buddyId: string): Promise<NativeMilestoneOneActionResult>;
+  togglePinned(buddyId: string): Promise<NativeMilestoneOneActionResult>;
+  toggleMuted(buddyId: string): Promise<NativeMilestoneOneActionResult>;
+  toggleArchived(buddyId: string): Promise<NativeMilestoneOneActionResult>;
+  setBuddyCircle(buddyId: string, circleId: string | null): Promise<NativeMilestoneOneActionResult>;
+  signOut(): Promise<NativeMilestoneOneActionResult>;
+  showWebAuth(mode: 'signup' | 'forgotPassword'): Promise<NativeMilestoneOneActionResult>;
+}
+
+export interface NativeMilestoneOneRoomBridge {
+  sendMessage(content: string): Promise<NativeMilestoneOneActionResult>;
+  sendTypingPulse(): void;
+}
+
 export type NativeShellCommand =
   | {
       type: 'selectTab';
@@ -116,6 +295,7 @@ export type NativeShellCommand =
 interface HiItsMeShellPlugin {
   isAvailable(): Promise<{ available: boolean; platform?: string }>;
   setChromeState(state: NativeShellChromeState): Promise<void>;
+  setMilestoneOneState(state: NativeMilestoneOneState): Promise<void>;
   getPushEnvironment(): Promise<{ environment?: NativePushEnvironment | null }>;
 }
 
@@ -124,10 +304,12 @@ const NATIVE_SHELL_COMMAND_EVENT = 'hiitsme:native-shell-command';
 let cachedPushEnvironment: NativePushEnvironment | null | undefined;
 let pendingPushEnvironmentLookup: Promise<NativePushEnvironment | null> | null = null;
 let chromeStateGeneration = 0;
+let milestoneOneStateGeneration = 0;
 
 declare global {
   interface Window {
     __hiItsMeNativeShell?: NativeShellBridge;
+    __hiItsMeNativeMilestoneOne?: NativeMilestoneOneBridge;
   }
 }
 
@@ -247,6 +429,41 @@ export async function publishNativeShellChromeState(state: NativeShellChromeStat
   }
 }
 
+export async function publishNativeMilestoneOneState(state: NativeMilestoneOneState) {
+  if (!isNativeIosShell()) {
+    return;
+  }
+
+  const generation = ++milestoneOneStateGeneration;
+  let lastError: unknown = null;
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    if (milestoneOneStateGeneration !== generation) {
+      return;
+    }
+
+    try {
+      const availability = await HiItsMeShell.isAvailable();
+      if (!availability.available || milestoneOneStateGeneration !== generation) {
+        return;
+      }
+
+      await HiItsMeShell.setMilestoneOneState(state);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt === 3) {
+        break;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 120 * (attempt + 1)));
+    }
+  }
+
+  if (lastError && milestoneOneStateGeneration === generation) {
+    console.warn('Native milestone-one state update failed:', lastError);
+  }
+}
+
 export function subscribeNativeShellCommands(handler: (command: NativeShellCommand) => void) {
   if (typeof window === 'undefined') {
     return () => {};
@@ -277,4 +494,17 @@ export function registerNativeShellBridge(bridge: NativeShellBridge | null) {
   }
 
   delete window.__hiItsMeNativeShell;
+}
+
+export function registerNativeMilestoneOneBridge(bridge: NativeMilestoneOneBridge | null) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  if (bridge) {
+    window.__hiItsMeNativeMilestoneOne = bridge;
+    return;
+  }
+
+  delete window.__hiItsMeNativeMilestoneOne;
 }

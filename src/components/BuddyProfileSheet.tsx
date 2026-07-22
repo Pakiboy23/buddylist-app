@@ -2,14 +2,20 @@
 
 import { KeyboardEvent, useEffect, useId, useRef, useState } from 'react';
 import AppIcon from '@/components/AppIcon';
+import MutualContextCard from '@/components/MutualContextCard';
+import { CirclePicker } from '@/components/BuddyCircles';
 import ProfileAvatar from '@/components/ProfileAvatar';
+import type { BuddyCircle } from '@/lib/buddyCircles';
 import { getPresenceLabel, type ResolvedPresenceState } from '@/lib/presence';
 import {
   ABUSE_REPORT_CATEGORY_OPTIONS,
   type AbuseReportCategory,
 } from '@/lib/trustSafety';
 import { supabase } from '@/lib/supabase';
+import { createEmptyMutualContext, type MutualContext } from '@/lib/mutualContext';
 import { useConnectionStatus } from '@/hooks/useConnectionStatus';
+
+const EMPTY_MUTUAL_CONTEXT = createEmptyMutualContext();
 
 interface BuddyProfileSheetData {
   id: string;
@@ -32,6 +38,13 @@ interface BuddyProfileSheetProps {
   isBlocked?: boolean;
   isBlocking?: boolean;
   isReporting?: boolean;
+  mutualContext?: MutualContext;
+  isMutualContextLoading?: boolean;
+  mutualContextError?: string | null;
+  /** Owner-private buddy circles; when non-empty and the buddy is accepted, shows a circle picker. */
+  circles?: BuddyCircle[];
+  currentCircleId?: string | null;
+  onSetCircle?: (circleId: string | null) => void | Promise<void>;
   onClose: () => void;
   onStartChat: () => void;
   onAddBuddy?: () => void;
@@ -60,6 +73,12 @@ export default function BuddyProfileSheet({
   isBlocked = false,
   isBlocking = false,
   isReporting = false,
+  mutualContext = EMPTY_MUTUAL_CONTEXT,
+  isMutualContextLoading = false,
+  mutualContextError = null,
+  circles = [],
+  currentCircleId = null,
+  onSetCircle,
   onClose,
   onStartChat,
   onAddBuddy,
@@ -257,6 +276,16 @@ export default function BuddyProfileSheet({
               </div>
             ) : null}
           </div>
+
+          <MutualContextCard
+            context={mutualContext}
+            isLoading={isMutualContextLoading}
+            errorMessage={mutualContextError}
+          />
+
+          {buddy?.relationshipStatus === 'accepted' && onSetCircle ? (
+            <CirclePicker circles={circles} currentCircleId={currentCircleId} onSetCircle={onSetCircle} />
+          ) : null}
 
           {/* Action buttons */}
           <div className="flex flex-wrap justify-end gap-2">
