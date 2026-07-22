@@ -2,6 +2,7 @@
 
 import { KeyboardEvent, useEffect, useId, useRef, useState } from 'react';
 import AppIcon from '@/components/AppIcon';
+import MutualContextCard from '@/components/MutualContextCard';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import { getPresenceLabel, type ResolvedPresenceState } from '@/lib/presence';
 import {
@@ -9,7 +10,10 @@ import {
   type AbuseReportCategory,
 } from '@/lib/trustSafety';
 import { supabase } from '@/lib/supabase';
+import { createEmptyMutualContext, type MutualContext } from '@/lib/mutualContext';
 import { useConnectionStatus } from '@/hooks/useConnectionStatus';
+
+const EMPTY_MUTUAL_CONTEXT = createEmptyMutualContext();
 
 interface BuddyProfileSheetData {
   id: string;
@@ -32,6 +36,9 @@ interface BuddyProfileSheetProps {
   isBlocked?: boolean;
   isBlocking?: boolean;
   isReporting?: boolean;
+  mutualContext?: MutualContext;
+  isMutualContextLoading?: boolean;
+  mutualContextError?: string | null;
   onClose: () => void;
   onStartChat: () => void;
   onAddBuddy?: () => void;
@@ -60,6 +67,9 @@ export default function BuddyProfileSheet({
   isBlocked = false,
   isBlocking = false,
   isReporting = false,
+  mutualContext = EMPTY_MUTUAL_CONTEXT,
+  isMutualContextLoading = false,
+  mutualContextError = null,
   onClose,
   onStartChat,
   onAddBuddy,
@@ -257,6 +267,12 @@ export default function BuddyProfileSheet({
               </div>
             ) : null}
           </div>
+
+          <MutualContextCard
+            context={mutualContext}
+            isLoading={isMutualContextLoading}
+            errorMessage={mutualContextError}
+          />
 
           {/* Action buttons */}
           <div className="flex flex-wrap justify-end gap-2">

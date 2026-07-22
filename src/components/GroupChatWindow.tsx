@@ -2,6 +2,7 @@
 
 import { FormEvent, KeyboardEvent, type CSSProperties, type MutableRefObject, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import AppIcon from '@/components/AppIcon';
+import MutualContextCard from '@/components/MutualContextCard';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import RetroWindow from '@/components/RetroWindow';
 import RichTextToolbar from '@/components/RichTextToolbar';
@@ -45,6 +46,11 @@ import {
 import { useChatContext } from '@/context/ChatContext';
 import { createClientMessageId } from '@/lib/outbox';
 import {
+  createEmptyMutualContext,
+  loadMutualContext,
+  type MutualContext,
+} from '@/lib/mutualContext';
+import {
   LEGACY_ROOM_MESSAGE_SELECT_FIELDS,
   ROOM_MESSAGE_SELECT_FIELDS,
   isRoomMessageMetadataSchemaMissingError,
@@ -70,6 +76,8 @@ interface RosterProfile {
   screenname: string;
   awayMessage: string | null;
   bio: string | null;
+  mutualContext: MutualContext;
+  mutualContextError: string | null;
 }
 
 interface RoomParticipant {
@@ -514,17 +522,27 @@ export default function GroupChatWindow({
     setRosterProfileStatus(null);
     setIsLoadingRosterProfile(true);
     try {
-      const { data } = await supabase
-        .from('users')
-        .select('id, screenname, away_message, profile_bio')
-        .eq('id', userId)
-        .maybeSingle();
+      const [{ data }, contextResult] = await Promise.all([
+        supabase
+          .from('users')
+          .select('id, screenname, away_message, profile_bio')
+          .eq('id', userId)
+          .maybeSingle(),
+        loadMutualContext(userId)
+          .then((context) => ({ context, error: null }))
+          .catch((error) => ({
+            context: createEmptyMutualContext(),
+            error: error instanceof Error ? error.message : 'Could not load shared context.',
+          })),
+      ]);
       if (data) {
         setRosterProfile({
           id: data.id as string,
           screenname: ((data.screenname as string) ?? '').trim() || screennameMapRef.current[userId] || 'Unknown User',
           awayMessage: (data.away_message as string | null) || null,
           bio: (data.profile_bio as string | null) || null,
+          mutualContext: contextResult.context,
+          mutualContextError: contextResult.error,
         });
       }
     } finally {
@@ -1557,6 +1575,11 @@ export default function GroupChatWindow({
                         <p className="mt-2 text-[13px] leading-relaxed text-slate-300">{rosterProfile.bio}</p>
                       ) : null}
                     </div>
+                    <MutualContextCard
+                      context={rosterProfile.mutualContext}
+                      errorMessage={rosterProfile.mutualContextError}
+                      compact
+                    />
                     {rosterProfileFeedback ? (
                       <p className="text-[12px] font-semibold text-[var(--green)]">{rosterProfileFeedback}</p>
                     ) : null}

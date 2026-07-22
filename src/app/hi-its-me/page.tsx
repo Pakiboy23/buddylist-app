@@ -43,6 +43,7 @@ import {
 } from '@/lib/clientStorage';
 import { uploadChatMediaFile } from '@/lib/chatMedia';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
+import { useMutualContext } from '@/hooks/useMutualContext';
 import { useTheme } from '@/hooks/useTheme';
 import {
   DEFAULT_APP_LOCK_SETTINGS,
@@ -1046,6 +1047,8 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const mutualContextTargetId = profileSheetBuddyId ?? activeChatBuddyId;
+  const mutualContextState = useMutualContext(userId ? mutualContextTargetId : null);
   const [initialUnreadForActiveRoom, setInitialUnreadForActiveRoom] = useState(0);
   const [activeRoomReloadToken, setActiveRoomReloadToken] = useState(0);
   const [outboxItems, setOutboxItems] = useState<OutboxItem[]>([]);
@@ -6034,6 +6037,11 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       isPinned: activeConversationPreference.isPinned,
       isMuted: activeConversationPreference.isMuted,
       isArchived: activeConversationPreference.isArchived,
+      sharedRooms: mutualContextState.context.sharedRooms,
+      mutualBuddies: mutualContextState.context.mutualBuddies,
+      mutualBuddyCount: mutualContextState.context.mutualBuddyCount,
+      isLoadingMutualContext: mutualContextState.isLoading,
+      mutualContextError: mutualContextState.error,
       messages: nativeMilestoneOneMessages,
       isLoading: isChatLoading,
       isSending: isSendingMessage,
@@ -6048,6 +6056,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     dmPreferencesByBuddyId,
     isChatLoading,
     isSendingMessage,
+    mutualContextState,
     nativeMilestoneOneMessages,
   ]);
   const xpModalFrameClass = 'ui-modal-frame';
@@ -8995,6 +9004,9 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         isBlocked={selectedProfileSummary ? blockedUserIds.includes(selectedProfileSummary.id) : false}
         isBlocking={isBlockingBuddyId === selectedProfileSummary?.id}
         isReporting={isReportingBuddyId === selectedProfileSummary?.id}
+        mutualContext={mutualContextState.context}
+        isMutualContextLoading={mutualContextState.isLoading}
+        mutualContextError={mutualContextState.error}
         onClose={closeBuddyProfile}
         onStartChat={() => {
           if (!selectedProfileSummary) {

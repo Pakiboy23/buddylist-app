@@ -137,6 +137,17 @@ export interface NativeMilestoneOneMessage {
   previewType?: string | null;
 }
 
+export interface NativeMilestoneOneSharedRoom {
+  id: string;
+  slug: string;
+  name: string;
+}
+
+export interface NativeMilestoneOneMutualBuddy {
+  id: string;
+  screenname: string;
+}
+
 export interface NativeMilestoneOneConversation {
   buddyId: string;
   screenname: string;
@@ -148,6 +159,11 @@ export interface NativeMilestoneOneConversation {
   isPinned: boolean;
   isMuted: boolean;
   isArchived: boolean;
+  sharedRooms: NativeMilestoneOneSharedRoom[];
+  mutualBuddies: NativeMilestoneOneMutualBuddy[];
+  mutualBuddyCount: number;
+  isLoadingMutualContext: boolean;
+  mutualContextError?: string | null;
   messages: NativeMilestoneOneMessage[];
   isLoading: boolean;
   isSending: boolean;

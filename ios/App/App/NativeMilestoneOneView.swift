@@ -45,6 +45,17 @@ struct NativeMilestoneOneMessage: Decodable, Equatable, Identifiable {
     let previewType: String?
 }
 
+struct NativeMilestoneOneSharedRoom: Decodable, Equatable, Identifiable {
+    let id: String
+    let slug: String
+    let name: String
+}
+
+struct NativeMilestoneOneMutualBuddy: Decodable, Equatable, Identifiable {
+    let id: String
+    let screenname: String
+}
+
 struct NativeMilestoneOneConversation: Decodable, Equatable {
     let buddyId: String
     let screenname: String
@@ -56,6 +67,11 @@ struct NativeMilestoneOneConversation: Decodable, Equatable {
     let isPinned: Bool
     let isMuted: Bool
     let isArchived: Bool
+    let sharedRooms: [NativeMilestoneOneSharedRoom]
+    let mutualBuddies: [NativeMilestoneOneMutualBuddy]
+    let mutualBuddyCount: Int
+    let isLoadingMutualContext: Bool
+    let mutualContextError: String?
     let messages: [NativeMilestoneOneMessage]
     let isLoading: Bool
     let isSending: Bool
@@ -1702,6 +1718,47 @@ private struct NativeConversationControlsSheet: View {
                             }
                         }
                         .padding(.vertical, 4)
+                    }
+
+                    Section("You both know") {
+                        if conversation.isLoadingMutualContext {
+                            HStack(spacing: 10) {
+                                ProgressView()
+                                    .controlSize(.small)
+                                Text("Finding shared context...")
+                                    .foregroundColor(NativeMilestonePalette.muted(isDark: model.state.isDark))
+                            }
+                        } else if conversation.mutualContextError != nil {
+                            Label("Shared context is unavailable right now.", systemImage: "exclamationmark.triangle")
+                                .font(.footnote)
+                                .foregroundColor(NativeMilestonePalette.muted(isDark: model.state.isDark))
+                        } else if conversation.sharedRooms.isEmpty && conversation.mutualBuddyCount == 0 {
+                            Text("No shared rooms or mutual buddies yet.")
+                                .font(.footnote)
+                                .foregroundColor(NativeMilestonePalette.muted(isDark: model.state.isDark))
+                        } else {
+                            ForEach(conversation.sharedRooms) { room in
+                                Label(room.name, systemImage: "person.3.fill")
+                            }
+
+                            ForEach(conversation.mutualBuddies) { buddy in
+                                Label(buddy.screenname, systemImage: "person.crop.circle.badge.checkmark")
+                            }
+
+                            let remainingBuddyCount = max(
+                                0,
+                                conversation.mutualBuddyCount - conversation.mutualBuddies.count
+                            )
+                            if remainingBuddyCount > 0 {
+                                Text("+\(remainingBuddyCount) more mutual buddies")
+                                    .font(.footnote.weight(.semibold))
+                                    .foregroundColor(NativeMilestonePalette.muted(isDark: model.state.isDark))
+                            }
+                        }
+
+                        Text("Shared relationships only—not a compatibility score.")
+                            .font(.caption2)
+                            .foregroundColor(NativeMilestonePalette.muted(isDark: model.state.isDark))
                     }
 
                     Section {

@@ -227,6 +227,11 @@ describe('native milestone-one request bridge', () => {
         isPinned: false,
         isMuted: false,
         isArchived: false,
+        sharedRooms: [{ id: 'room-1', slug: 'lobby', name: 'The Lobby' }],
+        mutualBuddies: [{ id: 'buddy-2', screenname: 'nightowl' }],
+        mutualBuddyCount: 1,
+        isLoadingMutualContext: false,
+        mutualContextError: null,
         messages: [],
         isLoading: false,
         isSending: false,
@@ -236,7 +241,11 @@ describe('native milestone-one request bridge', () => {
     expect(setMilestoneOneState).toHaveBeenCalledWith(
       expect.objectContaining({
         buddies: [expect.objectContaining({ awayMessage: 'grabbing coffee' })],
-        activeConversation: expect.objectContaining({ awayMessage: 'grabbing coffee' }),
+        activeConversation: expect.objectContaining({
+          awayMessage: 'grabbing coffee',
+          sharedRooms: [{ id: 'room-1', slug: 'lobby', name: 'The Lobby' }],
+          mutualBuddies: [{ id: 'buddy-2', screenname: 'nightowl' }],
+        }),
       }),
     );
   });
