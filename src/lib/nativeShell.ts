@@ -115,6 +115,18 @@ export interface NativeMilestoneOneBuddy {
   awayMessage?: string | null;
   unreadCount: number;
   isPinned: boolean;
+  /** Owner-private circle this buddy is filed under, or null when Ungrouped. */
+  circleId?: string | null;
+  /** True when the buddy's circle hides presence (owner-side control). */
+  presenceHidden?: boolean;
+}
+
+export interface NativeMilestoneOneCircle {
+  id: string;
+  name: string;
+  showPresence: boolean;
+  muted: boolean;
+  memberCount: number;
 }
 
 export interface NativeMilestoneOnePendingRequest {
@@ -219,6 +231,7 @@ export interface NativeMilestoneOneState {
   currentPresenceDetail?: string | null;
   currentAwayMessage?: string | null;
   buddies?: NativeMilestoneOneBuddy[];
+  circles?: NativeMilestoneOneCircle[];
   pendingRequests?: NativeMilestoneOnePendingRequest[];
   onlineCount?: number;
   pendingRequestCount?: number;
@@ -259,6 +272,7 @@ export interface NativeMilestoneOneBridge {
   togglePinned(buddyId: string): Promise<NativeMilestoneOneActionResult>;
   toggleMuted(buddyId: string): Promise<NativeMilestoneOneActionResult>;
   toggleArchived(buddyId: string): Promise<NativeMilestoneOneActionResult>;
+  setBuddyCircle(buddyId: string, circleId: string | null): Promise<NativeMilestoneOneActionResult>;
   signOut(): Promise<NativeMilestoneOneActionResult>;
   showWebAuth(mode: 'signup' | 'forgotPassword'): Promise<NativeMilestoneOneActionResult>;
 }

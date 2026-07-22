@@ -378,6 +378,9 @@ export default function Home() {
       async toggleArchived() {
         return { ok: false, error: 'Sign in to archive conversations.' };
       },
+      async setBuddyCircle() {
+        return { ok: false, error: 'Sign in to organize circles.' };
+      },
       async signOut() {
         return { ok: true };
       },

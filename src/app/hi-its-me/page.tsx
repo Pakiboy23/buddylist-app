@@ -5,6 +5,7 @@ import AppLockSheet from '@/components/AppLockSheet';
 import HiItsMeTabIcon from '@/components/HiItsMeTabIcon';
 import type { ChatMessage } from '@/components/ChatWindow';
 import BuddyProfileSheet from '@/components/BuddyProfileSheet';
+import { BuddyCircleGroup, NewCircleControl } from '@/components/BuddyCircles';
 import MessageReportSheet, { type MessageReportSubmission } from '@/components/MessageReportSheet';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import RenameScreenname from '@/components/RenameScreenname';
@@ -86,6 +87,16 @@ import { dispatchBuddyAcceptedPush, dispatchBuddyRequestPush } from '@/lib/pushD
 import { displayBodyForMessage } from '@/lib/contentModeration';
 import { buildAwayMessageReplyDraft } from '@/lib/awayMessageReply';
 import {
+  buildBuddyCircleIndex,
+  createBuddyCircle,
+  deleteBuddyCircle,
+  loadBuddyCircles,
+  renameBuddyCircle,
+  setBuddyCircle as assignBuddyToCircle,
+  updateBuddyCircleSettings,
+  type BuddyCircle,
+} from '@/lib/buddyCircles';
+import {
   EXTENDED_USER_PROFILE_SELECT_FIELDS,
   EXTENDED_USER_PROFILE_WITH_EMAIL_SELECT_FIELDS,
   getProfileSchemaMigrationMessage,
@@ -138,6 +149,7 @@ import {
   registerNativeShellBridge,
   subscribeNativeShellCommands,
   type NativeMilestoneOneBuddy,
+  type NativeMilestoneOneCircle,
   type NativeMilestoneOneConversation,
   type NativeMilestoneOneMessage,
   type NativeMilestoneOneRoom,
@@ -321,6 +333,7 @@ const AWAY_PRESETS_STORAGE_KEY = 'hiitsme:away-presets';
 const AWAY_SETTINGS_STORAGE_KEY = 'hiitsme:away-settings';
 const AWAY_COOLDOWN_STORAGE_KEY = 'hiitsme:away-cooldowns';
 const BUDDY_SORT_STORAGE_KEY = 'hiitsme:buddy-sort';
+const BUDDY_CIRCLES_COLLAPSED_STORAGE_KEY = 'hiitsme:buddy-circles-collapsed';
 const AWAY_AUTO_REPLY_PREFIX = '[Auto-Reply]';
 const AWAY_AUTO_REPLY_COOLDOWN_MS = 10 * 60 * 1000;
 const TYPING_THROTTLE_MS = 1200;
@@ -715,6 +728,7 @@ interface DirectMessageRowProps {
   handleOpenChat: (buddyId: string) => void;
   handleReplyToAwayMessage: (buddyId: string, awayMessage: string) => void;
   handleKnockBuddy: (buddyId: string) => void;
+  presenceHidden?: boolean;
 }
 
 function areDirectMessageRowPropsEqual(prev: DirectMessageRowProps, next: DirectMessageRowProps): boolean {
@@ -741,7 +755,8 @@ function areDirectMessageRowPropsEqual(prev: DirectMessageRowProps, next: Direct
     prev.openBuddyProfile === next.openBuddyProfile &&
     prev.handleOpenChat === next.handleOpenChat &&
     prev.handleReplyToAwayMessage === next.handleReplyToAwayMessage &&
-    prev.handleKnockBuddy === next.handleKnockBuddy
+    prev.handleKnockBuddy === next.handleKnockBuddy &&
+    prev.presenceHidden === next.presenceHidden
   );
 }
 
@@ -759,6 +774,7 @@ const DirectMessageRow = memo(function DirectMessageRow({
   handleOpenChat,
   handleReplyToAwayMessage,
   handleKnockBuddy,
+  presenceHidden = false,
 }: DirectMessageRowProps) {
   const resolvedStatus = resolveStatusFields({
     status: buddy.status,
@@ -768,21 +784,28 @@ const DirectMessageRow = memo(function DirectMessageRow({
   const awayLine = resolvedStatus.awayMessage
     ? resolveAwayTemplate(resolvedStatus.awayMessage, buddy.screenname, currentUserScreenname)
     : '';
-  const presenceState = resolvePresenceState({
-    isOnline: buddy.isOnline,
-    status: resolvedStatus.status,
-    idleSince: buddy.idle_since,
-  });
-  const presenceLabel = getPresenceLabel(presenceState);
-  const presenceDetail = getPresenceDetail({
-    state: presenceState,
-    awayMessage: awayLine,
-    statusMessage: resolvedStatus.statusMessage,
-    idleSince: buddy.idle_since,
-    lastActiveAt: buddy.last_active_at,
-  });
+  // A presence-hidden circle collapses the buddy to a neutral offline row — the
+  // owner opted out of seeing this circle's live presence (never reveals it to the buddy).
+  const presenceState = presenceHidden
+    ? 'offline'
+    : resolvePresenceState({
+        isOnline: buddy.isOnline,
+        status: resolvedStatus.status,
+        idleSince: buddy.idle_since,
+      });
+  const presenceLabel = presenceHidden ? 'Presence hidden' : getPresenceLabel(presenceState);
+  const presenceDetail = presenceHidden
+    ? ''
+    : getPresenceDetail({
+        state: presenceState,
+        awayMessage: awayLine,
+        statusMessage: resolvedStatus.statusMessage,
+        idleSince: buddy.idle_since,
+        lastActiveAt: buddy.last_active_at,
+      });
 
-  const showArrivalWave = recentActivity?.tone === 'online' || recentActivity?.tone === 'back';
+  const showArrivalWave =
+    !presenceHidden && (recentActivity?.tone === 'online' || recentActivity?.tone === 'back');
   const presenceToneClass =
     presenceState === 'away'
       ? 'text-[var(--gold)]'
@@ -947,6 +970,9 @@ function HiItsMeContent() {
   const [selectedBuddyId, setSelectedBuddyId] = useState<string | null>(null);
   const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
   const [buddySortMode, setBuddySortMode] = useState<BuddySortMode>('online_then_alpha');
+  const [buddyCircles, setBuddyCircles] = useState<BuddyCircle[]>([]);
+  const [collapsedCircleIds, setCollapsedCircleIds] = useState<Set<string>>(new Set());
+  const [circleActionError, setCircleActionError] = useState<string | null>(null);
   const [buddyLastMessageAt, setBuddyLastMessageAt] = useState<Record<string, string>>({});
   const [buddyLastMessagePreview, setBuddyLastMessagePreview] = useState<Record<string, string>>({});
   const [isUiCacheHydrated, setIsUiCacheHydrated] = useState(false);
@@ -1060,6 +1086,8 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   const nativeRoomBridgeRef = useRef<NativeMilestoneOneRoomBridge | null>(null);
   const acceptedBuddyIdsRef = useRef<Set<string>>(new Set());
   const blockedUserIdsRef = useRef<Set<string>>(new Set());
+  const presenceHiddenBuddyIdsRef = useRef<Set<string>>(new Set());
+  const mutedBuddyIdsRef = useRef<Set<string>>(new Set());
   const buddyRowsRef = useRef<Buddy[]>([]);
   const pendingRequestsRef = useRef<PendingRequest[]>([]);
   const temporaryChatAllowedIdsRef = useRef<Set<string>>(new Set());
@@ -1797,6 +1825,12 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   const pushBuddyActivity = useCallback(
     (buddyId: string, tone: BuddyActivityToast['tone'], message: string) => {
       if (!buddyId || buddyId === userId) {
+        return;
+      }
+
+      // Owner-side circle controls: a circle with hidden presence never surfaces
+      // sign-on/off/away toasts; a muted circle stays silent in-app.
+      if (presenceHiddenBuddyIdsRef.current.has(buddyId) || mutedBuddyIdsRef.current.has(buddyId)) {
         return;
       }
 
@@ -3659,6 +3693,37 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     [filteredDirectMessageBuddies],
   );
 
+  // Buddy Circles — owner-private grouping + owner-side presence/notification controls.
+  const buddyCircleIndex = useMemo(() => buildBuddyCircleIndex(buddyCircles), [buddyCircles]);
+  const presenceHiddenBuddyIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const circle of buddyCircles) {
+      if (!circle.showPresence) {
+        for (const buddyId of circle.memberBuddyIds) {
+          ids.add(buddyId);
+        }
+      }
+    }
+    return ids;
+  }, [buddyCircles]);
+  const mutedBuddyIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const circle of buddyCircles) {
+      if (circle.notifyMode === 'muted') {
+        for (const buddyId of circle.memberBuddyIds) {
+          ids.add(buddyId);
+        }
+      }
+    }
+    return ids;
+  }, [buddyCircles]);
+  useEffect(() => {
+    presenceHiddenBuddyIdsRef.current = presenceHiddenBuddyIds;
+  }, [presenceHiddenBuddyIds]);
+  useEffect(() => {
+    mutedBuddyIdsRef.current = mutedBuddyIds;
+  }, [mutedBuddyIds]);
+
   const activeChatBuddy = useMemo(() => {
     if (!activeChatBuddyId) {
       return null;
@@ -3776,23 +3841,41 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       alphabeticallySortedAcceptedBuddies.map((buddy) => {
         const presence = getBuddyPresenceSummary(buddy);
         const preference = getDmPreference(dmPreferencesByBuddyId, buddy.id);
+        const circle = buddyCircleIndex.get(buddy.id) ?? null;
+        const presenceHidden = presenceHiddenBuddyIds.has(buddy.id);
         return {
           id: buddy.id,
           screenname: buddy.screenname,
-          presence: presence.presenceState,
-          presenceLabel: presence.presenceLabel,
-          presenceDetail: presence.presenceDetail,
-          awayMessage: presence.presenceState === 'away' ? presence.awayLine : null,
+          presence: presenceHidden ? 'offline' : presence.presenceState,
+          presenceLabel: presenceHidden ? 'Presence hidden' : presence.presenceLabel,
+          presenceDetail: presenceHidden ? '' : presence.presenceDetail,
+          awayMessage: presenceHidden || presence.presenceState !== 'away' ? null : presence.awayLine,
           unreadCount: unreadDirectMessages[buddy.id] ?? 0,
           isPinned: preference.isPinned,
+          circleId: circle?.id ?? null,
+          presenceHidden,
         };
       }),
     [
       alphabeticallySortedAcceptedBuddies,
+      buddyCircleIndex,
       dmPreferencesByBuddyId,
       getBuddyPresenceSummary,
+      presenceHiddenBuddyIds,
       unreadDirectMessages,
     ],
+  );
+
+  const nativeMilestoneOneCircles = useMemo<NativeMilestoneOneCircle[]>(
+    () =>
+      buddyCircles.map((circle) => ({
+        id: circle.id,
+        name: circle.name,
+        showPresence: circle.showPresence,
+        muted: circle.notifyMode === 'muted',
+        memberCount: circle.memberBuddyIds.length,
+      })),
+    [buddyCircles],
   );
 
   const selectedProfileBuddy = useMemo(() => {
@@ -4171,6 +4254,11 @@ const [showAddWindow, setShowAddWindow] = useState(false);
               ? previous
               : [...previous, incomingMessage],
           );
+
+          // Muted circle: deliver the message but skip the in-app alert.
+          if (mutedBuddyIdsRef.current.has(senderId)) {
+            return;
+          }
 
           if (incomingMessage.preview_type === 'buzz') {
             document.body.classList.add('buzz-flash');
@@ -5570,6 +5658,118 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     });
   }, [handleSendKnockToBuddy]);
 
+  // ── Buddy Circles ──────────────────────────────────────────────────────────
+  const reloadBuddyCircles = useCallback(async () => {
+    if (!userId) {
+      setBuddyCircles([]);
+      return;
+    }
+    try {
+      setBuddyCircles(await loadBuddyCircles());
+    } catch (error) {
+      setCircleActionError(error instanceof Error ? error.message : 'Could not load your circles.');
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    void reloadBuddyCircles();
+  }, [reloadBuddyCircles]);
+
+  useEffect(() => {
+    if (!userId || typeof window === 'undefined') {
+      return;
+    }
+    try {
+      const raw = window.localStorage.getItem(`${BUDDY_CIRCLES_COLLAPSED_STORAGE_KEY}:${userId}`);
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (Array.isArray(parsed)) {
+        setCollapsedCircleIds(new Set(parsed.filter((value): value is string => typeof value === 'string')));
+      }
+    } catch {
+      /* ignore malformed cache */
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId || typeof window === 'undefined') {
+      return;
+    }
+    try {
+      window.localStorage.setItem(
+        `${BUDDY_CIRCLES_COLLAPSED_STORAGE_KEY}:${userId}`,
+        JSON.stringify([...collapsedCircleIds]),
+      );
+    } catch {
+      /* storage may be unavailable */
+    }
+  }, [collapsedCircleIds, userId]);
+
+  const runCircleAction = useCallback(
+    async (action: () => Promise<unknown>) => {
+      setCircleActionError(null);
+      try {
+        await action();
+        await reloadBuddyCircles();
+      } catch (error) {
+        setCircleActionError(error instanceof Error ? error.message : 'That circle action did not work.');
+      }
+    },
+    [reloadBuddyCircles],
+  );
+
+  const handleCreateCircle = useCallback(
+    (name: string) => {
+      if (!userId) {
+        return;
+      }
+      void runCircleAction(() => createBuddyCircle({ ownerId: userId, name, position: buddyCircles.length }));
+    },
+    [buddyCircles.length, runCircleAction, userId],
+  );
+
+  const handleRenameCircle = useCallback(
+    (circleId: string, name: string) => {
+      void runCircleAction(() => renameBuddyCircle(circleId, name));
+    },
+    [runCircleAction],
+  );
+
+  const handleDeleteCircle = useCallback(
+    (circleId: string) => {
+      void runCircleAction(() => deleteBuddyCircle(circleId));
+    },
+    [runCircleAction],
+  );
+
+  const handleUpdateCircleSettings = useCallback(
+    (circleId: string, settings: { showPresence?: boolean; notifyMode?: 'all' | 'muted' }) => {
+      void runCircleAction(() => updateBuddyCircleSettings(circleId, settings));
+    },
+    [runCircleAction],
+  );
+
+  const handleSetBuddyCircle = useCallback(
+    (buddyId: string, circleId: string | null) => {
+      if (!userId) {
+        return;
+      }
+      void runCircleAction(() => assignBuddyToCircle({ ownerId: userId, buddyId, circleId }));
+    },
+    [runCircleAction, userId],
+  );
+
+  const toggleCircleCollapsed = useCallback((circleId: string) => {
+    setCollapsedCircleIds((previous) => {
+      const next = new Set(previous);
+      if (next.has(circleId)) {
+        next.delete(circleId);
+      } else {
+        next.add(circleId);
+      }
+      return next;
+    });
+  }, []);
+
   const handleQueueRoomMessage = useCallback(
     ({
       roomId,
@@ -6068,6 +6268,42 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   const showSplitPresenceSections = buddySortMode === 'online_then_alpha' && conversationFilter === 'all';
   const onlineBuddiesSorted = visibleOnlineDirectMessageBuddies;
   const offlineBuddiesSorted = visibleOfflineDirectMessageBuddies;
+  // Circle grouping wins over the presence split whenever the owner has circles
+  // and isn't in a special filter (unread/pinned/archived stay flat).
+  const showCircleGroups = buddyCircles.length > 0 && conversationFilter === 'all';
+  const circleGroupSections = showCircleGroups
+    ? buddyCircles.map((circle) => ({
+        circle,
+        buddies: filteredDirectMessageBuddies.filter(
+          (buddy) => buddyCircleIndex.get(buddy.id)?.id === circle.id,
+        ),
+      }))
+    : [];
+  const ungroupedCircleBuddies = showCircleGroups
+    ? filteredDirectMessageBuddies.filter((buddy) => !buddyCircleIndex.has(buddy.id))
+    : [];
+  const renderDirectMessageRow = (
+    buddy: (typeof filteredDirectMessageBuddies)[number],
+    rowPresenceHidden = false,
+  ) => (
+    <DirectMessageRow
+      key={buddy.id}
+      buddy={buddy}
+      currentUserScreenname={screenname}
+      unreadCount={unreadDirectMessages[buddy.id] ?? 0}
+      isSelected={selectedBuddyId === buddy.id}
+      conversationPreference={getDmPreference(dmPreferencesByBuddyId, buddy.id)}
+      isBlocked={blockedUserIds.includes(buddy.id)}
+      recentActivity={buddyActivityById.get(buddy.id) ?? null}
+      isTypingActive={Boolean(activeDmTypingText && activeChatBuddyId === buddy.id)}
+      lastMessagePreview={buddyLastMessagePreview[buddy.id] ?? ''}
+      openBuddyProfile={openBuddyProfile}
+      handleOpenChat={handleOpenChat}
+      handleReplyToAwayMessage={handleReplyToAwayMessage}
+      handleKnockBuddy={handleKnockBuddy}
+      presenceHidden={rowPresenceHidden}
+    />
+  );
   const isChatSyncBusy = syncState === 'hydrating' || syncState === 'syncing';
   const chatSyncSummary =
     syncState === 'hydrating'
@@ -6736,6 +6972,27 @@ const [showAddWindow, setShowAddWindow] = useState(false);
           };
         }
       },
+      async setBuddyCircle(buddyId, circleId) {
+        if (!userId) {
+          return { ok: false, error: 'Your session is still loading.' };
+        }
+        if (!acceptedBuddyIdsRef.current.has(buddyId)) {
+          return { ok: false, error: 'Circles are only available for buddies.' };
+        }
+        if (circleId !== null && !buddyCircles.some((circle) => circle.id === circleId)) {
+          return { ok: false, error: 'That circle no longer exists.' };
+        }
+        try {
+          await assignBuddyToCircle({ ownerId: userId, buddyId, circleId });
+          await reloadBuddyCircles();
+          return { ok: true };
+        } catch (error) {
+          return {
+            ok: false,
+            error: error instanceof Error ? error.message : 'Could not update that circle.',
+          };
+        }
+      },
       async signOut() {
         void handleSignOff();
         return { ok: true };
@@ -6751,9 +7008,11 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   }, [
     handleAcceptPendingRequest,
     activeRoom,
+    buddyCircles,
     handleDeclinePendingRequest,
     handleSendKnockToBuddy,
     handleSendMessage,
+    reloadBuddyCircles,
     handleOpenChat,
     handleBackFromRoom,
     handleSignOff,
@@ -6820,6 +7079,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       currentPresenceDetail: currentUserPresenceDetail,
       currentAwayMessage: awayMessage || null,
       buddies: nativeMilestoneOneBuddies,
+      circles: nativeMilestoneOneCircles,
       pendingRequests: pendingRequests.map((request) => ({
         id: request.senderId,
         screenname: request.screenname,
@@ -6849,6 +7109,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     isLoadingNativeRoomDirectory,
     lastSyncError,
     nativeMilestoneOneBuddies,
+    nativeMilestoneOneCircles,
     nativeMilestoneOneConversation,
     nativeMilestoneOneRoomConversation,
     nativeMilestoneOneRooms,
@@ -7402,11 +7663,22 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                               : `${filteredDirectMessageBuddies.length} conversation${filteredDirectMessageBuddies.length === 1 ? '' : 's'} · ${totalUnreadDirectCount} unread`}
                           </p>
                         </div>
-                        <span className="ui-section-count">
-                          {conversationFilter === 'requests' ? pendingRequests.length : filteredDirectMessageBuddies.length}
-                        </span>
+                        <div className="flex shrink-0 items-center gap-2">
+                          {conversationFilter === 'all' ? (
+                            <NewCircleControl onCreate={handleCreateCircle} disabled={!userId} />
+                          ) : null}
+                          <span className="ui-section-count">
+                            {conversationFilter === 'requests' ? pendingRequests.length : filteredDirectMessageBuddies.length}
+                          </span>
+                        </div>
                       </div>
                     </div>
+
+                    {circleActionError ? (
+                      <p className="px-4 pb-1 text-[11px] text-red-500" role="alert">
+                        {circleActionError}
+                      </p>
+                    ) : null}
 
                     <div className="ui-filter-band">
                       <label htmlFor="buddy-sort-mode" className="sr-only">Buddy Sort Mode</label>
@@ -7539,7 +7811,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                         </div>
                       ) : null}
 
-                      {!isBootstrapping && conversationFilter !== 'requests' && !showSplitPresenceSections && visibleDirectMessageRows.map((buddy) => (
+                      {!isBootstrapping && conversationFilter !== 'requests' && !showSplitPresenceSections && !showCircleGroups && visibleDirectMessageRows.map((buddy) => (
                         <DirectMessageRow
                           key={buddy.id}
                           buddy={buddy}
@@ -7558,7 +7830,48 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                         />
                       ))}
 
-                      {!isBootstrapping && conversationFilter !== 'requests' && showSplitPresenceSections ? (
+                      {!isBootstrapping && conversationFilter !== 'requests' && showCircleGroups ? (
+                        <div className="space-y-3 px-2 pb-1">
+                          {circleGroupSections.map(({ circle, buddies }) => (
+                            <BuddyCircleGroup
+                              key={circle.id}
+                              name={circle.name}
+                              total={buddies.length}
+                              collapsed={collapsedCircleIds.has(circle.id)}
+                              onToggleCollapsed={() => toggleCircleCollapsed(circle.id)}
+                              circle={circle}
+                              onRename={(name) => handleRenameCircle(circle.id, name)}
+                              onDelete={() => handleDeleteCircle(circle.id)}
+                              onSetShowPresence={(showPresence) =>
+                                handleUpdateCircleSettings(circle.id, { showPresence })
+                              }
+                              onSetMuted={(muted) =>
+                                handleUpdateCircleSettings(circle.id, { notifyMode: muted ? 'muted' : 'all' })
+                              }
+                            >
+                              {buddies.length > 0 ? (
+                                buddies.map((buddy) => renderDirectMessageRow(buddy, !circle.showPresence))
+                              ) : (
+                                <p className="px-3 py-2 text-[11px] text-slate-400">
+                                  No buddies here yet — assign someone from their profile.
+                                </p>
+                              )}
+                            </BuddyCircleGroup>
+                          ))}
+                          {ungroupedCircleBuddies.length > 0 ? (
+                            <BuddyCircleGroup
+                              name="Ungrouped"
+                              total={ungroupedCircleBuddies.length}
+                              collapsed={collapsedCircleIds.has('__ungrouped__')}
+                              onToggleCollapsed={() => toggleCircleCollapsed('__ungrouped__')}
+                            >
+                              {ungroupedCircleBuddies.map((buddy) => renderDirectMessageRow(buddy))}
+                            </BuddyCircleGroup>
+                          ) : null}
+                        </div>
+                      ) : null}
+
+                      {!isBootstrapping && conversationFilter !== 'requests' && showSplitPresenceSections && !showCircleGroups ? (
                         <div className="space-y-3 px-2 pb-1">
                           {visibleDirectMessageSections.map((section) => (
                             <section key={section.id} className="space-y-2">
@@ -9007,6 +9320,15 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         mutualContext={mutualContextState.context}
         isMutualContextLoading={mutualContextState.isLoading}
         mutualContextError={mutualContextState.error}
+        circles={buddyCircles}
+        currentCircleId={
+          selectedProfileSummary ? buddyCircleIndex.get(selectedProfileSummary.id)?.id ?? null : null
+        }
+        onSetCircle={
+          selectedProfileSummary && selectedProfileSummary.relationshipStatus === 'accepted'
+            ? (circleId) => handleSetBuddyCircle(selectedProfileSummary.id, circleId)
+            : undefined
+        }
         onClose={closeBuddyProfile}
         onStartChat={() => {
           if (!selectedProfileSummary) {

@@ -23,6 +23,16 @@ struct NativeMilestoneOneBuddy: Decodable, Equatable, Identifiable {
     let awayMessage: String?
     let unreadCount: Int
     let isPinned: Bool
+    let circleId: String?
+    let presenceHidden: Bool?
+}
+
+struct NativeMilestoneOneCircle: Decodable, Equatable, Identifiable {
+    let id: String
+    let name: String
+    let showPresence: Bool
+    let muted: Bool
+    let memberCount: Int
 }
 
 struct NativeMilestoneOnePendingRequest: Decodable, Equatable, Identifiable {
@@ -130,6 +140,7 @@ struct NativeMilestoneOneState: Decodable, Equatable {
     let currentPresenceDetail: String?
     let currentAwayMessage: String?
     let buddies: [NativeMilestoneOneBuddy]
+    let circles: [NativeMilestoneOneCircle]
     let pendingRequests: [NativeMilestoneOnePendingRequest]
     let onlineCount: Int
     let pendingRequestCount: Int
@@ -148,6 +159,7 @@ struct NativeMilestoneOneState: Decodable, Equatable {
         currentPresenceDetail: nil,
         currentAwayMessage: nil,
         buddies: [],
+        circles: [],
         pendingRequests: [],
         onlineCount: 0,
         pendingRequestCount: 0,
@@ -167,6 +179,7 @@ struct NativeMilestoneOneState: Decodable, Equatable {
         currentPresenceDetail: String?,
         currentAwayMessage: String?,
         buddies: [NativeMilestoneOneBuddy],
+        circles: [NativeMilestoneOneCircle],
         pendingRequests: [NativeMilestoneOnePendingRequest],
         onlineCount: Int,
         pendingRequestCount: Int,
@@ -184,6 +197,7 @@ struct NativeMilestoneOneState: Decodable, Equatable {
         self.currentPresenceDetail = currentPresenceDetail
         self.currentAwayMessage = currentAwayMessage
         self.buddies = buddies
+        self.circles = circles
         self.pendingRequests = pendingRequests
         self.onlineCount = max(0, onlineCount)
         self.pendingRequestCount = max(pendingRequests.count, max(0, pendingRequestCount))
@@ -203,6 +217,7 @@ struct NativeMilestoneOneState: Decodable, Equatable {
         case currentPresenceDetail
         case currentAwayMessage
         case buddies
+        case circles
         case pendingRequests
         case onlineCount
         case pendingRequestCount
@@ -223,6 +238,7 @@ struct NativeMilestoneOneState: Decodable, Equatable {
         currentPresenceDetail = try container.decodeIfPresent(String.self, forKey: .currentPresenceDetail)
         currentAwayMessage = try container.decodeIfPresent(String.self, forKey: .currentAwayMessage)
         buddies = try container.decodeIfPresent([NativeMilestoneOneBuddy].self, forKey: .buddies) ?? []
+        circles = try container.decodeIfPresent([NativeMilestoneOneCircle].self, forKey: .circles) ?? []
         pendingRequests = try container.decodeIfPresent([NativeMilestoneOnePendingRequest].self, forKey: .pendingRequests) ?? []
         onlineCount = max(0, try container.decodeIfPresent(Int.self, forKey: .onlineCount) ?? 0)
         pendingRequestCount = max(
@@ -261,6 +277,7 @@ final class NativeMilestoneOneViewModel: ObservableObject, @unchecked Sendable {
     @Published private(set) var isSendingRoomMessage = false
     @Published private(set) var processingKnockBuddyID: String?
     @Published private(set) var recentlyKnockedBuddyID: String?
+    @Published private(set) var processingCircleBuddyID: String?
     @Published private(set) var processingRequestID: String?
     @Published private(set) var processingConversationAction: String?
     @Published private(set) var actionError: String?
@@ -275,6 +292,7 @@ final class NativeMilestoneOneViewModel: ObservableObject, @unchecked Sendable {
     var onRespondToBuddyRequest: ((String, String, @escaping ActionCompletion) -> Void)?
     var onSendMessage: ((String, String, @escaping ActionCompletion) -> Void)?
     var onSendKnock: ((String, @escaping ActionCompletion) -> Void)?
+    var onSetBuddyCircle: ((String, String?, @escaping ActionCompletion) -> Void)?
     var onCloseConversation: ((@escaping ActionCompletion) -> Void)?
     var onSendTypingPulse: ((String, @escaping ActionCompletion) -> Void)?
     var onSendRoomMessage: ((String, String, @escaping ActionCompletion) -> Void)?
@@ -505,6 +523,24 @@ final class NativeMilestoneOneViewModel: ObservableObject, @unchecked Sendable {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    func setBuddyCircle(buddyID: String, circleID: String?) {
+        guard let onSetBuddyCircle else {
+            actionError = "Circles are still connecting."
+            return
+        }
+        guard processingCircleBuddyID == nil else { return }
+
+        actionError = nil
+        processingCircleBuddyID = buddyID
+        onSetBuddyCircle(buddyID, circleID) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.processingCircleBuddyID = nil
+                self.consume(result)
             }
         }
     }
@@ -849,6 +885,84 @@ private struct NativeBuddyListView: View {
             }
     }
 
+    private func buddyRow(_ buddy: NativeMilestoneOneBuddy) -> some View {
+        NativeBuddyRow(
+            buddy: buddy,
+            isDark: model.state.isDark,
+            isKnocking: model.processingKnockBuddyID == buddy.id,
+            didKnock: model.recentlyKnockedBuddyID == buddy.id,
+            circles: model.state.circles,
+            currentCircleID: buddy.circleId,
+            open: { model.openBuddy(buddy.id) },
+            reply: { model.replyToAwayMessage(buddy) },
+            knock: { model.sendKnock(buddyID: buddy.id) },
+            setCircle: { circleID in model.setBuddyCircle(buddyID: buddy.id, circleID: circleID) }
+        )
+        .listRowBackground(NativeMilestonePalette.card(isDark: model.state.isDark))
+        .listRowSeparatorTint(NativeMilestonePalette.separator(isDark: model.state.isDark))
+    }
+
+    // Circles take over the buddy list when the owner has any; otherwise a single
+    // flat "Buddies" section, matching the prior behavior.
+    @ViewBuilder
+    private var buddySections: some View {
+        if model.state.buddies.isEmpty {
+            Section {
+                NativeEmptyBuddyList(isDark: model.state.isDark)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+            }
+        } else if model.state.circles.isEmpty {
+            Section {
+                ForEach(model.state.buddies) { buddy in
+                    buddyRow(buddy)
+                }
+            } header: {
+                HStack {
+                    Text("Buddies")
+                    Spacer()
+                    Text("\(model.state.onlineCount) online")
+                        .foregroundColor(NativeMilestonePalette.green)
+                }
+                .font(.caption.weight(.bold))
+            }
+        } else {
+            ForEach(model.state.circles) { circle in
+                let members = model.state.buddies.filter { $0.circleId == circle.id }
+                Section {
+                    if members.isEmpty {
+                        Text("No buddies here yet — long-press a buddy to add them.")
+                            .font(.footnote)
+                            .foregroundColor(NativeMilestonePalette.muted(isDark: model.state.isDark))
+                            .listRowBackground(NativeMilestonePalette.card(isDark: model.state.isDark))
+                    } else {
+                        ForEach(members) { buddy in
+                            buddyRow(buddy)
+                        }
+                    }
+                } header: {
+                    NativeCircleSectionHeader(circle: circle, memberCount: members.count, isDark: model.state.isDark)
+                }
+            }
+            let ungrouped = model.state.buddies.filter { $0.circleId == nil }
+            if !ungrouped.isEmpty {
+                Section {
+                    ForEach(ungrouped) { buddy in
+                        buddyRow(buddy)
+                    }
+                } header: {
+                    HStack {
+                        Text("Ungrouped")
+                        Spacer()
+                        Text("\(ungrouped.count)")
+                            .foregroundColor(NativeMilestonePalette.muted(isDark: model.state.isDark))
+                    }
+                    .font(.caption.weight(.bold))
+                }
+            }
+        }
+    }
+
     @ViewBuilder
     private var configuredList: some View {
         if #available(iOS 16.0, *) {
@@ -924,35 +1038,7 @@ private struct NativeBuddyListView: View {
                 }
             }
 
-            Section {
-                if model.state.buddies.isEmpty {
-                    NativeEmptyBuddyList(isDark: model.state.isDark)
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                } else {
-                    ForEach(model.state.buddies) { buddy in
-                        NativeBuddyRow(
-                            buddy: buddy,
-                            isDark: model.state.isDark,
-                            isKnocking: model.processingKnockBuddyID == buddy.id,
-                            didKnock: model.recentlyKnockedBuddyID == buddy.id,
-                            open: { model.openBuddy(buddy.id) },
-                            reply: { model.replyToAwayMessage(buddy) },
-                            knock: { model.sendKnock(buddyID: buddy.id) }
-                        )
-                        .listRowBackground(NativeMilestonePalette.card(isDark: model.state.isDark))
-                        .listRowSeparatorTint(NativeMilestonePalette.separator(isDark: model.state.isDark))
-                    }
-                }
-            } header: {
-                HStack {
-                    Text("Buddies")
-                    Spacer()
-                    Text("\(model.state.onlineCount) online")
-                        .foregroundColor(NativeMilestonePalette.green)
-                }
-                .font(.caption.weight(.bold))
-            }
+            buddySections
 
             Section {
                 Button(role: .destructive, action: model.signOut) {
@@ -2343,14 +2429,41 @@ private struct NativePendingRequestRow: View {
     }
 }
 
+private struct NativeCircleSectionHeader: View {
+    let circle: NativeMilestoneOneCircle
+    let memberCount: Int
+    let isDark: Bool
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(circle.name)
+            if !circle.showPresence {
+                Image(systemName: "eye.slash")
+                    .accessibilityLabel("Presence hidden")
+            }
+            if circle.muted {
+                Image(systemName: "bell.slash")
+                    .accessibilityLabel("Muted")
+            }
+            Spacer()
+            Text("\(memberCount)")
+                .foregroundColor(NativeMilestonePalette.gold)
+        }
+        .font(.caption.weight(.bold))
+    }
+}
+
 private struct NativeBuddyRow: View {
     let buddy: NativeMilestoneOneBuddy
     let isDark: Bool
     let isKnocking: Bool
     let didKnock: Bool
+    let circles: [NativeMilestoneOneCircle]
+    let currentCircleID: String?
     let open: () -> Void
     let reply: () -> Void
     let knock: () -> Void
+    let setCircle: (String?) -> Void
 
     var body: some View {
         HStack(spacing: 13) {
@@ -2368,7 +2481,7 @@ private struct NativeBuddyRow: View {
                                     .foregroundColor(NativeMilestonePalette.gold)
                             }
                         }
-                        Text(buddy.presenceDetail)
+                        Text(buddy.presenceHidden == true ? "Presence hidden" : buddy.presenceDetail)
                             .font(.caption)
                             .foregroundColor(NativeMilestonePalette.muted(isDark: isDark))
                             .lineLimit(1)
@@ -2416,6 +2529,30 @@ private struct NativeBuddyRow: View {
         .padding(.vertical, 4)
         .contentShape(Rectangle())
         .accessibilityElement(children: .contain)
+        .contextMenu {
+            Section("Move to circle") {
+                ForEach(circles) { circle in
+                    Button {
+                        setCircle(circle.id)
+                    } label: {
+                        Label(
+                            circle.name,
+                            systemImage: currentCircleID == circle.id ? "checkmark.circle.fill" : "circle"
+                        )
+                    }
+                    .disabled(currentCircleID == circle.id)
+                }
+                Button {
+                    setCircle(nil)
+                } label: {
+                    Label(
+                        "Ungrouped",
+                        systemImage: currentCircleID == nil ? "checkmark.circle.fill" : "circle"
+                    )
+                }
+                .disabled(currentCircleID == nil)
+            }
+        }
     }
 }
 

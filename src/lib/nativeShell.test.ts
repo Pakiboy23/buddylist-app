@@ -151,6 +151,7 @@ describe('native milestone-one request bridge', () => {
   it('registers the native accept/decline action and removes it during cleanup', async () => {
     const respondToBuddyRequest = vi.fn(async () => ({ ok: true as const }));
     const sendKnock = vi.fn(async () => ({ ok: true as const }));
+    const setBuddyCircle = vi.fn(async () => ({ ok: true as const }));
     const bridge: NativeMilestoneOneBridge = {
       signIn: vi.fn(async () => ({ ok: true as const })),
       refreshBuddyList: vi.fn(async () => ({ ok: true as const })),
@@ -170,6 +171,7 @@ describe('native milestone-one request bridge', () => {
       togglePinned: vi.fn(async () => ({ ok: true as const })),
       toggleMuted: vi.fn(async () => ({ ok: true as const })),
       toggleArchived: vi.fn(async () => ({ ok: true as const })),
+      setBuddyCircle,
       signOut: vi.fn(async () => ({ ok: true as const })),
       showWebAuth: vi.fn(async () => ({ ok: true as const })),
     };
@@ -181,6 +183,10 @@ describe('native milestone-one request bridge', () => {
     expect(respondToBuddyRequest).toHaveBeenCalledWith('requester-1', 'accept');
     await expect(window.__hiItsMeNativeMilestoneOne?.sendKnock('buddy-1')).resolves.toEqual({ ok: true });
     expect(sendKnock).toHaveBeenCalledWith('buddy-1');
+    await expect(
+      window.__hiItsMeNativeMilestoneOne?.setBuddyCircle('buddy-1', 'circle-1'),
+    ).resolves.toEqual({ ok: true });
+    expect(setBuddyCircle).toHaveBeenCalledWith('buddy-1', 'circle-1');
 
     registerNativeMilestoneOneBridge(null);
     expect(window.__hiItsMeNativeMilestoneOne).toBeUndefined();
