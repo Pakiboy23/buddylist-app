@@ -1,0 +1,1051 @@
+import SwiftUI
+
+enum NativeMilestoneOnePhase: String, Decodable {
+    case loading
+    case signedOut
+    case signedIn
+    case hidden
+}
+
+enum NativeMilestoneOnePresence: String, Decodable {
+    case available
+    case idle
+    case away
+    case offline
+}
+
+struct NativeMilestoneOneBuddy: Decodable, Equatable, Identifiable {
+    let id: String
+    let screenname: String
+    let presence: NativeMilestoneOnePresence
+    let presenceLabel: String
+    let presenceDetail: String
+    let unreadCount: Int
+    let isPinned: Bool
+}
+
+struct NativeMilestoneOnePendingRequest: Decodable, Equatable, Identifiable {
+    let id: String
+    let screenname: String
+}
+
+struct NativeMilestoneOneState: Decodable, Equatable {
+    let phase: NativeMilestoneOnePhase
+    let screenname: String?
+    let currentPresence: NativeMilestoneOnePresence?
+    let currentPresenceDetail: String?
+    let currentAwayMessage: String?
+    let buddies: [NativeMilestoneOneBuddy]
+    let pendingRequests: [NativeMilestoneOnePendingRequest]
+    let onlineCount: Int
+    let pendingRequestCount: Int
+    let isRefreshing: Bool
+    let isDark: Bool
+    let error: String?
+
+    static let loading = NativeMilestoneOneState(
+        phase: .loading,
+        screenname: nil,
+        currentPresence: nil,
+        currentPresenceDetail: nil,
+        currentAwayMessage: nil,
+        buddies: [],
+        pendingRequests: [],
+        onlineCount: 0,
+        pendingRequestCount: 0,
+        isRefreshing: false,
+        isDark: true,
+        error: nil
+    )
+
+    init(
+        phase: NativeMilestoneOnePhase,
+        screenname: String?,
+        currentPresence: NativeMilestoneOnePresence?,
+        currentPresenceDetail: String?,
+        currentAwayMessage: String?,
+        buddies: [NativeMilestoneOneBuddy],
+        pendingRequests: [NativeMilestoneOnePendingRequest],
+        onlineCount: Int,
+        pendingRequestCount: Int,
+        isRefreshing: Bool,
+        isDark: Bool,
+        error: String?
+    ) {
+        self.phase = phase
+        self.screenname = screenname
+        self.currentPresence = currentPresence
+        self.currentPresenceDetail = currentPresenceDetail
+        self.currentAwayMessage = currentAwayMessage
+        self.buddies = buddies
+        self.pendingRequests = pendingRequests
+        self.onlineCount = max(0, onlineCount)
+        self.pendingRequestCount = max(pendingRequests.count, max(0, pendingRequestCount))
+        self.isRefreshing = isRefreshing
+        self.isDark = isDark
+        self.error = error
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case phase
+        case screenname
+        case currentPresence
+        case currentPresenceDetail
+        case currentAwayMessage
+        case buddies
+        case pendingRequests
+        case onlineCount
+        case pendingRequestCount
+        case isRefreshing
+        case isDark
+        case error
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        phase = try container.decodeIfPresent(NativeMilestoneOnePhase.self, forKey: .phase) ?? .hidden
+        screenname = try container.decodeIfPresent(String.self, forKey: .screenname)
+        currentPresence = try container.decodeIfPresent(NativeMilestoneOnePresence.self, forKey: .currentPresence)
+        currentPresenceDetail = try container.decodeIfPresent(String.self, forKey: .currentPresenceDetail)
+        currentAwayMessage = try container.decodeIfPresent(String.self, forKey: .currentAwayMessage)
+        buddies = try container.decodeIfPresent([NativeMilestoneOneBuddy].self, forKey: .buddies) ?? []
+        pendingRequests = try container.decodeIfPresent([NativeMilestoneOnePendingRequest].self, forKey: .pendingRequests) ?? []
+        onlineCount = max(0, try container.decodeIfPresent(Int.self, forKey: .onlineCount) ?? 0)
+        pendingRequestCount = max(
+            pendingRequests.count,
+            max(0, try container.decodeIfPresent(Int.self, forKey: .pendingRequestCount) ?? 0)
+        )
+        isRefreshing = try container.decodeIfPresent(Bool.self, forKey: .isRefreshing) ?? false
+        isDark = try container.decodeIfPresent(Bool.self, forKey: .isDark) ?? true
+        error = try container.decodeIfPresent(String.self, forKey: .error)
+    }
+}
+
+struct NativeMilestoneOneActionResponse: Decodable {
+    let ok: Bool
+    let error: String?
+}
+
+final class NativeMilestoneOneViewModel: ObservableObject, @unchecked Sendable {
+    typealias ActionCompletion = (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+
+    @Published private(set) var state: NativeMilestoneOneState = .loading
+    @Published var screenname = ""
+    @Published var password = ""
+    @Published private(set) var isPerformingAction = false
+    @Published private(set) var isRefreshing = false
+    @Published private(set) var isUpdatingPresence = false
+    @Published private(set) var processingRequestID: String?
+    @Published private(set) var actionError: String?
+
+    var onSignIn: ((String, String, @escaping ActionCompletion) -> Void)?
+    var onRefresh: ((@escaping ActionCompletion) -> Void)?
+    var onOpenBuddy: ((String, @escaping ActionCompletion) -> Void)?
+    var onUpdatePresence: ((String, String, @escaping ActionCompletion) -> Void)?
+    var onRespondToBuddyRequest: ((String, String, @escaping ActionCompletion) -> Void)?
+    var onSignOut: ((@escaping ActionCompletion) -> Void)?
+    var onShowWebAuth: ((String, @escaping ActionCompletion) -> Void)?
+
+    func apply(_ nextState: NativeMilestoneOneState) {
+        state = nextState
+        if let error = nextState.error, !error.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            actionError = error
+        } else if nextState.phase == .signedIn {
+            actionError = nil
+        }
+        if nextState.phase != .signedOut {
+            password = ""
+        }
+        if nextState.phase == .signedIn || nextState.phase == .hidden {
+            isPerformingAction = false
+        }
+    }
+
+    func signIn() {
+        let trimmedScreenname = screenname.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedScreenname.isEmpty, !password.isEmpty else {
+            actionError = "Enter your screen name and password."
+            return
+        }
+        guard let onSignIn else {
+            actionError = "H.I.M. is still connecting."
+            return
+        }
+
+        actionError = nil
+        isPerformingAction = true
+        onSignIn(trimmedScreenname, password) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.isPerformingAction = false
+                self.consume(result)
+            }
+        }
+    }
+
+    func refresh() async {
+        guard let onRefresh, !isRefreshing else { return }
+        await withCheckedContinuation { continuation in
+            DispatchQueue.main.async { [weak self] in
+                self?.isRefreshing = true
+            }
+            onRefresh { [weak self] result in
+                DispatchQueue.main.async {
+                    self?.isRefreshing = false
+                    self?.consume(result)
+                    continuation.resume()
+                }
+            }
+        }
+    }
+
+    func openBuddy(_ buddyID: String) {
+        guard let onOpenBuddy else { return }
+        onOpenBuddy(buddyID) { [weak self] result in
+            DispatchQueue.main.async {
+                self?.consume(result)
+            }
+        }
+    }
+
+    func beginPresenceEditing() {
+        actionError = nil
+    }
+
+    func updatePresence(status: String, awayMessage: String) async -> Bool {
+        guard let onUpdatePresence else {
+            actionError = "Presence controls are still connecting."
+            return false
+        }
+        guard !isUpdatingPresence else { return false }
+
+        actionError = nil
+        isUpdatingPresence = true
+        return await withCheckedContinuation { continuation in
+            onUpdatePresence(status, awayMessage) { [weak self] result in
+                DispatchQueue.main.async {
+                    guard let self else {
+                        continuation.resume(returning: false)
+                        return
+                    }
+
+                    self.isUpdatingPresence = false
+                    self.consume(result)
+                    if case .success(let response) = result {
+                        continuation.resume(returning: response.ok)
+                    } else {
+                        continuation.resume(returning: false)
+                    }
+                }
+            }
+        }
+    }
+
+    func respondToBuddyRequest(_ requestID: String, action: String) {
+        guard let onRespondToBuddyRequest else {
+            actionError = "Buddy requests are still connecting."
+            return
+        }
+        guard processingRequestID == nil else { return }
+
+        actionError = nil
+        processingRequestID = requestID
+        onRespondToBuddyRequest(requestID, action) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.processingRequestID = nil
+                self.consume(result)
+            }
+        }
+    }
+
+    func signOut() {
+        guard let onSignOut, !isPerformingAction else { return }
+        isPerformingAction = true
+        onSignOut { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.isPerformingAction = false
+                self.consume(result)
+            }
+        }
+    }
+
+    func showWebAuth(_ mode: String) {
+        guard let onShowWebAuth, !isPerformingAction else { return }
+        actionError = nil
+        onShowWebAuth(mode) { [weak self] result in
+            DispatchQueue.main.async {
+                self?.consume(result)
+            }
+        }
+    }
+
+    private func consume(_ result: Result<NativeMilestoneOneActionResponse, Error>) {
+        switch result {
+        case .success(let response):
+            actionError = response.ok ? nil : (response.error ?? "H.I.M. could not complete that action.")
+        case .failure(let error):
+            actionError = error.localizedDescription
+        }
+    }
+}
+
+struct NativeMilestoneOneRootView: View {
+    @ObservedObject var model: NativeMilestoneOneViewModel
+
+    var body: some View {
+        Group {
+            switch model.state.phase {
+            case .loading:
+                NativeMilestoneLoadingView(isDark: model.state.isDark)
+            case .signedOut:
+                NativeMilestoneSignInView(model: model)
+            case .signedIn:
+                NativeBuddyListView(model: model)
+            case .hidden:
+                Color.clear
+            }
+        }
+        .preferredColorScheme(model.state.isDark ? .dark : .light)
+    }
+}
+
+private struct NativeMilestoneLoadingView: View {
+    let isDark: Bool
+
+    var body: some View {
+        ZStack {
+            NativeMilestonePalette.background(isDark: isDark).ignoresSafeArea()
+            VStack(spacing: 18) {
+                Text("H.I.M.")
+                    .font(.system(size: 42, weight: .black, design: .rounded))
+                    .foregroundColor(NativeMilestonePalette.gold)
+                ProgressView()
+                    .tint(NativeMilestonePalette.gold)
+                Text("Connecting your BuddyList…")
+                    .font(.subheadline)
+                    .foregroundColor(NativeMilestonePalette.muted(isDark: isDark))
+            }
+        }
+    }
+}
+
+private struct NativeMilestoneSignInView: View {
+    private enum Field: Hashable {
+        case screenname
+        case password
+    }
+
+    @ObservedObject var model: NativeMilestoneOneViewModel
+    @FocusState private var focusedField: Field?
+
+    var body: some View {
+        ZStack {
+            NativeMilestonePalette.authBackground.ignoresSafeArea()
+
+            ScrollView {
+                VStack(spacing: 28) {
+                    Spacer(minLength: 48)
+
+                    VStack(spacing: 8) {
+                        Text("H.I.M.")
+                            .font(.system(size: 48, weight: .black, design: .rounded))
+                            .foregroundColor(NativeMilestonePalette.gold)
+                        Text("Hi, it's me.")
+                            .font(.headline)
+                            .foregroundColor(.white.opacity(0.92))
+                        Text("Your people. Your presence. Right here.")
+                            .font(.subheadline)
+                            .foregroundColor(.white.opacity(0.62))
+                    }
+                    .multilineTextAlignment(.center)
+
+                    VStack(spacing: 16) {
+                        NativeMilestoneFieldLabel(title: "Screen Name", systemImage: "person.fill")
+                        TextField("Screen Name", text: $model.screenname)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .textContentType(.username)
+                            .submitLabel(.next)
+                            .focused($focusedField, equals: .screenname)
+                            .onSubmit { focusedField = .password }
+                            .nativeMilestoneFieldStyle()
+
+                        NativeMilestoneFieldLabel(title: "Password", systemImage: "lock.fill")
+                        SecureField("Password", text: $model.password)
+                            .textContentType(.password)
+                            .submitLabel(.go)
+                            .focused($focusedField, equals: .password)
+                            .onSubmit { model.signIn() }
+                            .nativeMilestoneFieldStyle()
+
+                        if let error = model.actionError {
+                            Label(error, systemImage: "exclamationmark.triangle.fill")
+                                .font(.footnote)
+                                .foregroundColor(Color(red: 1, green: 0.63, blue: 0.57))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+
+                        Button(action: model.signIn) {
+                            HStack(spacing: 10) {
+                                if model.isPerformingAction {
+                                    ProgressView().tint(.white)
+                                }
+                                Text(model.isPerformingAction ? "Dialing in…" : "Sign On")
+                                    .fontWeight(.bold)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(NativeMilestonePalette.gold)
+                        .disabled(model.isPerformingAction)
+
+                        HStack(spacing: 18) {
+                            Button("Forgot password?") { model.showWebAuth("forgotPassword") }
+                            Button("Create account") { model.showWebAuth("signup") }
+                        }
+                        .font(.footnote.weight(.semibold))
+                        .foregroundColor(NativeMilestonePalette.gold)
+                    }
+                    .padding(22)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 28, style: .continuous)
+                            .stroke(.white.opacity(0.1), lineWidth: 1)
+                    }
+
+                    Text("Private messaging, close by design.")
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.48))
+                    Spacer(minLength: 28)
+                }
+                .padding(.horizontal, 24)
+                .frame(maxWidth: 520)
+                .frame(maxWidth: .infinity)
+            }
+            .scrollDismissesKeyboard(.interactively)
+        }
+        .onAppear { focusedField = .screenname }
+    }
+}
+
+private struct NativeMilestoneFieldLabel: View {
+    let title: String
+    let systemImage: String
+
+    var body: some View {
+        Label(title, systemImage: systemImage)
+            .font(.caption.weight(.bold))
+            .foregroundColor(.white.opacity(0.72))
+            .textCase(.uppercase)
+            .tracking(0.8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.bottom, -10)
+    }
+}
+
+private struct NativeBuddyListView: View {
+    @ObservedObject var model: NativeMilestoneOneViewModel
+    @State private var presenceEditor: NativePresenceEditorDestination?
+
+    var body: some View {
+        configuredList
+            .refreshable { await model.refresh() }
+            .background(NativeMilestonePalette.background(isDark: model.state.isDark).ignoresSafeArea())
+            .sheet(item: $presenceEditor) { destination in
+                NativePresenceEditorSheet(destination: destination, model: model)
+            }
+    }
+
+    @ViewBuilder
+    private var configuredList: some View {
+        if #available(iOS 16.0, *) {
+            listContent.scrollContentBackground(.hidden)
+        } else {
+            listContent
+        }
+    }
+
+    private var listContent: some View {
+        List {
+            Section {
+                NativeCurrentUserCard(state: model.state)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+
+                NativePresenceControls(state: model.state) {
+                    model.beginPresenceEditing()
+                    presenceEditor = NativePresenceEditorDestination(
+                        initialPresence: model.state.currentPresence == .away ? .away : .available,
+                        initialAwayMessage: model.state.currentAwayMessage ?? ""
+                    )
+                }
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+            }
+
+            if let error = model.actionError {
+                Section {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .font(.footnote)
+                        .foregroundColor(.red)
+                        .listRowBackground(NativeMilestonePalette.card(isDark: model.state.isDark))
+                }
+            }
+
+            if !model.state.pendingRequests.isEmpty {
+                Section {
+                    ForEach(model.state.pendingRequests) { request in
+                        NativePendingRequestRow(
+                            request: request,
+                            isDark: model.state.isDark,
+                            isProcessing: model.processingRequestID == request.id,
+                            actionsDisabled: model.processingRequestID != nil,
+                            accept: {
+                                model.respondToBuddyRequest(request.id, action: "accept")
+                            },
+                            decline: {
+                                model.respondToBuddyRequest(request.id, action: "decline")
+                            }
+                        )
+                        .listRowBackground(NativeMilestonePalette.card(isDark: model.state.isDark))
+                        .listRowSeparatorTint(NativeMilestonePalette.separator(isDark: model.state.isDark))
+                    }
+                } header: {
+                    HStack {
+                        Text("Buddy Requests")
+                        Spacer()
+                        Text("\(model.state.pendingRequests.count)")
+                            .foregroundColor(NativeMilestonePalette.gold)
+                    }
+                    .font(.caption.weight(.bold))
+                }
+            } else if model.state.pendingRequestCount > 0 {
+                Section {
+                    Label(
+                        "\(model.state.pendingRequestCount) pending buddy request\(model.state.pendingRequestCount == 1 ? "" : "s")",
+                        systemImage: "person.crop.circle.badge.plus"
+                    )
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(NativeMilestonePalette.gold)
+                    .listRowBackground(NativeMilestonePalette.card(isDark: model.state.isDark))
+                }
+            }
+
+            Section {
+                if model.state.buddies.isEmpty {
+                    NativeEmptyBuddyList(isDark: model.state.isDark)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                } else {
+                    ForEach(model.state.buddies) { buddy in
+                        Button {
+                            model.openBuddy(buddy.id)
+                        } label: {
+                            NativeBuddyRow(buddy: buddy, isDark: model.state.isDark)
+                        }
+                        .buttonStyle(.plain)
+                        .listRowBackground(NativeMilestonePalette.card(isDark: model.state.isDark))
+                        .listRowSeparatorTint(NativeMilestonePalette.separator(isDark: model.state.isDark))
+                    }
+                }
+            } header: {
+                HStack {
+                    Text("Buddies")
+                    Spacer()
+                    Text("\(model.state.onlineCount) online")
+                        .foregroundColor(NativeMilestonePalette.green)
+                }
+                .font(.caption.weight(.bold))
+            }
+
+            Section {
+                Button(role: .destructive, action: model.signOut) {
+                    Label("Sign Off", systemImage: "rectangle.portrait.and.arrow.right")
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
+                .disabled(model.isPerformingAction)
+                .listRowBackground(NativeMilestonePalette.card(isDark: model.state.isDark))
+            }
+        }
+        .listStyle(.plain)
+        .environment(\.defaultMinListRowHeight, 56)
+    }
+}
+
+private enum NativeEditablePresence: String, CaseIterable, Identifiable {
+    case available
+    case away
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .available:
+            return "Available"
+        case .away:
+            return "Away"
+        }
+    }
+}
+
+private struct NativePresenceEditorDestination: Identifiable {
+    let id = UUID()
+    let initialPresence: NativeEditablePresence
+    let initialAwayMessage: String
+}
+
+private struct NativePresenceControls: View {
+    let state: NativeMilestoneOneState
+    let edit: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Button(action: edit) {
+                NativePresenceControlLabel(
+                    eyebrow: "Status",
+                    value: statusLabel,
+                    systemImage: "circle.fill",
+                    accent: NativeMilestonePalette.presence(state.currentPresence ?? .available),
+                    isDark: state.isDark
+                )
+            }
+            .buttonStyle(.plain)
+
+            Button(action: edit) {
+                NativePresenceControlLabel(
+                    eyebrow: "Away message",
+                    value: awayMessageLabel,
+                    systemImage: "quote.bubble.fill",
+                    accent: NativeMilestonePalette.gold,
+                    isDark: state.isDark
+                )
+            }
+            .buttonStyle(.plain)
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private var statusLabel: String {
+        switch state.currentPresence ?? .available {
+        case .available:
+            return "Available"
+        case .idle:
+            return "Idle"
+        case .away:
+            return "Away"
+        case .offline:
+            return "Offline"
+        }
+    }
+
+    private var awayMessageLabel: String {
+        let message = (state.currentAwayMessage ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return message.isEmpty ? "Set message" : "Edit message"
+    }
+}
+
+private struct NativePresenceControlLabel: View {
+    let eyebrow: String
+    let value: String
+    let systemImage: String
+    let accent: Color
+    let isDark: Bool
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: systemImage)
+                .font(.subheadline.weight(.bold))
+                .foregroundColor(accent)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(eyebrow)
+                    .font(.caption2.weight(.bold))
+                    .foregroundColor(NativeMilestonePalette.muted(isDark: isDark))
+                    .textCase(.uppercase)
+                Text(value)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(NativeMilestonePalette.text(isDark: isDark))
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 4)
+            Image(systemName: "chevron.right")
+                .font(.caption2.weight(.bold))
+                .foregroundColor(NativeMilestonePalette.muted(isDark: isDark).opacity(0.75))
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 11)
+        .frame(maxWidth: .infinity, minHeight: 58)
+        .background(NativeMilestonePalette.card(isDark: isDark), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(NativeMilestonePalette.separator(isDark: isDark), lineWidth: 1)
+        }
+        .contentShape(Rectangle())
+    }
+}
+
+private struct NativePresenceEditorSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject var model: NativeMilestoneOneViewModel
+    @State private var selectedPresence: NativeEditablePresence
+    @State private var awayMessage: String
+
+    init(destination: NativePresenceEditorDestination, model: NativeMilestoneOneViewModel) {
+        self.model = model
+        _selectedPresence = State(initialValue: destination.initialPresence)
+        _awayMessage = State(initialValue: destination.initialAwayMessage)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Presence") {
+                    Picker("Presence status", selection: $selectedPresence) {
+                        ForEach(NativeEditablePresence.allCases) { option in
+                            Text(option.title).tag(option)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+
+                if selectedPresence == .away {
+                    Section {
+                        ZStack(alignment: .topLeading) {
+                            if awayMessage.isEmpty {
+                                Text("What should buddies see while you're away?")
+                                    .foregroundColor(.secondary)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 8)
+                                    .allowsHitTesting(false)
+                            }
+                            TextEditor(text: $awayMessage)
+                                .frame(minHeight: 112)
+                                .scrollContentBackground(.hidden)
+                                .background(Color.clear)
+                        }
+                        Text("\(awayMessage.count)/320")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    } header: {
+                        Text("Away message")
+                    } footer: {
+                        Text("Use %n for names, %t for time, and %d for date.")
+                    }
+                }
+
+                if let error = model.actionError {
+                    Section {
+                        Label(error, systemImage: "exclamationmark.triangle.fill")
+                            .font(.footnote)
+                            .foregroundColor(.red)
+                    }
+                }
+            }
+            .navigationTitle("Presence")
+            .navigationBarTitleDisplayMode(.inline)
+            .scrollDismissesKeyboard(.interactively)
+            .onChange(of: awayMessage) { _, nextValue in
+                if nextValue.count > 320 {
+                    awayMessage = String(nextValue.prefix(320))
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                        .disabled(model.isUpdatingPresence)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button {
+                        save()
+                    } label: {
+                        if model.isUpdatingPresence {
+                            ProgressView()
+                        } else {
+                            Text("Save")
+                        }
+                    }
+                    .disabled(isSaveDisabled)
+                }
+            }
+        }
+        .tint(NativeMilestonePalette.gold)
+        .preferredColorScheme(model.state.isDark ? .dark : .light)
+    }
+
+    private var isSaveDisabled: Bool {
+        model.isUpdatingPresence || (
+            selectedPresence == .away &&
+            awayMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        )
+    }
+
+    private func save() {
+        let trimmedMessage = awayMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+        Task {
+            let didSave = await model.updatePresence(
+                status: selectedPresence.rawValue,
+                awayMessage: selectedPresence == .away ? trimmedMessage : ""
+            )
+            if didSave {
+                dismiss()
+            }
+        }
+    }
+}
+
+private struct NativeCurrentUserCard: View {
+    let state: NativeMilestoneOneState
+
+    var body: some View {
+        HStack(spacing: 14) {
+            NativeBuddyAvatar(name: state.screenname ?? "Me", presence: state.currentPresence ?? .available, size: 52)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(state.screenname ?? "H.I.M. member")
+                    .font(.headline)
+                    .foregroundColor(NativeMilestonePalette.text(isDark: state.isDark))
+                Text(state.currentPresenceDetail ?? "Available")
+                    .font(.subheadline)
+                    .foregroundColor(NativeMilestonePalette.muted(isDark: state.isDark))
+                    .lineLimit(2)
+            }
+            Spacer()
+            Text("ME")
+                .font(.caption2.weight(.black))
+                .foregroundColor(NativeMilestonePalette.gold)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(NativeMilestonePalette.gold.opacity(0.14), in: Capsule())
+        }
+        .padding(16)
+        .background(NativeMilestonePalette.card(isDark: state.isDark), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(NativeMilestonePalette.gold.opacity(0.18), lineWidth: 1)
+        }
+    }
+}
+
+private struct NativePendingRequestRow: View {
+    let request: NativeMilestoneOnePendingRequest
+    let isDark: Bool
+    let isProcessing: Bool
+    let actionsDisabled: Bool
+    let accept: () -> Void
+    let decline: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "person.crop.circle.badge.plus")
+                .font(.system(size: 30, weight: .semibold))
+                .foregroundColor(NativeMilestonePalette.gold)
+                .frame(width: 42, height: 42)
+                .background(NativeMilestonePalette.gold.opacity(0.12), in: Circle())
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(request.screenname)
+                    .font(.body.weight(.semibold))
+                    .foregroundColor(NativeMilestonePalette.text(isDark: isDark))
+                    .lineLimit(1)
+                Text("Wants to join your BuddyList")
+                    .font(.caption)
+                    .foregroundColor(NativeMilestonePalette.muted(isDark: isDark))
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 4)
+
+            HStack(spacing: 6) {
+                Button("Decline", action: decline)
+                    .buttonStyle(.bordered)
+
+                Button(action: accept) {
+                    if isProcessing {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Text("Accept")
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(NativeMilestonePalette.gold)
+            }
+            .font(.caption.weight(.semibold))
+            .disabled(actionsDisabled)
+        }
+        .padding(.vertical, 5)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Buddy request from \(request.screenname)")
+    }
+}
+
+private struct NativeBuddyRow: View {
+    let buddy: NativeMilestoneOneBuddy
+    let isDark: Bool
+
+    var body: some View {
+        HStack(spacing: 13) {
+            NativeBuddyAvatar(name: buddy.screenname, presence: buddy.presence, size: 44)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(buddy.screenname)
+                        .font(.body.weight(.semibold))
+                        .foregroundColor(NativeMilestonePalette.text(isDark: isDark))
+                    if buddy.isPinned {
+                        Image(systemName: "pin.fill")
+                            .font(.caption2)
+                            .foregroundColor(NativeMilestonePalette.gold)
+                    }
+                }
+                Text(buddy.presenceDetail)
+                    .font(.caption)
+                    .foregroundColor(NativeMilestonePalette.muted(isDark: isDark))
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            if buddy.unreadCount > 0 {
+                Text("\(buddy.unreadCount)")
+                    .font(.caption2.weight(.bold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 4)
+                    .background(NativeMilestonePalette.gold, in: Capsule())
+                    .accessibilityLabel("\(buddy.unreadCount) unread messages")
+            }
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.bold))
+                .foregroundColor(NativeMilestonePalette.muted(isDark: isDark).opacity(0.7))
+        }
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(buddy.screenname), \(buddy.presenceLabel), \(buddy.presenceDetail)")
+        .accessibilityHint("Opens your conversation")
+    }
+}
+
+private struct NativeBuddyAvatar: View {
+    let name: String
+    let presence: NativeMilestoneOnePresence
+    let size: CGFloat
+
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [NativeMilestonePalette.gold.opacity(0.92), NativeMilestonePalette.lavender.opacity(0.82)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: size, height: size)
+                .overlay {
+                    Text(initials)
+                        .font(.system(size: size * 0.33, weight: .black, design: .rounded))
+                        .foregroundColor(.white)
+                }
+
+            Circle()
+                .fill(NativeMilestonePalette.presence(presence))
+                .frame(width: size * 0.28, height: size * 0.28)
+                .overlay { Circle().stroke(Color.white, lineWidth: 2) }
+                .accessibilityHidden(true)
+        }
+    }
+
+    private var initials: String {
+        let pieces = name.split(whereSeparator: { $0.isWhitespace })
+        let value = pieces.prefix(2).compactMap(\.first).map(String.init).joined()
+        return String((value.isEmpty ? name : value).prefix(2)).uppercased()
+    }
+}
+
+private struct NativeEmptyBuddyList: View {
+    let isDark: Bool
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "person.2.slash")
+                .font(.system(size: 32, weight: .medium))
+                .foregroundColor(NativeMilestonePalette.gold)
+            Text("Your BuddyList is ready")
+                .font(.headline)
+                .foregroundColor(NativeMilestonePalette.text(isDark: isDark))
+            Text("Use Find to add your first buddy. Their live presence will appear here.")
+                .font(.subheadline)
+                .foregroundColor(NativeMilestonePalette.muted(isDark: isDark))
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 34)
+    }
+}
+
+private enum NativeMilestonePalette {
+    static let gold = Color(red: 232 / 255, green: 162 / 255, blue: 58 / 255)
+    static let green = Color(red: 78 / 255, green: 201 / 255, blue: 122 / 255)
+    static let lavender = Color(red: 167 / 255, green: 139 / 255, blue: 250 / 255)
+    static let authBackground = LinearGradient(
+        colors: [Color(red: 9 / 255, green: 13 / 255, blue: 28 / 255), Color(red: 26 / 255, green: 31 / 255, blue: 58 / 255)],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+
+    static func background(isDark: Bool) -> Color {
+        isDark
+            ? Color(red: 15 / 255, green: 20 / 255, blue: 36 / 255)
+            : Color(red: 245 / 255, green: 241 / 255, blue: 232 / 255)
+    }
+
+    static func card(isDark: Bool) -> Color {
+        isDark
+            ? Color(red: 26 / 255, green: 31 / 255, blue: 58 / 255)
+            : Color(red: 255 / 255, green: 252 / 255, blue: 246 / 255)
+    }
+
+    static func text(isDark: Bool) -> Color {
+        isDark
+            ? Color(red: 247 / 255, green: 240 / 255, blue: 232 / 255)
+            : Color(red: 26 / 255, green: 26 / 255, blue: 26 / 255)
+    }
+
+    static func muted(isDark: Bool) -> Color {
+        isDark
+            ? Color(red: 156 / 255, green: 142 / 255, blue: 130 / 255)
+            : Color(red: 107 / 255, green: 107 / 255, blue: 107 / 255)
+    }
+
+    static func separator(isDark: Bool) -> Color {
+        isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.08)
+    }
+
+    static func presence(_ state: NativeMilestoneOnePresence) -> Color {
+        switch state {
+        case .available:
+            return green
+        case .idle:
+            return lavender
+        case .away:
+            return gold
+        case .offline:
+            return Color(red: 122 / 255, green: 115 / 255, blue: 108 / 255)
+        }
+    }
+}
+
+private extension View {
+    func nativeMilestoneFieldStyle() -> some View {
+        self
+            .padding(.horizontal, 14)
+            .padding(.vertical, 13)
+            .background(Color.black.opacity(0.22), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(Color.white.opacity(0.11), lineWidth: 1)
+            }
+    }
+}

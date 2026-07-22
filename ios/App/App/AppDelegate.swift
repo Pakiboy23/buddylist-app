@@ -507,6 +507,7 @@ class HiItsMeShellPlugin: CAPPlugin, CAPBridgedPlugin {
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "isAvailable", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setChromeState", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setMilestoneOneState", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getPushEnvironment", returnType: CAPPluginReturnPromise)
     ]
 
@@ -542,6 +543,23 @@ class HiItsMeShellPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
+    @objc func setMilestoneOneState(_ call: CAPPluginCall) {
+        guard let shellController else {
+            call.unavailable("Native shell is not ready.")
+            return
+        }
+
+        do {
+            let state = try call.decode(NativeMilestoneOneState.self)
+            DispatchQueue.main.async {
+                shellController.applyMilestoneOneState(state)
+                call.resolve()
+            }
+        } catch {
+            call.reject("Invalid milestone-one state.", nil, error)
+        }
+    }
+
     @objc func getPushEnvironment(_ call: CAPPluginCall) {
         var payload: JSObject = [:]
         payload["environment"] = resolveSignedPushEnvironment() ?? NSNull()
@@ -552,6 +570,7 @@ class HiItsMeShellPlugin: CAPPlugin, CAPBridgedPlugin {
 @objc(HiItsMeShellViewController)
 class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
     private let bridgeViewController = HiItsMeBridgeViewController()
+    private let nativeMilestoneOneModel = NativeMilestoneOneViewModel()
     private let topChromeView = UIVisualEffectView(effect: nil)
     private let topDockView = UIVisualEffectView(effect: nil)
     private let headerGradientView = UIView()
@@ -597,6 +616,7 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
     private var hasReceivedWebChromeState = false
     private var startupChromeFallbackWorkItem: DispatchWorkItem?
     private var liquidGlassDockHostingController: UIViewController?
+    private var nativeMilestoneOneHostingController: UIHostingController<NativeMilestoneOneRootView>?
     private var lastPublishedShellTopInset: CGFloat = -1
     private var lastPublishedShellBottomInset: CGFloat = -1
 
@@ -614,6 +634,7 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         configureNavigationBar()
         configureTabBar()
         embedBridgeViewController()
+        embedNativeMilestoneOneView()
         applyChromeState(chromeState, animated: false, fromWeb: false)
         scheduleStartupChromeFallback()
         registerForApplicationLifecycleNotifications()
@@ -709,6 +730,29 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         updateChromeLayout(animated: animated)
         updateChromeAppearance(animated: animated)
         setNeedsStatusBarAppearanceUpdate()
+    }
+
+    fileprivate func applyMilestoneOneState(_ state: NativeMilestoneOneState) {
+        nativeMilestoneOneModel.apply(state)
+        guard let hostingView = nativeMilestoneOneHostingController?.view else {
+            return
+        }
+
+        let shouldShow = state.phase != .hidden
+        if shouldShow {
+            hostingView.isHidden = false
+        }
+        hostingView.isUserInteractionEnabled = shouldShow
+
+        UIView.animate(
+            withDuration: 0.18,
+            delay: 0,
+            options: [.curveEaseInOut, .beginFromCurrentState]
+        ) {
+            hostingView.alpha = shouldShow ? 1 : 0
+        } completion: { _ in
+            hostingView.isHidden = !shouldShow
+        }
     }
 
     func tabBar(_ tabBar: UITabBar, didSelect item: UITabBarItem) {
@@ -890,34 +934,170 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         }
     }
 
+    fileprivate func nativeMilestoneSignIn(
+        screenname: String,
+        password: String,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.signIn) {
+                return { ok: false, error: "Sign-in bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.signIn(screenname, password);
+            """,
+            arguments: ["screenname": screenname, "password": password],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneRefresh(
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.refreshBuddyList) {
+                return { ok: false, error: "BuddyList bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.refreshBuddyList();
+            """,
+            arguments: [:],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneOpenBuddy(
+        buddyID: String,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.openBuddy) {
+                return { ok: false, error: "BuddyList bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.openBuddy(buddyID);
+            """,
+            arguments: ["buddyID": buddyID],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneUpdatePresence(
+        status: String,
+        awayMessage: String,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.updatePresence) {
+                return { ok: false, error: "Presence bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.updatePresence(
+                status,
+                awayMessage || null
+            );
+            """,
+            arguments: ["status": status, "awayMessage": awayMessage],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneRespondToBuddyRequest(
+        senderID: String,
+        action: String,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.respondToBuddyRequest) {
+                return { ok: false, error: "Buddy-request bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.respondToBuddyRequest(
+                senderID,
+                action
+            );
+            """,
+            arguments: ["senderID": senderID, "action": action],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneSignOut(
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.signOut) {
+                return { ok: false, error: "Sign-off bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.signOut();
+            """,
+            arguments: [:],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneShowWebAuth(
+        mode: String,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.showWebAuth) {
+                return { ok: false, error: "Account bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.showWebAuth(mode);
+            """,
+            arguments: ["mode": mode],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
     private func callBridgeMethod<T: Decodable>(
         _ script: String,
         arguments: [String: Any],
         as type: T.Type,
         completion: @escaping (Result<T, Error>) -> Void
     ) {
-        guard let webView = bridgeViewController.webView else {
-            completion(.failure(makeShellError("H.I.M. is still loading.")))
-            return
-        }
+        DispatchQueue.main.async { [weak self] in
+            guard let self else {
+                completion(.failure(NSError(
+                    domain: "HiItsMeShell",
+                    code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "H.I.M. is no longer available."]
+                )))
+                return
+            }
+            guard let webView = self.bridgeViewController.webView else {
+                completion(.failure(makeShellError("H.I.M. is still loading.")))
+                return
+            }
 
-        webView.callAsyncJavaScript(script, arguments: arguments, in: nil, in: .page) { result in
-            switch result {
-            case .success(let value):
-                guard JSONSerialization.isValidJSONObject(value) else {
-                    completion(.failure(makeShellError("H.I.M. returned an unreadable response.")))
-                    return
-                }
+            webView.callAsyncJavaScript(script, arguments: arguments, in: nil, in: .page) { result in
+                switch result {
+                case .success(let value):
+                    guard JSONSerialization.isValidJSONObject(value) else {
+                        completion(.failure(makeShellError("H.I.M. returned an unreadable response.")))
+                        return
+                    }
 
-                do {
-                    let data = try JSONSerialization.data(withJSONObject: value)
-                    let decoded = try JSONDecoder().decode(type, from: data)
-                    completion(.success(decoded))
-                } catch {
+                    do {
+                        let data = try JSONSerialization.data(withJSONObject: value)
+                        let decoded = try JSONDecoder().decode(type, from: data)
+                        completion(.success(decoded))
+                    } catch {
+                        completion(.failure(error))
+                    }
+                case .failure(let error):
                     completion(.failure(error))
                 }
-            case .failure(let error):
-                completion(.failure(error))
             }
         }
     }
@@ -1003,6 +1183,55 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         ])
     }
 
+    private func embedNativeMilestoneOneView() {
+        nativeMilestoneOneModel.onSignIn = { [weak self] screenname, password, completion in
+            self?.nativeMilestoneSignIn(screenname: screenname, password: password, completion: completion)
+        }
+        nativeMilestoneOneModel.onRefresh = { [weak self] completion in
+            self?.nativeMilestoneRefresh(completion: completion)
+        }
+        nativeMilestoneOneModel.onOpenBuddy = { [weak self] buddyID, completion in
+            self?.nativeMilestoneOpenBuddy(buddyID: buddyID, completion: completion)
+        }
+        nativeMilestoneOneModel.onUpdatePresence = { [weak self] status, awayMessage, completion in
+            self?.nativeMilestoneUpdatePresence(
+                status: status,
+                awayMessage: awayMessage,
+                completion: completion
+            )
+        }
+        nativeMilestoneOneModel.onRespondToBuddyRequest = { [weak self] senderID, action, completion in
+            self?.nativeMilestoneRespondToBuddyRequest(
+                senderID: senderID,
+                action: action,
+                completion: completion
+            )
+        }
+        nativeMilestoneOneModel.onSignOut = { [weak self] completion in
+            self?.nativeMilestoneSignOut(completion: completion)
+        }
+        nativeMilestoneOneModel.onShowWebAuth = { [weak self] mode, completion in
+            self?.nativeMilestoneShowWebAuth(mode: mode, completion: completion)
+        }
+
+        let hostingController = UIHostingController(
+            rootView: NativeMilestoneOneRootView(model: nativeMilestoneOneModel)
+        )
+        hostingController.view.translatesAutoresizingMaskIntoConstraints = false
+        hostingController.view.backgroundColor = .clear
+
+        addChild(hostingController)
+        view.insertSubview(hostingController.view, aboveSubview: bridgeViewController.view)
+        NSLayoutConstraint.activate([
+            hostingController.view.topAnchor.constraint(equalTo: view.topAnchor),
+            hostingController.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            hostingController.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            hostingController.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        ])
+        hostingController.didMove(toParent: self)
+        nativeMilestoneOneHostingController = hostingController
+    }
+
     private func embedBridgeViewController() {
         addChild(bridgeViewController)
         bridgeViewController.view.translatesAutoresizingMaskIntoConstraints = false
@@ -1062,6 +1291,12 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
             ? max(tabBar.frame.height - deviceSafeArea.bottom, 0)
             : 0
         bridgeViewController.additionalSafeAreaInsets = UIEdgeInsets(
+            top: topInset,
+            left: 0,
+            bottom: bottomInset,
+            right: 0
+        )
+        nativeMilestoneOneHostingController?.additionalSafeAreaInsets = UIEdgeInsets(
             top: topInset,
             left: 0,
             bottom: bottomInset,

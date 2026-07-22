@@ -12,6 +12,11 @@ import { initSoundSystem, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
 import { upsertOwnProfileWithRepair } from '@/lib/profileRepair';
 import { logSecurityEvent } from '@/lib/securityEvent';
+import {
+  publishNativeMilestoneOneState,
+  registerNativeMilestoneOneBridge,
+  type NativeMilestoneOneActionResult,
+} from '@/lib/nativeShell';
 
 const SIGN_ON_SOUND = '/sounds/aol-welcome.mp3';
 const SIGN_ON_FALLBACK_SOUND = '/sounds/aim.mp3';
@@ -139,6 +144,60 @@ export default function Home() {
     applyViewStatusMessage('sign-on', false);
   };
 
+  const performPasswordSignIn = useCallback(
+    async (enteredScreenname: string, enteredPassword: string): Promise<NativeMilestoneOneActionResult> => {
+      const trimmedScreenname = enteredScreenname.trim();
+
+      // New-style accounts retain the member's real email in public.users.
+      // Resolve it first, then preserve the synthetic-email fallbacks used by
+      // older H.I.M. accounts.
+      const { data: userData } = await supabase
+        .from('users')
+        .select('email')
+        .eq('screenname', trimmedScreenname)
+        .maybeSingle();
+
+      if (userData?.email) {
+        const { data: signInData, error } = await supabase.auth.signInWithPassword({
+          email: userData.email,
+          password: enteredPassword,
+        });
+        if (!error) {
+          logSecurityEvent({ event_type: 'auth.signin.success', user_id: signInData.user?.id, outcome: 'success', metadata: { screenname: trimmedScreenname } });
+          setStatusMsg('Success! Opening H.I.M....');
+          await routeToHiItsMe(true);
+          return { ok: true };
+        }
+      }
+
+      let signInError: Error | null = null;
+      for (const authEmail of getSignInAuthEmailCandidates(trimmedScreenname)) {
+        const { data: signInData, error } = await supabase.auth.signInWithPassword({
+          email: authEmail,
+          password: enteredPassword,
+        });
+        if (!error) {
+          logSecurityEvent({ event_type: 'auth.signin.success', user_id: signInData.user?.id, outcome: 'success', metadata: { screenname: trimmedScreenname } });
+          setStatusMsg('Success! Opening H.I.M....');
+          await routeToHiItsMe(true);
+          return { ok: true };
+        }
+        signInError = error;
+        if (!isInvalidCredentialsError(error.message)) break;
+      }
+
+      const message = signInError
+        ? isInvalidCredentialsError(signInError.message)
+          ? 'Invalid login credentials.'
+          : signInError.message
+        : 'Could not connect to H.I.M.';
+      logSecurityEvent({ event_type: 'auth.signin.failure', outcome: 'failure', metadata: { screenname: trimmedScreenname } });
+      setStatusMsg(`Connection failed: ${message}`);
+      return { ok: false, error: message };
+    },
+    [routeToHiItsMe],
+  );
+
   const handleSignOn = async () => {
     const trimmedScreenname = screenname.trim();
     if (!trimmedScreenname || !password) {
@@ -231,53 +290,79 @@ export default function Home() {
       return;
     }
 
-    // Sign in: look up email by screenname for new-style accounts first
-    const { data: userData } = await supabase
-      .from('users')
-      .select('email')
-      .eq('screenname', trimmedScreenname)
-      .maybeSingle();
-
-    if (userData?.email) {
-      const { data: signInData, error } = await supabase.auth.signInWithPassword({
-        email: userData.email,
-        password,
-      });
-      if (!error) {
-        logSecurityEvent({ event_type: 'auth.signin.success', user_id: signInData.user?.id, outcome: 'success', metadata: { screenname: trimmedScreenname } });
-        setStatusMsg('Success! Opening H.I.M....');
-        await routeToHiItsMe(true);
-        setIsLoading(false);
-        return;
-      }
-    }
-
-    // Fall back to derived email for legacy accounts
-    let signInError: Error | null = null;
-    for (const authEmail of getSignInAuthEmailCandidates(trimmedScreenname)) {
-      const { data: signInData, error } = await supabase.auth.signInWithPassword({
-        email: authEmail,
-        password,
-      });
-      if (!error) {
-        logSecurityEvent({ event_type: 'auth.signin.success', user_id: signInData.user?.id, outcome: 'success', metadata: { screenname: trimmedScreenname } });
-        setStatusMsg('Success! Opening H.I.M....');
-        await routeToHiItsMe(true);
-        setIsLoading(false);
-        return;
-      }
-      signInError = error;
-      if (!isInvalidCredentialsError(error.message)) break;
-    }
-
-    if (signInError) {
-      logSecurityEvent({ event_type: 'auth.signin.failure', outcome: 'failure', metadata: { screenname: trimmedScreenname } });
-      setStatusMsg(
-        `Connection failed: ${isInvalidCredentialsError(signInError.message) ? 'Invalid login credentials.' : signInError.message}`,
-      );
-    }
+    await performPasswordSignIn(trimmedScreenname, password);
     setIsLoading(false);
   };
+
+  useEffect(() => {
+    registerNativeMilestoneOneBridge({
+      async signIn(nativeScreenname, nativePassword) {
+        const trimmedScreenname = nativeScreenname.trim();
+        if (!trimmedScreenname || !nativePassword) {
+          return { ok: false, error: 'Enter your screen name and password.' };
+        }
+
+        setScreenname(trimmedScreenname);
+        setPassword(nativePassword);
+        setIsLoading(true);
+        setStatusMsg('Dialing in...');
+        try {
+          return await performPasswordSignIn(trimmedScreenname, nativePassword);
+        } finally {
+          setIsLoading(false);
+        }
+      },
+      async showWebAuth(mode) {
+        setResetSent(false);
+        if (mode === 'signup') {
+          setAuthView('sign-on');
+          setIsSignUp(true);
+          setAgeConfirmed(false);
+          setArt9Confirmed(false);
+          setStatusMsg('Choose a screen name, email, and password to create your account.');
+        } else {
+          setAuthView('forgot-password');
+          setIsSignUp(false);
+          setStatusMsg('Enter the email linked to your account and we\'ll send a reset link.');
+        }
+        return { ok: true };
+      },
+      async refreshBuddyList() {
+        return { ok: false, error: 'Sign in to refresh your BuddyList.' };
+      },
+      async openBuddy() {
+        return { ok: false, error: 'Sign in to open a buddy.' };
+      },
+      async updatePresence() {
+        return { ok: false, error: 'Sign in to update your presence.' };
+      },
+      async respondToBuddyRequest() {
+        return { ok: false, error: 'Sign in to manage buddy requests.' };
+      },
+      async signOut() {
+        return { ok: true };
+      },
+    });
+
+    return () => {
+      registerNativeMilestoneOneBridge(null);
+    };
+  }, [performPasswordSignIn]);
+
+  useEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
+
+    const showsNativeSignIn = authView === 'sign-on' && !isSignUp;
+    void publishNativeMilestoneOneState({
+      phase: showsNativeSignIn ? 'signedOut' : 'hidden',
+      isDark: true,
+      error: showsNativeSignIn && statusMsg.startsWith('Connection failed:')
+        ? statusMsg.replace(/^Connection failed:\s*/, '')
+        : null,
+    });
+  }, [authView, isHydrated, isSignUp, statusMsg]);
 
   const handleForgotPassword = async () => {
     const trimmedEmail = email.trim().toLowerCase();

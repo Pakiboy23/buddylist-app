@@ -129,9 +129,12 @@ import {
 import {
   confirmNativeShellAvailable,
   isNativeIosShell,
+  publishNativeMilestoneOneState,
   publishNativeShellChromeState,
+  registerNativeMilestoneOneBridge,
   registerNativeShellBridge,
   subscribeNativeShellCommands,
+  type NativeMilestoneOneBuddy,
   type NativeShellAdminAuditItem,
   type NativeShellAdminAuditResult,
   type NativeShellAdminIssueResult,
@@ -3599,6 +3602,29 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     [awayMessage, currentUserPresenceState, idleSinceAt, lastActiveAt, screenname, statusMsg],
   );
 
+  const nativeMilestoneOneBuddies = useMemo<NativeMilestoneOneBuddy[]>(
+    () =>
+      alphabeticallySortedAcceptedBuddies.map((buddy) => {
+        const presence = getBuddyPresenceSummary(buddy);
+        const preference = getDmPreference(dmPreferencesByBuddyId, buddy.id);
+        return {
+          id: buddy.id,
+          screenname: buddy.screenname,
+          presence: presence.presenceState,
+          presenceLabel: presence.presenceLabel,
+          presenceDetail: presence.presenceDetail,
+          unreadCount: unreadDirectMessages[buddy.id] ?? 0,
+          isPinned: preference.isPinned,
+        };
+      }),
+    [
+      alphabeticallySortedAcceptedBuddies,
+      dmPreferencesByBuddyId,
+      getBuddyPresenceSummary,
+      unreadDirectMessages,
+    ],
+  );
+
   const selectedProfileBuddy = useMemo(() => {
     if (!profileSheetBuddyId) {
       return null;
@@ -4019,7 +4045,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     };
   }, [clearUnreadDirectMessages, loadSingleUserProfile, playIncomingAlert, sendAutoAwayReply, userId]);
 
-  const handleSignOff = async () => {
+  const handleSignOff = useCallback(async () => {
     isSigningOffRef.current = true;
     playSound(SELF_SIGN_OFF_SOUND);
     setIsHeaderMenuOpen(false);
@@ -4080,7 +4106,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         isSigningOffRef.current = false;
       }
     }
-  };
+  }, [playSound, resetChatState, router, setInitialUnreadForActiveChat, setInitialUnreadForActiveRoom, userId]);
 
   const updateStatus = useCallback(
     async (
@@ -4992,9 +5018,9 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   };
 
   const handleAcceptPendingRequest = useCallback(
-    async (senderId: string) => {
+    async (senderId: string, options?: { openChat?: boolean }) => {
       if (!userId) {
-        return;
+        return false;
       }
 
       setPendingRequestError(null);
@@ -5003,14 +5029,17 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       const accepted = await acceptBuddyById(senderId, { notifyBuddy: true });
       setIsProcessingRequestId(null);
       if (!accepted) {
-        return;
+        return false;
       }
 
       setPendingRequests((previous) => previous.filter((request) => request.senderId !== senderId));
       setTemporaryChatAllowedIds((previous) =>
         previous.includes(senderId) ? previous : [...previous, senderId],
       );
-      openChatWindowForId(senderId);
+      if (options?.openChat !== false) {
+        openChatWindowForId(senderId);
+      }
+      return true;
     },
     [acceptBuddyById, openChatWindowForId, userId],
   );
@@ -5018,7 +5047,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   const handleDeclinePendingRequest = useCallback(
     async (senderId: string) => {
       if (!userId) {
-        return;
+        return false;
       }
 
       setPendingRequestError(null);
@@ -5035,11 +5064,12 @@ const [showAddWindow, setShowAddWindow] = useState(false);
 
       if (error) {
         setPendingRequestError(error.message);
-        return;
+        return false;
       }
 
       setPendingRequests((previous) => previous.filter((request) => request.senderId !== senderId));
       await loadBuddies(userId);
+      return true;
     },
     [loadBuddies, userId],
   );
@@ -5738,7 +5768,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     ? ['Add your first buddy to get started']
     : [
         `${onlineBuddies.length} online`,
-        `${acceptedBuddies.length} buddy${acceptedBuddies.length === 1 ? '' : 'ies'}`,
+        `${acceptedBuddies.length} ${acceptedBuddies.length === 1 ? 'buddy' : 'buddies'}`,
       ];
   if (pendingRequests.length > 0) {
     headerSummaryParts.push(`${pendingRequests.length} request${pendingRequests.length === 1 ? '' : 's'}`);
@@ -6066,6 +6096,159 @@ const [showAddWindow, setShowAddWindow] = useState(false);
 
     return subscribeNativeShellCommands(handleNativeShellCommand);
   }, [nativeShellActive]);
+
+  useEffect(() => {
+    if (!nativeShellActive) {
+      return;
+    }
+
+    registerNativeMilestoneOneBridge({
+      async signIn() {
+        return { ok: false, error: 'You are already signed in.' };
+      },
+      async refreshBuddyList() {
+        if (!userId) {
+          return { ok: false, error: 'Your session is still loading.' };
+        }
+        await loadBuddies(userId);
+        return { ok: true };
+      },
+      async openBuddy(buddyId) {
+        if (!acceptedBuddyIdsRef.current.has(buddyId)) {
+          return { ok: false, error: 'That buddy is no longer available.' };
+        }
+        handleOpenChat(buddyId);
+        return { ok: true };
+      },
+      async updatePresence(nativeStatus, nativeAwayMessage) {
+        if (!userId) {
+          return { ok: false, error: 'Your session is still loading.' };
+        }
+        if (nativeStatus !== 'available' && nativeStatus !== 'away') {
+          return { ok: false, error: 'Choose Available or Away.' };
+        }
+
+        const nextStatus = nativeStatus === 'away' ? AWAY_STATUS : AVAILABLE_STATUS;
+        const nextAwayMessage = (nativeAwayMessage ?? '').trim().slice(0, 320);
+        if (nextStatus === AWAY_STATUS && !nextAwayMessage) {
+          return { ok: false, error: 'Enter an away message before saving.' };
+        }
+
+        setAwayModalError(null);
+        const success = await updateStatus(
+          nextStatus,
+          nextStatus === AWAY_STATUS ? nextAwayMessage : null,
+        );
+        if (!success) {
+          return { ok: false, error: 'Could not update your presence. Please try again.' };
+        }
+
+        autoAwayTriggeredRef.current = false;
+        return { ok: true };
+      },
+      async respondToBuddyRequest(senderId, action) {
+        if (!userId) {
+          return { ok: false, error: 'Your session is still loading.' };
+        }
+        if (action !== 'accept' && action !== 'decline') {
+          return { ok: false, error: 'Choose Accept or Decline.' };
+        }
+        if (!pendingRequestsRef.current.some((request) => request.senderId === senderId)) {
+          return { ok: false, error: 'That buddy request is no longer pending.' };
+        }
+
+        const succeeded = action === 'accept'
+          ? await handleAcceptPendingRequest(senderId, { openChat: false })
+          : await handleDeclinePendingRequest(senderId);
+        if (!succeeded) {
+          return {
+            ok: false,
+            error: action === 'accept'
+              ? 'Could not accept that buddy request. Please try again.'
+              : 'Could not decline that buddy request. Please try again.',
+          };
+        }
+
+        return { ok: true };
+      },
+      async signOut() {
+        void handleSignOff();
+        return { ok: true };
+      },
+      async showWebAuth() {
+        return { ok: false, error: 'You are already signed in.' };
+      },
+    });
+
+    return () => {
+      registerNativeMilestoneOneBridge(null);
+    };
+  }, [
+    handleAcceptPendingRequest,
+    handleDeclinePendingRequest,
+    handleOpenChat,
+    handleSignOff,
+    loadBuddies,
+    nativeShellActive,
+    updateStatus,
+    userId,
+  ]);
+
+  useEffect(() => {
+    if (!nativeShellActive) {
+      return;
+    }
+
+    const showsNativeBuddyList =
+      bodyShellSection === 'im' &&
+      nativeShellMode === 'standard' &&
+      !profileSheetBuddyId &&
+      !isHeaderMenuOpen &&
+      !isAppLocked &&
+      !showAppLockSheet;
+
+    if (!showsNativeBuddyList) {
+      void publishNativeMilestoneOneState({ phase: 'hidden', isDark: shellIsDark });
+      return;
+    }
+
+    void publishNativeMilestoneOneState({
+      phase: isBootstrapping ? 'loading' : 'signedIn',
+      screenname,
+      currentPresence: currentUserPresenceState,
+      currentPresenceDetail: currentUserPresenceDetail,
+      currentAwayMessage: awayMessage || null,
+      buddies: nativeMilestoneOneBuddies,
+      pendingRequests: pendingRequests.map((request) => ({
+        id: request.senderId,
+        screenname: request.screenname,
+      })),
+      onlineCount: onlineBuddies.length,
+      pendingRequestCount: pendingRequests.length,
+      isRefreshing: isLoadingBuddies,
+      isDark: shellIsDark,
+      error: profileSyncError,
+    });
+  }, [
+    bodyShellSection,
+    awayMessage,
+    currentUserPresenceDetail,
+    currentUserPresenceState,
+    isAppLocked,
+    isBootstrapping,
+    isHeaderMenuOpen,
+    isLoadingBuddies,
+    nativeMilestoneOneBuddies,
+    nativeShellActive,
+    nativeShellMode,
+    onlineBuddies.length,
+    pendingRequests,
+    profileSheetBuddyId,
+    profileSyncError,
+    screenname,
+    shellIsDark,
+    showAppLockSheet,
+  ]);
 
   useEffect(() => {
     if (!nativeShellActive) {
