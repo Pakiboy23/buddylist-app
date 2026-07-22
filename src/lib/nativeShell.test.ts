@@ -159,6 +159,10 @@ describe('native milestone-one request bridge', () => {
       sendMessage: vi.fn(async () => ({ ok: true as const })),
       closeConversation: vi.fn(async () => ({ ok: true as const })),
       sendTypingPulse: vi.fn(async () => ({ ok: true as const })),
+      openProfile: vi.fn(async () => ({ ok: true as const })),
+      togglePinned: vi.fn(async () => ({ ok: true as const })),
+      toggleMuted: vi.fn(async () => ({ ok: true as const })),
+      toggleArchived: vi.fn(async () => ({ ok: true as const })),
       signOut: vi.fn(async () => ({ ok: true as const })),
       showWebAuth: vi.fn(async () => ({ ok: true as const })),
     };

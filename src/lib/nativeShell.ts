@@ -143,6 +143,9 @@ export interface NativeMilestoneOneConversation {
   presenceLabel: string;
   presenceDetail: string;
   statusLine?: string | null;
+  isPinned: boolean;
+  isMuted: boolean;
+  isArchived: boolean;
   messages: NativeMilestoneOneMessage[];
   isLoading: boolean;
   isSending: boolean;
@@ -185,6 +188,10 @@ export interface NativeMilestoneOneBridge {
   sendMessage(buddyId: string, content: string): Promise<NativeMilestoneOneActionResult>;
   closeConversation(): Promise<NativeMilestoneOneActionResult>;
   sendTypingPulse(buddyId: string): Promise<NativeMilestoneOneActionResult>;
+  openProfile(buddyId: string): Promise<NativeMilestoneOneActionResult>;
+  togglePinned(buddyId: string): Promise<NativeMilestoneOneActionResult>;
+  toggleMuted(buddyId: string): Promise<NativeMilestoneOneActionResult>;
+  toggleArchived(buddyId: string): Promise<NativeMilestoneOneActionResult>;
   signOut(): Promise<NativeMilestoneOneActionResult>;
   showWebAuth(mode: 'signup' | 'forgotPassword'): Promise<NativeMilestoneOneActionResult>;
 }

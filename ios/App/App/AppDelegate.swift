@@ -1081,6 +1081,74 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         )
     }
 
+    fileprivate func nativeMilestoneOpenProfile(
+        buddyID: String,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.openProfile) {
+                return { ok: false, error: "Profile bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.openProfile(buddyID);
+            """,
+            arguments: ["buddyID": buddyID],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneTogglePinned(
+        buddyID: String,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.togglePinned) {
+                return { ok: false, error: "Pin bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.togglePinned(buddyID);
+            """,
+            arguments: ["buddyID": buddyID],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneToggleMuted(
+        buddyID: String,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.toggleMuted) {
+                return { ok: false, error: "Mute bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.toggleMuted(buddyID);
+            """,
+            arguments: ["buddyID": buddyID],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneToggleArchived(
+        buddyID: String,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.toggleArchived) {
+                return { ok: false, error: "Archive bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.toggleArchived(buddyID);
+            """,
+            arguments: ["buddyID": buddyID],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
     fileprivate func nativeMilestoneSignOut(
         completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
     ) {
@@ -1273,6 +1341,18 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         }
         nativeMilestoneOneModel.onSendTypingPulse = { [weak self] buddyID, completion in
             self?.nativeMilestoneSendTypingPulse(buddyID: buddyID, completion: completion)
+        }
+        nativeMilestoneOneModel.onOpenProfile = { [weak self] buddyID, completion in
+            self?.nativeMilestoneOpenProfile(buddyID: buddyID, completion: completion)
+        }
+        nativeMilestoneOneModel.onTogglePinned = { [weak self] buddyID, completion in
+            self?.nativeMilestoneTogglePinned(buddyID: buddyID, completion: completion)
+        }
+        nativeMilestoneOneModel.onToggleMuted = { [weak self] buddyID, completion in
+            self?.nativeMilestoneToggleMuted(buddyID: buddyID, completion: completion)
+        }
+        nativeMilestoneOneModel.onToggleArchived = { [weak self] buddyID, completion in
+            self?.nativeMilestoneToggleArchived(buddyID: buddyID, completion: completion)
         }
         nativeMilestoneOneModel.onSignOut = { [weak self] completion in
             self?.nativeMilestoneSignOut(completion: completion)

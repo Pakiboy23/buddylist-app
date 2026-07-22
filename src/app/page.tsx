@@ -348,6 +348,18 @@ export default function Home() {
       async sendTypingPulse() {
         return { ok: true };
       },
+      async openProfile() {
+        return { ok: false, error: 'Sign in to view profiles.' };
+      },
+      async togglePinned() {
+        return { ok: false, error: 'Sign in to pin conversations.' };
+      },
+      async toggleMuted() {
+        return { ok: false, error: 'Sign in to mute conversations.' };
+      },
+      async toggleArchived() {
+        return { ok: false, error: 'Sign in to archive conversations.' };
+      },
       async signOut() {
         return { ok: true };
       },

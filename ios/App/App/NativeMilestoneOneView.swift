@@ -51,6 +51,9 @@ struct NativeMilestoneOneConversation: Decodable, Equatable {
     let presenceLabel: String
     let presenceDetail: String
     let statusLine: String?
+    let isPinned: Bool
+    let isMuted: Bool
+    let isArchived: Bool
     let messages: [NativeMilestoneOneMessage]
     let isLoading: Bool
     let isSending: Bool
@@ -172,6 +175,7 @@ final class NativeMilestoneOneViewModel: ObservableObject, @unchecked Sendable {
     @Published private(set) var isUpdatingPresence = false
     @Published private(set) var isSendingMessage = false
     @Published private(set) var processingRequestID: String?
+    @Published private(set) var processingConversationAction: String?
     @Published private(set) var actionError: String?
 
     var onSignIn: ((String, String, @escaping ActionCompletion) -> Void)?
@@ -182,6 +186,10 @@ final class NativeMilestoneOneViewModel: ObservableObject, @unchecked Sendable {
     var onSendMessage: ((String, String, @escaping ActionCompletion) -> Void)?
     var onCloseConversation: ((@escaping ActionCompletion) -> Void)?
     var onSendTypingPulse: ((String, @escaping ActionCompletion) -> Void)?
+    var onOpenProfile: ((String, @escaping ActionCompletion) -> Void)?
+    var onTogglePinned: ((String, @escaping ActionCompletion) -> Void)?
+    var onToggleMuted: ((String, @escaping ActionCompletion) -> Void)?
+    var onToggleArchived: ((String, @escaping ActionCompletion) -> Void)?
     var onSignOut: ((@escaping ActionCompletion) -> Void)?
     var onShowWebAuth: ((String, @escaping ActionCompletion) -> Void)?
 
@@ -349,6 +357,50 @@ final class NativeMilestoneOneViewModel: ObservableObject, @unchecked Sendable {
         onSendTypingPulse(buddyID) { _ in }
     }
 
+    func openProfile(buddyID: String) async -> Bool {
+        guard let onOpenProfile else {
+            actionError = "Profile controls are still connecting."
+            return false
+        }
+
+        return await performConversationAction("profile") { completion in
+            onOpenProfile(buddyID, completion)
+        }
+    }
+
+    func togglePinned(buddyID: String) async -> Bool {
+        guard let onTogglePinned else {
+            actionError = "Pin controls are still connecting."
+            return false
+        }
+
+        return await performConversationAction("pin") { completion in
+            onTogglePinned(buddyID, completion)
+        }
+    }
+
+    func toggleMuted(buddyID: String) async -> Bool {
+        guard let onToggleMuted else {
+            actionError = "Mute controls are still connecting."
+            return false
+        }
+
+        return await performConversationAction("mute") { completion in
+            onToggleMuted(buddyID, completion)
+        }
+    }
+
+    func toggleArchived(buddyID: String) async -> Bool {
+        guard let onToggleArchived else {
+            actionError = "Archive controls are still connecting."
+            return false
+        }
+
+        return await performConversationAction("archive") { completion in
+            onToggleArchived(buddyID, completion)
+        }
+    }
+
     func signOut() {
         guard let onSignOut, !isPerformingAction else { return }
         isPerformingAction = true
@@ -367,6 +419,34 @@ final class NativeMilestoneOneViewModel: ObservableObject, @unchecked Sendable {
         onShowWebAuth(mode) { [weak self] result in
             DispatchQueue.main.async {
                 self?.consume(result)
+            }
+        }
+    }
+
+    private func performConversationAction(
+        _ actionID: String,
+        handler: (@escaping ActionCompletion) -> Void
+    ) async -> Bool {
+        guard processingConversationAction == nil else { return false }
+
+        actionError = nil
+        processingConversationAction = actionID
+        return await withCheckedContinuation { continuation in
+            handler { [weak self] result in
+                DispatchQueue.main.async {
+                    guard let self else {
+                        continuation.resume(returning: false)
+                        return
+                    }
+
+                    self.processingConversationAction = nil
+                    self.consume(result)
+                    if case .success(let response) = result {
+                        continuation.resume(returning: response.ok)
+                    } else {
+                        continuation.resume(returning: false)
+                    }
+                }
             }
         }
     }
@@ -671,6 +751,7 @@ private struct NativeConversationView: View {
     @ObservedObject var model: NativeMilestoneOneViewModel
     let conversation: NativeMilestoneOneConversation
     @State private var draft = ""
+    @State private var controlsDestination: NativeConversationControlsDestination?
     @FocusState private var composerFocused: Bool
 
     var body: some View {
@@ -681,7 +762,10 @@ private struct NativeConversationView: View {
                 NativeConversationHeader(
                     conversation: conversation,
                     isDark: model.state.isDark,
-                    close: model.closeConversation
+                    close: model.closeConversation,
+                    openControls: {
+                        controlsDestination = NativeConversationControlsDestination(buddyID: conversation.buddyId)
+                    }
                 )
 
                 Divider()
@@ -703,6 +787,9 @@ private struct NativeConversationView: View {
         }
         .onAppear {
             composerFocused = true
+        }
+        .sheet(item: $controlsDestination) { destination in
+            NativeConversationControlsSheet(destination: destination, model: model)
         }
     }
 
@@ -776,10 +863,17 @@ private struct NativeConversationView: View {
     }
 }
 
+private struct NativeConversationControlsDestination: Identifiable {
+    let buddyID: String
+
+    var id: String { buddyID }
+}
+
 private struct NativeConversationHeader: View {
     let conversation: NativeMilestoneOneConversation
     let isDark: Bool
     let close: () -> Void
+    let openControls: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
@@ -809,10 +903,164 @@ private struct NativeConversationHeader: View {
             }
 
             Spacer()
+
+            Button(action: openControls) {
+                Image(systemName: "ellipsis.circle.fill")
+                    .font(.title3.weight(.bold))
+                    .frame(width: 36, height: 36)
+                    .background(NativeMilestonePalette.card(isDark: isDark), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(NativeMilestonePalette.text(isDark: isDark))
+            .accessibilityLabel("Conversation controls")
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .padding(.bottom, 10)
+    }
+}
+
+private struct NativeConversationControlsSheet: View {
+    let destination: NativeConversationControlsDestination
+    @ObservedObject var model: NativeMilestoneOneViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    private var conversation: NativeMilestoneOneConversation? {
+        guard let activeConversation = model.state.activeConversation,
+              activeConversation.buddyId == destination.buddyID else {
+            return nil
+        }
+
+        return activeConversation
+    }
+
+    var body: some View {
+        NavigationView {
+            List {
+                if let conversation {
+                    Section {
+                        HStack(spacing: 12) {
+                            NativeBuddyAvatar(
+                                name: conversation.screenname,
+                                presence: conversation.presence,
+                                size: 46
+                            )
+
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(conversation.screenname)
+                                    .font(.headline.weight(.bold))
+                                    .foregroundColor(NativeMilestonePalette.text(isDark: model.state.isDark))
+                                Text(conversation.presenceDetail)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundColor(NativeMilestonePalette.muted(isDark: model.state.isDark))
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+
+                    Section {
+                        NativeConversationControlButton(
+                            title: "View Profile",
+                            systemImage: "person.crop.circle.fill",
+                            isProcessing: model.processingConversationAction == "profile",
+                            isDisabled: model.processingConversationAction != nil,
+                            role: nil
+                        ) {
+                            runAction(dismissOnSuccess: true) {
+                                await model.openProfile(buddyID: conversation.buddyId)
+                            }
+                        }
+
+                        NativeConversationControlButton(
+                            title: conversation.isPinned ? "Unpin Conversation" : "Pin Conversation",
+                            systemImage: conversation.isPinned ? "pin.slash.fill" : "pin.fill",
+                            isProcessing: model.processingConversationAction == "pin",
+                            isDisabled: model.processingConversationAction != nil,
+                            role: nil
+                        ) {
+                            runAction {
+                                await model.togglePinned(buddyID: conversation.buddyId)
+                            }
+                        }
+
+                        NativeConversationControlButton(
+                            title: conversation.isMuted ? "Unmute Conversation" : "Mute Conversation",
+                            systemImage: conversation.isMuted ? "bell.fill" : "bell.slash.fill",
+                            isProcessing: model.processingConversationAction == "mute",
+                            isDisabled: model.processingConversationAction != nil,
+                            role: nil
+                        ) {
+                            runAction {
+                                await model.toggleMuted(buddyID: conversation.buddyId)
+                            }
+                        }
+
+                        NativeConversationControlButton(
+                            title: conversation.isArchived ? "Unarchive Conversation" : "Archive Conversation",
+                            systemImage: conversation.isArchived ? "archivebox.fill" : "archivebox.fill",
+                            isProcessing: model.processingConversationAction == "archive",
+                            isDisabled: model.processingConversationAction != nil,
+                            role: conversation.isArchived ? nil : .destructive
+                        ) {
+                            runAction(dismissOnSuccess: !conversation.isArchived) {
+                                await model.toggleArchived(buddyID: conversation.buddyId)
+                            }
+                        }
+                    } footer: {
+                        if let error = model.actionError {
+                            Text(error)
+                                .foregroundColor(.red)
+                        }
+                    }
+                } else {
+                    Section {
+                        Text("That conversation is no longer open.")
+                            .foregroundColor(NativeMilestonePalette.muted(isDark: model.state.isDark))
+                    }
+                }
+            }
+            .navigationTitle("Conversation")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func runAction(
+        dismissOnSuccess: Bool = false,
+        action: @escaping () async -> Bool
+    ) {
+        Task {
+            let didSucceed = await action()
+            if didSucceed && dismissOnSuccess {
+                dismiss()
+            }
+        }
+    }
+}
+
+private struct NativeConversationControlButton: View {
+    let title: String
+    let systemImage: String
+    let isProcessing: Bool
+    let isDisabled: Bool
+    let role: ButtonRole?
+    let action: () -> Void
+
+    var body: some View {
+        Button(role: role, action: action) {
+            HStack(spacing: 12) {
+                Label(title, systemImage: systemImage)
+                Spacer()
+                if isProcessing {
+                    ProgressView()
+                }
+            }
+        }
+        .disabled(isDisabled)
     }
 }
 

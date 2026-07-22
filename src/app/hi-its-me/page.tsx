@@ -5755,6 +5755,8 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       return null;
     }
 
+    const activeConversationPreference = getDmPreference(dmPreferencesByBuddyId, activeChatBuddy.id);
+
     return {
       buddyId: activeChatBuddy.id,
       screenname: activeChatBuddy.screenname,
@@ -5762,6 +5764,9 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       presenceLabel: activeChatBuddyPresenceSummary.presenceLabel,
       presenceDetail: activeChatBuddyPresenceSummary.presenceDetail,
       statusLine: activeChatBuddyPresenceSummary.resolvedStatus.statusMessage ?? null,
+      isPinned: activeConversationPreference.isPinned,
+      isMuted: activeConversationPreference.isMuted,
+      isArchived: activeConversationPreference.isArchived,
       messages: nativeMilestoneOneMessages,
       isLoading: isChatLoading,
       isSending: isSendingMessage,
@@ -5773,6 +5778,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     activeChatBuddyPresenceSummary,
     activeDmTypingText,
     chatError,
+    dmPreferencesByBuddyId,
     isChatLoading,
     isSendingMessage,
     nativeMilestoneOneMessages,
@@ -6282,6 +6288,73 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         }
         return { ok: true };
       },
+      async openProfile(buddyId) {
+        if (activeChatBuddyIdRef.current !== buddyId) {
+          return { ok: false, error: 'That conversation is no longer open.' };
+        }
+
+        openBuddyProfile(buddyId);
+        return { ok: true };
+      },
+      async togglePinned(buddyId) {
+        if (activeChatBuddyIdRef.current !== buddyId) {
+          return { ok: false, error: 'That conversation is no longer open.' };
+        }
+
+        try {
+          await upsertConversationPreference(buddyId, (current) => ({
+            isPinned: !current.isPinned,
+          }));
+          return { ok: true };
+        } catch (error) {
+          return {
+            ok: false,
+            error: error instanceof Error ? error.message : 'Could not update pinned state.',
+          };
+        }
+      },
+      async toggleMuted(buddyId) {
+        if (activeChatBuddyIdRef.current !== buddyId) {
+          return { ok: false, error: 'That conversation is no longer open.' };
+        }
+
+        try {
+          await upsertConversationPreference(buddyId, (current) => ({
+            isMuted: !current.isMuted,
+          }));
+          return { ok: true };
+        } catch (error) {
+          return {
+            ok: false,
+            error: error instanceof Error ? error.message : 'Could not update mute state.',
+          };
+        }
+      },
+      async toggleArchived(buddyId) {
+        if (activeChatBuddyIdRef.current !== buddyId) {
+          return { ok: false, error: 'That conversation is no longer open.' };
+        }
+
+        try {
+          const currentPreference = getDmPreference(dmPreferencesByBuddyId, buddyId);
+          await upsertConversationPreference(buddyId, {
+            isArchived: !currentPreference.isArchived,
+          });
+
+          if (!currentPreference.isArchived) {
+            setActiveChatBuddyId(null);
+            activeChatBuddyIdRef.current = null;
+            replaceAppPathInPlace(HI_ITS_ME_PATH);
+          }
+
+          return { ok: true };
+        } catch (error) {
+          return {
+            ok: false,
+            error: error instanceof Error ? error.message : 'Could not update archive state.',
+          };
+        }
+      },
       async signOut() {
         void handleSignOff();
         return { ok: true };
@@ -6301,10 +6374,13 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     handleOpenChat,
     handleSignOff,
     closeChatWindow,
+    dmPreferencesByBuddyId,
     loadBuddies,
     nativeShellActive,
+    openBuddyProfile,
     sendDmTypingPulse,
     updateStatus,
+    upsertConversationPreference,
     userId,
   ]);
 
