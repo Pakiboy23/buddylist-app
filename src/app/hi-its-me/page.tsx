@@ -5707,6 +5707,11 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         return [];
       }
 
+      const latestOutgoingMessageId = [...chatMessages]
+        .reverse()
+        .find((message) => message.sender_id === userId && !message.deleted_at && message.preview_type !== 'buzz')
+        ?.id;
+
       return chatMessages.map((message) => {
         const isMine = message.sender_id === userId;
         const isDeleted = Boolean(message.deleted_at);
@@ -5724,11 +5729,26 @@ const [showAddWindow, setShowAddWindow] = useState(false);
           createdAt: message.created_at,
           isMine,
           isDeleted,
+          deliveredAt: message.delivered_at ?? null,
+          readAt: message.read_at ?? null,
+          deliveryStatus: message.read_at
+            ? 'read'
+            : message.delivered_at
+              ? 'delivered'
+              : 'sent',
+          deliveryStatusDetail: message.read_at
+            ? new Date(message.read_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : null,
+          showDeliveryStatus:
+            privacySettings.shareReadReceipts &&
+            isMine &&
+            !isDeleted &&
+            latestOutgoingMessageId === message.id,
           previewType: message.preview_type ?? 'text',
         };
       });
     },
-    [chatMessages, userId],
+    [chatMessages, privacySettings.shareReadReceipts, userId],
   );
   const nativeMilestoneOneConversation = useMemo<NativeMilestoneOneConversation | null>(() => {
     if (!activeChatBuddy || !activeChatBuddyPresenceSummary) {

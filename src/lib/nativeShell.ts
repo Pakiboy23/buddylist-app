@@ -128,6 +128,11 @@ export interface NativeMilestoneOneMessage {
   createdAt: string;
   isMine: boolean;
   isDeleted?: boolean;
+  deliveredAt?: string | null;
+  readAt?: string | null;
+  deliveryStatus?: 'sent' | 'delivered' | 'read' | null;
+  deliveryStatusDetail?: string | null;
+  showDeliveryStatus?: boolean;
   previewType?: string | null;
 }
 

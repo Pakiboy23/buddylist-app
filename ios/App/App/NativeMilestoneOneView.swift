@@ -36,6 +36,11 @@ struct NativeMilestoneOneMessage: Decodable, Equatable, Identifiable {
     let createdAt: String
     let isMine: Bool
     let isDeleted: Bool
+    let deliveredAt: String?
+    let readAt: String?
+    let deliveryStatus: String?
+    let deliveryStatusDetail: String?
+    let showDeliveryStatus: Bool
     let previewType: String?
 }
 
@@ -833,6 +838,18 @@ private struct NativeMessageBubble: View {
                     .font(.caption2.weight(.semibold))
                     .foregroundColor(NativeMilestonePalette.muted(isDark: isDark).opacity(0.82))
                     .padding(.horizontal, 4)
+
+                if message.showDeliveryStatus {
+                    HStack(spacing: 4) {
+                        Image(systemName: message.deliveryStatus == "read" ? "checkmark.seal.fill" : "checkmark")
+                            .font(.caption2.weight(.bold))
+                            .foregroundColor(message.deliveryStatus == "read" ? .blue : NativeMilestonePalette.muted(isDark: isDark))
+                        Text(deliveryLabel)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundColor(NativeMilestonePalette.muted(isDark: isDark).opacity(0.9))
+                    }
+                    .padding(.horizontal, 4)
+                }
             }
             .frame(maxWidth: 300, alignment: message.isMine ? .trailing : .leading)
 
@@ -848,6 +865,20 @@ private struct NativeMessageBubble: View {
             return NativeMilestonePalette.muted(isDark: isDark).opacity(0.16)
         }
         return message.isMine ? NativeMilestonePalette.gold : NativeMilestonePalette.card(isDark: isDark)
+    }
+
+    private var deliveryLabel: String {
+        switch message.deliveryStatus {
+        case "read":
+            if let detail = message.deliveryStatusDetail, !detail.isEmpty {
+                return "Read · \(detail)"
+            }
+            return "Read"
+        case "delivered":
+            return "Delivered"
+        default:
+            return "Sent"
+        }
     }
 }
 
