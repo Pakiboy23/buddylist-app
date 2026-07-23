@@ -88,7 +88,7 @@ import { displayBodyForMessage } from '@/lib/contentModeration';
 import { buildAwayMessageReplyDraft } from '@/lib/awayMessageReply';
 import {
   buildBuddyCircleIndex,
-  createBuddyCircle,
+  createBuddyCircle as createCircleRecord,
   deleteBuddyCircle,
   loadBuddyCircles,
   renameBuddyCircle,
@@ -5722,7 +5722,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       if (!userId) {
         return;
       }
-      void runCircleAction(() => createBuddyCircle({ ownerId: userId, name, position: buddyCircles.length }));
+      void runCircleAction(() => createCircleRecord({ ownerId: userId, name, position: buddyCircles.length }));
     },
     [buddyCircles.length, runCircleAction, userId],
   );
@@ -6990,6 +6990,35 @@ const [showAddWindow, setShowAddWindow] = useState(false);
           return {
             ok: false,
             error: error instanceof Error ? error.message : 'Could not update that circle.',
+          };
+        }
+      },
+      async createBuddyCircle(name, assignBuddyId) {
+        if (!userId) {
+          return { ok: false, error: 'Your session is still loading.' };
+        }
+        const trimmedName = name.trim();
+        if (!trimmedName) {
+          return { ok: false, error: 'Give the circle a name.' };
+        }
+        if (assignBuddyId !== null && !acceptedBuddyIdsRef.current.has(assignBuddyId)) {
+          return { ok: false, error: 'Circles are only available for buddies.' };
+        }
+        try {
+          const circle = await createCircleRecord({
+            ownerId: userId,
+            name: trimmedName,
+            position: buddyCircles.length,
+          });
+          if (assignBuddyId !== null) {
+            await assignBuddyToCircle({ ownerId: userId, buddyId: assignBuddyId, circleId: circle.id });
+          }
+          await reloadBuddyCircles();
+          return { ok: true };
+        } catch (error) {
+          return {
+            ok: false,
+            error: error instanceof Error ? error.message : 'Could not create that circle.',
           };
         }
       },

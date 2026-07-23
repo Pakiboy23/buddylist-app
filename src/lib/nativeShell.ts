@@ -273,6 +273,10 @@ export interface NativeMilestoneOneBridge {
   toggleMuted(buddyId: string): Promise<NativeMilestoneOneActionResult>;
   toggleArchived(buddyId: string): Promise<NativeMilestoneOneActionResult>;
   setBuddyCircle(buddyId: string, circleId: string | null): Promise<NativeMilestoneOneActionResult>;
+  createBuddyCircle(
+    name: string,
+    assignBuddyId: string | null,
+  ): Promise<NativeMilestoneOneActionResult>;
   signOut(): Promise<NativeMilestoneOneActionResult>;
   showWebAuth(mode: 'signup' | 'forgotPassword'): Promise<NativeMilestoneOneActionResult>;
 }
