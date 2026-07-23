@@ -1114,6 +1114,9 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   const outboxItemsRef = useRef<OutboxItem[]>([]);
   const unreadDirectMessagesRef = useRef<Record<string, number>>({});
   const isFlushingOutboxRef = useRef(false);
+  // Per-buddy+type timestamp of the last Buzz/Knock sent, for the client-side
+  // signal cooldown that mirrors the server triggers.
+  const signalCooldownRef = useRef<Record<string, number>>({});
   const appHiddenAtRef = useRef<number | null>(null);
   const attemptedBiometricUnlockRef = useRef(false);
   const quickPhotoInputRef = useRef<HTMLInputElement | null>(null);
@@ -2424,8 +2427,22 @@ const [showAddWindow, setShowAddWindow] = useState(false);
 
     isFlushingOutboxRef.current = true;
     try {
-      let nextItems = [...snapshot];
       const nowMs = Date.now();
+
+      // Each per-item transition MUST be a functional update on the live state,
+      // not a replace from `snapshot`. Other code paths (handleSendMessage,
+      // handleSendKnockToBuddy, retryOutboxMessage) mutate outboxItems
+      // concurrently while we await the network; a whole-array replace from the
+      // start-of-flush snapshot would silently drop anything they queued
+      // mid-flush, losing the message with no error shown.
+      const markSending = (id: string) =>
+        setOutboxItems((previous) =>
+          normalizeOutboxItems(previous.map((c) => (c.id === id ? markOutboxSending(c) : c))));
+      const markFailed = (id: string, message: string) =>
+        setOutboxItems((previous) =>
+          normalizeOutboxItems(previous.map((c) => (c.id === id ? markOutboxAttemptFailure(c, message) : c))));
+      const dropSent = (id: string) =>
+        setOutboxItems((previous) => normalizeOutboxItems(previous.filter((c) => c.id !== id)));
 
       for (const item of snapshot) {
         if (item.status === 'sending') {
@@ -2436,10 +2453,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
           continue;
         }
 
-        nextItems = nextItems.map((candidate) =>
-          candidate.id === item.id ? markOutboxSending(candidate) : candidate,
-        );
-        setOutboxItems(normalizeOutboxItems(nextItems));
+        markSending(item.id);
 
         if (item.type === 'dm') {
           const { data, error } = await sendDirectMessageWithClientMessageId({
@@ -2455,10 +2469,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
           });
 
           if (error) {
-            nextItems = nextItems.map((candidate) =>
-              candidate.id === item.id ? markOutboxAttemptFailure(candidate, humanizeDbError(error.message)) : candidate,
-            );
-            setOutboxItems(normalizeOutboxItems(nextItems));
+            markFailed(item.id, humanizeDbError(error.message));
             continue;
           }
 
@@ -2474,8 +2485,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                 : [...previous, insertedMessage],
             );
           }
-          nextItems = nextItems.filter((candidate) => candidate.id !== item.id);
-          setOutboxItems(normalizeOutboxItems(nextItems));
+          dropSent(item.id);
           continue;
         }
 
@@ -2486,20 +2496,14 @@ const [showAddWindow, setShowAddWindow] = useState(false);
           clientMessageId: item.id,
         });
         if (error) {
-          nextItems = nextItems.map((candidate) =>
-            candidate.id === item.id ? markOutboxAttemptFailure(candidate, error.message) : candidate,
-          );
-          setOutboxItems(normalizeOutboxItems(nextItems));
+          markFailed(item.id, error.message);
           continue;
         }
         if (activeRoom?.id === item.targetId && data) {
           setActiveRoomReloadToken((previous) => previous + 1);
         }
-        nextItems = nextItems.filter((candidate) => candidate.id !== item.id);
-        setOutboxItems(normalizeOutboxItems(nextItems));
+        dropSent(item.id);
       }
-
-      setOutboxItems(normalizeOutboxItems(nextItems));
     } finally {
       isFlushingOutboxRef.current = false;
     }
@@ -3521,6 +3525,18 @@ const [showAddWindow, setShowAddWindow] = useState(false);
 
       const leftUserId = typeof payload.key === 'string' ? payload.key : '';
       if (!leftUserId || leftUserId === userId) {
+        return;
+      }
+
+      // Presence is keyed by userId, and the same buddy can be online on web
+      // AND iOS at once (two refs under one key). Realtime emits a per-ref
+      // 'leave' when one connection drops even though the key is still present.
+      // Only treat this as a real sign-off when NO refs remain for the key —
+      // otherwise a buddy closing one device would fire a false "signed off"
+      // sound/toast and stamp a wrong "Last active" time on their still-online
+      // row.
+      const remainingRefs = presenceChannel.presenceState()[leftUserId];
+      if (Array.isArray(remainingRefs) && remainingRefs.length > 0) {
         return;
       }
 
@@ -5454,6 +5470,25 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       const isBuzz = previewType === 'buzz';
       const isKnock = previewType === 'knock';
       const isSignal = isBuzz || isKnock;
+
+      // Client-side signal cooldown — mirrors the server BUZZ_COOLDOWN (30s) /
+      // KNOCK_COOLDOWN (10m) triggers so a rapid tap gets instant, friendly
+      // feedback instead of a round-trip that the server rejects. The server
+      // triggers remain the real enforcement.
+      if (isSignal) {
+        const cooldownMs = isBuzz ? 30_000 : 10 * 60_000;
+        const cooldownKey = `${activeChatBuddyId}:${previewType}`;
+        const lastSentAt = signalCooldownRef.current[cooldownKey] ?? 0;
+        if (Date.now() - lastSentAt < cooldownMs) {
+          setChatError(
+            isBuzz
+              ? 'Give them a moment before buzzing again.'
+              : 'Give them a little time before knocking again.',
+          );
+          return;
+        }
+      }
+
       const trimmedContent = content.trim();
       const normalizedAttachments = Array.isArray(attachments) ? attachments : [];
       if (!isSignal && !trimmedContent && normalizedAttachments.length === 0) {
@@ -5527,6 +5562,9 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       }
 
       const insertedMessage = data as ChatMessage;
+      if (isSignal) {
+        signalCooldownRef.current[`${activeChatBuddyId}:${previewType}`] = Date.now();
+      }
       setBuddyLastMessageAt((previous) => ({
         ...previous,
         [activeChatBuddyId]: insertedMessage.created_at,

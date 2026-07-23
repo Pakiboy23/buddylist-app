@@ -33,6 +33,18 @@ export interface RoomMessageRow {
   body: string;
   created_at: string;
   flagged_at?: string | null;
+  client_msg_id?: string | null;
+}
+
+// True when room_messages.client_msg_id doesn't exist yet (migration
+// 20260723* not applied). Lets the sender fall back to a plain insert so room
+// chat keeps working; dedup simply activates once the column lands.
+export function isRoomClientMessageIdColumnMissing(error: DatabaseErrorLike | null | undefined) {
+  if (!error) {
+    return false;
+  }
+  const message = typeof error.message === 'string' ? error.message.toLowerCase() : '';
+  return error.code === '42703' && message.includes('client_msg_id');
 }
 
 export const DIRECT_MESSAGE_SELECT_FIELDS =
@@ -157,17 +169,40 @@ export async function sendRoomMessageWithClientMessageId(input: {
   body: string;
   clientMessageId: string;
 }) {
+  // Attempt 1: insert WITH the dedup key. A partial unique index on
+  // (user_id, client_msg_id) means an outbox retry of a message that already
+  // committed (its ack was lost on a flaky network) raises 23505 instead of
+  // inserting a duplicate room message.
   let { data, error } = await supabase
     .from('room_messages')
     .insert({
       room_id: input.roomId,
       user_id: input.userId,
       body: input.body,
+      client_msg_id: input.clientMessageId,
     })
     .select(ROOM_MESSAGE_SELECT_FIELDS)
     .single();
 
-  if (isRoomMessageMetadataSchemaMissingError(error)) {
+  // Lost-ack retry: the row is already there — reconcile to it, never duplicate.
+  if (isClientMessageConflict(error)) {
+    const { data: existing, error: lookupError } = await supabase
+      .from('room_messages')
+      .select(ROOM_MESSAGE_SELECT_FIELDS)
+      .eq('user_id', input.userId)
+      .eq('client_msg_id', input.clientMessageId)
+      .maybeSingle();
+    return {
+      data: (existing as RoomMessageRow | null) ?? null,
+      error: lookupError ?? (existing ? null : error),
+      reconciled: Boolean(existing),
+    };
+  }
+
+  // Fallbacks for older schema: client_msg_id column not applied yet (dedup
+  // simply off until the migration lands), or the flagged_at metadata column
+  // absent. Either way, fall back to a plain insert so room chat keeps working.
+  if (isRoomClientMessageIdColumnMissing(error) || isRoomMessageMetadataSchemaMissingError(error)) {
     ({ data, error } = await supabase
       .from('room_messages')
       .insert({
