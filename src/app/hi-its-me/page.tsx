@@ -5475,10 +5475,10 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       // KNOCK_COOLDOWN (10m) triggers so a rapid tap gets instant, friendly
       // feedback instead of a round-trip that the server rejects. The server
       // triggers remain the real enforcement.
+      const signalCooldownKey = `${activeChatBuddyId}:${previewType}`;
       if (isSignal) {
         const cooldownMs = isBuzz ? 30_000 : 10 * 60_000;
-        const cooldownKey = `${activeChatBuddyId}:${previewType}`;
-        const lastSentAt = signalCooldownRef.current[cooldownKey] ?? 0;
+        const lastSentAt = signalCooldownRef.current[signalCooldownKey] ?? 0;
         if (Date.now() - lastSentAt < cooldownMs) {
           setChatError(
             isBuzz
@@ -5487,6 +5487,11 @@ const [showAddWindow, setShowAddWindow] = useState(false);
           );
           return;
         }
+        // Start the cooldown NOW, before the async send, so rapid taps (or an
+        // offline queue-and-retry) that fire before this send resolves are
+        // blocked client-side instead of stacking signals that the server
+        // rejects. Released again only if the send hard-fails below.
+        signalCooldownRef.current[signalCooldownKey] = Date.now();
       }
 
       const trimmedContent = content.trim();
@@ -5557,14 +5562,16 @@ const [showAddWindow, setShowAddWindow] = useState(false);
           removeOutboxItem(trackedOutboxItem.id);
         }
 
+        // Hard failure (not queued for retry): release the optimistic cooldown
+        // so the user can try the signal again.
+        if (isSignal) {
+          delete signalCooldownRef.current[signalCooldownKey];
+        }
         setChatError(error.message);
         throw error;
       }
 
       const insertedMessage = data as ChatMessage;
-      if (isSignal) {
-        signalCooldownRef.current[`${activeChatBuddyId}:${previewType}`] = Date.now();
-      }
       setBuddyLastMessageAt((previous) => ({
         ...previous,
         [activeChatBuddyId]: insertedMessage.created_at,
