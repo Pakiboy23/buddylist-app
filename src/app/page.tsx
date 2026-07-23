@@ -381,6 +381,9 @@ export default function Home() {
       async setBuddyCircle() {
         return { ok: false, error: 'Sign in to organize circles.' };
       },
+      async createBuddyCircle() {
+        return { ok: false, error: 'Sign in to organize circles.' };
+      },
       async signOut() {
         return { ok: true };
       },

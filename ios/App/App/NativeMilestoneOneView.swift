@@ -278,6 +278,7 @@ final class NativeMilestoneOneViewModel: ObservableObject, @unchecked Sendable {
     @Published private(set) var processingKnockBuddyID: String?
     @Published private(set) var recentlyKnockedBuddyID: String?
     @Published private(set) var processingCircleBuddyID: String?
+    @Published private(set) var isCreatingCircle = false
     @Published private(set) var processingRequestID: String?
     @Published private(set) var processingConversationAction: String?
     @Published private(set) var actionError: String?
@@ -293,6 +294,7 @@ final class NativeMilestoneOneViewModel: ObservableObject, @unchecked Sendable {
     var onSendMessage: ((String, String, @escaping ActionCompletion) -> Void)?
     var onSendKnock: ((String, @escaping ActionCompletion) -> Void)?
     var onSetBuddyCircle: ((String, String?, @escaping ActionCompletion) -> Void)?
+    var onCreateBuddyCircle: ((String, String?, @escaping ActionCompletion) -> Void)?
     var onCloseConversation: ((@escaping ActionCompletion) -> Void)?
     var onSendTypingPulse: ((String, @escaping ActionCompletion) -> Void)?
     var onSendRoomMessage: ((String, String, @escaping ActionCompletion) -> Void)?
@@ -541,6 +543,42 @@ final class NativeMilestoneOneViewModel: ObservableObject, @unchecked Sendable {
                 guard let self else { return }
                 self.processingCircleBuddyID = nil
                 self.consume(result)
+            }
+        }
+    }
+
+    // Creation lives natively too, so someone who has never opened the web app can
+    // still make their first circle — and drop the long-pressed buddy straight into it.
+    func createBuddyCircle(name: String, assignBuddyID: String?) async -> Bool {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            actionError = "Give the circle a name."
+            return false
+        }
+        guard let onCreateBuddyCircle else {
+            actionError = "Circles are still connecting."
+            return false
+        }
+        guard !isCreatingCircle else { return false }
+
+        actionError = nil
+        isCreatingCircle = true
+        return await withCheckedContinuation { continuation in
+            onCreateBuddyCircle(trimmed, assignBuddyID) { [weak self] result in
+                DispatchQueue.main.async {
+                    guard let self else {
+                        continuation.resume(returning: false)
+                        return
+                    }
+
+                    self.isCreatingCircle = false
+                    self.consume(result)
+                    if case .success(let response) = result {
+                        continuation.resume(returning: response.ok)
+                    } else {
+                        continuation.resume(returning: false)
+                    }
+                }
             }
         }
     }
@@ -875,6 +913,7 @@ private struct NativeMilestoneFieldLabel: View {
 private struct NativeBuddyListView: View {
     @ObservedObject var model: NativeMilestoneOneViewModel
     @State private var presenceEditor: NativePresenceEditorDestination?
+    @State private var circleCreator: NativeCircleCreatorDestination?
 
     var body: some View {
         configuredList
@@ -882,6 +921,9 @@ private struct NativeBuddyListView: View {
             .background(NativeMilestonePalette.background(isDark: model.state.isDark).ignoresSafeArea())
             .sheet(item: $presenceEditor) { destination in
                 NativePresenceEditorSheet(destination: destination, model: model)
+            }
+            .sheet(item: $circleCreator) { destination in
+                NativeCircleCreatorSheet(destination: destination, model: model)
             }
     }
 
@@ -896,7 +938,8 @@ private struct NativeBuddyListView: View {
             open: { model.openBuddy(buddy.id) },
             reply: { model.replyToAwayMessage(buddy) },
             knock: { model.sendKnock(buddyID: buddy.id) },
-            setCircle: { circleID in model.setBuddyCircle(buddyID: buddy.id, circleID: circleID) }
+            setCircle: { circleID in model.setBuddyCircle(buddyID: buddy.id, circleID: circleID) },
+            newCircle: { circleCreator = NativeCircleCreatorDestination(buddyID: buddy.id, buddyName: buddy.screenname) }
         )
         .listRowBackground(NativeMilestonePalette.card(isDark: model.state.isDark))
         .listRowSeparatorTint(NativeMilestonePalette.separator(isDark: model.state.isDark))
@@ -2343,6 +2386,98 @@ private struct NativePresenceEditorSheet: View {
     }
 }
 
+private struct NativeCircleCreatorDestination: Identifiable {
+    let id = UUID()
+    let buddyID: String?
+    let buddyName: String?
+}
+
+private struct NativeCircleCreatorSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject var model: NativeMilestoneOneViewModel
+    @State private var name: String = ""
+    @FocusState private var nameFocused: Bool
+
+    let destination: NativeCircleCreatorDestination
+
+    init(destination: NativeCircleCreatorDestination, model: NativeMilestoneOneViewModel) {
+        self.destination = destination
+        self.model = model
+    }
+
+    var body: some View {
+        NavigationView {
+            Form {
+                Section {
+                    TextField("Circle name", text: $name)
+                        .textInputAutocapitalization(.words)
+                        .autocorrectionDisabled()
+                        .focused($nameFocused)
+                        .submitLabel(.done)
+                        .onSubmit { save() }
+                } header: {
+                    Text("New circle")
+                } footer: {
+                    if let buddyName = destination.buddyName {
+                        Text("\(buddyName) will be added to this circle. Only you can see your circles.")
+                    } else {
+                        Text("Only you can see your circles.")
+                    }
+                }
+
+                if let error = model.actionError {
+                    Section {
+                        Label(error, systemImage: "exclamationmark.triangle.fill")
+                            .font(.footnote)
+                            .foregroundColor(.red)
+                    }
+                }
+            }
+            .navigationTitle("New Circle")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                        .disabled(model.isCreatingCircle)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button {
+                        save()
+                    } label: {
+                        if model.isCreatingCircle {
+                            ProgressView()
+                        } else {
+                            Text("Create")
+                        }
+                    }
+                    .disabled(isCreateDisabled)
+                }
+            }
+            .onAppear { nameFocused = true }
+        }
+        .tint(NativeMilestonePalette.gold)
+        .preferredColorScheme(model.state.isDark ? .dark : .light)
+    }
+
+    private var isCreateDisabled: Bool {
+        model.isCreatingCircle || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func save() {
+        guard !isCreateDisabled else { return }
+        let chosenName = name
+        Task {
+            let didCreate = await model.createBuddyCircle(
+                name: chosenName,
+                assignBuddyID: destination.buddyID
+            )
+            if didCreate {
+                dismiss()
+            }
+        }
+    }
+}
+
 private struct NativeCurrentUserCard: View {
     let state: NativeMilestoneOneState
 
@@ -2464,6 +2599,7 @@ private struct NativeBuddyRow: View {
     let reply: () -> Void
     let knock: () -> Void
     let setCircle: (String?) -> Void
+    let newCircle: () -> Void
 
     var body: some View {
         HStack(spacing: 13) {
@@ -2542,15 +2678,22 @@ private struct NativeBuddyRow: View {
                     }
                     .disabled(currentCircleID == circle.id)
                 }
-                Button {
-                    setCircle(nil)
-                } label: {
-                    Label(
-                        "Ungrouped",
-                        systemImage: currentCircleID == nil ? "checkmark.circle.fill" : "circle"
-                    )
+                if !circles.isEmpty {
+                    Button {
+                        setCircle(nil)
+                    } label: {
+                        Label(
+                            "Ungrouped",
+                            systemImage: currentCircleID == nil ? "checkmark.circle.fill" : "circle"
+                        )
+                    }
+                    .disabled(currentCircleID == nil)
                 }
-                .disabled(currentCircleID == nil)
+                Button {
+                    newCircle()
+                } label: {
+                    Label("New Circle…", systemImage: "plus.circle")
+                }
             }
         }
     }
