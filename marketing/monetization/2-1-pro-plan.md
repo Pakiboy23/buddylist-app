@@ -37,7 +37,7 @@ full theme + wallpaper library (`theme_key`/`wallpaper_key`) · unlimited away p
 
 ## Entitlement architecture
 
-- **DB:** migration `20260722160000_pro_entitlement.sql` (in repo, **not yet applied**) adds `users.is_pro` (default false), `pro_source` (`monthly|annual|founding`), `pro_since`, a partial index, and **revokes client `UPDATE` on those columns** so no member can self-promote.
+- **DB:** migration `20260722160000_pro_entitlement.sql` (in repo, **not yet applied**) adds `users.is_pro` (default false), `pro_source` (`monthly|annual|founding`), `pro_since`, a partial index, and a **`BEFORE INSERT OR UPDATE` trigger (`protect_pro_entitlement`)** that reverts any entitlement change from a non-service-role caller — so no member can self-promote via either their profile update or the signup insert. (A column `REVOKE` would be a no-op here: `authenticated` holds table-level `UPDATE` for `users_update_own`, which authorizes all columns; the trigger is the actual enforcement.)
 - **Write path:** service-role only, from a 2.1 receipt-validation edge function (RevenueCat webhook or StoreKit 2 + own `push-dispatch`-style function). Never trust the client; check server-side in RLS/functions.
 - **Client:** read `is_pro` to unlock cosmetic gates; soft-walls at point of intent (locked swatch, 21st saved message, 4th away preset, animated-icon option) + one persistent "H.I.M. Pro" row in `/account`.
 
