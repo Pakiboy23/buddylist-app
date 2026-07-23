@@ -1124,6 +1124,27 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         )
     }
 
+    fileprivate func nativeMilestoneCreateBuddyCircle(
+        name: String,
+        buddyID: String?,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.createBuddyCircle) {
+                return { ok: false, error: "Circle bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.createBuddyCircle(
+                name,
+                buddyID ? buddyID : null
+            );
+            """,
+            arguments: ["name": name, "buddyID": buddyID ?? ""],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
     fileprivate func nativeMilestoneCloseConversation(
         completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
     ) {
@@ -1477,6 +1498,9 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         }
         nativeMilestoneOneModel.onSetBuddyCircle = { [weak self] buddyID, circleID, completion in
             self?.nativeMilestoneSetBuddyCircle(buddyID: buddyID, circleID: circleID, completion: completion)
+        }
+        nativeMilestoneOneModel.onCreateBuddyCircle = { [weak self] name, buddyID, completion in
+            self?.nativeMilestoneCreateBuddyCircle(name: name, buddyID: buddyID, completion: completion)
         }
         nativeMilestoneOneModel.onCloseConversation = { [weak self] completion in
             self?.nativeMilestoneCloseConversation(completion: completion)
