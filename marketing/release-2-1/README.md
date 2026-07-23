@@ -74,12 +74,31 @@ run and **both pass**:
 
 ## Standing governance item (not release-blocking, needs founder action)
 
-The 2.1 features (Buddy Circles, Knock, Follow, mutual context, "Seen by N",
-away-message replies) all **post-date the claims register's last verification
+The 2.1 features all **post-date the claims register's last verification
 (2026-07-15)**. They are code-true, but by the register's own rule they need
-entries (drafts proposed as #25–28 across the marketing files) plus founder
-sign-off before any of the copy in these files ships publicly. This is fine for
-App Store "What's New"; it must clear before the campaign reuses the lines.
+register entries plus founder sign-off before any copy that names them ships
+publicly. **The register's scope explicitly includes App Store listing updates,
+so this gate covers the ASC "What's New" too** — it is *not* exempt (this aligns
+with `asc-submission.md` Gate 1, which requires founder sign-off before "What's
+New" is submitted). Nothing that names a new feature — store metadata or
+campaign copy — publishes until the addendum clears.
+
+**Complete list of new public claims requiring registration (canonical — supersedes
+the per-file subsets).** The individual marketing files each proposed a partial
+set (e.g. TikTok's "#25–28", Twitter's "three features"); those are incomplete.
+The full set used anywhere in this package is **six**:
+
+1. **Buddy Circles** — `buddy_circles` / owner-only RLS
+2. **Knock** — `enforce_knock_rules()`, buddies-only, 10-min cooldown
+3. **Follow** — `user_connections`, one-way presence gate
+4. **Mutual context** — `get_mutual_context` (used in the X launch thread too)
+5. **"Seen by N"** — aggregate count, never "read receipts" (DNC #5 carve-out)
+6. **Away-message replies** — `awayMessageReply.ts` (scripted in TikTok + ASC
+   "What's New"; missing from every per-file addendum draft)
+
+The founder/Brand Guardian should open register entries for all six with the
+evidence paths cited across these files before any of this copy — including the
+ASC "What's New" — goes live.
 
 ## Non-blocking notes carried from the specialists
 
