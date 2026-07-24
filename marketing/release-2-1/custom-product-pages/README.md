@@ -53,21 +53,31 @@ Ads, and the waitlist/seed drops. Reddit gets **no** CPP links (deliberate). An
 optional bounded bio-swap A/B test can compare store-conversion vs. web pageviews
 if desired. Full map in `cpp-channel-map.md`.
 
-## How to create the 4 CPPs
+## Status — created via API (2026-07-23)
 
-**ASC UI (reliable, ~2 min/page):** App Store Connect → H.I.M. → (left sidebar)
-**Custom Product Pages** → **(+)** → name it (e.g. "Sorted") → add the **en-US**
-localization → paste that page's **promotional text** (above) → add the ordered
-**screenshots** (real 2.1 UI per §2; a CPP needs its own screenshots) → optional
-**app preview** for CPP-1 → **Submit the CPP for review**. Once approved, copy its
-`?ppid=` URL from the detail page and hand it to the owning channel with the UTM
-appended.
+All four CPPs were **created in App Store Connect via the ASC REST API** with
+their promotional text staged. Each is `PREPARE_FOR_SUBMISSION` (draft), awaiting
+screenshots + submission.
 
-**Note on API automation:** the ASC REST `appCustomProductPages` create endpoint
-requires a version linkage at create-time (a circular-dependency quirk); creation
-was left to the UI rather than trial-writing against the production account. Promo
-text edits on an approved CPP publish without re-review; screenshot/preview
-changes require re-submitting the CPP for review.
+| CPP | ASC page id | Promo staged | State |
+|---|---|---|---|
+| Sorted | `f3c32019-fe92-4bfc-a0ed-3c5c33693c52` | ✅ 153 chars | PREPARE_FOR_SUBMISSION |
+| New City | `b33c3788-7503-4809-bd72-7eacce86b78f` | ✅ 158 chars | PREPARE_FOR_SUBMISSION |
+| Quiet Hello | `95bc6d08-a349-471a-b47f-e33a11e10bc3` | ✅ 159 chars | PREPARE_FOR_SUBMISSION |
+| Buddy List, Reborn | `3b2d7d52-f879-4628-8f95-792261e9bff2` | ✅ 161 chars | PREPARE_FOR_SUBMISSION |
+
+**Remaining per page (hands-on in ASC):** add the ordered **screenshots** (real
+2.1 UI per `cpp-strategy.md` §2; a CPP needs its own set — reuse the default
+listing's captured frames), optional **app preview** for CPP-1, then **Submit the
+CPP for review**. Once approved, copy the `?ppid=` URL from the CPP detail page and
+hand it to the owning channel with the UTM appended.
+
+**API create pattern (for the record):** the ASC `appCustomProductPages` create is
+a JSON:API "sidepost" — the page, its first version, and the en-US localization are
+created in a single POST, with the version and localization supplied as `included`
+resources linked by local ids in `${local-id}` format. Promo-text edits on an
+approved CPP publish without re-review; screenshot/preview changes require
+re-submitting that CPP for review.
 
 ## Dependencies & gating
 
