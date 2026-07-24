@@ -37,27 +37,32 @@ const HAS_CREDENTIALS = Boolean(AUTH_SCREENNAME && AUTH_PASSWORD);
 
 // ─── Device profiles ──────────────────────────────────────────────────────────
 
+// Dimensions are CSS points × deviceScaleFactor, so the app renders its real
+// MOBILE layout (not the desktop layout a raw wide viewport triggers) and the
+// PNG lands at the exact App Store physical pixel size for each device class.
+//   6.9": 440×956 @3x → 1320×2868   6.5": 428×926 @3x → 1284×2778
+//   5.5": 414×736 @3x → 1242×2208
 const DEVICES = [
   {
     id: 'iphone-6.9',
     label: '6.9" iPhone (16 Pro Max)',
-    width: 1320,
-    height: 2868,
-    deviceScaleFactor: 1,
+    width: 440,
+    height: 956,
+    deviceScaleFactor: 3,
   },
   {
     id: 'iphone-6.5',
     label: '6.5" iPhone (14 Plus / 13 Pro Max)',
-    width: 1284,
-    height: 2778,
-    deviceScaleFactor: 1,
+    width: 428,
+    height: 926,
+    deviceScaleFactor: 3,
   },
   {
     id: 'iphone-5.5',
     label: '5.5" iPhone (8 Plus)',
-    width: 1242,
-    height: 2208,
-    deviceScaleFactor: 1,
+    width: 414,
+    height: 736,
+    deviceScaleFactor: 3,
   },
 ];
 
@@ -774,6 +779,10 @@ async function main() {
       const context = await browser.newContext({
         viewport: { width: device.width, height: device.height },
         deviceScaleFactor: device.deviceScaleFactor,
+        isMobile: true,
+        hasTouch: true,
+        userAgent:
+          'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
       });
       const page = await context.newPage();
       const outDir = path.join(OUT_ROOT, device.id);
