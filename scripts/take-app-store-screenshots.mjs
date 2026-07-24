@@ -4,8 +4,17 @@
  * Captures App Store Connect screenshots for H.I.M. at the three required
  * device sizes. Unauthenticated screens (sign-in, sign-up, forgot-password)
  * are rendered from the live vite-preview server. Authenticated screens
- * (buddy list, DM, rooms) use real app data when credentials are provided,
- * otherwise fall back to pixel-faithful HTML mockups.
+ * (buddy list — which shows Buddy Circles; DM — which shows the Knock button;
+ * profile sheet with mutual context; away-message composer; chat rooms) use
+ * real app data when credentials are provided, otherwise fall back to
+ * pixel-faithful HTML mockups. Note: the native-Swift BuddyList/Circles/Knock
+ * hero surfaces still capture best from the iOS Simulator — see
+ * marketing/release-2-1/SCREENSHOT-CAPTURE-PROMPT.md.
+ *
+ * Device viewports emulate a real mobile device (CSS points × scale 3), so the
+ * app renders its full-screen mobile layout at exact App Store pixel sizes.
+ * All navigation uses 'domcontentloaded' + fixed waits, never 'networkidle'
+ * (the app's realtime websocket keeps the network from ever going idle).
  *
  * Output: screenshots/app-store/{device}/XX_screen-name.png
  *
@@ -617,14 +626,17 @@ async function captureScreens(page, device, outDir, baseUrl) {
   const { width: w, height: h } = device;
   const results = [];
 
-  async function shot(slug, url, waitFor = 'networkidle', extraWaitMs = 0) {
+  // NOTE: use 'domcontentloaded', never 'networkidle'. The app holds a Supabase
+  // realtime websocket open, so the network never goes idle and 'networkidle'
+  // hangs until timeout on every screen. Fixed waits below cover render/fonts.
+  async function shot(slug, url, waitFor = 'domcontentloaded', extraWaitMs = 0) {
     if (ONLY && !ONLY.includes(slug)) return;
     const filePath = path.join(outDir, `${slug}.png`);
     console.log(`    → ${slug}`);
     await page.goto(url, { waitUntil: waitFor, timeout: 20000 });
     if (extraWaitMs) await page.waitForTimeout(extraWaitMs);
-    // Wait for fonts / CSS
-    await page.waitForTimeout(800);
+    // Wait for fonts / CSS / first paint
+    await page.waitForTimeout(1500);
     await page.screenshot({ path: filePath, type: 'png' });
     const stat = await fs.stat(filePath);
     results.push({ slug, filePath, size: stat.size });
@@ -642,13 +654,13 @@ async function captureScreens(page, device, outDir, baseUrl) {
   }
 
   // ── 01 Sign-in ──
-  await shot('01_sign-in', baseUrl + '/', 'networkidle', 500);
+  await shot('01_sign-in', baseUrl + '/', 'domcontentloaded', 800);
 
   // ── 02 Sign-up (click the Create account tab) ──
   if (!ONLY || ONLY.includes('02_sign-up')) {
     const filePath = path.join(outDir, '02_sign-up.png');
     console.log(`    → 02_sign-up`);
-    await page.goto(baseUrl + '/', { waitUntil: 'networkidle', timeout: 20000 });
+    await page.goto(baseUrl + '/', { waitUntil: 'domcontentloaded', timeout: 20000 });
     await page.waitForTimeout(600);
     // Click the "Create account" tab
     await page.locator('button', { hasText: 'Create account' }).first().click();
@@ -662,7 +674,7 @@ async function captureScreens(page, device, outDir, baseUrl) {
   if (!ONLY || ONLY.includes('03_forgot-password')) {
     const filePath = path.join(outDir, '03_forgot-password.png');
     console.log(`    → 03_forgot-password`);
-    await page.goto(baseUrl + '/', { waitUntil: 'networkidle', timeout: 20000 });
+    await page.goto(baseUrl + '/', { waitUntil: 'domcontentloaded', timeout: 20000 });
     await page.waitForTimeout(600);
     await page.locator('button', { hasText: 'Forgot password?' }).first().click();
     await page.waitForTimeout(500);
@@ -676,7 +688,7 @@ async function captureScreens(page, device, outDir, baseUrl) {
     if (!ONLY || ONLY.includes('04_buddy-list')) {
       const filePath = path.join(outDir, '04_buddy-list.png');
       console.log(`    → 04_buddy-list (live)`);
-      await page.goto(BASE_URL + '/', { waitUntil: 'networkidle', timeout: 30000 });
+      await page.goto(BASE_URL + '/', { waitUntil: 'domcontentloaded', timeout: 30000 });
       await page.waitForTimeout(500);
       // Sign in
       await page.locator('input.ui-screenname').fill(AUTH_SCREENNAME);
@@ -713,6 +725,56 @@ async function captureScreens(page, device, outDir, baseUrl) {
     await shotHtml('05_direct-message', dmConversationMockup(w, h));
   }
 
+  // ── 07 Profile sheet with mutual context (opened from a DM header) ──
+  // Reliable: 'dm-header-open-profile' is a stable testid. The profile sheet
+  // renders the mutual-context card (shared rooms + mutual buddies).
+  if (HAS_CREDENTIALS && (!ONLY || ONLY.includes('07_profile-mutual'))) {
+    console.log(`    → 07_profile-mutual (live)`);
+    await page.goto(BASE_URL + '/hi-its-me', { waitUntil: 'domcontentloaded', timeout: 20000 });
+    await page.waitForTimeout(2000);
+    const dmRow = page.locator('[data-testid^="dm-row-"]').first();
+    if (await dmRow.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await dmRow.click();
+      await page.waitForTimeout(1800);
+      const openProfile = page.locator('[data-testid="dm-header-open-profile"]').first();
+      if (await openProfile.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await openProfile.click();
+        await page.waitForTimeout(2000);
+        const filePath = path.join(outDir, '07_profile-mutual.png');
+        await page.screenshot({ path: filePath, type: 'png' });
+        const stat = await fs.stat(filePath);
+        results.push({ slug: '07_profile-mutual', filePath, size: stat.size });
+      } else {
+        console.log('      (skip 07: profile-open control not visible — capture from simulator)');
+      }
+    } else {
+      console.log('      (skip 07: no DM row — open a buddy conversation first, or capture from simulator)');
+    }
+  }
+
+  // ── 08 Away-message composer (best-effort; falls back to a manual sim shot) ──
+  // The away/status composer has no stable testid; try a few label matches and
+  // skip cleanly if none is found (then capture it from the simulator instead).
+  if (HAS_CREDENTIALS && (!ONLY || ONLY.includes('08_away-message'))) {
+    console.log(`    → 08_away-message (live, best-effort)`);
+    await page.goto(BASE_URL + '/hi-its-me', { waitUntil: 'domcontentloaded', timeout: 20000 });
+    await page.waitForTimeout(2000);
+    const trigger = page
+      .getByRole('button', { name: /away message|set.*status|set.*away|edit.*status/i })
+      .or(page.locator('button', { hasText: /away message/i }))
+      .first();
+    if (await trigger.isVisible({ timeout: 2500 }).catch(() => false)) {
+      await trigger.click().catch(() => {});
+      await page.waitForTimeout(1500);
+      const filePath = path.join(outDir, '08_away-message.png');
+      await page.screenshot({ path: filePath, type: 'png' });
+      const stat = await fs.stat(filePath);
+      results.push({ slug: '08_away-message', filePath, size: stat.size });
+    } else {
+      console.log('      (skip 08: away-composer trigger not found — capture from simulator: tap your status → set away message)');
+    }
+  }
+
   // ── 06 Chat rooms ──
   if (HAS_CREDENTIALS) {
     if (!ONLY || ONLY.includes('06_chat-rooms')) {
@@ -726,7 +788,7 @@ async function captureScreens(page, device, outDir, baseUrl) {
         await page.waitForTimeout(1500);
       } else {
         // Fallback: navigate directly
-        await page.goto(BASE_URL + '/hi-its-me?tab=chat', { waitUntil: 'networkidle', timeout: 20000 });
+        await page.goto(BASE_URL + '/hi-its-me?tab=chat', { waitUntil: 'domcontentloaded', timeout: 20000 });
         await page.waitForTimeout(2000);
       }
       await page.screenshot({ path: filePath, type: 'png' });
@@ -833,3 +895,6 @@ async function main() {
 }
 
 await main();
+// The spawned preview server can keep the event loop alive after we're done,
+// which looks like a hang. Everything is captured by here, so exit cleanly.
+process.exit(0);
