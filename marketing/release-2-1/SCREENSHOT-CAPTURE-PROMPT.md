@@ -26,17 +26,24 @@ normal network — neither works in the headless cloud container.
 >
 > Two capture surfaces — do both:
 >
-> 1) WEB SCREENS (rooms, chat room, DM, away-message composer, profile w/ mutual
->    context, screenname setup) — automate with the repo script:
+> 1) WEB SCREENS — automate with the repo script (one command):
 >      PLAYWRIGHT_USER_A_SCREENNAME=<user1> PLAYWRIGHT_USER_A_PASSWORD=<pw1> \
 >        node scripts/take-app-store-screenshots.mjs
+>    It auto-captures, at all three device sizes: buddy list (04 — shows your
+>    Buddy Circles), DM (05 — shows the Knock button), profile + mutual context
+>    (07), away-message composer (08, best-effort — skips with a note if the
+>    trigger isn't found), chat rooms (06), and the unauth screens (01–03).
 >    Output: screenshots/app-store/iphone-6.9/. Verify each PNG is 1320×2868 and
 >    shows the FULL-SCREEN mobile layout (not a floating card). Run ONLY with
 >    credentials — never let the script's HTML-mockup fallback produce anything
->    that gets uploaded.
+>    that gets uploaded. The script uses domcontentloaded (not networkidle) and
+>    exits cleanly on its own — if it prints "Total: N screenshots", it's done.
 >
-> 2) NATIVE SCREENS that only exist in the Swift shell — presence-first BuddyList
->    hero, Buddy Circles, Knock — capture from the Simulator:
+> 2) NATIVE SCREENS — only what the script could NOT get: the native-Swift
+>    presence-first BuddyList hero, plus any of Buddy Circles / Knock / away-
+>    message you want as the native shell rather than the web view, and anything
+>    the script logged as skipped (08 if the away trigger wasn't found). Capture
+>    from the Simulator:
 >      - Boot "iPhone 16 Pro Max", build+run the app from current main.
 >      - Sign in as USER 1 (has real Circles); have USER 2 online.
 >      - Navigate to each screen and run:
@@ -56,8 +63,9 @@ normal network — neither works in the headless cloud container.
 > people. Portrait iPhone only. Keep "Seen by N" and Follow OUT of every frame.
 > Never let an internal "aim-*" asset filename appear on screen.
 >
-> When done: list every PNG with its dimensions and which of the 6 came out
-> clean vs. need a retake. Do NOT upload to App Store Connect — I'll review first.
+> When done: list every PNG (script output + simulator captures) with its
+> dimensions, and which of the 6 shots above are covered cleanly vs. still need a
+> retake. Do NOT upload to App Store Connect — I'll review the images first.
 
 ## Where the frames go
 
