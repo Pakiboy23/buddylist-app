@@ -27,30 +27,32 @@
 
 ## 2. Anomalies to resolve before Aug 3 (founder input needed)
 
-- **A1 — RESOLVED (founder, 2026-07-29): the mid-July signup spike was a founder Snapchat post.** That's the single strongest acquisition datum the product has: one personal Snap drove ~50 organic signups in two weeks — more than the entire flight's weekly base case — through a channel the campaign plan doesn't even include. Two consequences: (1) **targets:** the spike is one-off post-driven, not steady state, so growth-plan §1.4's base case stands unchanged — but the O2 stretch ceiling is clearly reachable; (2) **channel mix:** Snapchat (founder-personal) is recommended as an added support channel — near-zero production cost (mirror the IG status cards + screenname-drop CTA, `utm_source=snapchat` on any link), pending founder sign-off since it amends strategy §5. The activation half of the story is unchanged and now sharper: ~50 Snap-driven arrivals hit quiet rooms and left (11% activation) — the §7 aliveness work is what converts the next spike.
+- **A1 — RESOLVED (founder, 2026-07-29): the mid-July signup spike was a founder Snapchat post.** That's the single strongest acquisition datum the product has: one personal Snap drove ~50 organic signups in two weeks — more than the entire flight's weekly base case — through a channel the campaign plan doesn't even include. Two consequences: (1) **targets:** the spike is one-off post-driven, not steady state, so growth-plan §1.4's base case stands unchanged — but the O2 stretch ceiling is clearly reachable; (2) **channel mix:** Snapchat added as an official founder-personal support channel — signed off 2026-07-29, now strategy §5.9 (mirror the week's status card, spoken search CTA, ≥1 story/week). The activation half of the story is unchanged and now sharper: ~50 Snap-driven arrivals hit quiet rooms and left (11% activation) — the §7 aliveness work is what converts the next spike.
 - **A2 — every room is cold right now (0 messages in 7 days).** The O5 floor (every room ≥1 human message/day from week 2) starts from zero, not from warm. The §7 seed-community briefing and Sunday-Reset ritual aren't nice-to-haves this week — they're the difference between the campaign landing in a live product or a dead one.
 - **A3 — deletion pressure ~20% of recent signups.** The deletion log holds only a trailing ~30-day window (pruned by the retention job — lifetime churn is not reconstructible retroactively), and that window shows 11 deletions against 55 July signups: **double the O12 guardrail** (<10% of flight signups). Plausibly linked to A1 (drive-by signups deleting), but worth one founder look at `deleted_at` clustering vs the spike weeks. Consequence for measurement: O12 must be captured in every Monday scorecard and summed — a wrap-time query cannot see the whole flight (measurement plan §4 updated accordingly).
 
-## 3. Web analytics (Vercel) — NOT ENABLED, action required
+## 3. Web analytics (Vercel) — ENABLED and collecting (corrected 2026-07-29)
 
-`get_web_analytics` returns "Web Analytics not found" for hiitsme-app as of 2026-07-29: **collection has never been on, and O8 (6,000 UTM pageviews) is blind until it is.** Two-part fix, both trivial:
+**Correction:** Web Analytics IS enabled and has history (founder dashboard screenshot, 2026-07-29). The earlier "not found" came from the **API**, which is gated — most likely by plan tier and/or the team's **Overdue billing status** (visible on the dashboard; founder should clear it — overdue Vercel billing can eventually pause deployments). Until API access works, the weekly O8 read is a manual dashboard read recorded in the scorecard.
 
-1. ✅ **Done in this commit:** the insights script tag is added to `index.html` (deploys with the next push to main — Vercel builds from source per `vercel.json`).
-2. ⬜ **Founder, ~1 minute:** Vercel dashboard → `hiitsme-app` → Analytics tab → **Enable**. Then verify after next deploy: `https://hiitsme.app/_vercel/insights/script.js` returns 200.
+**Web baseline (dashboard, trailing 7 days as of Jul 29):** **5 visitors · 7 page views · 60% bounce.** Consistent with the ASC steady state — post-Snap attention went to App Store search, not the website. This near-zero floor is the O8 comparator.
 
-Baseline value: none (no history exists). O8 measurement starts the day analytics goes live — enable it BEFORE Aug 3 or the flight's web leg reads as zero forever.
+Notes: the manual insights script tag added to `index.html` (PR #90) coexists with Vercel's own injection — believed guard-safe, but **watch week-1 scorecard for doubled page-view counts vs visitors**; if counts look inflated, drop the manual tag. Native bundles load the tag as a harmless 404 (documented in the tag's comment).
 
-## 4. App Store Connect metrics (founder — record this week)
+## 4. App Store Connect metrics — RECORDED (founder screenshots, 2026-07-29; range Jun 29–Jul 28)
 
-Screenshot each into `marketing/campaign-2026-q3/reporting/` (filenames like `asc-baseline-<metric>-2026-07-xx.png`) or fill the table; consoles don't keep history forever:
-
-| ASC screen | Record |
+| Metric (trailing 30d) | Value |
 |---|---|
-| Analytics → Impressions by source type (Search/Browse/Web Referrer/App Referrer), trailing 30d | |
-| Analytics → Product page views + conversion rate by source type, trailing 30d | |
-| Analytics → Total downloads (first-time vs redownloads), trailing 30d | |
-| Analytics → Referring domains list | |
-| App version live right now + build (2.0.2? 2.1?) and the state of the July metadata submission (with keywords Option A or Variant C — record which was pasted) | |
+| Impressions | **115,163** — near-zero until Jul 15, spike ~30K/day Jul 16–19, decaying to 10–46/day by Jul 24–28 |
+| Product page views | **1,698** — same spike shape (peak ~500/day Jul 17–18); steady state ~4/day post-spike |
+| Total downloads | **121** — peak ~27/day Jul 17–19, small echo Jul 22, ~0–1/day by Jul 25–28 |
+| Page views by source (unique devices, daily avg) | **App Store Search 43 · App Referrer 1 · App Store Browse 1 · Web Referrer 0** |
+
+**Derived baseline funnel (whole 30d window):** impressions → page view ≈ **1.5%** · page view → download ≈ **7.1%** · downloads → signups ≈ **45–50%** (121 downloads vs 55 July signups — revises the strategy's ~60% install→signup derivation assumption downward).
+
+**Reading (2026-07-29):** the entire spike is the founder Snapchat event (A1), and the source mix is the surprise — viewers didn't tap a link, they **searched the App Store** (Search dominates page views; Web Referrer is zero). Two implications: (1) the compound search phrase + keyword field are the campaign's real conversion surface — the Variant C `hiitsme` keyword decision just got more important; (2) 115K impressions against 1.5% tap-through quantifies the name-collision cost: H.I.M. surfaced constantly in search results during the buzz and was rarely the result people tapped. **Steady-state baseline for flight deltas (Jul 24–28, the honest comparator): ~10–50 impressions/day, ~4 page views/day, ~0–1 downloads/day.**
+
+**Still to record:** official conversion-rate figure + first-time-vs-redownload split (Analytics → Metrics), referring domains list, and the §6 item-3 facts: live version/build + July metadata submission state + which keyword string was pasted (Option A vs Variant C).
 
 ## 5. Flight-readiness deltas since the campaign package shipped
 
@@ -59,9 +61,9 @@ Screenshot each into `marketing/campaign-2026-q3/reporting/` (filenames like `as
 
 ## 6. This week's remaining punch list (from README §Start-here, updated)
 
-1. ✅ A1 resolved (founder Snapchat post) → §1.4 base case confirmed unchanged; Snapchat support-channel addition awaiting founder yes (see A1)
-2. ⬜ Enable Vercel Web Analytics (§3 above) — before Aug 3
-3. ⬜ ASC baseline screens (§4 above) + confirm July metadata submission state
+1. ✅ A1 resolved (founder Snapchat post) → §1.4 base case confirmed unchanged; Snapchat signed off as strategy §5.9 (2026-07-29)
+2. ✅ Vercel Web Analytics — already enabled and collecting (§3, corrected 2026-07-29); web baseline recorded; NEW small item: clear the team's Overdue billing status
+3. 🟡 ASC baseline recorded (§4, founder screenshots 2026-07-29) — still open: conversion-rate + redownload split, referring domains, and live version / July-submission / keyword-string confirmation
 4. ⬜ Seed-community briefing: rituals, first-replier duty, ambassador ask — urgent given A2
 5. ⬜ Batch weeks 1–2 content (fold in `release-2-1/` social assets to avoid collisions)
 6. ⬜ Live subreddit-rules audit; waitlist email footer (unsubscribe + postal address)

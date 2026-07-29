@@ -52,6 +52,7 @@ Format: `https://hiitsme.app/?utm_source=<source>&utm_medium=<medium>&utm_campai
 | Reddit | `reddit` | `social` | `wk3-founder-post`, `wk5-builder-post` |
 | Press / earned | `press` | `referral` | outlet slug |
 | Waitlist email | `waitlist` | `email` | `drop-N` |
+| Snapchat (founder-personal, strategy §5.9) | `snapchat` | `social` | `wkN-snap` |
 
 Rules: every campaign link carries all four params (GH-09); `utm_campaign` is always `porchlight-q3`; sources are lowercase and never invented ad hoc; links in X live in bio/self-replies only (channel rule). Read weekly in Vercel Web Analytics → pageviews by UTM.
 

@@ -4,7 +4,7 @@
 **Prepared:** 2026-07-15 · **Role:** Content Creator (consolidation pass)
 **Sources:** every piece below is specified in full in its channel file — this calendar references them by their IDs (`twitter.md` T1–T15, `tiktok.md` C1–C6 + weekly table, `instagram.md` R1–R3 / CA–CC / S1–S3 + feed calendar §4, `reddit.md` §3 flight calendar, `app-store-optimization.md` §5 promo-text calendar, `copy-library.md` §6 email drops). Weekly themes from `strategy/campaign-strategy.md` §6.
 
-**Standing rituals, all six weeks (strategy §7.2):** Sunday Reset thread in-app every Sunday ~6pm ET (mirrored socially per channel plans) · Late Night kept warm nightly by seed night-owls · founder (Pakiboy24) signed on daily with a real away message · first-replier duty on every new user's first room message.
+**Standing rituals, all six weeks (strategy §7.2, plus §5.9 added 2026-07-29):** Snapchat story ≥1/wk mirroring the week's hero status card (founder-personal, spoken search CTA) · Sunday Reset thread in-app every Sunday ~6pm ET (mirrored socially per channel plans) · Late Night kept warm nightly by seed night-owls · founder (Pakiboy24) signed on daily with a real away message · first-replier duty on every new user's first room message.
 
 ---
 

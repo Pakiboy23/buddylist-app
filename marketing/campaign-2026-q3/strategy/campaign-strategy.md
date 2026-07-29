@@ -184,6 +184,13 @@ Grounded in baseline audit §1–2; respects editability constraints:
 
 Gifted access + genuine relationships with small queer creators (10K–100K), per trend research §d — read at H.I.M. budget as: founder DMs creators whose content already matches the segments, offers early access and a real conversation, no scripted placements, no contracts. FTC disclosure required if anything of value changes hands. Target: 3–5 genuine creator relationships by flight end; zero is acceptable, forced content is not.
 
+### 5.9 Snapchat — founder-personal support channel (added 2026-07-29, founder sign-off)
+
+- **Why it's in:** proven, not theorized — one founder Snap post in mid-July drove ~50 signups and the entire ASC spike (baseline snapshot A1/§4), more weekly volume than this plan's base case. Evidence quirk that shapes the playbook: viewers **searched the App Store** rather than tapping a link (Web Referrer = 0).
+- **Playbook:** founder-personal stories, not a brand account. ≥1 story/week riding that week's theme — mirror the IG status card or away-message meme of the week (zero new production). CTA is spoken/typed, matching how the audience actually behaves: "search 'H.I.M. friends not dates'" or the screenname drop (GH-04). When a link slot is used: `utm_source=snapchat&utm_medium=social&utm_campaign=porchlight-q3`.
+- **Rules:** all §5.1 member-consent and §2 vocabulary rules apply to any UI capture; honest smallness as always; no paid Snap spend this flight.
+- **KPI:** signups in the 72h window after each Snap (same window-read as GH-02) + ASC App Store Search source spikes on Snap days. Attribution stays triangulated — say so in the scorecard.
+
 ---
 
 ## 6. Flight plan — Aug 3 to Sep 13, 2026
