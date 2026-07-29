@@ -57,12 +57,14 @@ Rules: every campaign link carries all four params (GH-09); `utm_campaign` is al
 
 ## 4. Supabase SQL suite (the Monday pull)
 
-Run as one saved script during pre-flight week (strategy §9). Flight window used below: `2026-08-03T00:00:00Z` to `2026-09-13T23:59:59Z`. Schema verified against migrations at HEAD `35f76e2` (`users.last_active_at` from `20260320000011`, `room_messages(room_id, user_id, body, created_at)` from `20260509184623`, `buddies` from `20260320000001`).
+Run as one saved script during pre-flight week (strategy §9). Flight window used below: `2026-08-03T00:00:00Z` to `2026-09-13T23:59:59Z`.
+
+**CALIBRATED against production 2026-07-29** (see `reporting/baseline-snapshot-2026-07-27.md`): signup timestamps live in **`auth.users.created_at`** — `public.users` has no `created_at` column; the queries below use `auth.users` for every cohort read. Buddy relationships are stored MIXED (most pairs as two reciprocal rows, a few as one accepted row): unique relationships = reciprocal_edges/2 + one-way edges. `account_deletion_log.deleted_at` confirmed.
 
 ```sql
--- O2: signups per week
+-- O2: signups per week (auth.users is the signup source of truth)
 select date_trunc('week', created_at)::date as week, count(*) as signups
-from public.users
+from auth.users
 where created_at >= '2026-07-27'
 group by 1 order by 1;
 
@@ -73,7 +75,7 @@ where last_active_at >= now() - interval '7 days';
 
 -- O4: activation — % of flight cohort posting in a room within 72h of signup
 with cohort as (
-  select id, created_at from public.users
+  select id, created_at from auth.users
   where created_at between '2026-08-03' and '2026-09-13 23:59:59+00'
 ), first_post as (
   select user_id, min(created_at) as first_room_msg
@@ -104,13 +106,20 @@ where b.status = 'accepted'
     select 1 from public.users u
     where lower(u.screenname) = 'pakiboy24' and u.id in (b.user_id, b.buddy_id)
   );
--- Calibrate once before the first report: check whether an accepted
--- relationship stores one row or two (reciprocal). If two, halve the count
--- for "pairs" and note the convention in the scorecard.
+-- CALIBRATED 2026-07-29: storage is MIXED — most pairs are two reciprocal
+-- rows, a few are one-way accepted rows. Report unique relationships as
+-- (reciprocal_edges / 2) + one_way_edges:
+--   select
+--     count(*) filter (where exists (select 1 from public.buddies b2
+--       where b2.user_id=b.buddy_id and b2.buddy_id=b.user_id and b2.status='accepted'))/2
+--     + count(*) filter (where not exists (select 1 from public.buddies b2
+--       where b2.user_id=b.buddy_id and b2.buddy_id=b.user_id and b2.status='accepted'))
+--     as unique_relationships
+--   from public.buddies b where b.status='accepted' /* add flight-window + founder filters as above */;
 
 -- O7: push opt-in among new iOS-capable accounts
 with cohort as (
-  select id from public.users
+  select id from auth.users
   where created_at between '2026-08-03' and '2026-09-13 23:59:59+00'
 )
 select round(100.0 * count(distinct t.user_id) / nullif((select count(*) from cohort), 0), 1)
@@ -130,8 +139,7 @@ select
 select count(*) as deletions
 from public.account_deletion_log
 where deleted_at >= '2026-08-03';
--- If the timestamp column differs, adjust once during pre-flight calibration
--- (table created alongside 20260525000005_security_events.sql).
+-- Column name confirmed against production 2026-07-29.
 ```
 
 **Pre-flight calibration (once, week of Jul 27):** run the full suite, verify each query returns sanely against known state (buddies row convention, deletion-log column name), then freeze it as the Monday script. This is what turns the ~60–90 min scorecard block into ~15–20 min.
