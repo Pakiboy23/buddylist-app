@@ -31,14 +31,13 @@
 - **A2 — every room is cold right now (0 messages in 7 days).** The O5 floor (every room ≥1 human message/day from week 2) starts from zero, not from warm. The §7 seed-community briefing and Sunday-Reset ritual aren't nice-to-haves this week — they're the difference between the campaign landing in a live product or a dead one.
 - **A3 — deletion pressure ~20% of recent signups.** The deletion log holds only a trailing ~30-day window (pruned by the retention job — lifetime churn is not reconstructible retroactively), and that window shows 11 deletions against 55 July signups: **double the O12 guardrail** (<10% of flight signups). Plausibly linked to A1 (drive-by signups deleting), but worth one founder look at `deleted_at` clustering vs the spike weeks. Consequence for measurement: O12 must be captured in every Monday scorecard and summed — a wrap-time query cannot see the whole flight (measurement plan §4 updated accordingly).
 
-## 3. Web analytics (Vercel) — NOT ENABLED, action required
+## 3. Web analytics (Vercel) — ENABLED and collecting (corrected 2026-07-29)
 
-`get_web_analytics` returns "Web Analytics not found" for hiitsme-app as of 2026-07-29: **collection has never been on, and O8 (6,000 UTM pageviews) is blind until it is.** Two-part fix, both trivial:
+**Correction:** Web Analytics IS enabled and has history (founder dashboard screenshot, 2026-07-29). The earlier "not found" came from the **API**, which is gated — most likely by plan tier and/or the team's **Overdue billing status** (visible on the dashboard; founder should clear it — overdue Vercel billing can eventually pause deployments). Until API access works, the weekly O8 read is a manual dashboard read recorded in the scorecard.
 
-1. ✅ **Done in this commit:** the insights script tag is added to `index.html` (deploys with the next push to main — Vercel builds from source per `vercel.json`).
-2. ⬜ **Founder, ~1 minute:** Vercel dashboard → `hiitsme-app` → Analytics tab → **Enable**. Then verify after next deploy: `https://hiitsme.app/_vercel/insights/script.js` returns 200.
+**Web baseline (dashboard, trailing 7 days as of Jul 29):** **5 visitors · 7 page views · 60% bounce.** Consistent with the ASC steady state — post-Snap attention went to App Store search, not the website. This near-zero floor is the O8 comparator.
 
-Baseline value: none (no history exists). O8 measurement starts the day analytics goes live — enable it BEFORE Aug 3 or the flight's web leg reads as zero forever.
+Notes: the manual insights script tag added to `index.html` (PR #90) coexists with Vercel's own injection — believed guard-safe, but **watch week-1 scorecard for doubled page-view counts vs visitors**; if counts look inflated, drop the manual tag. Native bundles load the tag as a harmless 404 (documented in the tag's comment).
 
 ## 4. App Store Connect metrics — RECORDED (founder screenshots, 2026-07-29; range Jun 29–Jul 28)
 
@@ -63,7 +62,7 @@ Baseline value: none (no history exists). O8 measurement starts the day analytic
 ## 6. This week's remaining punch list (from README §Start-here, updated)
 
 1. ✅ A1 resolved (founder Snapchat post) → §1.4 base case confirmed unchanged; Snapchat signed off as strategy §5.9 (2026-07-29)
-2. ⬜ Enable Vercel Web Analytics (§3 above) — before Aug 3
+2. ✅ Vercel Web Analytics — already enabled and collecting (§3, corrected 2026-07-29); web baseline recorded; NEW small item: clear the team's Overdue billing status
 3. 🟡 ASC baseline recorded (§4, founder screenshots 2026-07-29) — still open: conversion-rate + redownload split, referring domains, and live version / July-submission / keyword-string confirmation
 4. ⬜ Seed-community briefing: rituals, first-replier duty, ambassador ask — urgent given A2
 5. ⬜ Batch weeks 1–2 content (fold in `release-2-1/` social assets to avoid collisions)
