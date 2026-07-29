@@ -97,8 +97,12 @@ from public.room_messages rm join public.rooms r on r.id = rm.room_id
 where rm.created_at >= now() - interval '7 days'
 group by 1, 2 order by 1, 2;
 
--- O6: newly accepted buddy pairs in flight (excluding founder edges)
-select count(*) as accepted_edges
+-- O6: newly accepted unique buddy relationships in flight (excluding founder edges)
+-- CALIBRATED 2026-07-29: storage is MIXED (most pairs two reciprocal rows, some
+-- one-way). Counting distinct unordered pairs is immune to the convention.
+-- A pair whose two rows straddle the window boundary counts once (fine at this scale).
+select count(distinct (least(b.user_id, b.buddy_id), greatest(b.user_id, b.buddy_id)))
+       as unique_new_relationships
 from public.buddies b
 where b.status = 'accepted'
   and b.created_at between '2026-08-03' and '2026-09-13 23:59:59+00'
@@ -106,16 +110,6 @@ where b.status = 'accepted'
     select 1 from public.users u
     where lower(u.screenname) = 'pakiboy24' and u.id in (b.user_id, b.buddy_id)
   );
--- CALIBRATED 2026-07-29: storage is MIXED — most pairs are two reciprocal
--- rows, a few are one-way accepted rows. Report unique relationships as
--- (reciprocal_edges / 2) + one_way_edges:
---   select
---     count(*) filter (where exists (select 1 from public.buddies b2
---       where b2.user_id=b.buddy_id and b2.buddy_id=b.user_id and b2.status='accepted'))/2
---     + count(*) filter (where not exists (select 1 from public.buddies b2
---       where b2.user_id=b.buddy_id and b2.buddy_id=b.user_id and b2.status='accepted'))
---     as unique_relationships
---   from public.buddies b where b.status='accepted' /* add flight-window + founder filters as above */;
 
 -- O7: push opt-in among new iOS-capable accounts
 with cohort as (
@@ -135,11 +129,14 @@ select
   (select count(*) from public.messages       where flagged_at  >= now() - interval '7 days') as dm_flags,
   (select count(*) from public.room_messages  where flagged_at  >= now() - interval '7 days') as room_flags;
 
--- O12: deletions during flight (guardrail: < 10% of O2 actual)
-select count(*) as deletions
+-- O12: deletions, trailing 7 days (guardrail: flight total < 10% of O2 actual)
+-- RETENTION WARNING (calibrated 2026-07-29): account_deletion_log is pruned at
+-- 30 days by run_retention_cleanup() (migration 20260525000004). A single
+-- wrap-time query CANNOT see the whole 6-week flight — capture this number in
+-- EVERY Monday scorecard and sum the weekly entries for the wrap.
+select count(*) as deletions_last_7d
 from public.account_deletion_log
-where deleted_at >= '2026-08-03';
--- Column name confirmed against production 2026-07-29.
+where deleted_at >= now() - interval '7 days';
 ```
 
 **Pre-flight calibration (once, week of Jul 27):** run the full suite, verify each query returns sanely against known state (buddies row convention, deletion-log column name), then freeze it as the Monday script. This is what turns the ~60–90 min scorecard block into ~15–20 min.

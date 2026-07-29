@@ -17,19 +17,19 @@
 | DM messages, week of Jul 20 | 11 | June–July total is ~20 |
 | iOS push-token holders | **4** | O7 reads against new-cohort opt-in from Aug 3 |
 | Safety: reports / blocks / flagged msgs | **0 / 0 / 0** | Clean slate for the O11 guardrail |
-| Account deletions (lifetime) | **11** | vs 78 lifetime accounts ≈ 14% — watch O12 (guardrail: <10% of flight signups) |
+| Account deletions, trailing ~30 days | **11** | NOT lifetime — the log is pruned at 30 days by `run_retention_cleanup()` (migration `20260525000004`). 11 in ~30d vs 55 July signups ≈ 20% deletion pressure — see A3 |
 
 ### Calibration verdicts (what the Monday scorecard must use)
 
 1. **Signup timestamps live in `auth.users.created_at`** — `public.users` has NO `created_at` column. Every cohort/signup query joins or reads `auth.users`. (Measurement plan §4 corrected in this same commit.)
 2. **Buddy-pair convention is MIXED:** accepted relationships are stored as 2 reciprocal rows for most pairs, but 7 accepted edges are one-way. Unique relationships = `reciprocal_edges / 2 + one_way_edges`. The scorecard reports unique relationships (26 today).
-3. **Deletion log confirmed:** `public.account_deletion_log.deleted_at` — the §4 query works as written.
+3. **Deletion log confirmed but WINDOWED:** `public.account_deletion_log.deleted_at` exists, and the table is pruned at 30 days by `run_retention_cleanup()`. O12 is a weekly-capture metric (trailing 7 days each Monday, summed for the wrap) — never a single flight-window query.
 
 ## 2. Anomalies to resolve before Aug 3 (founder input needed)
 
 - **A1 — the mid-July signup spike (31 + 20 in two weeks) with near-zero activation.** 51 accounts arrived in a fortnight while WAU stayed at 4 and rooms stayed silent. No attribution exists (baseline audit gap), so the source is unknown: v2.1 TestFlight/internal testers? A store-listing visibility change? Directory scrape/spam? **Identify the cause** — it decides whether O2's targets get re-anchored upward or these signups get discounted as non-organic. Until identified, the growth-plan §1.4 base case stays as written (re-anchor rule deliberately NOT applied to unexplained data).
 - **A2 — every room is cold right now (0 messages in 7 days).** The O5 floor (every room ≥1 human message/day from week 2) starts from zero, not from warm. The §7 seed-community briefing and Sunday-Reset ritual aren't nice-to-haves this week — they're the difference between the campaign landing in a live product or a dead one.
-- **A3 — lifetime deletion rate ~14%.** Above the O12 guardrail line. Plausibly linked to A1 (drive-by signups deleting), but worth one founder look at `account_deletion_log` timestamps vs the spike weeks.
+- **A3 — deletion pressure ~20% of recent signups.** The deletion log holds only a trailing ~30-day window (pruned by the retention job — lifetime churn is not reconstructible retroactively), and that window shows 11 deletions against 55 July signups: **double the O12 guardrail** (<10% of flight signups). Plausibly linked to A1 (drive-by signups deleting), but worth one founder look at `deleted_at` clustering vs the spike weeks. Consequence for measurement: O12 must be captured in every Monday scorecard and summed — a wrap-time query cannot see the whole flight (measurement plan §4 updated accordingly).
 
 ## 3. Web analytics (Vercel) — NOT ENABLED, action required
 
