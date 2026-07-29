@@ -27,7 +27,7 @@
 
 ## 2. Anomalies to resolve before Aug 3 (founder input needed)
 
-- **A1 — the mid-July signup spike (31 + 20 in two weeks) with near-zero activation.** 51 accounts arrived in a fortnight while WAU stayed at 4 and rooms stayed silent. No attribution exists (baseline audit gap), so the source is unknown: v2.1 TestFlight/internal testers? A store-listing visibility change? Directory scrape/spam? **Identify the cause** — it decides whether O2's targets get re-anchored upward or these signups get discounted as non-organic. Until identified, the growth-plan §1.4 base case stays as written (re-anchor rule deliberately NOT applied to unexplained data).
+- **A1 — RESOLVED (founder, 2026-07-29): the mid-July signup spike was a founder Snapchat post.** That's the single strongest acquisition datum the product has: one personal Snap drove ~50 organic signups in two weeks — more than the entire flight's weekly base case — through a channel the campaign plan doesn't even include. Two consequences: (1) **targets:** the spike is one-off post-driven, not steady state, so growth-plan §1.4's base case stands unchanged — but the O2 stretch ceiling is clearly reachable; (2) **channel mix:** Snapchat (founder-personal) is recommended as an added support channel — near-zero production cost (mirror the IG status cards + screenname-drop CTA, `utm_source=snapchat` on any link), pending founder sign-off since it amends strategy §5. The activation half of the story is unchanged and now sharper: ~50 Snap-driven arrivals hit quiet rooms and left (11% activation) — the §7 aliveness work is what converts the next spike.
 - **A2 — every room is cold right now (0 messages in 7 days).** The O5 floor (every room ≥1 human message/day from week 2) starts from zero, not from warm. The §7 seed-community briefing and Sunday-Reset ritual aren't nice-to-haves this week — they're the difference between the campaign landing in a live product or a dead one.
 - **A3 — deletion pressure ~20% of recent signups.** The deletion log holds only a trailing ~30-day window (pruned by the retention job — lifetime churn is not reconstructible retroactively), and that window shows 11 deletions against 55 July signups: **double the O12 guardrail** (<10% of flight signups). Plausibly linked to A1 (drive-by signups deleting), but worth one founder look at `deleted_at` clustering vs the spike weeks. Consequence for measurement: O12 must be captured in every Monday scorecard and summed — a wrap-time query cannot see the whole flight (measurement plan §4 updated accordingly).
 
@@ -59,10 +59,10 @@ Screenshot each into `marketing/campaign-2026-q3/reporting/` (filenames like `as
 
 ## 6. This week's remaining punch list (from README §Start-here, updated)
 
-1. ⬜ Resolve A1 (spike source) → then re-anchor or confirm §1.4 base case (record the decision here + growth-plan §1.4 same day)
+1. ✅ A1 resolved (founder Snapchat post) → §1.4 base case confirmed unchanged; Snapchat support-channel addition awaiting founder yes (see A1)
 2. ⬜ Enable Vercel Web Analytics (§3 above) — before Aug 3
 3. ⬜ ASC baseline screens (§4 above) + confirm July metadata submission state
 4. ⬜ Seed-community briefing: rituals, first-replier duty, ambassador ask — urgent given A2
 5. ⬜ Batch weeks 1–2 content (fold in `release-2-1/` social assets to avoid collisions)
 6. ⬜ Live subreddit-rules audit; waitlist email footer (unsubscribe + postal address)
-7. ⬜ Claims-register entries #25–28 for the v2.1 features + sign-off, if 2.1 features should appear in flight copy at all
+7. ✅ Claims-register entries #25–28 added + DNC #16 (H.I.M. Pro stays unmarketed) — founder signed off 2026-07-29; v2.1 features are now usable in flight copy per their phrasing guidance
