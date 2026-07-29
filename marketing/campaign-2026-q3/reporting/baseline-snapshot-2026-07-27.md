@@ -40,17 +40,20 @@
 
 Baseline value: none (no history exists). O8 measurement starts the day analytics goes live — enable it BEFORE Aug 3 or the flight's web leg reads as zero forever.
 
-## 4. App Store Connect metrics (founder — record this week)
+## 4. App Store Connect metrics — RECORDED (founder screenshots, 2026-07-29; range Jun 29–Jul 28)
 
-Screenshot each into `marketing/campaign-2026-q3/reporting/` (filenames like `asc-baseline-<metric>-2026-07-xx.png`) or fill the table; consoles don't keep history forever:
-
-| ASC screen | Record |
+| Metric (trailing 30d) | Value |
 |---|---|
-| Analytics → Impressions by source type (Search/Browse/Web Referrer/App Referrer), trailing 30d | |
-| Analytics → Product page views + conversion rate by source type, trailing 30d | |
-| Analytics → Total downloads (first-time vs redownloads), trailing 30d | |
-| Analytics → Referring domains list | |
-| App version live right now + build (2.0.2? 2.1?) and the state of the July metadata submission (with keywords Option A or Variant C — record which was pasted) | |
+| Impressions | **115,163** — near-zero until Jul 15, spike ~30K/day Jul 16–19, decaying to 10–46/day by Jul 24–28 |
+| Product page views | **1,698** — same spike shape (peak ~500/day Jul 17–18); steady state ~4/day post-spike |
+| Total downloads | **121** — peak ~27/day Jul 17–19, small echo Jul 22, ~0–1/day by Jul 25–28 |
+| Page views by source (unique devices, daily avg) | **App Store Search 43 · App Referrer 1 · App Store Browse 1 · Web Referrer 0** |
+
+**Derived baseline funnel (whole 30d window):** impressions → page view ≈ **1.5%** · page view → download ≈ **7.1%** · downloads → signups ≈ **45–50%** (121 downloads vs 55 July signups — revises the strategy's ~60% install→signup derivation assumption downward).
+
+**Reading (2026-07-29):** the entire spike is the founder Snapchat event (A1), and the source mix is the surprise — viewers didn't tap a link, they **searched the App Store** (Search dominates page views; Web Referrer is zero). Two implications: (1) the compound search phrase + keyword field are the campaign's real conversion surface — the Variant C `hiitsme` keyword decision just got more important; (2) 115K impressions against 1.5% tap-through quantifies the name-collision cost: H.I.M. surfaced constantly in search results during the buzz and was rarely the result people tapped. **Steady-state baseline for flight deltas (Jul 24–28, the honest comparator): ~10–50 impressions/day, ~4 page views/day, ~0–1 downloads/day.**
+
+**Still to record:** official conversion-rate figure + first-time-vs-redownload split (Analytics → Metrics), referring domains list, and the §6 item-3 facts: live version/build + July metadata submission state + which keyword string was pasted (Option A vs Variant C).
 
 ## 5. Flight-readiness deltas since the campaign package shipped
 
@@ -61,7 +64,7 @@ Screenshot each into `marketing/campaign-2026-q3/reporting/` (filenames like `as
 
 1. ✅ A1 resolved (founder Snapchat post) → §1.4 base case confirmed unchanged; Snapchat support-channel addition awaiting founder yes (see A1)
 2. ⬜ Enable Vercel Web Analytics (§3 above) — before Aug 3
-3. ⬜ ASC baseline screens (§4 above) + confirm July metadata submission state
+3. 🟡 ASC baseline recorded (§4, founder screenshots 2026-07-29) — still open: conversion-rate + redownload split, referring domains, and live version / July-submission / keyword-string confirmation
 4. ⬜ Seed-community briefing: rituals, first-replier duty, ambassador ask — urgent given A2
 5. ⬜ Batch weeks 1–2 content (fold in `release-2-1/` social assets to avoid collisions)
 6. ⬜ Live subreddit-rules audit; waitlist email footer (unsubscribe + postal address)
