@@ -52,7 +52,7 @@ Notes: the manual insights script tag added to `index.html` (PR #90) coexists wi
 
 **Reading (2026-07-29):** the entire spike is the founder Snapchat event (A1), and the source mix is the surprise — viewers didn't tap a link, they **searched the App Store** (Search dominates page views; Web Referrer is zero). Two implications: (1) the compound search phrase + keyword field are the campaign's real conversion surface — the Variant C `hiitsme` keyword decision just got more important; (2) 115K impressions against 1.5% tap-through quantifies the name-collision cost: H.I.M. surfaced constantly in search results during the buzz and was rarely the result people tapped. **Steady-state baseline for flight deltas (Jul 24–28, the honest comparator): ~10–50 impressions/day, ~4 page views/day, ~0–1 downloads/day.**
 
-**Submission state (founder screenshot, 2026-07-29):** iOS **version 2.1 staged in Prepare for Submission** — keywords field confirmed **Variant C** (`...,hiitsme,...`, 98/100), custom v2.1 What's New in place, **build 292 attached** (binary short-version reads 2.0.2 against the 2.1 store version — Apple permits the mismatch; cosmetic only, bump marketing version next archive). **NOT yet submitted** — target remains ~Jul 31 so review completes near Aug 3. Remaining before Submit: screenshots + caption decision, verify the four §1.4 description corrections are in the staged description, set promotional text v1.
+**Submission state (founder screenshot, 2026-07-29):** iOS **version 2.1 staged in Prepare for Submission** — keywords field confirmed **Variant C** (`...,hiitsme,...`, 98/100), custom v2.1 What's New in place, **build 292 attached** (binary short-version reads 2.0.2 against the 2.1 store version — Apple permits the mismatch; cosmetic only, bump marketing version next archive). **SUBMITTED — Waiting for Review as of 2026-07-29** (founder confirmation), two days ahead of the ~Jul 31 target; typical review latency puts approval right around the Aug 3 flight start. Promotional text v1 remains paste-able at any time (editable without review), so the Aug 3 promo task stands regardless of review timing.
 
 **Still open (optional):** official conversion-rate figure + first-time-vs-redownload split, referring domains list.
 
@@ -65,7 +65,7 @@ Notes: the manual insights script tag added to `index.html` (PR #90) coexists wi
 
 1. ✅ A1 resolved (founder Snapchat post) → §1.4 base case confirmed unchanged; Snapchat signed off as strategy §5.9 (2026-07-29)
 2. ✅ Vercel Web Analytics — already enabled and collecting (§3, corrected 2026-07-29); web baseline recorded; NEW small item: clear the team's Overdue billing status
-3. ✅ ASC baseline + submission state recorded (§4): v2.1 staged with Variant C keywords + build 292 — **founder must hit Submit by ~Jul 31** (screenshots + caption decision + description-corrections check first)
+3. ✅ ASC baseline recorded + **v2.1 SUBMITTED for review 2026-07-29** (Variant C keywords, build 292) — ahead of target; approval expected near flight start
 4. ⬜ Seed-community briefing: rituals, first-replier duty, ambassador ask — urgent given A2
 5. ⬜ Batch weeks 1–2 content (fold in `release-2-1/` social assets to avoid collisions)
 6. ⬜ Live subreddit-rules audit; waitlist email footer (unsubscribe + postal address)
