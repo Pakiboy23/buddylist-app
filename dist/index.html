@@ -126,6 +126,10 @@
         setTimeout(showRetry, 8000);
       })();
     </script>
+    <!-- Vercel Web Analytics (campaign measurement, baseline-audit §3.2-C).
+         Requires Web Analytics enabled on the Vercel project; the script
+         no-ops off-Vercel (native bundles load it as a 404 and ignore it). -->
+    <script defer src="/_vercel/insights/script.js"></script>
     <script type="module" crossorigin src="/assets/index-C12WMK9Y.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/index-CtauIgmb.css">
   </head>
