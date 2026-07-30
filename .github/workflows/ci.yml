@@ -75,6 +75,17 @@ jobs:
             exit 1
           fi
 
+      - name: Shipped bundle sanity (no placeholder backend)
+        run: |
+          # The iOS app ships the checked-in ios/App/App/public bundle verbatim
+          # (see ci_scripts/ci_post_clone.sh). A bundle built without VITE_SUPABASE_*
+          # env bakes placeholder.supabase.co and bricks every native build at boot
+          # (this shipped in #88 as builds 293-304). Fail fast if it ever reappears.
+          if grep -rq 'placeholder\.supabase\.co\|placeholder-anon-key' ios/App/App/public/assets/; then
+            echo "::error::ios/App/App/public was built WITHOUT Supabase env vars — placeholder backend baked in. Rebuild with VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY set, then 'npm run ios:sync' and commit."
+            exit 1
+          fi
+
 # Note: `lint` (eslint .) is intentionally NOT gated here — the repo currently
 # has ~3.5k pre-existing eslint errors, so blocking on it would reject every PR.
 # Clean those up incrementally, then add a `pnpm run lint` step to this job.
