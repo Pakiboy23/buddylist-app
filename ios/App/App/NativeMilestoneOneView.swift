@@ -325,6 +325,19 @@ final class NativeMilestoneOneViewModel: ObservableObject, @unchecked Sendable {
     var onToggleArchived: ((String, @escaping ActionCompletion) -> Void)?
     var onSignOut: ((@escaping ActionCompletion) -> Void)?
     var onShowWebAuth: ((String, @escaping ActionCompletion) -> Void)?
+    // Chrome-layer hand-offs (no bridge round-trip): the shell controller
+    // presents its own privacy sheet / routes the web view to the profile
+    // editor, so these fire-and-forget instead of taking a completion.
+    var onOpenPrivacy: (() -> Void)?
+    var onOpenOwnProfile: (() -> Void)?
+
+    func openPrivacyControls() {
+        onOpenPrivacy?()
+    }
+
+    func openOwnProfile() {
+        onOpenOwnProfile?()
+    }
 
     func apply(_ nextState: NativeMilestoneOneState) {
         state = nextState
@@ -1058,9 +1071,13 @@ private struct NativeBuddyListView: View {
     private var listContent: some View {
         List {
             Section {
-                NativeCurrentUserCard(state: model.state)
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
+                Button(action: model.openOwnProfile) {
+                    NativeCurrentUserCard(state: model.state)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Edit your profile")
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
 
                 NativePresenceControls(state: model.state) {
                     model.beginPresenceEditing()
@@ -1149,6 +1166,13 @@ private struct NativeBuddyListView: View {
             buddySections
 
             Section {
+                Button(action: model.openPrivacyControls) {
+                    Label("Privacy Controls", systemImage: "hand.raised.fill")
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
+                .foregroundColor(NativeMilestonePalette.gold)
+                .listRowBackground(NativeMilestonePalette.card(isDark: model.state.isDark))
+
                 Button(role: .destructive, action: model.signOut) {
                     Label("Sign Off", systemImage: "rectangle.portrait.and.arrow.right")
                         .frame(maxWidth: .infinity, alignment: .center)
@@ -2565,6 +2589,9 @@ private struct NativeCurrentUserCard: View {
                 .padding(.horizontal, 8)
                 .padding(.vertical, 5)
                 .background(NativeMilestonePalette.gold.opacity(0.14), in: Capsule())
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.semibold))
+                .foregroundColor(NativeMilestonePalette.muted(isDark: state.isDark))
         }
         .padding(16)
         .background(NativeMilestonePalette.card(isDark: state.isDark), in: RoundedRectangle(cornerRadius: 22, style: .continuous))

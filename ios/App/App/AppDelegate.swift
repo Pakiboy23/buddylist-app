@@ -606,11 +606,6 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         image: UIImage(systemName: "person.badge.plus"),
         selectedImage: UIImage(systemName: "person.badge.plus.fill")
     )
-    private lazy var profileTabItem = UITabBarItem(
-        title: "Profile",
-        image: UIImage(systemName: "person.crop.circle"),
-        selectedImage: UIImage(systemName: "person.crop.circle.fill")
-    )
     private var chromeState = HiItsMeShellChromeState(showsTopChrome: false, showsBottomChrome: false)
     private var hasPreparedBridgeForShutdown = false
     private var hasReceivedWebChromeState = false
@@ -778,8 +773,6 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
             dispatchCommand(type: "selectTab", valueKey: "tab", value: HiItsMeShellTab.chat.rawValue)
         case buddyTabItem:
             dispatchCommand(type: "selectTab", valueKey: "tab", value: HiItsMeShellTab.buddy.rawValue)
-        case profileTabItem:
-            dispatchCommand(type: "selectTab", valueKey: "tab", value: HiItsMeShellTab.profile.rawValue)
         default:
             return
         }
@@ -809,7 +802,9 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         case .buddy:
             tabBar.selectedItem = buddyTabItem
         case .profile:
-            tabBar.selectedItem = profileTabItem
+            // v2.2: the Profile tab is gone — profile lives in the Buddy List
+            // header card, so the web's profile section highlights that tab.
+            tabBar.selectedItem = imTabItem
         }
     }
 
@@ -1460,7 +1455,7 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
     private func configureTabBar() {
         tabBar.translatesAutoresizingMaskIntoConstraints = false
         tabBar.delegate = self
-        tabBar.items = [imTabItem, chatTabItem, buddyTabItem, profileTabItem]
+        tabBar.items = [imTabItem, chatTabItem, buddyTabItem]
         tabBar.selectedItem = imTabItem
         tabBar.itemPositioning = .automatic
 
@@ -1515,6 +1510,14 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         }
         nativeMilestoneOneModel.onSendBuddyRequest = { [weak self] userID, completion in
             self?.nativeMilestoneSendBuddyRequest(userID: userID, completion: completion)
+        }
+        nativeMilestoneOneModel.onOpenPrivacy = { [weak self] in
+            self?.presentPrivacySheet()
+        }
+        nativeMilestoneOneModel.onOpenOwnProfile = { [weak self] in
+            // Same command the removed Profile tab used to send; the web
+            // focuses its profile section and hides the native overlay.
+            self?.dispatchCommand(type: "selectTab", valueKey: "tab", value: HiItsMeShellTab.profile.rawValue)
         }
         nativeMilestoneOneModel.onSetBuddyCircle = { [weak self] buddyID, circleID, completion in
             self?.nativeMilestoneSetBuddyCircle(buddyID: buddyID, circleID: circleID, completion: completion)
@@ -1706,7 +1709,7 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         case .buddy:
             tabBar.selectedItem = buddyTabItem
         case .profile:
-            tabBar.selectedItem = profileTabItem
+            tabBar.selectedItem = imTabItem
         }
 
         imTabItem.badgeValue = chromeState.unreadDirectCount > 0

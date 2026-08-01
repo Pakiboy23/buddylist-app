@@ -10,6 +10,7 @@ import {
   requestAndRegisterPush,
   type PushPermissionStatus,
 } from '@/lib/nativePush';
+import { collectShellDiagnostics, describeShellDiagnostics } from '@/lib/shellDiagnostics';
 import { supabase } from '@/lib/supabase';
 import { logSecurityEvent } from '@/lib/securityEvent';
 
@@ -72,8 +73,13 @@ export default function AccountPage() {
 
   const showLegacyNotice = useMemo(() => isLegacyDerivedEmail(currentEmail), [currentEmail]);
 
+  const [diagnosticsLine, setDiagnosticsLine] = useState('');
+
   useEffect(() => {
     void checkPushPermission().then(setPushStatus);
+    void collectShellDiagnostics().then((diagnostics) => {
+      setDiagnosticsLine(describeShellDiagnostics(diagnostics));
+    });
   }, []);
 
   const handleEnableNotifications = useCallback(async () => {
@@ -568,6 +574,11 @@ export default function AccountPage() {
                 <span className="text-slate-400" aria-hidden>›</span>
               </button>
             ))}
+            {diagnosticsLine ? (
+              <p className="mt-3 select-all px-1 text-center text-[11px] leading-4 text-slate-400 dark:text-slate-500">
+                {diagnosticsLine}
+              </p>
+            ) : null}
           </div>
         </div>
       </RetroWindow>
