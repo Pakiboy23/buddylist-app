@@ -163,6 +163,7 @@ describe('native milestone-one request bridge', () => {
       respondToBuddyRequest,
       sendMessage: vi.fn(async () => ({ ok: true as const })),
       sendKnock,
+      sendBuddyRequest: vi.fn(async () => ({ ok: true as const })),
       closeConversation: vi.fn(async () => ({ ok: true as const })),
       sendTypingPulse: vi.fn(async () => ({ ok: true as const })),
       sendRoomMessage: vi.fn(async () => ({ ok: true as const })),

@@ -119,6 +119,17 @@ export interface NativeMilestoneOneBuddy {
   circleId?: string | null;
   /** True when the buddy's circle hides presence (owner-side control). */
   presenceHidden?: boolean;
+  /** Resolved buddy-icon URL, or null when the buddy has no photo. */
+  avatarUrl?: string | null;
+}
+
+/** Ranked "people you might know" entry for the native buddy-list rail. */
+export interface NativeMilestoneOneSuggestedBuddy {
+  id: string;
+  screenname: string;
+  avatarUrl?: string | null;
+  mutualCount?: number;
+  sharedRoomCount?: number;
 }
 
 export interface NativeMilestoneOneCircle {
@@ -233,6 +244,10 @@ export interface NativeMilestoneOneState {
   buddies?: NativeMilestoneOneBuddy[];
   circles?: NativeMilestoneOneCircle[];
   pendingRequests?: NativeMilestoneOnePendingRequest[];
+  /** Signed-in member's resolved buddy-icon URL for the header card. */
+  ownAvatarUrl?: string | null;
+  /** Ranked global suggestions rail; empty/omitted hides the rail. */
+  suggestedBuddies?: NativeMilestoneOneSuggestedBuddy[];
   onlineCount?: number;
   pendingRequestCount?: number;
   isRefreshing?: boolean;
@@ -279,6 +294,8 @@ export interface NativeMilestoneOneBridge {
   ): Promise<NativeMilestoneOneActionResult>;
   signOut(): Promise<NativeMilestoneOneActionResult>;
   showWebAuth(mode: 'signup' | 'forgotPassword'): Promise<NativeMilestoneOneActionResult>;
+  /** Send a buddy request to a suggested member (native suggestions rail). */
+  sendBuddyRequest(userId: string): Promise<NativeMilestoneOneActionResult>;
 }
 
 export interface NativeMilestoneOneRoomBridge {

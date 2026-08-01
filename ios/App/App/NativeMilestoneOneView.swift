@@ -25,6 +25,7 @@ struct NativeMilestoneOneBuddy: Decodable, Equatable, Identifiable {
     let isPinned: Bool
     let circleId: String?
     let presenceHidden: Bool?
+    var avatarUrl: String? = nil
 }
 
 struct NativeMilestoneOneCircle: Decodable, Equatable, Identifiable {
@@ -33,6 +34,14 @@ struct NativeMilestoneOneCircle: Decodable, Equatable, Identifiable {
     let showPresence: Bool
     let muted: Bool
     let memberCount: Int
+}
+
+struct NativeMilestoneOneSuggestedBuddy: Decodable, Equatable, Identifiable {
+    let id: String
+    let screenname: String
+    var avatarUrl: String? = nil
+    var mutualCount: Int? = nil
+    var sharedRoomCount: Int? = nil
 }
 
 struct NativeMilestoneOnePendingRequest: Decodable, Equatable, Identifiable {
@@ -150,6 +159,9 @@ struct NativeMilestoneOneState: Decodable, Equatable {
     let activeConversation: NativeMilestoneOneConversation?
     let rooms: [NativeMilestoneOneRoom]
     let activeRoomConversation: NativeMilestoneOneRoomConversation?
+    // v2.2 additions decode with safe fallbacks so older web payloads keep working.
+    var ownAvatarUrl: String? = nil
+    var suggestedBuddies: [NativeMilestoneOneSuggestedBuddy] = []
 
     static let loading = NativeMilestoneOneState(
         phase: .loading,
@@ -227,6 +239,8 @@ struct NativeMilestoneOneState: Decodable, Equatable {
         case activeConversation
         case rooms
         case activeRoomConversation
+        case ownAvatarUrl
+        case suggestedBuddies
     }
 
     init(from decoder: Decoder) throws {
@@ -251,6 +265,8 @@ struct NativeMilestoneOneState: Decodable, Equatable {
         activeConversation = try container.decodeIfPresent(NativeMilestoneOneConversation.self, forKey: .activeConversation)
         rooms = try container.decodeIfPresent([NativeMilestoneOneRoom].self, forKey: .rooms) ?? []
         activeRoomConversation = try container.decodeIfPresent(NativeMilestoneOneRoomConversation.self, forKey: .activeRoomConversation)
+        ownAvatarUrl = try container.decodeIfPresent(String.self, forKey: .ownAvatarUrl)
+        suggestedBuddies = try container.decodeIfPresent([NativeMilestoneOneSuggestedBuddy].self, forKey: .suggestedBuddies) ?? []
     }
 }
 
@@ -293,6 +309,9 @@ final class NativeMilestoneOneViewModel: ObservableObject, @unchecked Sendable {
     var onRespondToBuddyRequest: ((String, String, @escaping ActionCompletion) -> Void)?
     var onSendMessage: ((String, String, @escaping ActionCompletion) -> Void)?
     var onSendKnock: ((String, @escaping ActionCompletion) -> Void)?
+    var onSendBuddyRequest: ((String, @escaping ActionCompletion) -> Void)?
+    @Published var processingSuggestionID: String?
+    @Published var requestedSuggestionIDs: Set<String> = []
     var onSetBuddyCircle: ((String, String?, @escaping ActionCompletion) -> Void)?
     var onCreateBuddyCircle: ((String, String?, @escaping ActionCompletion) -> Void)?
     var onCloseConversation: ((@escaping ActionCompletion) -> Void)?
@@ -524,6 +543,27 @@ final class NativeMilestoneOneViewModel: ObservableObject, @unchecked Sendable {
                             self?.recentlyKnockedBuddyID = nil
                         }
                     }
+                }
+            }
+        }
+    }
+
+    func sendBuddyRequest(userID: String) {
+        guard let onSendBuddyRequest else {
+            actionError = "Buddy requests are still connecting."
+            return
+        }
+        guard processingSuggestionID == nil, !requestedSuggestionIDs.contains(userID) else { return }
+
+        actionError = nil
+        processingSuggestionID = userID
+        onSendBuddyRequest(userID) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.processingSuggestionID = nil
+                self.consume(result)
+                if case .success(let response) = result, response.ok {
+                    self.requestedSuggestionIDs.insert(userID)
                 }
             }
         }
@@ -1031,6 +1071,31 @@ private struct NativeBuddyListView: View {
                 }
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
+            }
+
+            if !model.state.suggestedBuddies.isEmpty {
+                Section {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 12) {
+                            ForEach(model.state.suggestedBuddies) { suggestion in
+                                NativeSuggestedBuddyCard(
+                                    suggestion: suggestion,
+                                    isDark: model.state.isDark,
+                                    isProcessing: model.processingSuggestionID == suggestion.id,
+                                    isRequested: model.requestedSuggestionIDs.contains(suggestion.id),
+                                    add: { model.sendBuddyRequest(userID: suggestion.id) }
+                                )
+                            }
+                        }
+                        .padding(.horizontal, 2)
+                        .padding(.vertical, 4)
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                } header: {
+                    Text("Suggested Buddies")
+                        .font(.caption.weight(.bold))
+                }
             }
 
             if let error = model.actionError {
@@ -2483,7 +2548,7 @@ private struct NativeCurrentUserCard: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            NativeBuddyAvatar(name: state.screenname ?? "Me", presence: state.currentPresence ?? .available, size: 52)
+            NativeBuddyAvatar(name: state.screenname ?? "Me", presence: state.currentPresence ?? .available, size: 52, avatarUrl: state.ownAvatarUrl)
             VStack(alignment: .leading, spacing: 4) {
                 Text(state.screenname ?? "H.I.M. member")
                     .font(.headline)
@@ -2605,7 +2670,7 @@ private struct NativeBuddyRow: View {
         HStack(spacing: 13) {
             Button(action: open) {
                 HStack(spacing: 13) {
-                    NativeBuddyAvatar(name: buddy.screenname, presence: buddy.presence, size: 44)
+                    NativeBuddyAvatar(name: buddy.screenname, presence: buddy.presence, size: 44, avatarUrl: buddy.avatarUrl)
                     VStack(alignment: .leading, spacing: 3) {
                         HStack(spacing: 6) {
                             Text(buddy.screenname)
@@ -2699,27 +2764,92 @@ private struct NativeBuddyRow: View {
     }
 }
 
+private struct NativeSuggestedBuddyCard: View {
+    let suggestion: NativeMilestoneOneSuggestedBuddy
+    let isDark: Bool
+    let isProcessing: Bool
+    let isRequested: Bool
+    let add: () -> Void
+
+    var body: some View {
+        VStack(spacing: 8) {
+            NativeBuddyAvatar(name: suggestion.screenname, presence: .offline, size: 44, avatarUrl: suggestion.avatarUrl)
+            Text(suggestion.screenname)
+                .font(.footnote.weight(.semibold))
+                .foregroundColor(NativeMilestonePalette.text(isDark: isDark))
+                .lineLimit(1)
+            Text(contextLine)
+                .font(.caption2)
+                .foregroundColor(NativeMilestonePalette.muted(isDark: isDark))
+                .lineLimit(1)
+            Button(action: add) {
+                if isProcessing {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Text(isRequested ? "Sent" : "Add")
+                }
+            }
+            .font(.caption.weight(.bold))
+            .buttonStyle(.bordered)
+            .tint(NativeMilestonePalette.gold)
+            .disabled(isProcessing || isRequested)
+            .accessibilityLabel(isRequested ? "Buddy request sent to \(suggestion.screenname)" : "Add \(suggestion.screenname) as a buddy")
+        }
+        .padding(12)
+        .frame(width: 124)
+        .background(NativeMilestonePalette.card(isDark: isDark), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private var contextLine: String {
+        let mutuals = suggestion.mutualCount ?? 0
+        let rooms = suggestion.sharedRoomCount ?? 0
+        if mutuals > 0 {
+            return "\(mutuals) mutual budd\(mutuals == 1 ? "y" : "ies")"
+        }
+        if rooms > 0 {
+            return "\(rooms) shared room\(rooms == 1 ? "" : "s")"
+        }
+        return "New on H.I.M."
+    }
+}
+
 private struct NativeBuddyAvatar: View {
     let name: String
     let presence: NativeMilestoneOnePresence
     let size: CGFloat
+    var avatarUrl: String? = nil
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
-            Circle()
-                .fill(
-                    LinearGradient(
-                        colors: [NativeMilestonePalette.gold.opacity(0.92), NativeMilestonePalette.lavender.opacity(0.82)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [NativeMilestonePalette.gold.opacity(0.92), NativeMilestonePalette.lavender.opacity(0.82)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
                     )
-                )
-                .frame(width: size, height: size)
-                .overlay {
-                    Text(initials)
-                        .font(.system(size: size * 0.33, weight: .black, design: .rounded))
-                        .foregroundColor(.white)
+                    .overlay {
+                        Text(initials)
+                            .font(.system(size: size * 0.33, weight: .black, design: .rounded))
+                            .foregroundColor(.white)
+                    }
+
+                // Real buddy icon when the member has one; the initials
+                // gradient underneath doubles as loading/error fallback.
+                if #available(iOS 15.0, *), let iconUrl = avatarUrl.flatMap(URL.init(string:)) {
+                    AsyncImage(url: iconUrl) { phase in
+                        if case .success(let image) = phase {
+                            image.resizable().scaledToFill()
+                        }
+                    }
+                    .frame(width: size, height: size)
+                    .clipShape(Circle())
                 }
+            }
+            .frame(width: size, height: size)
 
             Circle()
                 .fill(NativeMilestonePalette.presence(presence))

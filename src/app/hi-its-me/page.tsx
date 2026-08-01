@@ -34,7 +34,9 @@ import {
   aggregateBuddyRelationships,
   type BuddyRelationshipRecord,
 } from '@/lib/buddyRelationships';
-import { deleteBuddyIconFile, uploadBuddyIconFile, validateBuddyIconFile } from '@/lib/buddyIcon';
+import { deleteBuddyIconFile, resolveBuddyIconUrl, uploadBuddyIconFile, validateBuddyIconFile } from '@/lib/buddyIcon';
+import { sendOrAcceptBuddyRequest } from '@/lib/buddyRequest';
+import { fetchBuddySuggestions, type BuddySuggestion } from '@/lib/buddySuggestions';
 import {
   getRaw,
   getVersionedData,
@@ -3852,6 +3854,25 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     [awayMessage, currentUserPresenceState, idleSinceAt, lastActiveAt, screenname, statusMsg],
   );
 
+  // Ranked global suggestions for the native buddy-list rail (issue #94).
+  // Refreshes when the accepted-buddy set changes so accepted suggestions
+  // fall out of the rail on the next pass.
+  const [nativeBuddySuggestions, setNativeBuddySuggestions] = useState<BuddySuggestion[]>([]);
+  useEffect(() => {
+    if (!nativeShellActive || !userId) {
+      return;
+    }
+    let cancelled = false;
+    void fetchBuddySuggestions(8).then((suggestions) => {
+      if (!cancelled) {
+        setNativeBuddySuggestions(suggestions);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [nativeShellActive, userId, alphabeticallySortedAcceptedBuddies.length]);
+
   const nativeMilestoneOneBuddies = useMemo<NativeMilestoneOneBuddy[]>(
     () =>
       alphabeticallySortedAcceptedBuddies.map((buddy) => {
@@ -3870,6 +3891,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
           isPinned: preference.isPinned,
           circleId: circle?.id ?? null,
           presenceHidden,
+          avatarUrl: resolveBuddyIconUrl(buddy.buddy_icon_path ?? null),
         };
       }),
     [
@@ -7074,6 +7096,27 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       async showWebAuth() {
         return { ok: false, error: 'You are already signed in.' };
       },
+      async sendBuddyRequest(targetUserId: string) {
+        if (!userId) {
+          return { ok: false, error: 'Your session is still loading.' };
+        }
+        try {
+          const result = await sendOrAcceptBuddyRequest(userId, targetUserId);
+          if (!result.ok) {
+            return { ok: false, error: result.feedback || 'Could not send that buddy request.' };
+          }
+          setNativeBuddySuggestions((previous) =>
+            previous.filter((suggestion) => suggestion.id !== targetUserId),
+          );
+          await loadBuddies(userId);
+          return { ok: true };
+        } catch (error) {
+          return {
+            ok: false,
+            error: error instanceof Error ? error.message : 'Could not send that buddy request.',
+          };
+        }
+      },
     });
 
     return () => {
@@ -7152,7 +7195,15 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       currentPresence: currentUserPresenceState,
       currentPresenceDetail: currentUserPresenceDetail,
       currentAwayMessage: awayMessage || null,
+      ownAvatarUrl: resolveBuddyIconUrl(buddyIconPath ?? null),
       buddies: nativeMilestoneOneBuddies,
+      suggestedBuddies: nativeBuddySuggestions.map((suggestion) => ({
+        id: suggestion.id,
+        screenname: suggestion.screenname,
+        avatarUrl: suggestion.avatarUrl,
+        mutualCount: suggestion.mutualCount,
+        sharedRoomCount: suggestion.sharedRoomCount,
+      })),
       circles: nativeMilestoneOneCircles,
       pendingRequests: pendingRequests.map((request) => ({
         id: request.senderId,
@@ -7196,6 +7247,8 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     profileSheetBuddyId,
     profileSyncError,
     roomJoinError,
+    buddyIconPath,
+    nativeBuddySuggestions,
     screenname,
     shellIsDark,
     showAppLockSheet,
