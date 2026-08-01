@@ -1103,6 +1103,23 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         )
     }
 
+    fileprivate func nativeMilestoneSendBuddyRequest(
+        userID: String,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.sendBuddyRequest) {
+                return { ok: false, error: "Buddy requests bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.sendBuddyRequest(userId);
+            """,
+            arguments: ["userId": userID],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
     fileprivate func nativeMilestoneSetBuddyCircle(
         buddyID: String,
         circleID: String?,
@@ -1495,6 +1512,9 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         }
         nativeMilestoneOneModel.onSendKnock = { [weak self] buddyID, completion in
             self?.nativeMilestoneSendKnock(buddyID: buddyID, completion: completion)
+        }
+        nativeMilestoneOneModel.onSendBuddyRequest = { [weak self] userID, completion in
+            self?.nativeMilestoneSendBuddyRequest(userID: userID, completion: completion)
         }
         nativeMilestoneOneModel.onSetBuddyCircle = { [weak self] buddyID, circleID, completion in
             self?.nativeMilestoneSetBuddyCircle(buddyID: buddyID, circleID: circleID, completion: completion)

@@ -351,6 +351,9 @@ export default function Home() {
       async sendKnock() {
         return { ok: false, error: 'Sign in to send a Knock.' };
       },
+      async sendBuddyRequest() {
+        return { ok: false, error: 'Sign in to add buddies.' };
+      },
       async closeConversation() {
         return { ok: true };
       },
