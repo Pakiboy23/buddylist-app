@@ -86,7 +86,12 @@ as $$
   limit greatest(1, least(coalesce(limit_count, 8), 25));
 $$;
 
+-- Supabase default privileges grant EXECUTE to anon at create time; the
+-- PUBLIC revoke alone does not strip that explicit grant. Revoke it too —
+-- the auth.uid() guard already returns zero rows for anon, but this
+-- function should not be callable without a session at all.
 revoke all on function public.suggest_buddies(integer) from public;
+revoke execute on function public.suggest_buddies(integer) from anon;
 grant execute on function public.suggest_buddies(integer) to authenticated;
 
 comment on function public.suggest_buddies(integer) is
