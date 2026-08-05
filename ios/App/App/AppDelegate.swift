@@ -1039,21 +1039,36 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         )
     }
 
+    // The native overlay keeps rendering last-published state while the web
+    // view is remounting (cold start, resume-from-background reload, route
+    // transitions), so a tap can reach a web view whose bridge isn't
+    // registered yet. For user-facing list actions, wait for the bridge to
+    // come back before giving up instead of failing on the instant check —
+    // an instant fail here surfaced as "bridge unavailable" on device
+    // (founder repro, 2026-08-01, build 313).
+    private func milestoneBridgeJS(waitFor method: String, invoke expression: String) -> String {
+        """
+        const deadline = Date.now() + 4000;
+        while (!window.__hiItsMeNativeMilestoneOne?.\(method) && Date.now() < deadline) {
+            await new Promise((resolve) => setTimeout(resolve, 200));
+        }
+        if (!window.__hiItsMeNativeMilestoneOne?.\(method)) {
+            return { ok: false, error: "Still reconnecting to H.I.M. — try again in a moment." };
+        }
+        return await window.__hiItsMeNativeMilestoneOne.\(expression);
+        """
+    }
+
     fileprivate func nativeMilestoneRespondToBuddyRequest(
         senderID: String,
         action: String,
         completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
     ) {
         callBridgeMethod(
-            """
-            if (!window.__hiItsMeNativeMilestoneOne?.respondToBuddyRequest) {
-                return { ok: false, error: "Buddy-request bridge unavailable." };
-            }
-            return await window.__hiItsMeNativeMilestoneOne.respondToBuddyRequest(
-                senderID,
-                action
-            );
-            """,
+            milestoneBridgeJS(
+                waitFor: "respondToBuddyRequest",
+                invoke: "respondToBuddyRequest(senderID, action)"
+            ),
             arguments: ["senderID": senderID, "action": action],
             as: NativeMilestoneOneActionResponse.self,
             completion: completion
@@ -1086,12 +1101,7 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
     ) {
         callBridgeMethod(
-            """
-            if (!window.__hiItsMeNativeMilestoneOne?.sendKnock) {
-                return { ok: false, error: "Knock bridge unavailable." };
-            }
-            return await window.__hiItsMeNativeMilestoneOne.sendKnock(buddyID);
-            """,
+            milestoneBridgeJS(waitFor: "sendKnock", invoke: "sendKnock(buddyID)"),
             arguments: ["buddyID": buddyID],
             as: NativeMilestoneOneActionResponse.self,
             completion: completion
@@ -1103,12 +1113,7 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
     ) {
         callBridgeMethod(
-            """
-            if (!window.__hiItsMeNativeMilestoneOne?.sendBuddyRequest) {
-                return { ok: false, error: "Buddy requests bridge unavailable." };
-            }
-            return await window.__hiItsMeNativeMilestoneOne.sendBuddyRequest(userId);
-            """,
+            milestoneBridgeJS(waitFor: "sendBuddyRequest", invoke: "sendBuddyRequest(userId)"),
             arguments: ["userId": userID],
             as: NativeMilestoneOneActionResponse.self,
             completion: completion

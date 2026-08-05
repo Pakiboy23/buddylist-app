@@ -2805,10 +2805,12 @@ private struct NativeSuggestedBuddyCard: View {
                 .font(.footnote.weight(.semibold))
                 .foregroundColor(NativeMilestonePalette.text(isDark: isDark))
                 .lineLimit(1)
+                .minimumScaleFactor(0.75)
             Text(contextLine)
                 .font(.caption2)
                 .foregroundColor(NativeMilestonePalette.muted(isDark: isDark))
                 .lineLimit(1)
+                .minimumScaleFactor(0.75)
             Button(action: add) {
                 if isProcessing {
                     ProgressView()
