@@ -15,16 +15,18 @@ triangulated (ASC source buckets + Vercel UTMs + calendar timing) and directiona
 mid-flight — unified Buddy List + buddy photos + global Suggested Buddies +
 privacy row. Promo text v1 live since Aug 1. `suggest_buddies` RPC live since Aug 1.
 
-| Objective | Target (this week) | Actual | Trend vs baseline | Note |
+Targets below are the authoritative week-1 row from `strategy/measurement-plan.md` §2 (base case, growth-plan §1.4).
+
+| Objective | Target (week 1) | Actual | Trend vs baseline | Note |
 |---|---|---|---|---|
-| O2 signups | base case ~10–15/wk | **30** (wk of Aug 3) + 6 so far wk of Aug 10 | baseline steady state was 1–3/wk | Strongest non-spike week ever; cohort 36 through Mon AM |
+| O2 signups | 5–10 | **30** (Aug 3–9 closed cohort; +6 more by Mon AM) | baseline steady state was 1–3/wk | **3–6× the week-1 target**; strongest non-spike week ever |
 | O3 WAU (trailing 7d) | grow from 4 | **37** | **9×** baseline (4) | New cohort is coming back, not drive-by |
-| O4 activation ≤72h (room post, cohort) | ≥35% | **0.0%** (0/36) | baseline 11% | **MISS — see reading.** Cohort energy went to buddy graph, not rooms |
-| O5 room msgs/wk · daily floor | every room ≥1/day from wk 2 | **0 messages, all 7 rooms, all 7 days** | baseline also cold (A2) | **MISS.** Seed-community rituals (§7) still not running |
-| O6 new unique buddy relationships (non-founder) | directional | **6 accepted** | 26 total at baseline | Plus large pending backlog — see Suggested Buddies line |
+| O4 activation ≤72h (room post, Aug 3–9 cohort) | ≥35% | **0.0%** (0/30; every account has had its full 72h window) | baseline 11% | **MISS — see reading.** Cohort energy went to buddy graph, not rooms |
+| O5 room msgs/wk | ≥250 (daily per-room floor starts wk 2) | **0 messages, all 7 rooms, all 7 days** | baseline also cold (A2) | **MISS by the full target.** Seed-community rituals (§7) still not running |
+| O6 new unique buddy relationships (non-founder) | 4–6 | **5 accepted** (Aug 3–9) | 26 total at baseline | **ON target** — plus large pending backlog, see Suggested Buddies line |
 | **Suggested Buddies adoption (new, v2.2)** | n/a (feature shipped Aug 4) | **76 new buddy edges since Aug 4 vs 2 the prior week (38×), from 17 distinct requesters** | — | The standout product signal of the week |
-| O7 iOS push opt-in (new cohort) | ≥40% | **0%** (0/36) | 4 holders at baseline | Reads as a **product gap**, not user choice: no cold-launch prompt (Phase-4 audit deferred); opt-in lives buried on /account |
-| O8 UTM pageviews | dashboard read | *founder screenshot pending* | baseline 5 visitors/7 views | Vercel API plan-gated (retested Aug 5, 404) |
+| O7 iOS push opt-in (new cohort) | ≥40% | **0%** (0/36 incl. Mon-AM arrivals) | 4 holders at baseline | Reads as a **product gap**, not user choice: no cold-launch prompt (Phase-4 audit deferred); opt-in lives buried on /account |
+| O8 UTM pageviews | ~500 | *founder screenshot pending* | baseline 5 visitors/7 views | Vercel API plan-gated (retested Aug 5, 404) |
 | O9 store funnel vs snapshot | dashboard read | *founder screenshot pending* | Jul 24–28 steady state: ~10–50 imp/day, ~4 PPV/day, ~0–1 dl/day | ASC Analytics API not available to this key |
 
 **Store state (API, HTTP 200, Aug 10):** 2.2 READY_FOR_SALE (build 314) · promo text v1 confirmed live · **0 customer reviews** (review watch running daily 14:00Z).
@@ -36,7 +38,7 @@ deletions trailing 7d: **3** (vs 30 wk-1 signups = **10.0% — exactly at the O1
 
 ### Week-1 reading (three sentences)
 
-Acquisition and return are working — 30 signups in week 1 (10× the pre-spike steady state, no Snap-spike required) and WAU at 37 vs 4 — but **the cohort's energy went into the buddy graph, not the rooms**: Suggested Buddies drove 76 buddy edges in six days (vs 2 the week before) while all seven rooms sat at zero messages and activation-by-room-post reads 0%. Two consequences: (1) the O4/O5 definitions undercount real activation this flight — a member who sends buddy requests and DMs but never posts in a room is *activated* in every sense that matters to a friendship app; log a measurement-plan amendment proposal (activation-v2: room post OR buddy request sent OR DM sent within 72h) for founder sign-off rather than silently moving the goalposts. (2) The §7 aliveness work (seed briefing, first-replier duty, Sunday Reset ritual) is now the single highest-leverage founder action of week 2 — the rooms are the only dead surface in an otherwise warming product. Watch items: deletions sitting exactly at the 10% guardrail, and new-cohort push opt-in at 0% (product gap — no prompt in the first-run path; candidate for the next release).
+Acquisition and return are working — 30 signups in week 1 (3–6× the plan's week-1 target of 5–10, no Snap-spike required) and WAU at 37 vs 4 — but **the cohort's energy went into the buddy graph, not the rooms**: Suggested Buddies drove 76 buddy edges in six days (vs 2 the week before) and O6 landed on target, while all seven rooms sat at zero messages against a ≥250-message week-1 target and activation-by-room-post reads 0% (0/30, closed cohort, full 72h windows elapsed). Two consequences: (1) the O4/O5 definitions undercount real activation this flight — a member who sends buddy requests and DMs but never posts in a room is *activated* in every sense that matters to a friendship app; log a measurement-plan amendment proposal (activation-v2: room post OR buddy request sent OR DM sent within 72h) for founder sign-off rather than silently moving the goalposts. (2) The §7 aliveness work (seed briefing, first-replier duty, Sunday Reset ritual) is now the single highest-leverage founder action of week 2 — the rooms are the only dead surface in an otherwise warming product. Watch items: deletions sitting exactly at the 10% guardrail, and new-cohort push opt-in at 0% (product gap — no prompt in the first-run path; candidate for the next release).
 
 ### Founder inputs still needed for this entry
 
