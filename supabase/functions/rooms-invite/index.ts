@@ -90,7 +90,9 @@ Deno.serve(async (req: Request) => {
 
   // Upsert each valid buddy into the room
   const now = new Date().toISOString();
-  const inserts = validIds.map((uid) => ({ room_id: roomId, user_id: uid, joined_at: now, last_seen_at: now }));
+  // invited_by stamps the invite loop for GH-14. ignoreDuplicates means an
+  // existing membership is left untouched, so invited_by is never overwritten.
+  const inserts = validIds.map((uid) => ({ room_id: roomId, user_id: uid, joined_at: now, last_seen_at: now, invited_by: user.id }));
   const { error: insertError } = await admin
     .from('room_memberships')
     .upsert(inserts, { onConflict: 'room_id,user_id', ignoreDuplicates: true });
