@@ -4,7 +4,7 @@
  * Run on the Mac (normal network) from the repo root:
  *
  *   npm run build            # if dist/ is stale; produces the web bundle
- *   SN=pakiboy24 PW=Tester1234 node scripts/capture-app-store.mjs
+ *   SN="$SEED_SCREENNAME" PW="$SEED_PASSWORD" node scripts/capture-app-store.mjs
  *
  * Captures the authenticated WEB screens at the 6.9" App Store size
  * (1320×2868) using a real mobile viewport, logging in with the seed account.

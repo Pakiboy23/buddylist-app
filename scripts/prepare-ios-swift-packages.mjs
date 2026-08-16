@@ -18,6 +18,12 @@ const inAppPluginClasses = ['HiItsMeShellPlugin'];
 //   (same as the `path:` value in the main .target(...) declaration)
 // accessedAPIs: required-reason API categories needed by this plugin.
 //   Empty = no required-reason APIs used.
+// sourcePatches: upstream-source fixes to reapply after each copy. copyPackage()
+//   wipes the vendor dir and re-copies from node_modules, so hand-edits made
+//   directly in CapacitorVendor/ are silently reverted on the next `cap sync`
+//   (see f75ff15 "Restore vendored Xcode Cloud package fix"). Declaring them
+//   here makes them survive, and a stale `find` becomes a loud build failure
+//   instead of a reappearing warning.
 const packages = [
   {
     source: path.join(repoRoot, 'node_modules', '@aparajita', 'capacitor-biometric-auth'),
@@ -32,6 +38,15 @@ const packages = [
     packageName: 'CapacitorApp',
     privacySourceDir: 'ios/Sources/AppPlugin',
     accessedAPIs: [],
+    sourcePatches: [
+      {
+        file: 'ios/Sources/AppPlugin/AppPlugin.swift',
+        // preferredLocalizations.first is String?, and passing an optional into
+        // a [String: Any] call.resolve() warns under Swift 6.
+        find: '"value": Bundle.main.preferredLocalizations.first\n',
+        replace: '"value": Bundle.main.preferredLocalizations.first ?? ""\n',
+      },
+    ],
   },
   {
     source: path.join(repoRoot, 'node_modules', '@capacitor', 'haptics'),
@@ -53,6 +68,17 @@ const packages = [
     packageName: 'CapacitorPushNotifications',
     privacySourceDir: 'ios/Sources/PushNotificationsPlugin',
     accessedAPIs: [],
+    sourcePatches: [
+      {
+        file: 'ios/Sources/PushNotificationsPlugin/PushNotificationsHandler.swift',
+        // .alert is deprecated since iOS 14; .banner + .list is the replacement
+        // pair (heads-up banner, plus an entry in Notification Centre).
+        find: '                    presentationOptions.insert(.alert)\n',
+        replace:
+          '                    presentationOptions.insert(.banner)\n' +
+          '                    presentationOptions.insert(.list)\n',
+      },
+    ],
   },
   {
     source: path.join(repoRoot, 'node_modules', '@capawesome', 'capacitor-badge'),
@@ -69,6 +95,26 @@ async function copyPackage(source, destination) {
   await mkdir(destination, { recursive: true });
   await cp(path.join(source, 'Package.swift'), path.join(destination, 'Package.swift'));
   await cp(path.join(source, 'ios'), path.join(destination, 'ios'), { recursive: true });
+}
+
+async function applySourcePatches(destination, pkg) {
+  for (const patch of pkg.sourcePatches ?? []) {
+    const target = path.join(destination, patch.file);
+    const original = await readFile(target, 'utf8');
+
+    if (original.includes(patch.replace)) continue; // upstream adopted it
+
+    if (!original.includes(patch.find)) {
+      throw new Error(
+        `Source patch for ${pkg.packageName} no longer applies: could not find the expected ` +
+          `text in ${patch.file}. The upstream plugin changed — re-check the patch in ` +
+          `scripts/prepare-ios-swift-packages.mjs against the new source.`,
+      );
+    }
+
+    await writeFile(target, original.replaceAll(patch.find, patch.replace));
+    console.log(`  patched ${patch.file}`);
+  }
 }
 
 function buildPrivacyManifest(accessedAPIs) {
@@ -163,6 +209,7 @@ async function main() {
   for (const pkg of packages) {
     const destination = path.join(vendorRoot, pkg.vendorDir);
     await copyPackage(pkg.source, destination);
+    await applySourcePatches(destination, pkg);
     await applyPrivacyManifest(destination, pkg);
     console.log(`Vendored ${pkg.packageName} -> ${path.relative(repoRoot, destination)}`);
   }
