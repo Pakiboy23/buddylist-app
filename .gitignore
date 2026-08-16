@@ -28,6 +28,8 @@
 *.pem
 .tools/
 /.claude/worktrees/
+.codex/
+.xhawk/
 
 # debug
 npm-debug.log*
@@ -49,3 +51,25 @@ next-env.d.ts
 
 # generated artifacts
 /artifacts
+
+# App Store screenshots (large PNGs — upload to ASC manually, do not commit)
+/screenshots/app-store
+
+# Android build artifacts (keep android/ source, exclude build outputs)
+/android/app/build/
+/android/build/
+/android/.gradle/
+/android/app/.cxx/
+/android/local.properties
+/android/capacitor-cordova-android-plugins/
+
+# iOS build artifacts (Xcode derived data)
+/ios/build/
+
+# Research / documentation PDFs (do not commit)
+*.pdf
+
+# App Store Connect API keys (NEVER commit — these grant App Manager access)
+*.p8
+AuthKey_*.p8
+/fastlane/.keys/

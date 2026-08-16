@@ -1,14 +1,43 @@
 import UIKit
 import Capacitor
+import SwiftUI
 import WebKit
 
+@available(iOS 26.0, *)
+fileprivate struct HiItsMeLiquidGlassDockBackground: View {
+    let isDark: Bool
+
+    var body: some View {
+        // Rectangle with explicit fill instead of Color.clear: gives SwiftUI a
+        // concrete geometry instead of a layout-flexible placeholder. .capsule
+        // matches the dock pill shape without needing a GeometryReader to
+        // resolve sizes (GeometryReader inside a UIHostingController.contentView
+        // can resolve to .zero on the first layout pass, locking SwiftUI).
+        let tint = Color(uiColor: isDark ? .himBg2 : .himLightBg2)
+            .opacity(isDark ? 0.18 : 0.12)
+
+        Rectangle()
+            .fill(Color.clear)
+            .glassEffect(.regular.tint(tint), in: .capsule)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+}
+
 fileprivate extension UIColor {
-    static let himBg = UIColor(red: 19 / 255, green: 16 / 255, blue: 14 / 255, alpha: 1)
-    static let himBg2 = UIColor(red: 29 / 255, green: 25 / 255, blue: 22 / 255, alpha: 1)
-    static let himBg3 = UIColor(red: 38 / 255, green: 33 / 255, blue: 24 / 255, alpha: 1)
-    static let himText = UIColor(red: 247 / 255, green: 240 / 255, blue: 232 / 255, alpha: 1)
-    static let himMuted = UIColor(red: 156 / 255, green: 142 / 255, blue: 130 / 255, alpha: 1)
-    static let himRose = UIColor(red: 232 / 255, green: 96 / 255, blue: 138 / 255, alpha: 1)
+    // Dark mode — matches CSS radial-gradient midpoint (#1A1F3A at 38%)
+    static let himBg = UIColor(red: 26 / 255.0, green: 31 / 255.0, blue: 58 / 255.0, alpha: 1)
+    static let himBg2 = UIColor(red: 21 / 255.0, green: 26 / 255.0, blue: 48 / 255.0, alpha: 1)
+    static let himBg3 = UIColor(red: 15 / 255.0, green: 20 / 255.0, blue: 36 / 255.0, alpha: 1)
+    static let himText = UIColor(red: 247 / 255.0, green: 240 / 255.0, blue: 232 / 255.0, alpha: 1)
+    static let himMuted = UIColor(red: 156 / 255.0, green: 142 / 255.0, blue: 130 / 255.0, alpha: 1)
+    // Light mode — matches CSS radial-gradient midpoint (#F5F1E8 at 38%)
+    static let himLightBg = UIColor(red: 245 / 255.0, green: 241 / 255.0, blue: 232 / 255.0, alpha: 1)
+    static let himLightBg2 = UIColor(red: 237 / 255.0, green: 231 / 255.0, blue: 217 / 255.0, alpha: 1)
+    static let himLightText = UIColor(red: 26 / 255, green: 26 / 255, blue: 26 / 255, alpha: 1)
+    static let himLightMuted = UIColor(red: 107 / 255, green: 107 / 255, blue: 107 / 255, alpha: 1)
+    // Brand: primary accent. Mirrors `--chiraag` (#E8A23A) in src/app/globals.css.
+    static let himChiraag = UIColor(red: 232 / 255, green: 162 / 255, blue: 58 / 255, alpha: 1)
     static let himGold = UIColor(red: 212 / 255, green: 150 / 255, blue: 58 / 255, alpha: 1)
     static let himGreen = UIColor(red: 78 / 255, green: 201 / 255, blue: 122 / 255, alpha: 1)
     static let himLavender = UIColor(red: 167 / 255, green: 139 / 255, blue: 250 / 255, alpha: 1)
@@ -46,6 +75,7 @@ fileprivate enum HiItsMeShellAction: String, Decodable {
     case openSaved
     case openAdd
     case openMenu
+    case openAccount
     case openPrivacy
     case openAdminReset
     case signOff
@@ -76,9 +106,9 @@ fileprivate struct HiItsMeShellChromeState: Decodable, Equatable {
         tabBarVisibility: HiItsMeShellTabBarVisibility = .visible,
         leadingAction: HiItsMeShellAction? = nil,
         trailingActions: [HiItsMeShellAction] = [],
-        accentTone: HiItsMeShellAccentTone = .blue,
+        accentTone: HiItsMeShellAccentTone = .amber,
         canGoBack: Bool = false,
-        isDark: Bool = false,
+        isDark: Bool = true,
         isAdminUser: Bool = false,
         unreadDirectCount: Int = 0,
         showsTopChrome: Bool = true,
@@ -133,7 +163,7 @@ fileprivate struct HiItsMeShellChromeState: Decodable, Equatable {
         leadingAction = try container.decodeIfPresent(HiItsMeShellAction.self, forKey: .leadingAction)
         trailingActions = try container.decodeIfPresent([HiItsMeShellAction].self, forKey: .trailingActions)
             ?? []
-        accentTone = try container.decodeIfPresent(HiItsMeShellAccentTone.self, forKey: .accentTone) ?? .blue
+        accentTone = try container.decodeIfPresent(HiItsMeShellAccentTone.self, forKey: .accentTone) ?? .amber
         canGoBack = try container.decodeIfPresent(Bool.self, forKey: .canGoBack) ?? false
         isDark = try container.decodeIfPresent(Bool.self, forKey: .isDark) ?? false
         isAdminUser = try container.decodeIfPresent(Bool.self, forKey: .isAdminUser) ?? false
@@ -439,7 +469,6 @@ class HiItsMeBridgeViewController: CAPBridgeViewController {
 
         installMediaTrackingIfNeeded()
         webView.evaluateJavaScript(mediaTeardownScript, completionHandler: nil)
-        webView.stopLoading()
     }
 
     func tearDownWebView() {
@@ -448,6 +477,7 @@ class HiItsMeBridgeViewController: CAPBridgeViewController {
         }
 
         prepareForMediaShutdown()
+        webView.stopLoading()
         webView.navigationDelegate = nil
         webView.uiDelegate = nil
         webView.scrollView.delegate = nil
@@ -477,6 +507,7 @@ class HiItsMeShellPlugin: CAPPlugin, CAPBridgedPlugin {
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "isAvailable", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setChromeState", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setMilestoneOneState", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getPushEnvironment", returnType: CAPPluginReturnPromise)
     ]
 
@@ -485,8 +516,12 @@ class HiItsMeShellPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     @objc func isAvailable(_ call: CAPPluginCall) {
+        // Only report available when the native shell view controller is actually
+        // hosting the bridge. If it isn't the root (e.g. a stock Capacitor build or
+        // a packaging regression), the web layer must keep rendering its own chrome
+        // so the user is never left without navigation.
         call.resolve([
-            "available": true,
+            "available": shellController != nil,
             "platform": "ios"
         ])
     }
@@ -508,6 +543,23 @@ class HiItsMeShellPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
+    @objc func setMilestoneOneState(_ call: CAPPluginCall) {
+        guard let shellController else {
+            call.unavailable("Native shell is not ready.")
+            return
+        }
+
+        do {
+            let state = try call.decode(NativeMilestoneOneState.self)
+            DispatchQueue.main.async {
+                shellController.applyMilestoneOneState(state)
+                call.resolve()
+            }
+        } catch {
+            call.reject("Invalid milestone-one state.", nil, error)
+        }
+    }
+
     @objc func getPushEnvironment(_ call: CAPPluginCall) {
         var payload: JSObject = [:]
         payload["environment"] = resolveSignedPushEnvironment() ?? NSNull()
@@ -518,10 +570,9 @@ class HiItsMeShellPlugin: CAPPlugin, CAPBridgedPlugin {
 @objc(HiItsMeShellViewController)
 class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
     private let bridgeViewController = HiItsMeBridgeViewController()
+    private let nativeMilestoneOneModel = NativeMilestoneOneViewModel()
     private let topChromeView = UIVisualEffectView(effect: nil)
-    private let bottomChromeView = UIVisualEffectView(effect: nil)
     private let topDockView = UIVisualEffectView(effect: nil)
-    private let bottomDockView = UIVisualEffectView(effect: nil)
     private let headerGradientView = UIView()
     private let headerGradientLayer = CAGradientLayer()
     private let navigationBar = UINavigationBar(frame: .zero)
@@ -541,34 +592,35 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         return stackView
     }()
     private lazy var imTabItem = UITabBarItem(
-        title: "IM",
-        image: UIImage(systemName: "message.fill"),
-        selectedImage: UIImage(systemName: "message.fill")
+        title: "Buddy List",
+        image: UIImage(systemName: "person.2.fill"),
+        selectedImage: UIImage(systemName: "person.2.fill")
     )
     private lazy var chatTabItem = UITabBarItem(
-        title: "Chat",
+        title: "Rooms",
         image: UIImage(systemName: "bubble.left.and.bubble.right.fill"),
         selectedImage: UIImage(systemName: "bubble.left.and.bubble.right.fill")
     )
     private lazy var buddyTabItem = UITabBarItem(
-        title: "Buddy",
+        title: "Find",
         image: UIImage(systemName: "person.badge.plus"),
         selectedImage: UIImage(systemName: "person.badge.plus.fill")
     )
-    private lazy var profileTabItem = UITabBarItem(
-        title: "Profile",
-        image: UIImage(systemName: "person.crop.circle"),
-        selectedImage: UIImage(systemName: "person.crop.circle.fill")
-    )
-    private var chromeState = HiItsMeShellChromeState()
+    private var chromeState = HiItsMeShellChromeState(showsTopChrome: false, showsBottomChrome: false)
     private var hasPreparedBridgeForShutdown = false
+    private var hasReceivedWebChromeState = false
+    private var startupChromeFallbackWorkItem: DispatchWorkItem?
+    private var liquidGlassDockHostingController: UIViewController?
+    private var nativeMilestoneOneHostingController: UIHostingController<NativeMilestoneOneRootView>?
+    private var lastPublishedShellTopInset: CGFloat = -1
+    private var lastPublishedShellBottomInset: CGFloat = -1
 
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .himBg
         bridgeViewController.shellController = self
 
-        headerGradientLayer.colors = [UIColor.himRose.cgColor, UIColor.himLavender.cgColor, UIColor.himGold.cgColor]
+        headerGradientLayer.colors = [UIColor.himChiraag.cgColor, UIColor.himLavender.cgColor, UIColor.himGold.cgColor]
         headerGradientLayer.startPoint = CGPoint(x: 0, y: 0.5)
         headerGradientLayer.endPoint = CGPoint(x: 1, y: 0.5)
         headerGradientView.layer.addSublayer(headerGradientLayer)
@@ -577,16 +629,23 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         configureNavigationBar()
         configureTabBar()
         embedBridgeViewController()
-        applyChromeState(chromeState, animated: false)
+        embedNativeMilestoneOneView()
+        applyChromeState(chromeState, animated: false, fromWeb: false)
+        scheduleStartupChromeFallback()
         registerForApplicationLifecycleNotifications()
     }
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         topDockView.layer.cornerRadius = max(22, topDockView.bounds.height / 2)
-        bottomDockView.layer.cornerRadius = max(24, bottomDockView.bounds.height / 2)
         headerGradientLayer.frame = headerGradientView.bounds
-        updateTabSelectionIndicator()
+        updateBridgeSafeAreaInsets()
+        // Liquid Glass install moved to applyChromeState, triggered by the
+        // first JS publish where showsTopChrome=true. Build 174 confirmed
+        // installing during viewDidLayoutSubviews disturbs WKWebView's
+        // first paint (WebView blanks while chrome renders Swift defaults).
+        // By gating install on a JS chrome publish, React has clearly
+        // mounted by the time install runs.
     }
 
     override var preferredStatusBarStyle: UIStatusBarStyle {
@@ -595,17 +654,71 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
 
     deinit {
         NotificationCenter.default.removeObserver(self)
+        startupChromeFallbackWorkItem?.cancel()
         prepareBridgeForShutdown()
     }
 
-    fileprivate func applyChromeState(_ state: HiItsMeShellChromeState, animated: Bool = true) {
+    private func scheduleStartupChromeFallback() {
+        startupChromeFallbackWorkItem?.cancel()
+
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self, !self.hasReceivedWebChromeState else {
+                return
+            }
+
+            self.applyChromeState(
+                HiItsMeShellChromeState(
+                    title: "H.I.M.",
+                    subtitle: nil,
+                    mode: .sheet,
+                    activeTab: .im,
+                    tabBarVisibility: .hidden,
+                    leadingAction: nil,
+                    trailingActions: [],
+                    accentTone: .amber,
+                    canGoBack: false,
+                    isDark: self.chromeState.isDark,
+                    isAdminUser: false,
+                    unreadDirectCount: 0,
+                    showsTopChrome: false,
+                    showsBottomChrome: false
+                ),
+                animated: true,
+                fromWeb: false
+            )
+        }
+
+        startupChromeFallbackWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: workItem)
+    }
+
+    fileprivate func applyChromeState(_ state: HiItsMeShellChromeState, animated: Bool = true, fromWeb: Bool = true) {
+        if fromWeb {
+            hasReceivedWebChromeState = true
+            startupChromeFallbackWorkItem?.cancel()
+            startupChromeFallbackWorkItem = nil
+        }
+
         chromeState = state
         overrideUserInterfaceStyle = state.isDark ? .dark : .light
-        view.backgroundColor = .himBg
+        view.backgroundColor = state.isDark ? .himBg : .himLightBg
 
         titleLabel.text = state.title
         subtitleLabel.text = state.subtitle
         subtitleLabel.isHidden = state.subtitle == nil
+
+        // Install the SwiftUI Liquid Glass dock background on the FIRST JS
+        // publish where the chrome wants to be visible. Two reasons:
+        // 1. JS publishing setChromeState proves React is mounted, so the
+        //    UIHostingController install can't interfere with the WebView's
+        //    initial paint window (build 174 evidence).
+        // 2. Install must happen BEFORE updateChromeAppearance below so the
+        //    `useLiquidGlass` gate in applyDockAppearance evaluates true on
+        //    this same frame — otherwise the dock paints blur, then glass on
+        //    the next state update (visible flash).
+        if #available(iOS 26.0, *), state.showsTopChrome {
+            installLiquidGlassDockBackgroundIfAvailable()
+        }
 
         updateNavigationItems()
         updateTabSelection()
@@ -614,7 +727,45 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         setNeedsStatusBarAppearanceUpdate()
     }
 
+    fileprivate func applyMilestoneOneState(_ state: NativeMilestoneOneState) {
+        nativeMilestoneOneModel.apply(state)
+        guard let hostingView = nativeMilestoneOneHostingController?.view else {
+            return
+        }
+
+        let shouldShow = state.phase != .hidden
+        if shouldShow {
+            hostingView.isHidden = false
+        }
+        hostingView.isUserInteractionEnabled = shouldShow
+
+        UIView.animate(
+            withDuration: 0.18,
+            delay: 0,
+            options: [.curveEaseInOut, .beginFromCurrentState]
+        ) {
+            hostingView.alpha = shouldShow ? 1 : 0
+        } completion: { finished in
+            // Only commit isHidden when this animation actually finished. A newer
+            // show/hide publish uses `.beginFromCurrentState`, which cancels this
+            // one and fires its completion with finished == false — ignoring that
+            // stale completion keeps a just-shown overlay from being re-hidden.
+            guard finished else { return }
+            hostingView.isHidden = !shouldShow
+        }
+    }
+
     func tabBar(_ tabBar: UITabBar, didSelect item: UITabBarItem) {
+        // App Review fix: while the web app is on an unauthenticated route, the JS
+        // side has no tab content to swap in. UIKit still flips the tab selection
+        // visually on tap, which reviewers read as "responds but does nothing"
+        // (Guideline 2.1(a), build 2.0/167). Revert the selection and skip the
+        // bridge dispatch so the tab bar reads as inert on the sign-in screen.
+        if isUnauthenticatedRoute() {
+            restoreSelectedTabItem()
+            return
+        }
+
         switch item {
         case imTabItem:
             dispatchCommand(type: "selectTab", valueKey: "tab", value: HiItsMeShellTab.im.rawValue)
@@ -622,10 +773,38 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
             dispatchCommand(type: "selectTab", valueKey: "tab", value: HiItsMeShellTab.chat.rawValue)
         case buddyTabItem:
             dispatchCommand(type: "selectTab", valueKey: "tab", value: HiItsMeShellTab.buddy.rawValue)
-        case profileTabItem:
-            dispatchCommand(type: "selectTab", valueKey: "tab", value: HiItsMeShellTab.profile.rawValue)
         default:
             return
+        }
+    }
+
+    private func isUnauthenticatedRoute() -> Bool {
+        // Default to "unauthenticated" if the WebView hasn't reported a URL yet,
+        // so taps during the cold-launch loading window are also inert.
+        guard let path = bridgeViewController.webView?.url?.path else {
+            return true
+        }
+        let trimmed = path.hasSuffix("/") && path.count > 1 ? String(path.dropLast()) : path
+        switch trimmed {
+        case "", "/", "/index.html":
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func restoreSelectedTabItem() {
+        switch chromeState.activeTab {
+        case .im:
+            tabBar.selectedItem = imTabItem
+        case .chat:
+            tabBar.selectedItem = chatTabItem
+        case .buddy:
+            tabBar.selectedItem = buddyTabItem
+        case .profile:
+            // v2.2: the Profile tab is gone — profile lives in the Buddy List
+            // header card, so the web's profile section highlights that tab.
+            tabBar.selectedItem = imTabItem
         }
     }
 
@@ -755,34 +934,460 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         }
     }
 
+    fileprivate func nativeMilestoneSignIn(
+        screenname: String,
+        password: String,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.signIn) {
+                return { ok: false, error: "Sign-in bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.signIn(screenname, password);
+            """,
+            arguments: ["screenname": screenname, "password": password],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneRefresh(
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.refreshBuddyList) {
+                return { ok: false, error: "BuddyList bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.refreshBuddyList();
+            """,
+            arguments: [:],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneRefreshRooms(
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.refreshRooms) {
+                return { ok: false, error: "Rooms bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.refreshRooms();
+            """,
+            arguments: [:],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneOpenBuddy(
+        buddyID: String,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.openBuddy) {
+                return { ok: false, error: "BuddyList bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.openBuddy(buddyID);
+            """,
+            arguments: ["buddyID": buddyID],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneOpenRoom(
+        roomID: String,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.openRoom) {
+                return { ok: false, error: "Rooms bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.openRoom(roomID);
+            """,
+            arguments: ["roomID": roomID],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneUpdatePresence(
+        status: String,
+        awayMessage: String,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.updatePresence) {
+                return { ok: false, error: "Presence bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.updatePresence(
+                status,
+                awayMessage || null
+            );
+            """,
+            arguments: ["status": status, "awayMessage": awayMessage],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    // The native overlay keeps rendering last-published state while the web
+    // view is remounting (cold start, resume-from-background reload, route
+    // transitions), so a tap can reach a web view whose bridge isn't
+    // registered yet. For user-facing list actions, wait for the bridge to
+    // come back before giving up instead of failing on the instant check —
+    // an instant fail here surfaced as "bridge unavailable" on device
+    // (founder repro, 2026-08-01, build 313).
+    private func milestoneBridgeJS(waitFor method: String, invoke expression: String) -> String {
+        """
+        const deadline = Date.now() + 4000;
+        while (!window.__hiItsMeNativeMilestoneOne?.\(method) && Date.now() < deadline) {
+            await new Promise((resolve) => setTimeout(resolve, 200));
+        }
+        if (!window.__hiItsMeNativeMilestoneOne?.\(method)) {
+            return { ok: false, error: "Still reconnecting to H.I.M. — try again in a moment." };
+        }
+        return await window.__hiItsMeNativeMilestoneOne.\(expression);
+        """
+    }
+
+    fileprivate func nativeMilestoneRespondToBuddyRequest(
+        senderID: String,
+        action: String,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            milestoneBridgeJS(
+                waitFor: "respondToBuddyRequest",
+                invoke: "respondToBuddyRequest(senderID, action)"
+            ),
+            arguments: ["senderID": senderID, "action": action],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneSendMessage(
+        buddyID: String,
+        content: String,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.sendMessage) {
+                return { ok: false, error: "Message bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.sendMessage(
+                buddyID,
+                content
+            );
+            """,
+            arguments: ["buddyID": buddyID, "content": content],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneSendKnock(
+        buddyID: String,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            milestoneBridgeJS(waitFor: "sendKnock", invoke: "sendKnock(buddyID)"),
+            arguments: ["buddyID": buddyID],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneSendBuddyRequest(
+        userID: String,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            milestoneBridgeJS(waitFor: "sendBuddyRequest", invoke: "sendBuddyRequest(userId)"),
+            arguments: ["userId": userID],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneSetBuddyCircle(
+        buddyID: String,
+        circleID: String?,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.setBuddyCircle) {
+                return { ok: false, error: "Circle bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.setBuddyCircle(
+                buddyID,
+                circleID ? circleID : null
+            );
+            """,
+            arguments: ["buddyID": buddyID, "circleID": circleID ?? ""],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneCreateBuddyCircle(
+        name: String,
+        buddyID: String?,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.createBuddyCircle) {
+                return { ok: false, error: "Circle bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.createBuddyCircle(
+                name,
+                buddyID ? buddyID : null
+            );
+            """,
+            arguments: ["name": name, "buddyID": buddyID ?? ""],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneCloseConversation(
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.closeConversation) {
+                return { ok: false, error: "Conversation bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.closeConversation();
+            """,
+            arguments: [:],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneSendTypingPulse(
+        buddyID: String,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.sendTypingPulse) {
+                return { ok: false, error: "Typing bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.sendTypingPulse(buddyID);
+            """,
+            arguments: ["buddyID": buddyID],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneSendRoomMessage(
+        roomID: String,
+        content: String,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.sendRoomMessage) {
+                return { ok: false, error: "Room message bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.sendRoomMessage(
+                roomID,
+                content
+            );
+            """,
+            arguments: ["roomID": roomID, "content": content],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneCloseRoomConversation(
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.closeRoomConversation) {
+                return { ok: false, error: "Room conversation bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.closeRoomConversation();
+            """,
+            arguments: [:],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneSendRoomTypingPulse(
+        roomID: String,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.sendRoomTypingPulse) {
+                return { ok: false, error: "Room typing bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.sendRoomTypingPulse(roomID);
+            """,
+            arguments: ["roomID": roomID],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneOpenProfile(
+        buddyID: String,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.openProfile) {
+                return { ok: false, error: "Profile bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.openProfile(buddyID);
+            """,
+            arguments: ["buddyID": buddyID],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneTogglePinned(
+        buddyID: String,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.togglePinned) {
+                return { ok: false, error: "Pin bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.togglePinned(buddyID);
+            """,
+            arguments: ["buddyID": buddyID],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneToggleMuted(
+        buddyID: String,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.toggleMuted) {
+                return { ok: false, error: "Mute bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.toggleMuted(buddyID);
+            """,
+            arguments: ["buddyID": buddyID],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneToggleArchived(
+        buddyID: String,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.toggleArchived) {
+                return { ok: false, error: "Archive bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.toggleArchived(buddyID);
+            """,
+            arguments: ["buddyID": buddyID],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneSignOut(
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.signOut) {
+                return { ok: false, error: "Sign-off bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.signOut();
+            """,
+            arguments: [:],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
+    fileprivate func nativeMilestoneShowWebAuth(
+        mode: String,
+        completion: @escaping (Result<NativeMilestoneOneActionResponse, Error>) -> Void
+    ) {
+        callBridgeMethod(
+            """
+            if (!window.__hiItsMeNativeMilestoneOne?.showWebAuth) {
+                return { ok: false, error: "Account bridge unavailable." };
+            }
+            return await window.__hiItsMeNativeMilestoneOne.showWebAuth(mode);
+            """,
+            arguments: ["mode": mode],
+            as: NativeMilestoneOneActionResponse.self,
+            completion: completion
+        )
+    }
+
     private func callBridgeMethod<T: Decodable>(
         _ script: String,
         arguments: [String: Any],
         as type: T.Type,
         completion: @escaping (Result<T, Error>) -> Void
     ) {
-        guard let webView = bridgeViewController.webView else {
-            completion(.failure(makeShellError("H.I.M. is still loading.")))
-            return
-        }
+        DispatchQueue.main.async { [weak self] in
+            guard let self else {
+                completion(.failure(NSError(
+                    domain: "HiItsMeShell",
+                    code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "H.I.M. is no longer available."]
+                )))
+                return
+            }
+            guard let webView = self.bridgeViewController.webView else {
+                completion(.failure(makeShellError("H.I.M. is still loading.")))
+                return
+            }
 
-        webView.callAsyncJavaScript(script, arguments: arguments, in: nil, in: .page) { result in
-            switch result {
-            case .success(let value):
-                guard JSONSerialization.isValidJSONObject(value) else {
-                    completion(.failure(makeShellError("H.I.M. returned an unreadable response.")))
-                    return
-                }
+            webView.callAsyncJavaScript(script, arguments: arguments, in: nil, in: .page) { result in
+                switch result {
+                case .success(let value):
+                    guard JSONSerialization.isValidJSONObject(value) else {
+                        completion(.failure(makeShellError("H.I.M. returned an unreadable response.")))
+                        return
+                    }
 
-                do {
-                    let data = try JSONSerialization.data(withJSONObject: value)
-                    let decoded = try JSONDecoder().decode(type, from: data)
-                    completion(.success(decoded))
-                } catch {
+                    do {
+                        let data = try JSONSerialization.data(withJSONObject: value)
+                        let decoded = try JSONDecoder().decode(type, from: data)
+                        completion(.success(decoded))
+                    } catch {
+                        completion(.failure(error))
+                    }
+                case .failure(let error):
                     completion(.failure(error))
                 }
-            case .failure(let error):
-                completion(.failure(error))
             }
         }
     }
@@ -824,6 +1429,11 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         topChromeView.contentView.addSubview(topDockView)
         topDockView.contentView.addSubview(headerGradientView)
         topDockView.contentView.addSubview(navigationBar)
+        // SwiftUI Liquid Glass install moved to viewDidLayoutSubviews — see
+        // installLiquidGlassDockBackgroundIfAvailable() guard. Installing the
+        // UIHostingController in viewDidLoad before the parent VC is in a
+        // window was the suspected cause of the TestFlight blank-screen on
+        // build 168 (CFBundleVersion before this fix).
 
         NSLayoutConstraint.activate([
             topChromeView.topAnchor.constraint(equalTo: view.topAnchor),
@@ -848,35 +1458,132 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
     }
 
     private func configureTabBar() {
-        bottomChromeView.translatesAutoresizingMaskIntoConstraints = false
-        bottomDockView.translatesAutoresizingMaskIntoConstraints = false
         tabBar.translatesAutoresizingMaskIntoConstraints = false
         tabBar.delegate = self
-        tabBar.items = [imTabItem, chatTabItem, buddyTabItem, profileTabItem]
+        tabBar.items = [imTabItem, chatTabItem, buddyTabItem]
         tabBar.selectedItem = imTabItem
         tabBar.itemPositioning = .automatic
-        bottomDockView.clipsToBounds = true
-        bottomDockView.layer.cornerCurve = .continuous
 
-        view.addSubview(bottomChromeView)
-        bottomChromeView.contentView.addSubview(bottomDockView)
-        bottomDockView.contentView.addSubview(tabBar)
+        view.addSubview(tabBar)
 
         NSLayoutConstraint.activate([
-            bottomChromeView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            bottomChromeView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            bottomChromeView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-
-            bottomDockView.topAnchor.constraint(equalTo: bottomChromeView.contentView.topAnchor, constant: 6),
-            bottomDockView.leadingAnchor.constraint(equalTo: bottomChromeView.contentView.leadingAnchor, constant: 12),
-            bottomDockView.trailingAnchor.constraint(equalTo: bottomChromeView.contentView.trailingAnchor, constant: -12),
-            bottomDockView.bottomAnchor.constraint(equalTo: bottomChromeView.safeAreaLayoutGuide.bottomAnchor, constant: -6),
-
-            tabBar.topAnchor.constraint(equalTo: bottomDockView.contentView.topAnchor, constant: 2),
-            tabBar.leadingAnchor.constraint(equalTo: bottomDockView.contentView.leadingAnchor, constant: 8),
-            tabBar.trailingAnchor.constraint(equalTo: bottomDockView.contentView.trailingAnchor, constant: -8),
-            tabBar.bottomAnchor.constraint(equalTo: bottomDockView.contentView.bottomAnchor, constant: -2)
+            tabBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            tabBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            tabBar.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
+    }
+
+    private func embedNativeMilestoneOneView() {
+        nativeMilestoneOneModel.onSignIn = { [weak self] screenname, password, completion in
+            self?.nativeMilestoneSignIn(screenname: screenname, password: password, completion: completion)
+        }
+        nativeMilestoneOneModel.onRefresh = { [weak self] completion in
+            self?.nativeMilestoneRefresh(completion: completion)
+        }
+        nativeMilestoneOneModel.onRefreshRooms = { [weak self] completion in
+            self?.nativeMilestoneRefreshRooms(completion: completion)
+        }
+        nativeMilestoneOneModel.onOpenBuddy = { [weak self] buddyID, completion in
+            self?.nativeMilestoneOpenBuddy(buddyID: buddyID, completion: completion)
+        }
+        nativeMilestoneOneModel.onOpenRoom = { [weak self] roomID, completion in
+            self?.nativeMilestoneOpenRoom(roomID: roomID, completion: completion)
+        }
+        nativeMilestoneOneModel.onUpdatePresence = { [weak self] status, awayMessage, completion in
+            self?.nativeMilestoneUpdatePresence(
+                status: status,
+                awayMessage: awayMessage,
+                completion: completion
+            )
+        }
+        nativeMilestoneOneModel.onRespondToBuddyRequest = { [weak self] senderID, action, completion in
+            self?.nativeMilestoneRespondToBuddyRequest(
+                senderID: senderID,
+                action: action,
+                completion: completion
+            )
+        }
+        nativeMilestoneOneModel.onSendMessage = { [weak self] buddyID, content, completion in
+            self?.nativeMilestoneSendMessage(
+                buddyID: buddyID,
+                content: content,
+                completion: completion
+            )
+        }
+        nativeMilestoneOneModel.onSendKnock = { [weak self] buddyID, completion in
+            self?.nativeMilestoneSendKnock(buddyID: buddyID, completion: completion)
+        }
+        nativeMilestoneOneModel.onSendBuddyRequest = { [weak self] userID, completion in
+            self?.nativeMilestoneSendBuddyRequest(userID: userID, completion: completion)
+        }
+        nativeMilestoneOneModel.onOpenPrivacy = { [weak self] in
+            self?.presentPrivacySheet()
+        }
+        nativeMilestoneOneModel.onOpenOwnProfile = { [weak self] in
+            // Same command the removed Profile tab used to send; the web
+            // focuses its profile section and hides the native overlay.
+            self?.dispatchCommand(type: "selectTab", valueKey: "tab", value: HiItsMeShellTab.profile.rawValue)
+        }
+        nativeMilestoneOneModel.onSetBuddyCircle = { [weak self] buddyID, circleID, completion in
+            self?.nativeMilestoneSetBuddyCircle(buddyID: buddyID, circleID: circleID, completion: completion)
+        }
+        nativeMilestoneOneModel.onCreateBuddyCircle = { [weak self] name, buddyID, completion in
+            self?.nativeMilestoneCreateBuddyCircle(name: name, buddyID: buddyID, completion: completion)
+        }
+        nativeMilestoneOneModel.onCloseConversation = { [weak self] completion in
+            self?.nativeMilestoneCloseConversation(completion: completion)
+        }
+        nativeMilestoneOneModel.onSendTypingPulse = { [weak self] buddyID, completion in
+            self?.nativeMilestoneSendTypingPulse(buddyID: buddyID, completion: completion)
+        }
+        nativeMilestoneOneModel.onSendRoomMessage = { [weak self] roomID, content, completion in
+            self?.nativeMilestoneSendRoomMessage(
+                roomID: roomID,
+                content: content,
+                completion: completion
+            )
+        }
+        nativeMilestoneOneModel.onCloseRoomConversation = { [weak self] completion in
+            self?.nativeMilestoneCloseRoomConversation(completion: completion)
+        }
+        nativeMilestoneOneModel.onSendRoomTypingPulse = { [weak self] roomID, completion in
+            self?.nativeMilestoneSendRoomTypingPulse(roomID: roomID, completion: completion)
+        }
+        nativeMilestoneOneModel.onOpenProfile = { [weak self] buddyID, completion in
+            self?.nativeMilestoneOpenProfile(buddyID: buddyID, completion: completion)
+        }
+        nativeMilestoneOneModel.onTogglePinned = { [weak self] buddyID, completion in
+            self?.nativeMilestoneTogglePinned(buddyID: buddyID, completion: completion)
+        }
+        nativeMilestoneOneModel.onToggleMuted = { [weak self] buddyID, completion in
+            self?.nativeMilestoneToggleMuted(buddyID: buddyID, completion: completion)
+        }
+        nativeMilestoneOneModel.onToggleArchived = { [weak self] buddyID, completion in
+            self?.nativeMilestoneToggleArchived(buddyID: buddyID, completion: completion)
+        }
+        nativeMilestoneOneModel.onSignOut = { [weak self] completion in
+            self?.nativeMilestoneSignOut(completion: completion)
+        }
+        nativeMilestoneOneModel.onShowWebAuth = { [weak self] mode, completion in
+            self?.nativeMilestoneShowWebAuth(mode: mode, completion: completion)
+        }
+
+        let hostingController = UIHostingController(
+            rootView: NativeMilestoneOneRootView(model: nativeMilestoneOneModel)
+        )
+        hostingController.view.translatesAutoresizingMaskIntoConstraints = false
+        hostingController.view.backgroundColor = .clear
+
+        addChild(hostingController)
+        view.insertSubview(hostingController.view, aboveSubview: bridgeViewController.view)
+        NSLayoutConstraint.activate([
+            hostingController.view.topAnchor.constraint(equalTo: view.topAnchor),
+            hostingController.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            hostingController.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            hostingController.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        ])
+        hostingController.didMove(toParent: self)
+        nativeMilestoneOneHostingController = hostingController
     }
 
     private func embedBridgeViewController() {
@@ -884,9 +1591,14 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         bridgeViewController.view.translatesAutoresizingMaskIntoConstraints = false
         view.insertSubview(bridgeViewController.view, at: 0)
 
+        // The bridge always runs edge-to-edge so its gradient background extends
+        // behind the native chrome. Liquid Glass (iOS 26) samples the content
+        // behind it — by rendering the web gradient under the chrome, the glass
+        // blends with the actual app background instead of a solid UIColor.
+        // The old chrome-constrained layout is no longer used.
         bridgeTopWithChromeConstraint = bridgeViewController.view.topAnchor.constraint(equalTo: topChromeView.bottomAnchor)
         bridgeTopFullscreenConstraint = bridgeViewController.view.topAnchor.constraint(equalTo: view.topAnchor)
-        bridgeBottomWithChromeConstraint = bridgeViewController.view.bottomAnchor.constraint(equalTo: bottomChromeView.topAnchor)
+        bridgeBottomWithChromeConstraint = bridgeViewController.view.bottomAnchor.constraint(equalTo: tabBar.topAnchor)
         bridgeBottomFullscreenConstraint = bridgeViewController.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
 
         NSLayoutConstraint.activate([
@@ -903,14 +1615,14 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         let shouldShowTopChrome = chromeState.showsTopChrome
         let shouldShowBottomChrome = chromeState.resolvedShowsBottomChrome
         topChromeView.isUserInteractionEnabled = shouldShowTopChrome
-        bottomChromeView.isUserInteractionEnabled = shouldShowBottomChrome
         tabBar.isUserInteractionEnabled = shouldShowBottomChrome
         updateBridgeChromeConstraints()
 
         let updates = {
             self.topChromeView.alpha = shouldShowTopChrome ? 1 : 0
-            self.bottomChromeView.alpha = shouldShowBottomChrome ? 1 : 0
+            self.tabBar.alpha = shouldShowBottomChrome ? 1 : 0
             self.view.layoutIfNeeded()
+            self.updateBridgeSafeAreaInsets()
         }
 
         if animated {
@@ -920,11 +1632,59 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         }
     }
 
+    private func updateBridgeSafeAreaInsets() {
+        // The WebView runs edge-to-edge so its gradient extends behind the
+        // native chrome (Liquid Glass samples what's behind it). Push the web
+        // content below/above the chrome via additionalSafeAreaInsets so
+        // env(safe-area-inset-*) in CSS includes the chrome height.
+        let deviceSafeArea = view.safeAreaInsets
+        let topInset = chromeState.showsTopChrome
+            ? max(topChromeView.frame.height - deviceSafeArea.top, 0)
+            : 0
+        let bottomInset = chromeState.resolvedShowsBottomChrome
+            ? max(tabBar.frame.height - deviceSafeArea.bottom, 0)
+            : 0
+        bridgeViewController.additionalSafeAreaInsets = UIEdgeInsets(
+            top: topInset,
+            left: 0,
+            bottom: bottomInset,
+            right: 0
+        )
+        nativeMilestoneOneHostingController?.additionalSafeAreaInsets = UIEdgeInsets(
+            top: topInset,
+            left: 0,
+            bottom: bottomInset,
+            right: 0
+        )
+        publishShellInsetsToWeb(deviceSafeArea: deviceSafeArea)
+    }
+
+    private func publishShellInsetsToWeb(deviceSafeArea: UIEdgeInsets) {
+        // WKWebView does NOT reliably fold additionalSafeAreaInsets into
+        // env(safe-area-inset-*) — the top dock is much taller than the device
+        // notch, so env() alone leaves content under the dock (the bug). Publish
+        // the real chrome height as explicit CSS variables the web reads for its
+        // top/bottom inset (see RetroWindow + page.tsx overlay positioning).
+        let topTotal = chromeState.showsTopChrome ? topChromeView.frame.height : deviceSafeArea.top
+        let bottomTotal = chromeState.resolvedShowsBottomChrome ? tabBar.frame.height : deviceSafeArea.bottom
+        guard topTotal > 0 || bottomTotal > 0 else { return }
+        guard abs(topTotal - lastPublishedShellTopInset) > 0.5
+            || abs(bottomTotal - lastPublishedShellBottomInset) > 0.5 else { return }
+        lastPublishedShellTopInset = topTotal
+        lastPublishedShellBottomInset = bottomTotal
+        let script = "(function(){var s=document.documentElement.style;"
+            + "s.setProperty('--hiitsme-shell-top-inset','\(Int(topTotal.rounded()))px');"
+            + "s.setProperty('--hiitsme-shell-bottom-inset','\(Int(bottomTotal.rounded()))px');})();"
+        bridgeViewController.webView?.evaluateJavaScript(script, completionHandler: nil)
+    }
+
     private func updateBridgeChromeConstraints() {
-        bridgeTopWithChromeConstraint?.isActive = chromeState.showsTopChrome
-        bridgeTopFullscreenConstraint?.isActive = !chromeState.showsTopChrome
-        bridgeBottomWithChromeConstraint?.isActive = chromeState.resolvedShowsBottomChrome
-        bridgeBottomFullscreenConstraint?.isActive = !chromeState.resolvedShowsBottomChrome
+        // Always keep the WebView edge-to-edge. Liquid Glass samples the
+        // content behind it, so the web gradient must extend under the chrome.
+        bridgeTopWithChromeConstraint?.isActive = false
+        bridgeTopFullscreenConstraint?.isActive = true
+        bridgeBottomWithChromeConstraint?.isActive = false
+        bridgeBottomFullscreenConstraint?.isActive = true
     }
 
     private func updateNavigationItems() {
@@ -954,36 +1714,28 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         case .buddy:
             tabBar.selectedItem = buddyTabItem
         case .profile:
-            tabBar.selectedItem = profileTabItem
+            tabBar.selectedItem = imTabItem
         }
 
         imTabItem.badgeValue = chromeState.unreadDirectCount > 0
             ? (chromeState.unreadDirectCount > 99 ? "99+" : String(chromeState.unreadDirectCount))
             : nil
-        imTabItem.badgeColor = .himRose
+        imTabItem.badgeColor = resolvedAccentColor()
     }
 
     private func updateChromeAppearance(animated: Bool) {
-        let blurStyle: UIBlurEffect.Style = .systemUltraThinMaterialDark
+        let blurStyle: UIBlurEffect.Style = chromeState.isDark ? .systemUltraThinMaterialDark : .systemUltraThinMaterialLight
         let tintColor = resolvedAccentColor()
-        let titleColor = UIColor.himText
-        let subtitleColor = UIColor.himMuted
+        let titleColor = chromeState.isDark ? UIColor.himText : UIColor.himLightText
+        let subtitleColor = chromeState.isDark ? UIColor.himMuted : UIColor.himLightMuted
         let dockOverlayColor = resolvedDockOverlayColor()
         let dockBorderColor = resolvedDockBorderColor()
 
         let animationBlock = {
             self.topChromeView.effect = nil
-            self.bottomChromeView.effect = nil
             self.topChromeView.contentView.backgroundColor = .clear
-            self.bottomChromeView.contentView.backgroundColor = .clear
             self.applyDockAppearance(
                 to: self.topDockView,
-                blurStyle: blurStyle,
-                overlayColor: dockOverlayColor,
-                borderColor: dockBorderColor
-            )
-            self.applyDockAppearance(
-                to: self.bottomDockView,
                 blurStyle: blurStyle,
                 overlayColor: dockOverlayColor,
                 borderColor: dockBorderColor
@@ -995,7 +1747,6 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
             self.tabBar.unselectedItemTintColor = subtitleColor
             self.applyNavigationAppearance()
             self.applyTabBarAppearance()
-            self.updateTabSelectionIndicator()
         }
 
         if animated {
@@ -1019,12 +1770,12 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
 
     private func applyTabBarAppearance() {
         let appearance = UITabBarAppearance()
-        appearance.configureWithTransparentBackground()
-        appearance.backgroundEffect = nil
-        appearance.backgroundColor = .clear
-        appearance.shadowColor = .clear
+        // Use the system default background so the tab bar picks up Liquid Glass
+        // automatically on iOS 26 while keeping the standard tab bar look on older
+        // iOS releases. Do not override `backgroundEffect` or `backgroundColor`.
+        appearance.configureWithDefaultBackground()
 
-        let normalColor = UIColor.himMuted
+        let normalColor = chromeState.isDark ? UIColor.himMuted : UIColor.himLightMuted
         let selectedColor = resolvedAccentColor()
 
         appearance.stackedLayoutAppearance.normal.iconColor = normalColor
@@ -1037,15 +1788,30 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
     }
 
     private func resolvedAccentColor() -> UIColor {
-        .himRose
+        let dark = chromeState.isDark
+        switch chromeState.accentTone {
+        case .blue:    return UIColor(red: dark ? 3/255 : 2/255,   green: dark ? 105/255 : 132/255, blue: dark ? 161/255 : 199/255, alpha: 1)
+        case .violet:  return UIColor(red: dark ? 109/255 : 124/255, green: dark ? 40/255 : 58/255,  blue: dark ? 217/255 : 237/255, alpha: 1)
+        case .emerald: return UIColor(red: dark ? 4/255 : 5/255,   green: dark ? 120/255 : 150/255, blue: dark ? 87/255 : 105/255,  alpha: 1)
+        case .amber:   return UIColor(red: dark ? 180/255 : 217/255, green: dark ? 83/255 : 119/255, blue: dark ? 9/255 : 6/255,    alpha: 1)
+        case .slate:   return UIColor(red: dark ? 51/255 : 71/255,  green: dark ? 65/255 : 85/255,  blue: dark ? 85/255 : 105/255,  alpha: 1)
+        }
     }
 
     private func resolvedDockOverlayColor() -> UIColor {
-        UIColor.himBg2.withAlphaComponent(0.92)
+        // Tint the dock pill subtly so the gradient header reads clearly on top
+        // of the underlying blur, without painting an opaque rectangle that
+        // defeats the Liquid Glass material (per Apple's "Adopting Liquid Glass"
+        // guidance: don't paint over the material).
+        chromeState.isDark
+            ? UIColor.himBg2.withAlphaComponent(0.55)
+            : UIColor.himLightBg2.withAlphaComponent(0.45)
     }
 
     private func resolvedDockBorderColor() -> UIColor {
-        UIColor.white.withAlphaComponent(0.08)
+        chromeState.isDark
+            ? UIColor.white.withAlphaComponent(0.08)
+            : UIColor.black.withAlphaComponent(0.08)
     }
 
     private func applyDockAppearance(
@@ -1054,49 +1820,85 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         overlayColor: UIColor,
         borderColor: UIColor
     ) {
-        dockView.effect = UIBlurEffect(style: blurStyle)
-        dockView.contentView.backgroundColor = overlayColor
+        // On iOS 26+, the top dock paints its background with a SwiftUI
+        // `glassEffect` hosted behind the navigation content. We only swap out
+        // the legacy UIBlurEffect AFTER the SwiftUI hosting controller has
+        // actually mounted (gated on liquidGlassDockHostingController != nil).
+        // If the hosting controller hasn't installed yet, OR fails to mount,
+        // the legacy blur stays as a backstop so the dock is never empty. This
+        // is the fix for the 168 TestFlight blank-screen — c933171 nuked the
+        // blur unconditionally on iOS 26, leaving the dock transparent if the
+        // SwiftUI mount silently failed.
+        let useLiquidGlass: Bool
+        if #available(iOS 26.0, *) {
+            useLiquidGlass = (dockView === topDockView) && (liquidGlassDockHostingController != nil)
+        } else {
+            useLiquidGlass = false
+        }
+
+        if useLiquidGlass {
+            dockView.effect = nil
+            dockView.contentView.backgroundColor = .clear
+            if #available(iOS 26.0, *) {
+                updateLiquidGlassDockBackground()
+            }
+        } else {
+            dockView.effect = UIBlurEffect(style: blurStyle)
+            dockView.contentView.backgroundColor = overlayColor
+        }
         dockView.layer.borderWidth = 0.75
         dockView.layer.borderColor = borderColor.cgColor
     }
 
-    private func updateTabSelectionIndicator() {
-        guard let items = tabBar.items, !items.isEmpty, tabBar.bounds.width > 0, tabBar.bounds.height > 0 else {
-            tabBar.selectionIndicatorImage = nil
+    private func installLiquidGlassDockBackgroundIfAvailable() {
+        if #available(iOS 26.0, *) {
+            installLiquidGlassDockBackground()
+        }
+    }
+
+    @available(iOS 26.0, *)
+    private func installLiquidGlassDockBackground() {
+        guard liquidGlassDockHostingController == nil else { return }
+
+        let hosting = UIHostingController(rootView: makeLiquidGlassDockBackground())
+        hosting.view.translatesAutoresizingMaskIntoConstraints = false
+        hosting.view.backgroundColor = .clear
+        hosting.view.isUserInteractionEnabled = false
+
+        addChild(hosting)
+        // Insert at index 0 so the SwiftUI glass sits behind the gradient
+        // header and navigation bar inside the dock pill.
+        topDockView.contentView.insertSubview(hosting.view, at: 0)
+
+        NSLayoutConstraint.activate([
+            hosting.view.topAnchor.constraint(equalTo: topDockView.contentView.topAnchor),
+            hosting.view.leadingAnchor.constraint(equalTo: topDockView.contentView.leadingAnchor),
+            hosting.view.trailingAnchor.constraint(equalTo: topDockView.contentView.trailingAnchor),
+            hosting.view.bottomAnchor.constraint(equalTo: topDockView.contentView.bottomAnchor)
+        ])
+
+        hosting.didMove(toParent: self)
+        liquidGlassDockHostingController = hosting
+        // No applyChromeState re-entry here. The caller (applyChromeState)
+        // continues into updateChromeAppearance with the hosting now set,
+        // so applyDockAppearance's `useLiquidGlass` gate picks up the glass
+        // path on this same frame. The earlier re-entry (build 169) ran
+        // updateBridgeChromeConstraints again during the WebView's initial
+        // paint window, which thrashed the WebView's frame and killed JS
+        // bootstrap.
+    }
+
+    @available(iOS 26.0, *)
+    private func updateLiquidGlassDockBackground() {
+        guard let hosting = liquidGlassDockHostingController as? UIHostingController<HiItsMeLiquidGlassDockBackground> else {
             return
         }
+        hosting.rootView = makeLiquidGlassDockBackground()
+    }
 
-        let itemWidth = tabBar.bounds.width / CGFloat(items.count)
-        let indicatorInsetX: CGFloat = 7
-        let indicatorInsetY: CGFloat = 6
-        let indicatorRect = CGRect(
-            x: indicatorInsetX,
-            y: indicatorInsetY,
-            width: itemWidth - (indicatorInsetX * 2),
-            height: max(30, tabBar.bounds.height - (indicatorInsetY * 2))
-        )
-        let fillColor = resolvedAccentColor().withAlphaComponent(chromeState.isDark ? 0.2 : 0.12)
-        let strokeColor = resolvedAccentColor().withAlphaComponent(chromeState.isDark ? 0.32 : 0.18)
-        let imageSize = CGSize(width: itemWidth, height: tabBar.bounds.height)
-
-        let image = UIGraphicsImageRenderer(size: imageSize).image { context in
-            let path = UIBezierPath(roundedRect: indicatorRect, cornerRadius: indicatorRect.height / 2)
-            fillColor.setFill()
-            path.fill()
-            strokeColor.setStroke()
-            path.lineWidth = 1
-            path.stroke()
-        }
-
-        tabBar.selectionIndicatorImage = image.resizableImage(
-            withCapInsets: UIEdgeInsets(
-                top: indicatorRect.height / 2,
-                left: indicatorRect.width / 2,
-                bottom: indicatorRect.height / 2,
-                right: indicatorRect.width / 2
-            ),
-            resizingMode: .stretch
-        )
+    @available(iOS 26.0, *)
+    private func makeLiquidGlassDockBackground() -> HiItsMeLiquidGlassDockBackground {
+        HiItsMeLiquidGlassDockBackground(isDark: chromeState.isDark)
     }
 
     private func makeBarButtonItem(for action: HiItsMeShellAction) -> UIBarButtonItem? {
@@ -1127,7 +1929,7 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
                 accessibilityLabel: "More options",
                 menu: makeOverflowMenu()
             )
-        case .openPrivacy, .openAdminReset, .signOff, .goBack:
+        case .openAccount, .openPrivacy, .openAdminReset, .signOff, .goBack:
             return nil
         }
     }
@@ -1171,7 +1973,9 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         var configuration = UIButton.Configuration.plain()
         configuration.image = UIImage(systemName: systemName)
         configuration.baseForegroundColor = resolvedAccentColor()
-        configuration.background.backgroundColor = UIColor.himBg3.withAlphaComponent(0.88)
+        configuration.background.backgroundColor = chromeState.isDark
+            ? UIColor.white.withAlphaComponent(0.10)
+            : UIColor.black.withAlphaComponent(0.06)
         configuration.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8)
         configuration.cornerStyle = .capsule
         button.configuration = configuration
@@ -1181,6 +1985,11 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
 
     private func makeOverflowMenu() -> UIMenu {
         var actions: [UIAction] = [
+            // Account opens the in-app Account screen (email/password + Delete account).
+            // Required so account deletion is reachable on iOS (App Review 5.1.1(v)).
+            UIAction(title: "Account", image: UIImage(systemName: "person.crop.circle")) { [weak self] _ in
+                self?.dispatchAction(.openAccount)
+            },
             UIAction(title: "Privacy", image: UIImage(systemName: "hand.raised.fill")) { [weak self] _ in
                 self?.presentPrivacySheet()
             }
@@ -1384,9 +2193,9 @@ fileprivate final class PrivacySheetViewController: UIViewController {
         let heroCard = makeCardView()
         let heroIcon = UIImageView(image: UIImage(systemName: "hand.raised.fill"))
         heroIcon.translatesAutoresizingMaskIntoConstraints = false
-        heroIcon.tintColor = .himRose
+        heroIcon.tintColor = .himChiraag
         heroIcon.preferredSymbolConfiguration = .init(pointSize: 20, weight: .semibold)
-        heroIcon.backgroundColor = UIColor.himRose.withAlphaComponent(0.16)
+        heroIcon.backgroundColor = UIColor.himChiraag.withAlphaComponent(0.16)
         heroIcon.layer.cornerRadius = 22
         heroIcon.clipsToBounds = true
 
@@ -1422,10 +2231,10 @@ fileprivate final class PrivacySheetViewController: UIViewController {
         feedbackLabel.numberOfLines = 0
         feedbackLabel.isHidden = true
         feedbackLabel.textColor = .himMuted
-        loadSpinner.color = .himRose
-        shareReadReceiptsSwitch.onTintColor = .himRose
-        screenShieldSwitch.onTintColor = .himRose
-        notificationPreviewControl.selectedSegmentTintColor = .himRose
+        loadSpinner.color = .himChiraag
+        shareReadReceiptsSwitch.onTintColor = .himChiraag
+        screenShieldSwitch.onTintColor = .himChiraag
+        notificationPreviewControl.selectedSegmentTintColor = .himChiraag
 
         let statusRow = UIStackView(arrangedSubviews: [loadSpinner, feedbackLabel])
         statusRow.axis = .horizontal
@@ -1536,7 +2345,7 @@ fileprivate final class PrivacySheetViewController: UIViewController {
         openAdvancedButton.configuration?.title = "Open Full Controls"
         openAdvancedButton.configuration?.image = UIImage(systemName: "arrow.up.right.square")
         openAdvancedButton.configuration?.imagePadding = 8
-        openAdvancedButton.configuration?.baseForegroundColor = .himRose
+        openAdvancedButton.configuration?.baseForegroundColor = .himChiraag
         openAdvancedButton.configuration?.background.backgroundColor = UIColor.himBg3
         openAdvancedButton.addTarget(self, action: #selector(handleOpenAdvancedControls), for: .touchUpInside)
 
@@ -1572,7 +2381,7 @@ fileprivate final class PrivacySheetViewController: UIViewController {
         }
 
         guard let shellController else {
-            showFeedback("H.I.M. is still loading.", color: .himRose)
+            showFeedback("H.I.M. is still loading.", color: .himChiraag)
             return
         }
 
@@ -1593,7 +2402,7 @@ fileprivate final class PrivacySheetViewController: UIViewController {
                 switch result {
                 case .success(let response):
                     guard response.ok, let state = response.state else {
-                        self.showFeedback(response.error ?? "Could not load privacy settings.", color: .himRose)
+                        self.showFeedback(response.error ?? "Could not load privacy settings.", color: .himChiraag)
                         return
                     }
 
@@ -1604,7 +2413,7 @@ fileprivate final class PrivacySheetViewController: UIViewController {
                         self.feedbackLabel.isHidden = true
                     }
                 case .failure(let error):
-                    self.showFeedback(error.localizedDescription, color: .himRose)
+                    self.showFeedback(error.localizedDescription, color: .himChiraag)
                 }
             }
         }
@@ -1652,7 +2461,7 @@ fileprivate final class PrivacySheetViewController: UIViewController {
 
         guard let shellController else {
             applyState(previousState)
-            showFeedback("H.I.M. is still loading.", color: .himRose)
+            showFeedback("H.I.M. is still loading.", color: .himChiraag)
             return
         }
 
@@ -1673,7 +2482,7 @@ fileprivate final class PrivacySheetViewController: UIViewController {
                 case .success(let response):
                     guard response.ok, let state = response.state else {
                         self.applyState(previousState)
-                        self.showFeedback(response.error ?? "Could not update privacy.", color: .himRose)
+                        self.showFeedback(response.error ?? "Could not update privacy.", color: .himChiraag)
                         return
                     }
 
@@ -1685,7 +2494,7 @@ fileprivate final class PrivacySheetViewController: UIViewController {
                     }
                 case .failure(let error):
                     self.applyState(previousState)
-                    self.showFeedback(error.localizedDescription, color: .himRose)
+                    self.showFeedback(error.localizedDescription, color: .himChiraag)
                 }
             }
         }
@@ -1857,9 +2666,9 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
         let heroCard = makeCardView()
         let heroIcon = UIImageView(image: UIImage(systemName: "shield.lefthalf.filled"))
         heroIcon.translatesAutoresizingMaskIntoConstraints = false
-        heroIcon.tintColor = .himRose
+        heroIcon.tintColor = .himChiraag
         heroIcon.preferredSymbolConfiguration = .init(pointSize: 20, weight: .semibold)
-        heroIcon.backgroundColor = UIColor.himRose.withAlphaComponent(0.16)
+        heroIcon.backgroundColor = UIColor.himChiraag.withAlphaComponent(0.16)
         heroIcon.layer.cornerRadius = 22
         heroIcon.clipsToBounds = true
 
@@ -1925,7 +2734,7 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
         let confirmLabel = makeLabel(textStyle: .subheadline, weight: .medium)
         confirmLabel.text = "I verified this request and will deliver the reset handoff through a trusted channel."
         confirmLabel.numberOfLines = 0
-        confirmationSwitch.onTintColor = .himRose
+        confirmationSwitch.onTintColor = .himChiraag
         let confirmRow = UIStackView(arrangedSubviews: [confirmLabel, confirmationSwitch])
         confirmRow.axis = .horizontal
         confirmRow.alignment = .center
@@ -1946,7 +2755,7 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
         issueButton.configuration?.title = "Issue Secure Ticket"
         issueButton.configuration?.image = UIImage(systemName: "paperplane.fill")
         issueButton.configuration?.imagePadding = 8
-        issueButton.configuration?.baseBackgroundColor = .himRose
+        issueButton.configuration?.baseBackgroundColor = .himChiraag
         issueButton.configuration?.baseForegroundColor = .white
         issueButton.addTarget(self, action: #selector(handleIssue), for: .touchUpInside)
 
@@ -1965,7 +2774,7 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
         feedbackLabel.isHidden = true
         feedbackLabel.textColor = .himMuted
         issueSpinner.color = .white
-        auditSpinner.color = .himRose
+        auditSpinner.color = .himChiraag
 
         resultCard.isHidden = true
         resultCard.backgroundColor = .himBg2
@@ -1986,14 +2795,14 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
         copyTicketButton.configuration = .tinted()
         copyTicketButton.configuration?.cornerStyle = .medium
         copyTicketButton.configuration?.title = "Copy Ticket"
-        copyTicketButton.configuration?.baseForegroundColor = .himRose
+        copyTicketButton.configuration?.baseForegroundColor = .himChiraag
         copyTicketButton.configuration?.background.backgroundColor = .himBg3
         copyTicketButton.addTarget(self, action: #selector(handleCopyTicket), for: .touchUpInside)
 
         copyHandoffButton.configuration = .tinted()
         copyHandoffButton.configuration?.cornerStyle = .medium
         copyHandoffButton.configuration?.title = "Copy Secure Handoff"
-        copyHandoffButton.configuration?.baseForegroundColor = .himRose
+        copyHandoffButton.configuration?.baseForegroundColor = .himChiraag
         copyHandoffButton.configuration?.background.backgroundColor = .himBg3
         copyHandoffButton.addTarget(self, action: #selector(handleCopyHandoff), for: .touchUpInside)
 
@@ -2019,7 +2828,7 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
         refreshButton.configuration = .tinted()
         refreshButton.configuration?.cornerStyle = .medium
         refreshButton.configuration?.title = "Refresh"
-        refreshButton.configuration?.baseForegroundColor = .himRose
+        refreshButton.configuration?.baseForegroundColor = .himChiraag
         refreshButton.configuration?.background.backgroundColor = .himBg3
         refreshButton.addTarget(self, action: #selector(handleRefresh), for: .touchUpInside)
 
@@ -2135,7 +2944,7 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
         }
 
         emptyAuditLabel.text = message
-        emptyAuditLabel.textColor = .himRose
+        emptyAuditLabel.textColor = .himChiraag
         emptyAuditLabel.isHidden = false
     }
 
@@ -2189,7 +2998,7 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
 
     private func showFeedback(_ message: String, isError: Bool) {
         feedbackLabel.text = message
-        feedbackLabel.textColor = isError ? .himRose : .himGreen
+        feedbackLabel.textColor = isError ? .himChiraag : .himGreen
         feedbackLabel.isHidden = false
     }
 

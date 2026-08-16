@@ -53,7 +53,7 @@ export async function POST(request: Request) {
   const invitedIds = buddyIds as string[];
   const admin = createSupabaseAdminClient();
 
-  // Verify the caller has accepted buddy relationships with these users.
+  // Verify accepted buddy relationships.
   const { data: relationships, error: relError } = await admin
     .from('buddies')
     .select('buddy_id, user_id')
@@ -92,10 +92,10 @@ export async function POST(request: Request) {
     );
   }
 
-  // Look up the room.
+  // Verify room exists and is active.
   const { data: room, error: roomError } = await admin
-    .from('chat_rooms')
-    .select('room_key, name')
+    .from('rooms')
+    .select('id, is_active')
     .eq('id', roomId)
     .single();
 
@@ -108,12 +108,21 @@ export async function POST(request: Request) {
     );
   }
 
-  // Verify caller is already a member of the room.
+  if (!room.is_active) {
+    return jsonWithCors(
+      request,
+      { error: 'Room is not active.' },
+      { status: 403, headers: { 'Cache-Control': 'no-store' } },
+      ALLOWED_METHODS,
+    );
+  }
+
+  // Verify caller is a member.
   const { data: callerMembership } = await admin
-    .from('user_active_rooms')
+    .from('room_memberships')
     .select('user_id')
+    .eq('room_id', roomId)
     .eq('user_id', user.id)
-    .eq('room_key', room.room_key)
     .maybeSingle();
 
   if (!callerMembership) {
@@ -125,17 +134,18 @@ export async function POST(request: Request) {
     );
   }
 
-  // Insert each valid buddy — ignore unique_violation (already a member).
-  const inserts = validIds.map((userId) => ({
-    user_id: userId,
-    room_key: room.room_key,
-    room_name: room.name,
-    unread_count: 0,
+  // Upsert each valid buddy into the room.
+  const now = new Date().toISOString();
+  const inserts = validIds.map((uid) => ({
+    room_id: roomId,
+    user_id: uid,
+    joined_at: now,
+    last_seen_at: now,
   }));
 
   const { error: insertError } = await admin
-    .from('user_active_rooms')
-    .upsert(inserts, { onConflict: 'user_id,room_key', ignoreDuplicates: true });
+    .from('room_memberships')
+    .upsert(inserts, { onConflict: 'room_id,user_id', ignoreDuplicates: true });
 
   if (insertError) {
     return jsonWithCors(

@@ -12,11 +12,12 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.3.0"),
-        .package(name: "AparajitaCapacitorBiometricAuth", path: "../../../node_modules/@aparajita/capacitor-biometric-auth"),
-        .package(name: "CapacitorHaptics", path: "../../../node_modules/@capacitor/haptics"),
-        .package(name: "CapacitorLocalNotifications", path: "../../../node_modules/@capacitor/local-notifications"),
-        .package(name: "CapacitorPushNotifications", path: "../../../node_modules/@capacitor/push-notifications"),
-        .package(name: "CapawesomeCapacitorBadge", path: "../../../node_modules/@capawesome/capacitor-badge")
+        .package(name: "AparajitaCapacitorBiometricAuth", path: "../CapacitorVendor/AparajitaCapacitorBiometricAuth"),
+        .package(name: "CapacitorApp", path: "../CapacitorVendor/CapacitorApp"),
+        .package(name: "CapacitorHaptics", path: "../CapacitorVendor/CapacitorHaptics"),
+        .package(name: "CapacitorLocalNotifications", path: "../CapacitorVendor/CapacitorLocalNotifications"),
+        .package(name: "CapacitorPushNotifications", path: "../CapacitorVendor/CapacitorPushNotifications"),
+        .package(name: "CapawesomeCapacitorBadge", path: "../CapacitorVendor/CapawesomeCapacitorBadge")
     ],
     targets: [
         .target(
@@ -25,6 +26,7 @@ let package = Package(
                 .product(name: "Capacitor", package: "capacitor-swift-pm"),
                 .product(name: "Cordova", package: "capacitor-swift-pm"),
                 .product(name: "AparajitaCapacitorBiometricAuth", package: "AparajitaCapacitorBiometricAuth"),
+                .product(name: "CapacitorApp", package: "CapacitorApp"),
                 .product(name: "CapacitorHaptics", package: "CapacitorHaptics"),
                 .product(name: "CapacitorLocalNotifications", package: "CapacitorLocalNotifications"),
                 .product(name: "CapacitorPushNotifications", package: "CapacitorPushNotifications"),

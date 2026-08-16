@@ -3,6 +3,7 @@
 import { Capacitor } from '@capacitor/core';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { logSecurityEvent } from '@/lib/securityEvent';
 
 const NATIVE_SESSION_RETRY_COUNT = 12;
 const NATIVE_SESSION_RETRY_DELAY_MS = 250;
@@ -24,6 +25,7 @@ export async function getSessionOrNull(): Promise<Session | null> {
   if (error) {
     if (isInvalidRefreshTokenError(error.message)) {
       await supabase.auth.signOut({ scope: 'local' });
+      logSecurityEvent({ event_type: 'auth.session.forced_signout', outcome: 'failure', metadata: { reason: 'invalid_refresh_token' } });
       return null;
     }
 

@@ -33,16 +33,18 @@ const SIZE_CLASSES = {
 function getFallbackToneClasses(tone: NonNullable<ProfileAvatarProps['tone']>) {
   switch (tone) {
     case 'violet':
-      return 'bg-[rgba(167,139,250,0.18)] text-[var(--lavender)]';
+      return 'bg-[rgba(232,162,58,0.18)] text-[var(--lavender)]';
     case 'slate':
       return 'bg-[rgba(156,142,130,0.16)] text-[var(--muted)]';
     default:
-      return 'bg-[rgba(232,96,138,0.16)] text-[var(--rose)]';
+      return 'bg-[rgba(232,162,58,0.16)] text-[var(--rose)]';
   }
 }
 
-function getPresenceRingClass(presenceState: ResolvedPresenceState | null | undefined) {
+export function getPresenceRingClass(presenceState: ResolvedPresenceState | null | undefined) {
   switch (presenceState) {
+    case 'available':
+      return 'presence-ring-available';
     case 'away':
       return 'presence-ring-away';
     case 'idle':
@@ -50,7 +52,10 @@ function getPresenceRingClass(presenceState: ResolvedPresenceState | null | unde
     case 'offline':
       return 'presence-ring-offline';
     default:
-      return 'presence-ring-available';
+      // No presence data — render a neutral ring. Defaulting to the green
+      // "available" glow here made every avatar without presence wiring
+      // (e.g. room message senders) pulse as if online.
+      return 'presence-ring-unknown';
   }
 }
 
@@ -95,7 +100,6 @@ export default function ProfileAvatar({
         {visibleIconUrl ? (
           // Remote buddy icons may come from arbitrary user-provided URLs.
           // `img` avoids Next/Image host allowlist requirements for these avatars.
-          /* eslint-disable-next-line @next/next/no-img-element */
           <img
             src={visibleIconUrl}
             alt={`${screenname} profile photo`}

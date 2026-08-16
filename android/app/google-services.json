@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "313121731208",
+    "project_id": "hiitsmeapp",
+    "storage_bucket": "hiitsmeapp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:313121731208:android:427bda2afa7063257c253d",
+        "android_client_info": {
+          "package_name": "com.hiitsme.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB1r65LOtmvup5WprrA6pja817dTpma-v0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

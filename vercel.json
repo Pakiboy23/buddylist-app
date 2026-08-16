@@ -2,30 +2,25 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "framework": null,
+  "redirects": [
+    {
+      "source": "/why.html",
+      "destination": "https://him.samaan.tech/why.html",
+      "permanent": true
+    }
+  ],
+  "headers": [
+    {
+      "source": "/.well-known/apple-app-site-association",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json" }
+      ]
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/admin/me",
       "destination": "/api/admin/me"
-    },
-    {
-      "source": "/api/admin/password-reset-audit",
-      "destination": "/api/admin/password-reset-audit"
-    },
-    {
-      "source": "/api/admin/password-reset-ticket",
-      "destination": "/api/admin/password-reset-ticket"
-    },
-    {
-      "source": "/api/auth/recovery/setup",
-      "destination": "/api/auth/recovery/setup"
-    },
-    {
-      "source": "/api/auth/recovery/reset",
-      "destination": "/api/auth/recovery/reset"
-    },
-    {
-      "source": "/api/auth/recovery/redeem-ticket",
-      "destination": "/api/auth/recovery/redeem-ticket"
     },
     {
       "source": "/api/push/dispatch",
@@ -34,6 +29,22 @@
     {
       "source": "/api/rooms/invite",
       "destination": "/api/rooms/invite"
+    },
+    {
+      "source": "/.well-known/(.*)",
+      "destination": "/.well-known/$1"
+    },
+    {
+      "source": "/privacy",
+      "destination": "/privacy.html"
+    },
+    {
+      "source": "/terms",
+      "destination": "/terms.html"
+    },
+    {
+      "source": "/support",
+      "destination": "/support.html"
     },
     {
       "source": "/(.*)",

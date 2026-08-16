@@ -95,7 +95,7 @@ export default function ChatMediaGallerySheet({
             <h2 id={titleId} className="ui-sheet-title text-[length:var(--ui-text-lg)]">
               {title}
             </h2>
-            <p id={descriptionId} className="mt-0.5 text-[length:var(--ui-text-xs)] text-slate-500">
+            <p id={descriptionId} className="mt-0.5 text-[length:var(--ui-text-xs)] text-slate-500 dark:text-slate-400">
               Browse attachments, voice notes, and shared media in one place.
             </p>
           </div>
@@ -123,8 +123,8 @@ export default function ChatMediaGallerySheet({
                 onClick={() => onFilterChange(option.id as MediaGalleryFilter)}
                 className={`ui-focus-ring rounded-full px-3 py-1.5 text-[length:var(--ui-text-xs)] font-semibold ${
                   filter === option.id
-                    ? 'bg-[#E8608A] text-white shadow-[0_8px_20px_rgba(232,96,138,0.22)]'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-[#13100E] dark:text-slate-300 dark:hover:bg-[#1E1812]'
+                    ? 'bg-[#E8A23A] text-white shadow-[0_8px_20px_rgba(232,162,58,0.22)]'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-[#0F1424] dark:text-slate-300 dark:hover:bg-[#1E1812]'
                 }`}
               >
                 {option.label}
@@ -135,11 +135,11 @@ export default function ChatMediaGallerySheet({
           <div className="mt-4 max-h-[min(68vh,44rem)] overflow-y-auto pr-1">
             {filteredItems.length === 0 ? (
               <div className="ui-empty-state min-h-[14rem] px-6">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--bg4)] text-[#E8608A]">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--bg4)] text-[#E8A23A]">
                   <AppIcon kind="media" className="h-7 w-7" />
                 </div>
                 <div>
-                  <p className="text-[length:var(--ui-text-md)] font-semibold text-slate-500">No matches here yet</p>
+                  <p className="text-[length:var(--ui-text-md)] font-semibold text-slate-500 dark:text-slate-400">No matches here yet</p>
                   <p className="mt-0.5 text-[length:var(--ui-text-xs)] text-slate-400">
                     Shared media, voice notes, and files will collect here as the chat grows.
                   </p>
@@ -165,11 +165,10 @@ export default function ChatMediaGallerySheet({
                         href={item.publicUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="ui-focus-ring group overflow-hidden rounded-[1.4rem] border border-white/70 bg-white/85 shadow-sm dark:border-slate-800 dark:bg-[#13100E]/55"
+                        className="ui-focus-ring group overflow-hidden rounded-[1.4rem] border border-white/70 bg-white/85 shadow-sm dark:border-slate-800 dark:bg-[#0F1424]/55"
                       >
-                        <div className="aspect-square bg-slate-100 dark:bg-[#13100E]">
+                        <div className="aspect-square bg-slate-100 dark:bg-[#0F1424]">
                           {kind === 'image' ? (
-                            /* eslint-disable-next-line @next/next/no-img-element */
                             <img
                               src={item.publicUrl}
                               alt={item.fileName}
@@ -214,10 +213,10 @@ export default function ChatMediaGallerySheet({
                     return (
                       <div
                         key={item.id}
-                        className="rounded-[1.3rem] border border-white/70 bg-white/85 px-3 py-3 shadow-sm dark:border-slate-800 dark:bg-[#13100E]/55"
+                        className="rounded-[1.3rem] border border-white/70 bg-white/85 px-3 py-3 shadow-sm dark:border-slate-800 dark:bg-[#0F1424]/55"
                       >
                         <div className="flex items-start gap-3">
-                          <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[var(--bg4)] text-[#E8608A]">
+                          <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[var(--bg4)] text-[#E8A23A]">
                             <AppIcon kind={kind === 'audio' ? 'mic' : 'attachment'} className="h-4 w-4" />
                           </div>
                           <div className="min-w-0 flex-1">
@@ -235,7 +234,7 @@ export default function ChatMediaGallerySheet({
                                 href={item.publicUrl}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="ui-focus-ring mt-2 inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1.5 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-200 dark:bg-[#13100E] dark:text-slate-200 dark:hover:bg-[#1E1812]"
+                                className="ui-focus-ring mt-2 inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1.5 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-200 dark:bg-[#0F1424] dark:text-slate-200 dark:hover:bg-[#1E1812]"
                               >
                                 <AppIcon kind="attachment" className="h-3.5 w-3.5" />
                                 Open file

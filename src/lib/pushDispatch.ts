@@ -1,10 +1,8 @@
-'use client';
-
-import { getAppApiUrl } from '@/lib/appApi';
+import { getEdgeFunctionUrl } from '@/lib/appApi';
 import { getAccessTokenOrNull } from '@/lib/authClient';
 
 type PushDispatchPayload =
-  | { kind: 'dm'; messageId: number }
+  | { kind: 'dm'; messageId: string }
   | { kind: 'room'; roomMessageId: string }
   | { kind: 'buddy_request'; buddyId: string }
   | { kind: 'buddy_accept'; buddyId: string };
@@ -16,7 +14,7 @@ async function sendPushDispatch(payload: PushDispatchPayload) {
   }
 
   try {
-    const response = await fetch(getAppApiUrl('/api/push/dispatch'), {
+    const response = await fetch(getEdgeFunctionUrl('push-dispatch'), {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -34,12 +32,12 @@ async function sendPushDispatch(payload: PushDispatchPayload) {
   }
 }
 
-export function dispatchDirectMessagePush(messageId: number) {
-  if (!Number.isFinite(messageId) || messageId <= 0) {
+export function dispatchDirectMessagePush(messageId: string) {
+  if (!messageId || !String(messageId).trim()) {
     return;
   }
 
-  void sendPushDispatch({ kind: 'dm', messageId });
+  void sendPushDispatch({ kind: 'dm', messageId: String(messageId).trim() });
 }
 
 export function dispatchRoomMessagePush(roomMessageId: string) {

@@ -5,6 +5,8 @@ import AppLockSheet from '@/components/AppLockSheet';
 import HiItsMeTabIcon from '@/components/HiItsMeTabIcon';
 import type { ChatMessage } from '@/components/ChatWindow';
 import BuddyProfileSheet from '@/components/BuddyProfileSheet';
+import { BuddyCircleGroup, NewCircleControl } from '@/components/BuddyCircles';
+import MessageReportSheet, { type MessageReportSubmission } from '@/components/MessageReportSheet';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import RenameScreenname from '@/components/RenameScreenname';
 import SavedMessagesWindow from '@/components/SavedMessagesWindow';
@@ -18,13 +20,23 @@ import {
   type AwayMoodId,
 } from '@/lib/himArtDirection';
 import { getAccessTokenOrNull, waitForSessionOrNull } from '@/lib/authClient';
-import { getAppApiUrl } from '@/lib/appApi';
+import { humanizeDbError } from '@/lib/friendlyError';
+import { getAppApiUrl, getEdgeFunctionUrl } from '@/lib/appApi';
 import { navigateAppPath, replaceAppPathInPlace, useAppRouter } from '@/lib/appNavigation';
+import {
+  buildHiItsMePath,
+  HI_ITS_ME_PATH,
+  normalizeShellSection,
+  SHELL_SECTION_QUERY_KEY,
+  type ShellSection,
+} from '@/lib/shellNavigation';
 import {
   aggregateBuddyRelationships,
   type BuddyRelationshipRecord,
 } from '@/lib/buddyRelationships';
-import { deleteBuddyIconFile, uploadBuddyIconFile, validateBuddyIconFile } from '@/lib/buddyIcon';
+import { deleteBuddyIconFile, resolveBuddyIconUrl, uploadBuddyIconFile, validateBuddyIconFile } from '@/lib/buddyIcon';
+import { sendOrAcceptBuddyRequest } from '@/lib/buddyRequest';
+import { fetchBuddySuggestions, type BuddySuggestion } from '@/lib/buddySuggestions';
 import {
   getRaw,
   getVersionedData,
@@ -34,6 +46,7 @@ import {
 } from '@/lib/clientStorage';
 import { uploadChatMediaFile } from '@/lib/chatMedia';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
+import { useMutualContext } from '@/hooks/useMutualContext';
 import { useTheme } from '@/hooks/useTheme';
 import {
   DEFAULT_APP_LOCK_SETTINGS,
@@ -73,6 +86,18 @@ import {
   sendRoomMessageWithClientMessageId,
 } from '@/lib/messageIdempotency';
 import { dispatchBuddyAcceptedPush, dispatchBuddyRequestPush } from '@/lib/pushDispatch';
+import { displayBodyForMessage } from '@/lib/contentModeration';
+import { buildAwayMessageReplyDraft } from '@/lib/awayMessageReply';
+import {
+  buildBuddyCircleIndex,
+  createBuddyCircle as createCircleRecord,
+  deleteBuddyCircle,
+  loadBuddyCircles,
+  renameBuddyCircle,
+  setBuddyCircle as assignBuddyToCircle,
+  updateBuddyCircleSettings,
+  type BuddyCircle,
+} from '@/lib/buddyCircles';
 import {
   EXTENDED_USER_PROFILE_SELECT_FIELDS,
   EXTENDED_USER_PROFILE_WITH_EMAIL_SELECT_FIELDS,
@@ -83,11 +108,11 @@ import {
   withProfileSchemaDefaults,
   withProfileSchemaDefaultsList,
 } from '@/lib/profileSchema';
-import { isChatRoomsRoomKeyMissingError } from '@/lib/roomSchema';
 import { hapticLight, hapticWarning, hapticSelection } from '@/lib/haptics';
 import { initSoundSystem, playFallbackTone, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
-import { normalizeRoomKey, sameRoom } from '@/lib/roomName';
+import { upsertOwnProfileWithRepair } from '@/lib/profileRepair';
+import { normalizeRoomKey } from '@/lib/roomName';
 import { htmlToPlainText } from '@/lib/richText';
 import {
   DEFAULT_USER_PRIVACY_SETTINGS,
@@ -111,11 +136,6 @@ import {
   getPresenceLabel,
   resolvePresenceState,
 } from '@/lib/presence';
-import { generateClientRecoveryCode, RECOVERY_CODE_MIN_LENGTH } from '@/lib/recoveryCode';
-import {
-  clearPendingSignupRecoveryDraft,
-  readPendingSignupRecoveryDraft,
-} from '@/lib/signupRecoveryDraft';
 import {
   applyDmStateEvent,
   mapRowsToUnreadDirectMessages,
@@ -123,10 +143,20 @@ import {
   type UserDmStateRowLite,
 } from '@/lib/unread-dm';
 import {
+  confirmNativeShellAvailable,
   isNativeIosShell,
+  publishNativeMilestoneOneState,
   publishNativeShellChromeState,
+  registerNativeMilestoneOneBridge,
   registerNativeShellBridge,
   subscribeNativeShellCommands,
+  type NativeMilestoneOneBuddy,
+  type NativeMilestoneOneCircle,
+  type NativeMilestoneOneConversation,
+  type NativeMilestoneOneMessage,
+  type NativeMilestoneOneRoom,
+  type NativeMilestoneOneRoomBridge,
+  type NativeMilestoneOneRoomConversation,
   type NativeShellAdminAuditItem,
   type NativeShellAdminAuditResult,
   type NativeShellAdminIssueResult,
@@ -136,6 +166,8 @@ import {
   type NativeShellPrivacyState,
 } from '@/lib/nativeShell';
 import RetroWindow from '@/components/RetroWindow';
+import BrowsePanel from '@/components/BrowsePanel';
+import SearchPanel from '@/components/SearchPanel';
 import { useChatContext } from '@/context/ChatContext';
 import {
   ABUSE_REPORT_CATEGORY_OPTIONS,
@@ -175,7 +207,6 @@ interface Buddy {
 }
 
 type BuddySortMode = 'online_then_alpha' | 'alpha' | 'recent_activity';
-type ShellSection = 'profile' | 'im' | 'chat' | 'buddy';
 
 interface PendingRequest {
   senderId: string;
@@ -195,9 +226,21 @@ export interface TemporaryChatProfile {
 
 interface ChatRoom {
   id: string;
+  slug: string;
   name: string;
-  room_key?: string | null;
-  invite_code?: string | null;
+}
+
+interface RoomLobbyPresenceMeta {
+  userId?: string;
+  screenname?: string;
+  roomId?: string;
+  roomName?: string;
+  onlineAt?: string;
+}
+
+interface RoomLobbyParticipant {
+  id: string;
+  screenname: string;
 }
 
 interface AdminMeResponse {
@@ -277,8 +320,6 @@ const BUDDY_SIGN_OFF_SOUND = '/sounds/door_slam.mp3';
 const BUDDY_GOING_AWAY_SOUND = '/sounds/door_slam.mp3';
 const INCOMING_MESSAGE_SOUND = '/sounds/im_receive.mp3';
 const NEW_MESSAGE_SOUND = '/sounds/aim-instant-message.mp3';
-const HI_ITS_ME_PATH = '/hi-its-me';
-const SHELL_SECTION_QUERY_KEY = 'tab';
 const AVAILABLE_STATUS = 'Available';
 const AWAY_STATUS = 'Away';
 const KNOWN_STATUSES = ['Available', 'Away', 'Invisible', 'Busy', 'Be Right Back'] as const;
@@ -294,6 +335,7 @@ const AWAY_PRESETS_STORAGE_KEY = 'hiitsme:away-presets';
 const AWAY_SETTINGS_STORAGE_KEY = 'hiitsme:away-settings';
 const AWAY_COOLDOWN_STORAGE_KEY = 'hiitsme:away-cooldowns';
 const BUDDY_SORT_STORAGE_KEY = 'hiitsme:buddy-sort';
+const BUDDY_CIRCLES_COLLAPSED_STORAGE_KEY = 'hiitsme:buddy-circles-collapsed';
 const AWAY_AUTO_REPLY_PREFIX = '[Auto-Reply]';
 const AWAY_AUTO_REPLY_COOLDOWN_MS = 10 * 60 * 1000;
 const TYPING_THROTTLE_MS = 1200;
@@ -311,32 +353,6 @@ const DEFAULT_AWAY_PRESETS: AwayPreset[] = [
   { id: 'cooking', label: 'Cooking', message: "cooking. don't talk to me until there is food", builtIn: true },
   { id: 'snacks', label: 'Snacks', message: 'do not disturb unless you are bringing snacks', builtIn: true },
 ];
-
-function normalizeShellSection(value: string | null | undefined): ShellSection {
-  return value === 'im' || value === 'chat' || value === 'buddy' || value === 'profile' ? value : 'profile';
-}
-
-function buildHiItsMePath(options: {
-  section?: ShellSection;
-  roomName?: string | null;
-  dmBuddyId?: string | null;
-} = {}) {
-  const params = new URLSearchParams();
-  const section = options.section ?? 'profile';
-
-  if (section !== 'profile') {
-    params.set(SHELL_SECTION_QUERY_KEY, section);
-  }
-  if (options.roomName) {
-    params.set('room', options.roomName);
-  }
-  if (options.dmBuddyId) {
-    params.set('dm', options.dmBuddyId);
-  }
-
-  const query = params.toString();
-  return query ? `${HI_ITS_ME_PATH}?${query}` : HI_ITS_ME_PATH;
-}
 
 interface UiDraftState {
   dm: Record<string, string>;
@@ -657,6 +673,22 @@ function formatAdminAuditEvent(eventType: string) {
     .join(' ');
 }
 
+function getSavedMessagePreviewText(content: string): string {
+  const plain = htmlToPlainText(content).trim();
+  if (!plain) {
+    return 'Saved keepsakes';
+  }
+  try {
+    const url = new URL(plain);
+    if (url.pathname.startsWith('/join/')) {
+      return 'Room invite';
+    }
+  } catch {
+    // not a URL — fall through
+  }
+  return plain;
+}
+
 function formatAuditUserLabel(screenname: string | null, userId: string | null) {
   if (screenname) {
     return screenname;
@@ -674,7 +706,7 @@ function buildAdminResetHandoff(screenname: string, ticket: string, expiresAt: s
     `H.I.M. secure reset for ${screenname}`,
     `Ticket: ${ticket}`,
     `Expires: ${new Date(expiresAt).toLocaleString()}`,
-    'Open H.I.M., choose "Use reset ticket", then create a new password and recovery code.',
+    'Open H.I.M. and use this ticket to reset your password.',
   ].join('\n');
 }
 
@@ -696,6 +728,9 @@ interface DirectMessageRowProps {
   lastMessagePreview: string;
   openBuddyProfile: (buddyId: string) => void;
   handleOpenChat: (buddyId: string) => void;
+  handleReplyToAwayMessage: (buddyId: string, awayMessage: string) => void;
+  handleKnockBuddy: (buddyId: string) => void;
+  presenceHidden?: boolean;
 }
 
 function areDirectMessageRowPropsEqual(prev: DirectMessageRowProps, next: DirectMessageRowProps): boolean {
@@ -720,7 +755,10 @@ function areDirectMessageRowPropsEqual(prev: DirectMessageRowProps, next: Direct
     prev.isTypingActive === next.isTypingActive &&
     prev.lastMessagePreview === next.lastMessagePreview &&
     prev.openBuddyProfile === next.openBuddyProfile &&
-    prev.handleOpenChat === next.handleOpenChat
+    prev.handleOpenChat === next.handleOpenChat &&
+    prev.handleReplyToAwayMessage === next.handleReplyToAwayMessage &&
+    prev.handleKnockBuddy === next.handleKnockBuddy &&
+    prev.presenceHidden === next.presenceHidden
   );
 }
 
@@ -736,6 +774,9 @@ const DirectMessageRow = memo(function DirectMessageRow({
   lastMessagePreview,
   openBuddyProfile,
   handleOpenChat,
+  handleReplyToAwayMessage,
+  handleKnockBuddy,
+  presenceHidden = false,
 }: DirectMessageRowProps) {
   const resolvedStatus = resolveStatusFields({
     status: buddy.status,
@@ -745,21 +786,28 @@ const DirectMessageRow = memo(function DirectMessageRow({
   const awayLine = resolvedStatus.awayMessage
     ? resolveAwayTemplate(resolvedStatus.awayMessage, buddy.screenname, currentUserScreenname)
     : '';
-  const presenceState = resolvePresenceState({
-    isOnline: buddy.isOnline,
-    status: resolvedStatus.status,
-    idleSince: buddy.idle_since,
-  });
-  const presenceLabel = getPresenceLabel(presenceState);
-  const presenceDetail = getPresenceDetail({
-    state: presenceState,
-    awayMessage: awayLine,
-    statusMessage: resolvedStatus.statusMessage,
-    idleSince: buddy.idle_since,
-    lastActiveAt: buddy.last_active_at,
-  });
+  // A presence-hidden circle collapses the buddy to a neutral offline row — the
+  // owner opted out of seeing this circle's live presence (never reveals it to the buddy).
+  const presenceState = presenceHidden
+    ? 'offline'
+    : resolvePresenceState({
+        isOnline: buddy.isOnline,
+        status: resolvedStatus.status,
+        idleSince: buddy.idle_since,
+      });
+  const presenceLabel = presenceHidden ? 'Presence hidden' : getPresenceLabel(presenceState);
+  const presenceDetail = presenceHidden
+    ? ''
+    : getPresenceDetail({
+        state: presenceState,
+        awayMessage: awayLine,
+        statusMessage: resolvedStatus.statusMessage,
+        idleSince: buddy.idle_since,
+        lastActiveAt: buddy.last_active_at,
+      });
 
-  const showArrivalWave = recentActivity?.tone === 'online' || recentActivity?.tone === 'back';
+  const showArrivalWave =
+    !presenceHidden && (recentActivity?.tone === 'online' || recentActivity?.tone === 'back');
   const presenceToneClass =
     presenceState === 'away'
       ? 'text-[var(--gold)]'
@@ -796,7 +844,7 @@ const DirectMessageRow = memo(function DirectMessageRow({
           </p>
           <div className="mt-0.5 flex flex-wrap items-center gap-1">
             {conversationPreference.isPinned ? (
-              <span className="rounded-full border border-[rgba(232,96,138,0.16)] bg-[rgba(232,96,138,0.1)] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[var(--rose)]">
+              <span className="rounded-full border border-[rgba(232,162,58,0.16)] bg-[rgba(232,162,58,0.1)] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[var(--rose)]">
                 Pinned
               </span>
             ) : null}
@@ -806,12 +854,12 @@ const DirectMessageRow = memo(function DirectMessageRow({
               </span>
             ) : null}
             {conversationPreference.isMuted ? (
-              <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:bg-[#13100E] dark:text-slate-300">
+              <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:bg-slate-800/60 dark:text-slate-300">
                 Muted
               </span>
             ) : null}
             {unreadCount > 0 ? (
-              <span className="rounded-full border border-[rgba(232,96,138,0.16)] bg-[rgba(232,96,138,0.1)] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[var(--rose)]">
+              <span className="rounded-full border border-[rgba(232,162,58,0.16)] bg-[rgba(232,162,58,0.1)] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[var(--rose)]">
                 Unread
               </span>
             ) : null}
@@ -830,7 +878,7 @@ const DirectMessageRow = memo(function DirectMessageRow({
           </div>
           <p className="truncate text-[11px] text-slate-400" title={recentActivity?.message || presenceDetail}>
             {isTypingActive ? (
-              <span className="italic text-[var(--rose)]">typing…</span>
+              <span className="font-medium text-[var(--rose)]">typing…</span>
             ) : (
               lastMessagePreview || presenceDetail
             )}
@@ -849,12 +897,38 @@ const DirectMessageRow = memo(function DirectMessageRow({
           {unreadCount}
         </span>
       ) : null}
+      {!isBlocked ? (
+        <button
+          type="button"
+          onClick={() => handleKnockBuddy(buddy.id)}
+          className="ui-focus-ring ui-button-secondary ui-button-compact shrink-0"
+          aria-label={`Knock ${buddy.screenname}`}
+          title="Let them know you want to talk"
+        >
+          👋
+        </button>
+      ) : null}
       <button
         type="button"
-        onClick={() => (isBlocked ? openBuddyProfile(buddy.id) : handleOpenChat(buddy.id))}
+        onClick={() => {
+          if (isBlocked) {
+            openBuddyProfile(buddy.id);
+          } else if (presenceState === 'away' && awayLine) {
+            handleReplyToAwayMessage(buddy.id, awayLine);
+          } else {
+            handleOpenChat(buddy.id);
+          }
+        }}
         className={`ui-focus-ring shrink-0 ${isSelected && !isBlocked ? 'ui-button-primary' : 'ui-button-secondary'} ui-button-compact`}
+        aria-label={
+          isBlocked
+            ? `View ${buddy.screenname}`
+            : presenceState === 'away' && awayLine
+              ? `Reply to ${buddy.screenname}'s away message`
+              : `IM ${buddy.screenname}`
+        }
       >
-        {isBlocked ? 'View' : 'IM'}
+        {isBlocked ? 'View' : presenceState === 'away' && awayLine ? 'Reply' : 'IM'}
       </button>
     </div>
   );
@@ -888,7 +962,6 @@ function HiItsMeContent() {
   const [isAutoAwayEnabled, setIsAutoAwayEnabled] = useState(true);
   const [autoAwayMinutes, setAutoAwayMinutes] = useState<number>(10);
   const [autoReturnOnActivity, setAutoReturnOnActivity] = useState(true);
-  const [awaySinceAt, setAwaySinceAt] = useState<string | null>(null);
   const [awayModalError, setAwayModalError] = useState<string | null>(null);
   const [isProfileSchemaUnavailable, setIsProfileSchemaUnavailable] = useState(false);
   const [isSavingAwayMessage, setIsSavingAwayMessage] = useState(false);
@@ -899,6 +972,9 @@ function HiItsMeContent() {
   const [selectedBuddyId, setSelectedBuddyId] = useState<string | null>(null);
   const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
   const [buddySortMode, setBuddySortMode] = useState<BuddySortMode>('online_then_alpha');
+  const [buddyCircles, setBuddyCircles] = useState<BuddyCircle[]>([]);
+  const [collapsedCircleIds, setCollapsedCircleIds] = useState<Set<string>>(new Set());
+  const [circleActionError, setCircleActionError] = useState<string | null>(null);
   const [buddyLastMessageAt, setBuddyLastMessageAt] = useState<Record<string, string>>({});
   const [buddyLastMessagePreview, setBuddyLastMessagePreview] = useState<Record<string, string>>({});
   const [isUiCacheHydrated, setIsUiCacheHydrated] = useState(false);
@@ -930,15 +1006,19 @@ function HiItsMeContent() {
   const [forwardingMessage, setForwardingMessage] = useState<ChatMessage | null>(null);
   const [forwardError, setForwardError] = useState<string | null>(null);
   const [isForwardingToId, setIsForwardingToId] = useState<string | null>(null);
+  const [reportTarget, setReportTarget] = useState<
+    | {
+        targetUserId: string;
+        targetScreenname: string;
+        sourceMessageId: number | null;
+        messagePreview: string | null;
+      }
+    | null
+  >(null);
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [reportSubmitError, setReportSubmitError] = useState<string | null>(null);
 
-  const [isRecoverySetupOpen, setIsRecoverySetupOpen] = useState(false);
-  const [recoveryCodeDraft, setRecoveryCodeDraft] = useState('');
-  const [recoveryCodeConfirmDraft, setRecoveryCodeConfirmDraft] = useState('');
-  const [recoverySetupError, setRecoverySetupError] = useState<string | null>(null);
-  const [recoverySetupFeedback, setRecoverySetupFeedback] = useState<string | null>(null);
-  const [isSavingRecoveryCode, setIsSavingRecoveryCode] = useState(false);
-
-  const [showAddWindow, setShowAddWindow] = useState(false);
+const [showAddWindow, setShowAddWindow] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -947,20 +1027,28 @@ function HiItsMeContent() {
   const [isRemovingBuddyId, setIsRemovingBuddyId] = useState<string | null>(null);
   const [isBlockingBuddyId, setIsBlockingBuddyId] = useState<string | null>(null);
   const [isReportingBuddyId, setIsReportingBuddyId] = useState<string | null>(null);
-  const [bodyShellSection, setBodyShellSection] = useState<ShellSection>('profile');
+  const [bodyShellSection, setBodyShellSection] = useState<ShellSection>('im');
+  const [chatSubSection, setChatSubSection] = useState<'rooms' | 'browse' | 'search'>('rooms');
+  const [isDiscoverable, setIsDiscoverable] = useState(true);
+  const [isSavingDiscoverable, setIsSavingDiscoverable] = useState(false);
   const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(false);
   const [profileSheetBuddyId, setProfileSheetBuddyId] = useState<string | null>(null);
   const [profileSheetError, setProfileSheetError] = useState<string | null>(null);
   const [profileSheetFeedback, setProfileSheetFeedback] = useState<string | null>(null);
   const [showSystemStatusSheet, setShowSystemStatusSheet] = useState(false);
+  const [profileSyncError, setProfileSyncError] = useState<string | null>(null);
   const [buddyActivityToasts, setBuddyActivityToasts] = useState<BuddyActivityToast[]>([]);
 
   const [showRoomsWindow, setShowRoomsWindow] = useState(false);
-  const [roomNameDraft, setRoomNameDraft] = useState('');
   const [roomFilterTag, setRoomFilterTag] = useState('all');
   const [roomJoinError, setRoomJoinError] = useState<string | null>(null);
   const [isJoiningRoom, setIsJoiningRoom] = useState(false);
   const [activeRoom, setActiveRoom] = useState<ChatRoom | null>(null);
+  const [nativeRoomDirectory, setNativeRoomDirectory] = useState<ChatRoom[]>([]);
+  const [isLoadingNativeRoomDirectory, setIsLoadingNativeRoomDirectory] = useState(false);
+  const [nativeRoomDirectoryError, setNativeRoomDirectoryError] = useState<string | null>(null);
+  const [nativeRoomPresenceById, setNativeRoomPresenceById] = useState<Record<string, RoomLobbyParticipant[]>>({});
+  const [nativeRoomConversation, setNativeRoomConversation] = useState<NativeMilestoneOneRoomConversation | null>(null);
   const [isAdminUser, setIsAdminUser] = useState(false);
   const [isAdminResetOpen, setIsAdminResetOpen] = useState(false);
   const [adminResetScreenname, setAdminResetScreenname] = useState('');
@@ -987,6 +1075,8 @@ function HiItsMeContent() {
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const mutualContextTargetId = profileSheetBuddyId ?? activeChatBuddyId;
+  const mutualContextState = useMutualContext(userId ? mutualContextTargetId : null);
   const [initialUnreadForActiveRoom, setInitialUnreadForActiveRoom] = useState(0);
   const [activeRoomReloadToken, setActiveRoomReloadToken] = useState(0);
   const [outboxItems, setOutboxItems] = useState<OutboxItem[]>([]);
@@ -995,8 +1085,11 @@ function HiItsMeContent() {
   const hasPresenceSyncedRef = useRef(false);
   const isSigningOffRef = useRef(false);
   const activeChatBuddyIdRef = useRef<string | null>(null);
+  const nativeRoomBridgeRef = useRef<NativeMilestoneOneRoomBridge | null>(null);
   const acceptedBuddyIdsRef = useRef<Set<string>>(new Set());
   const blockedUserIdsRef = useRef<Set<string>>(new Set());
+  const presenceHiddenBuddyIdsRef = useRef<Set<string>>(new Set());
+  const mutedBuddyIdsRef = useRef<Set<string>>(new Set());
   const buddyRowsRef = useRef<Buddy[]>([]);
   const pendingRequestsRef = useRef<PendingRequest[]>([]);
   const temporaryChatAllowedIdsRef = useRef<Set<string>>(new Set());
@@ -1009,7 +1102,8 @@ function HiItsMeContent() {
   const profileBioRef = useRef(profileBio);
   const buddyIconPathRef = useRef<string | null>(buddyIconPath);
   const idleSinceRef = useRef<string | null>(idleSinceAt);
-  const lastActivityAtRef = useRef<number>(Date.now());
+  const [initialActivityAt] = useState(() => Date.now());
+  const lastActivityAtRef = useRef<number>(initialActivityAt);
   const lastPresenceWriteAtRef = useRef(0);
   const activityTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const lastBuddyActivityAtRef = useRef<Record<string, number>>({});
@@ -1022,20 +1116,41 @@ function HiItsMeContent() {
   const outboxItemsRef = useRef<OutboxItem[]>([]);
   const unreadDirectMessagesRef = useRef<Record<string, number>>({});
   const isFlushingOutboxRef = useRef(false);
+  // Per-buddy+type timestamp of the last Buzz/Knock sent, for the client-side
+  // signal cooldown that mirrors the server triggers.
+  const signalCooldownRef = useRef<Record<string, number>>({});
   const appHiddenAtRef = useRef<number | null>(null);
   const attemptedBiometricUnlockRef = useRef(false);
   const quickPhotoInputRef = useRef<HTMLInputElement | null>(null);
   const awayMessageFieldRef = useRef<HTMLTextAreaElement | null>(null);
-  const recoveryCodeInputRef = useRef<HTMLInputElement | null>(null);
   const adminResetInputRef = useRef<HTMLInputElement | null>(null);
   const playSound = useSoundPlayer();
   const { isDark, toggleDark } = useTheme();
   const router = useAppRouter();
   const [searchParams] = useSearchParams();
-  const nativeShellActive = isNativeIosShell();
-  const roomKeySchemaUnavailableRef = useRef(false);
+  // Optimistically assume the native shell on iOS so a healthy build never flashes
+  // the web chrome, but downgrade to the web header + tab bar if the bridge can't
+  // confirm the shell is actually hosting the view. Without this fallback a native
+  // build that lacks the custom shell root renders no navigation at all.
+  const [nativeShellActive, setNativeShellActive] = useState(() => isNativeIosShell());
+  useEffect(() => {
+    if (!isNativeIosShell()) {
+      return;
+    }
+
+    let cancelled = false;
+    void confirmNativeShellAvailable().then((available) => {
+      if (!cancelled) {
+        setNativeShellActive(available);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const {
-    activeRooms,
+    joinedRooms,
     unreadMessages,
     joinRoom,
     leaveRoom,
@@ -1046,6 +1161,114 @@ function HiItsMeContent() {
     lastSyncedAt,
     lastSyncError,
   } = useChatContext();
+
+  const handleNativeRoomStateChange = useCallback((conversation: NativeMilestoneOneRoomConversation) => {
+    setNativeRoomConversation(conversation);
+  }, []);
+
+  const loadNativeRoomDirectory = useCallback(async () => {
+    setIsLoadingNativeRoomDirectory(true);
+    setNativeRoomDirectoryError(null);
+    const { data, error } = await supabase
+      .from('rooms')
+      .select('id,slug,name')
+      .eq('is_active', true)
+      .order('display_order', { ascending: true });
+
+    setIsLoadingNativeRoomDirectory(false);
+    if (error) {
+      setNativeRoomDirectoryError(error.message);
+      return false;
+    }
+
+    setNativeRoomDirectory((data ?? []) as ChatRoom[]);
+    return true;
+  }, []);
+
+  useEffect(() => {
+    if (!userId) {
+      setNativeRoomDirectory([]);
+      setNativeRoomDirectoryError(null);
+      return;
+    }
+    void loadNativeRoomDirectory();
+  }, [loadNativeRoomDirectory, userId]);
+
+  useEffect(() => {
+    if (!userId) {
+      setNativeRoomPresenceById({});
+      return;
+    }
+
+    const channel = supabase.channel('global_room_presence', {
+      config: {
+        presence: {
+          key: userId,
+        },
+      },
+    });
+
+    const updatePresenceDirectory = () => {
+      const presenceState = channel.presenceState() as Record<string, RoomLobbyPresenceMeta[]>;
+      const participantsByRoom = new Map<string, Map<string, RoomLobbyParticipant>>();
+
+      for (const metas of Object.values(presenceState)) {
+        for (const meta of metas) {
+          const participantId = typeof meta.userId === 'string' ? meta.userId : '';
+          const participantScreenname = typeof meta.screenname === 'string' ? meta.screenname.trim() : '';
+          const roomId = typeof meta.roomId === 'string' ? meta.roomId : '';
+          if (!participantId || !participantScreenname || !roomId) {
+            continue;
+          }
+
+          const roomParticipants = participantsByRoom.get(roomId) ?? new Map<string, RoomLobbyParticipant>();
+          roomParticipants.set(participantId, {
+            id: participantId,
+            screenname: participantScreenname,
+          });
+          participantsByRoom.set(roomId, roomParticipants);
+        }
+      }
+
+      setNativeRoomPresenceById(
+        Object.fromEntries(
+          Array.from(participantsByRoom.entries()).map(([roomId, participantsById]) => [
+            roomId,
+            Array.from(participantsById.values()).sort((left, right) =>
+              left.screenname.localeCompare(right.screenname, undefined, { sensitivity: 'base' }),
+            ),
+          ]),
+        ),
+      );
+    };
+
+    channel.on('presence', { event: 'sync' }, updatePresenceDirectory);
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED' && activeRoom) {
+        void channel.track({
+          userId,
+          screenname,
+          roomId: activeRoom.id,
+          roomName: activeRoom.name,
+          onlineAt: new Date().toISOString(),
+        });
+      }
+    });
+
+    return () => {
+      void channel.untrack();
+      channel.unsubscribe();
+    };
+  }, [activeRoom, screenname, userId]);
+
+  useEffect(() => {
+    setNativeRoomConversation((previous) =>
+      previous?.roomId === activeRoom?.id ? previous : null,
+    );
+    if (!activeRoom) {
+      nativeRoomBridgeRef.current = null;
+    }
+  }, [activeRoom]);
 
   useEffect(() => {
     activeChatBuddyIdRef.current = activeChatBuddyId;
@@ -1086,24 +1309,6 @@ function HiItsMeContent() {
 
     return () => window.cancelAnimationFrame(frameId);
   }, [awayModalMode, showAwayModal]);
-
-  useEffect(() => {
-    if (!isRecoverySetupOpen || typeof window === 'undefined') {
-      return;
-    }
-
-    const frameId = window.requestAnimationFrame(() => {
-      const field = recoveryCodeInputRef.current;
-      if (!field) {
-        return;
-      }
-
-      field.scrollIntoView({ block: 'center' });
-      field.focus();
-    });
-
-    return () => window.cancelAnimationFrame(frameId);
-  }, [isRecoverySetupOpen]);
 
   useEffect(() => {
     if (!isAdminResetOpen || typeof window === 'undefined') {
@@ -1628,6 +1833,12 @@ function HiItsMeContent() {
         return;
       }
 
+      // Owner-side circle controls: a circle with hidden presence never surfaces
+      // sign-on/off/away toasts; a muted circle stays silent in-app.
+      if (presenceHiddenBuddyIdsRef.current.has(buddyId) || mutedBuddyIdsRef.current.has(buddyId)) {
+        return;
+      }
+
       const activityKey = `${buddyId}:${tone}`;
       const now = Date.now();
       const previousAt = lastBuddyActivityAtRef.current[activityKey] ?? 0;
@@ -1677,15 +1888,6 @@ function HiItsMeContent() {
     },
     [userId],
   );
-
-  const parseRoomTags = useCallback((roomName: string) => {
-    const tokens = roomName
-      .toLowerCase()
-      .split(/[^a-z0-9]+/)
-      .filter(Boolean);
-    const allowed = ['30s', 'city', 'single', 'divorced', 'late-night', 'music', 'parents', 'local'];
-    return allowed.filter((tag) => tokens.includes(tag.replace('-', '')) || roomName.toLowerCase().includes(tag)).slice(0, 3);
-  }, []);
 
   const upsertConversationPreference = useCallback(
     async (
@@ -1786,6 +1988,19 @@ function HiItsMeContent() {
     },
     [privacySettings, userId],
   );
+
+  const toggleDiscoverable = useCallback(async () => {
+    if (!userId || isSavingDiscoverable) return;
+    const next = !isDiscoverable;
+    setIsDiscoverable(next);
+    setIsSavingDiscoverable(true);
+    const { error } = await supabase.from('users').update({ discoverable: next }).eq('id', userId);
+    if (error) {
+      console.error('Failed to update discoverable:', error.message);
+      setIsDiscoverable(!next);
+    }
+    setIsSavingDiscoverable(false);
+  }, [isDiscoverable, isSavingDiscoverable, userId]);
 
   const openAppLockSetup = useCallback(() => {
     setAppLockMode('setup');
@@ -2079,6 +2294,93 @@ function HiItsMeContent() {
     [userId],
   );
 
+  const openReportSheetForDmMessage = useCallback(
+    (message: ChatMessage, senderScreenname: string) => {
+      setReportSubmitError(null);
+      setReportTarget({
+        targetUserId: message.sender_id,
+        targetScreenname: senderScreenname,
+        sourceMessageId: message.id,
+        messagePreview: htmlToPlainText(message.content).trim(),
+      });
+    },
+    [],
+  );
+
+  const openReportSheetForRoomMessage = useCallback(
+    (payload: {
+      messageId: string;
+      senderId: string;
+      senderScreenname: string;
+      contentPreview: string;
+    }) => {
+      setReportSubmitError(null);
+      setReportTarget({
+        targetUserId: payload.senderId,
+        targetScreenname: payload.senderScreenname,
+        sourceMessageId: null,
+        messagePreview: payload.contentPreview,
+      });
+    },
+    [],
+  );
+
+  const handleSubmitMessageReport = useCallback(
+    async (submission: MessageReportSubmission) => {
+      if (!userId || !reportTarget) {
+        return;
+      }
+
+      setReportSubmitting(true);
+      setReportSubmitError(null);
+
+      const { error } = await supabase.from('abuse_reports').insert({
+        reporter_id: userId,
+        target_user_id: reportTarget.targetUserId,
+        source_message_id: reportTarget.sourceMessageId,
+        category: submission.category,
+        details: submission.details || null,
+      });
+
+      setReportSubmitting(false);
+
+      if (error) {
+        const message = isTrustSafetySchemaMissingError(error)
+          ? 'Run trust_safety_slice.sql to enable blocking and reporting.'
+          : error.message;
+        setReportSubmitError(message);
+        return;
+      }
+
+      setReportTarget(null);
+    },
+    [reportTarget, userId],
+  );
+
+  const handleBlockUserById = useCallback(
+    async (targetUserId: string) => {
+      if (!userId || !targetUserId || userId === targetUserId) {
+        return;
+      }
+      setIsBlockingBuddyId(targetUserId);
+      const { error } = await supabase.from('blocked_users').upsert(
+        { blocker_id: userId, blocked_id: targetUserId },
+        { onConflict: 'blocker_id,blocked_id' },
+      );
+      setIsBlockingBuddyId(null);
+      if (error) {
+        setTrustSafetyError(
+          isTrustSafetySchemaMissingError(error)
+            ? 'Run trust_safety_slice.sql to enable blocking and reporting.'
+            : error.message,
+        );
+        return;
+      }
+      setBlockedUserIds((previous) => (previous.includes(targetUserId) ? previous : [...previous, targetUserId]));
+    },
+    [userId],
+  );
+
   useEffect(() => {
     if (!userId) {
       setOutboxItems([]);
@@ -2127,8 +2429,22 @@ function HiItsMeContent() {
 
     isFlushingOutboxRef.current = true;
     try {
-      let nextItems = [...snapshot];
       const nowMs = Date.now();
+
+      // Each per-item transition MUST be a functional update on the live state,
+      // not a replace from `snapshot`. Other code paths (handleSendMessage,
+      // handleSendKnockToBuddy, retryOutboxMessage) mutate outboxItems
+      // concurrently while we await the network; a whole-array replace from the
+      // start-of-flush snapshot would silently drop anything they queued
+      // mid-flush, losing the message with no error shown.
+      const markSending = (id: string) =>
+        setOutboxItems((previous) =>
+          normalizeOutboxItems(previous.map((c) => (c.id === id ? markOutboxSending(c) : c))));
+      const markFailed = (id: string, message: string) =>
+        setOutboxItems((previous) =>
+          normalizeOutboxItems(previous.map((c) => (c.id === id ? markOutboxAttemptFailure(c, message) : c))));
+      const dropSent = (id: string) =>
+        setOutboxItems((previous) => normalizeOutboxItems(previous.filter((c) => c.id !== id)));
 
       for (const item of snapshot) {
         if (item.status === 'sending') {
@@ -2139,10 +2455,7 @@ function HiItsMeContent() {
           continue;
         }
 
-        nextItems = nextItems.map((candidate) =>
-          candidate.id === item.id ? markOutboxSending(candidate) : candidate,
-        );
-        setOutboxItems(normalizeOutboxItems(nextItems));
+        markSending(item.id);
 
         if (item.type === 'dm') {
           const { data, error } = await sendDirectMessageWithClientMessageId({
@@ -2158,10 +2471,7 @@ function HiItsMeContent() {
           });
 
           if (error) {
-            nextItems = nextItems.map((candidate) =>
-              candidate.id === item.id ? markOutboxAttemptFailure(candidate, error.message) : candidate,
-            );
-            setOutboxItems(normalizeOutboxItems(nextItems));
+            markFailed(item.id, humanizeDbError(error.message));
             continue;
           }
 
@@ -2177,32 +2487,25 @@ function HiItsMeContent() {
                 : [...previous, insertedMessage],
             );
           }
-          nextItems = nextItems.filter((candidate) => candidate.id !== item.id);
-          setOutboxItems(normalizeOutboxItems(nextItems));
+          dropSent(item.id);
           continue;
         }
 
         const { data, error } = await sendRoomMessageWithClientMessageId({
           roomId: item.targetId,
-          senderId: userId,
-          content: item.content,
+          userId,
+          body: item.content,
           clientMessageId: item.id,
         });
         if (error) {
-          nextItems = nextItems.map((candidate) =>
-            candidate.id === item.id ? markOutboxAttemptFailure(candidate, error.message) : candidate,
-          );
-          setOutboxItems(normalizeOutboxItems(nextItems));
+          markFailed(item.id, error.message);
           continue;
         }
         if (activeRoom?.id === item.targetId && data) {
           setActiveRoomReloadToken((previous) => previous + 1);
         }
-        nextItems = nextItems.filter((candidate) => candidate.id !== item.id);
-        setOutboxItems(normalizeOutboxItems(nextItems));
+        dropSent(item.id);
       }
-
-      setOutboxItems(normalizeOutboxItems(nextItems));
     } finally {
       isFlushingOutboxRef.current = false;
     }
@@ -2258,7 +2561,7 @@ function HiItsMeContent() {
       replyToMessageId?: number | null;
       forwardSourceMessageId?: number | null;
       forwardSourceSenderId?: string | null;
-      previewType?: 'text' | 'attachment' | 'forwarded' | 'voice_note' | 'buzz';
+      previewType?: 'text' | 'attachment' | 'forwarded' | 'voice_note' | 'buzz' | 'knock';
     }) => {
       if (!userId) {
         return null;
@@ -2514,9 +2817,8 @@ function HiItsMeContent() {
     });
   }, []);
 
-  const updateRoomDraft = useCallback((roomName: string, draft: string) => {
-    const roomKey = normalizeRoomKey(roomName);
-    if (!roomKey) {
+  const updateRoomDraft = useCallback((roomId: string, draft: string) => {
+    if (!roomId) {
       return;
     }
 
@@ -2524,9 +2826,9 @@ function HiItsMeContent() {
       const nextRoomDrafts = { ...previous.rooms };
       const trimmedDraft = draft.slice(0, UI_MAX_DRAFT_LENGTH);
       if (trimmedDraft.trim().length === 0) {
-        delete nextRoomDrafts[roomKey];
+        delete nextRoomDrafts[roomId];
       } else {
-        nextRoomDrafts[roomKey] = trimmedDraft;
+        nextRoomDrafts[roomId] = trimmedDraft;
       }
       return {
         ...previous,
@@ -2819,28 +3121,42 @@ function HiItsMeContent() {
         is_online: true,
       };
 
+      let appliedProfilePayload: Record<string, unknown> = bootstrapProfilePayload;
       let { error: upsertError } = await supabase.from('users').upsert(bootstrapProfilePayload, {
         onConflict: 'id',
       });
 
       if (isProfileSchemaMissingError(upsertError)) {
         markProfileSchemaUnavailable(upsertError);
-        ({ error: upsertError } = await supabase.from('users').upsert(
-          {
-            id: session.user.id,
-            email: userEmail,
-            screenname: metadataScreenname || resolvedScreenname,
-            status: resolvedStatusState.status,
-            away_message: resolvedStatusState.awayMessage || null,
-            status_msg: resolvedStatusState.statusMessage,
-            is_online: true,
-          },
-          { onConflict: 'id' },
-        ));
+        appliedProfilePayload = {
+          id: session.user.id,
+          email: userEmail,
+          screenname: metadataScreenname || resolvedScreenname,
+          status: resolvedStatusState.status,
+          away_message: resolvedStatusState.awayMessage || null,
+          status_msg: resolvedStatusState.statusMessage,
+          is_online: true,
+        };
+        ({ error: upsertError } = await supabase
+          .from('users')
+          .upsert(appliedProfilePayload, { onConflict: 'id' }));
       }
 
       if (upsertError) {
-        console.error('Failed to sync profile:', upsertError.message);
+        // This upsert is the only thing that (re)creates a missing profile
+        // row. If it keeps failing (e.g. an orphaned row from a half-finished
+        // account deletion holds this screenname/email), every FK to
+        // users(id) breaks: buddy requests, room joins, discoverability.
+        // Repair server-side and retry instead of just logging.
+        const repairOutcome = await upsertOwnProfileWithRepair(appliedProfilePayload);
+        if (repairOutcome.error) {
+          console.error('Failed to sync profile:', repairOutcome.error.message);
+          setProfileSyncError(repairOutcome.error.message ?? 'Profile sync failed.');
+        } else {
+          setProfileSyncError(null);
+        }
+      } else {
+        setProfileSyncError(null);
       }
 
       setUserId(session.user.id);
@@ -2850,57 +3166,23 @@ function HiItsMeContent() {
       setAwayMessage(resolvedStatusState.awayMessage);
       setProfileBio(existingProfile?.profile_bio?.trim() || '');
       setBuddyIconPath(existingProfile?.buddy_icon_path ?? null);
+      void supabase
+        .from('users')
+        .select('discoverable')
+        .eq('id', session.user.id)
+        .maybeSingle()
+        .then(({ data }) => {
+          setIsDiscoverable((data as { discoverable?: boolean | null } | null)?.discoverable ?? true);
+        });
       setIdleSinceAt(null);
       setLastActiveAt(existingProfile?.last_active_at ?? new Date().toISOString());
       lastActivityAtRef.current = Date.now();
       lastPresenceWriteAtRef.current = Date.now();
-      setAwaySinceAt(resolvedStatusState.status === AWAY_STATUS ? new Date().toISOString() : null);
-      let hasRecoveryCode = true;
-      const { data: recoveryData, error: recoveryError } = await supabase
-        .from('account_recovery_codes')
-        .select('user_id')
-        .eq('user_id', session.user.id)
-        .maybeSingle();
-
-      if (recoveryError) {
-        console.error('Failed to check recovery code status:', recoveryError.message);
-      } else {
-        hasRecoveryCode = Boolean(recoveryData);
-      }
-
-      if (!hasRecoveryCode && session.access_token) {
-        const pendingRecoveryCode = readPendingSignupRecoveryDraft(resolvedScreenname);
-        if (pendingRecoveryCode) {
-          try {
-            const recoveryResponse = await fetch(getAppApiUrl('/api/auth/recovery/setup'), {
-              method: 'POST',
-              headers: {
-                'content-type': 'application/json',
-                authorization: `Bearer ${session.access_token}`,
-              },
-              body: JSON.stringify({ recoveryCode: pendingRecoveryCode }),
-            });
-
-            if (recoveryResponse.ok) {
-              hasRecoveryCode = true;
-              clearPendingSignupRecoveryDraft(resolvedScreenname);
-            } else {
-              const recoveryMessage = await readApiError(recoveryResponse);
-              setRecoverySetupError(recoveryMessage);
-            }
-          } catch (error) {
-            const message = error instanceof Error ? error.message : 'Could not finish recovery setup.';
-            setRecoverySetupError(message);
-          }
-        }
-      }
-
-      setIsRecoverySetupOpen(!hasRecoveryCode);
 
       let adminFlag = false;
       if (session.access_token && !isNativeIosShell()) {
         try {
-          const adminResponse = await fetch(getAppApiUrl('/api/admin/me'), {
+          const adminResponse = await fetch(getEdgeFunctionUrl('admin-me'), {
             method: 'GET',
             cache: 'no-store',
             headers: {
@@ -3193,9 +3475,6 @@ function HiItsMeContent() {
             setStatusMsg(resolvedStatusState.statusMessage);
             setUserStatus(resolvedStatusState.status);
             setAwayMessage(resolvedStatusState.awayMessage);
-            setAwaySinceAt((previous) =>
-              resolvedStatusState.status === AWAY_STATUS ? previous ?? new Date().toISOString() : null,
-            );
           }
         }
       })
@@ -3247,7 +3526,38 @@ function HiItsMeContent() {
       }
 
       const leftUserId = typeof payload.key === 'string' ? payload.key : '';
-      if (!leftUserId || leftUserId === userId || !acceptedBuddyIdsRef.current.has(leftUserId)) {
+      if (!leftUserId || leftUserId === userId) {
+        return;
+      }
+
+      // Presence is keyed by userId, and the same buddy can be online on web
+      // AND iOS at once (two refs under one key). Realtime emits a per-ref
+      // 'leave' when one connection drops even though the key is still present.
+      // Only treat this as a real sign-off when NO refs remain for the key —
+      // otherwise a buddy closing one device would fire a false "signed off"
+      // sound/toast and stamp a wrong "Last active" time on their still-online
+      // row.
+      const remainingRefs = presenceChannel.presenceState()[leftUserId];
+      if (Array.isArray(remainingRefs) && remainingRefs.length > 0) {
+        return;
+      }
+
+      // We just watched this buddy go offline, so "last seen" is right now.
+      // Their stored last_active_at is stale by design (heartbeat-only writes
+      // are dropped by the users-UPDATE handler to avoid re-rendering the
+      // whole list every minute), so stamp the row at the moment it matters —
+      // the offline row is what displays "Last active".
+      const leftAtIso = new Date().toISOString();
+      setBuddyRows((previous) => {
+        if (!previous.some((buddy) => buddy.id === leftUserId)) {
+          return previous;
+        }
+        return previous.map((buddy) =>
+          buddy.id === leftUserId ? { ...buddy, last_active_at: leftAtIso } : buddy,
+        );
+      });
+
+      if (!acceptedBuddyIdsRef.current.has(leftUserId)) {
         return;
       }
 
@@ -3273,8 +3583,16 @@ function HiItsMeContent() {
       hasPresenceSyncedRef.current = true;
     });
 
-    presenceChannel.subscribe((status) => {
+    presenceChannel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
+        // Sync JWT to the WebSocket before tracking — in Capacitor the HTTP and
+        // WebSocket sessions can diverge, causing presence to be silently rejected.
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          await supabase.realtime.setAuth(session.access_token);
+        }
         void presenceChannel.track({
           user_id: userId,
           online_at: new Date().toISOString(),
@@ -3393,6 +3711,37 @@ function HiItsMeContent() {
     [filteredDirectMessageBuddies],
   );
 
+  // Buddy Circles — owner-private grouping + owner-side presence/notification controls.
+  const buddyCircleIndex = useMemo(() => buildBuddyCircleIndex(buddyCircles), [buddyCircles]);
+  const presenceHiddenBuddyIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const circle of buddyCircles) {
+      if (!circle.showPresence) {
+        for (const buddyId of circle.memberBuddyIds) {
+          ids.add(buddyId);
+        }
+      }
+    }
+    return ids;
+  }, [buddyCircles]);
+  const mutedBuddyIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const circle of buddyCircles) {
+      if (circle.notifyMode === 'muted') {
+        for (const buddyId of circle.memberBuddyIds) {
+          ids.add(buddyId);
+        }
+      }
+    }
+    return ids;
+  }, [buddyCircles]);
+  useEffect(() => {
+    presenceHiddenBuddyIdsRef.current = presenceHiddenBuddyIds;
+  }, [presenceHiddenBuddyIds]);
+  useEffect(() => {
+    mutedBuddyIdsRef.current = mutedBuddyIds;
+  }, [mutedBuddyIds]);
+
   const activeChatBuddy = useMemo(() => {
     if (!activeChatBuddyId) {
       return null;
@@ -3505,6 +3854,68 @@ function HiItsMeContent() {
     [awayMessage, currentUserPresenceState, idleSinceAt, lastActiveAt, screenname, statusMsg],
   );
 
+  // Ranked global suggestions for the native buddy-list rail (issue #94).
+  // Refreshes when the accepted-buddy set changes so accepted suggestions
+  // fall out of the rail on the next pass.
+  const [nativeBuddySuggestions, setNativeBuddySuggestions] = useState<BuddySuggestion[]>([]);
+  useEffect(() => {
+    if (!nativeShellActive || !userId) {
+      return;
+    }
+    let cancelled = false;
+    void fetchBuddySuggestions(8).then((suggestions) => {
+      if (!cancelled) {
+        setNativeBuddySuggestions(suggestions);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [nativeShellActive, userId, alphabeticallySortedAcceptedBuddies.length]);
+
+  const nativeMilestoneOneBuddies = useMemo<NativeMilestoneOneBuddy[]>(
+    () =>
+      alphabeticallySortedAcceptedBuddies.map((buddy) => {
+        const presence = getBuddyPresenceSummary(buddy);
+        const preference = getDmPreference(dmPreferencesByBuddyId, buddy.id);
+        const circle = buddyCircleIndex.get(buddy.id) ?? null;
+        const presenceHidden = presenceHiddenBuddyIds.has(buddy.id);
+        return {
+          id: buddy.id,
+          screenname: buddy.screenname,
+          presence: presenceHidden ? 'offline' : presence.presenceState,
+          presenceLabel: presenceHidden ? 'Presence hidden' : presence.presenceLabel,
+          presenceDetail: presenceHidden ? '' : presence.presenceDetail,
+          awayMessage: presenceHidden || presence.presenceState !== 'away' ? null : presence.awayLine,
+          unreadCount: unreadDirectMessages[buddy.id] ?? 0,
+          isPinned: preference.isPinned,
+          circleId: circle?.id ?? null,
+          presenceHidden,
+          avatarUrl: resolveBuddyIconUrl(buddy.buddy_icon_path ?? null),
+        };
+      }),
+    [
+      alphabeticallySortedAcceptedBuddies,
+      buddyCircleIndex,
+      dmPreferencesByBuddyId,
+      getBuddyPresenceSummary,
+      presenceHiddenBuddyIds,
+      unreadDirectMessages,
+    ],
+  );
+
+  const nativeMilestoneOneCircles = useMemo<NativeMilestoneOneCircle[]>(
+    () =>
+      buddyCircles.map((circle) => ({
+        id: circle.id,
+        name: circle.name,
+        showPresence: circle.showPresence,
+        muted: circle.notifyMode === 'muted',
+        memberCount: circle.memberBuddyIds.length,
+      })),
+    [buddyCircles],
+  );
+
   const selectedProfileBuddy = useMemo(() => {
     if (!profileSheetBuddyId) {
       return null;
@@ -3611,6 +4022,7 @@ function HiItsMeContent() {
           latestMessage.preview_type === 'attachment' ? '📎 Attachment'
             : latestMessage.preview_type === 'voice_note' ? '🎤 Voice note'
             : latestMessage.preview_type === 'buzz' ? '⚡ Buzz!'
+            : latestMessage.preview_type === 'knock' ? '👋 Knock'
             : htmlToPlainText(latestMessage.content).trim().slice(0, 80) || '';
         if (previewText) {
           setBuddyLastMessagePreview((previous) => ({
@@ -3881,11 +4293,19 @@ function HiItsMeContent() {
               : [...previous, incomingMessage],
           );
 
+          // Muted circle: deliver the message but skip the in-app alert.
+          if (mutedBuddyIdsRef.current.has(senderId)) {
+            return;
+          }
+
           if (incomingMessage.preview_type === 'buzz') {
             document.body.classList.add('buzz-flash');
             setTimeout(() => document.body.classList.remove('buzz-flash'), 600);
             void hapticWarning();
             void playUiSound('/sounds/aim.mp3', { volume: 0.6 });
+          } else if (incomingMessage.preview_type === 'knock') {
+            void hapticLight();
+            void playUiSound('/sounds/aim-instant-message.mp3', { volume: 0.32 });
           } else {
             void hapticLight();
             playFallbackTone();
@@ -3925,7 +4345,7 @@ function HiItsMeContent() {
     };
   }, [clearUnreadDirectMessages, loadSingleUserProfile, playIncomingAlert, sendAutoAwayReply, userId]);
 
-  const handleSignOff = async () => {
+  const handleSignOff = useCallback(async () => {
     isSigningOffRef.current = true;
     playSound(SELF_SIGN_OFF_SOUND);
     setIsHeaderMenuOpen(false);
@@ -3936,7 +4356,6 @@ function HiItsMeContent() {
     setIsUiCacheHydrated(false);
     setDraftCache({ dm: {}, rooms: {} });
     setAwayReplyCooldowns({});
-    setAwaySinceAt(null);
     setIdleSinceAt(null);
     setLastActiveAt(null);
     setShowAwayModal(false);
@@ -3958,6 +4377,20 @@ function HiItsMeContent() {
     autoAwayTriggeredRef.current = false;
     let didCompleteSignOut = false;
     try {
+      // Best-effort final presence stamp so buddies see an accurate
+      // "Last active" after we disappear — the activity heartbeat is
+      // throttled to one write per minute, so without this the stored
+      // value can lag the true sign-off moment.
+      if (userId) {
+        try {
+          await supabase
+            .from('users')
+            .update({ last_active_at: new Date().toISOString() })
+            .eq('id', userId);
+        } catch {
+          // Never block sign-off on a failed stamp.
+        }
+      }
       const activePresenceChannel = presenceChannelRef.current;
       if (activePresenceChannel) {
         await activePresenceChannel.untrack();
@@ -3973,7 +4406,7 @@ function HiItsMeContent() {
         isSigningOffRef.current = false;
       }
     }
-  };
+  }, [playSound, resetChatState, router, setInitialUnreadForActiveChat, setInitialUnreadForActiveRoom, userId]);
 
   const updateStatus = useCallback(
     async (
@@ -4038,9 +4471,6 @@ function HiItsMeContent() {
         setIdleSinceAt(null);
         setLastActiveAt(nowIso);
         lastPresenceWriteAtRef.current = Date.now();
-        setAwaySinceAt((previous) =>
-          normalizedStatus === AWAY_STATUS ? previous ?? new Date().toISOString() : null,
-        );
         if (!wasAway && normalizedStatus === AWAY_STATUS) {
           playSound(BUDDY_GOING_AWAY_SOUND);
         } else if (wasAway && normalizedStatus !== AWAY_STATUS) {
@@ -4069,9 +4499,6 @@ function HiItsMeContent() {
       setIdleSinceAt(null);
       setLastActiveAt(nowIso);
       lastPresenceWriteAtRef.current = Date.now();
-      setAwaySinceAt((previous) =>
-        normalizedStatus === AWAY_STATUS ? previous ?? new Date().toISOString() : null,
-      );
       if (!wasAway && normalizedStatus === AWAY_STATUS) {
         playSound(BUDDY_GOING_AWAY_SOUND);
       } else if (wasAway && normalizedStatus !== AWAY_STATUS) {
@@ -4327,7 +4754,6 @@ function HiItsMeContent() {
 
   const handleImBack = useCallback(() => {
     autoAwayTriggeredRef.current = false;
-    setAwaySinceAt(null);
     void updateStatus(AVAILABLE_STATUS, null);
   }, [updateStatus]);
 
@@ -4399,85 +4825,6 @@ function HiItsMeContent() {
       window.clearInterval(intervalId);
     };
   }, [autoAwayMinutes, autoReturnOnActivity, isAutoAwayEnabled, persistIdleState, userId]);
-
-  const handleSaveRecoveryCode = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const trimmed = recoveryCodeDraft.trim();
-    const confirm = recoveryCodeConfirmDraft.trim();
-
-    if (!trimmed || !confirm) {
-      setRecoverySetupError('Enter and confirm your recovery code.');
-      setRecoverySetupFeedback(null);
-      return;
-    }
-
-    if (trimmed !== confirm) {
-      setRecoverySetupError('Recovery code entries do not match.');
-      setRecoverySetupFeedback(null);
-      return;
-    }
-
-    if (trimmed.length < RECOVERY_CODE_MIN_LENGTH) {
-      setRecoverySetupError(`Recovery code must be at least ${RECOVERY_CODE_MIN_LENGTH} characters.`);
-      setRecoverySetupFeedback(null);
-      return;
-    }
-
-    setIsSavingRecoveryCode(true);
-    setRecoverySetupError(null);
-    setRecoverySetupFeedback(null);
-
-    const accessToken = await getAccessToken();
-    if (!accessToken) {
-      setRecoverySetupError('Session expired. Please sign on again.');
-      setIsSavingRecoveryCode(false);
-      return;
-    }
-
-    let response: Response;
-    try {
-      response = await fetch(getAppApiUrl('/api/auth/recovery/setup'), {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ recoveryCode: trimmed }),
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Load failed';
-      setRecoverySetupError(message);
-      setIsSavingRecoveryCode(false);
-      return;
-    }
-
-    if (!response.ok) {
-      const errorMessage = await readApiError(response);
-      setRecoverySetupError(errorMessage);
-      setIsSavingRecoveryCode(false);
-      return;
-    }
-
-    setRecoveryCodeDraft('');
-    setRecoveryCodeConfirmDraft('');
-    setIsRecoverySetupOpen(false);
-    setIsSavingRecoveryCode(false);
-    clearPendingSignupRecoveryDraft(screennameRef.current);
-  };
-
-  const handleGenerateRecoveryCodeDraft = async () => {
-    const generated = generateClientRecoveryCode();
-    setRecoveryCodeDraft(generated);
-    setRecoveryCodeConfirmDraft(generated);
-    setRecoverySetupError(null);
-
-    try {
-      await navigator.clipboard.writeText(generated);
-      setRecoverySetupFeedback('Generated a secure recovery code and copied it to your clipboard.');
-    } catch {
-      setRecoverySetupFeedback('Generated a secure recovery code. Save it somewhere safe before you continue.');
-    }
-  };
 
   const loadAdminResetAuditData = useCallback(async (limit = 12) => {
     const accessToken = await getAccessToken();
@@ -4971,9 +5318,9 @@ function HiItsMeContent() {
   };
 
   const handleAcceptPendingRequest = useCallback(
-    async (senderId: string) => {
+    async (senderId: string, options?: { openChat?: boolean }) => {
       if (!userId) {
-        return;
+        return false;
       }
 
       setPendingRequestError(null);
@@ -4982,14 +5329,17 @@ function HiItsMeContent() {
       const accepted = await acceptBuddyById(senderId, { notifyBuddy: true });
       setIsProcessingRequestId(null);
       if (!accepted) {
-        return;
+        return false;
       }
 
       setPendingRequests((previous) => previous.filter((request) => request.senderId !== senderId));
       setTemporaryChatAllowedIds((previous) =>
         previous.includes(senderId) ? previous : [...previous, senderId],
       );
-      openChatWindowForId(senderId);
+      if (options?.openChat !== false) {
+        openChatWindowForId(senderId);
+      }
+      return true;
     },
     [acceptBuddyById, openChatWindowForId, userId],
   );
@@ -4997,7 +5347,7 @@ function HiItsMeContent() {
   const handleDeclinePendingRequest = useCallback(
     async (senderId: string) => {
       if (!userId) {
-        return;
+        return false;
       }
 
       setPendingRequestError(null);
@@ -5014,11 +5364,12 @@ function HiItsMeContent() {
 
       if (error) {
         setPendingRequestError(error.message);
-        return;
+        return false;
       }
 
       setPendingRequests((previous) => previous.filter((request) => request.senderId !== senderId));
       await loadBuddies(userId);
+      return true;
     },
     [loadBuddies, userId],
   );
@@ -5058,7 +5409,7 @@ function HiItsMeContent() {
         dmTypingTimeoutRef.current = null;
       }
       if (activeRoom) {
-        replaceAppPathInPlace(`${HI_ITS_ME_PATH}?room=${encodeURIComponent(activeRoom.name)}`);
+        replaceAppPathInPlace(`${HI_ITS_ME_PATH}?room=${encodeURIComponent(activeRoom.slug)}`);
       } else {
         replaceAppPathInPlace(HI_ITS_ME_PATH);
       }
@@ -5098,6 +5449,18 @@ function HiItsMeContent() {
     openChatWindowForId(buddyId);
   }, [openChatWindowForId]);
 
+  const handleReplyToAwayMessage = useCallback((buddyId: string, buddyAwayMessage: string) => {
+    setDraftCache((previous) => ({
+      ...previous,
+      dm: {
+        ...previous.dm,
+        [buddyId]: buildAwayMessageReplyDraft(buddyAwayMessage, previous.dm[buddyId] ?? '')
+          .slice(0, UI_MAX_DRAFT_LENGTH),
+      },
+    }));
+    openChatWindowForId(buddyId);
+  }, [openChatWindowForId]);
+
   const openBuddyProfile = useCallback((buddyId: string) => {
     setProfileSheetError(null);
     setProfileSheetFeedback(null);
@@ -5120,21 +5483,49 @@ function HiItsMeContent() {
       content: string;
       attachments?: File[];
       replyToMessageId?: number | null;
-      previewType?: 'text' | 'attachment' | 'forwarded' | 'voice_note' | 'buzz';
+      previewType?: 'text' | 'attachment' | 'forwarded' | 'voice_note' | 'buzz' | 'knock';
     }) => {
       if (!userId || !activeChatBuddyId) {
         return;
       }
 
       const isBuzz = previewType === 'buzz';
+      const isKnock = previewType === 'knock';
+      const isSignal = isBuzz || isKnock;
+
+      // Client-side signal cooldown — mirrors the server BUZZ_COOLDOWN (30s) /
+      // KNOCK_COOLDOWN (10m) triggers so a rapid tap gets instant, friendly
+      // feedback instead of a round-trip that the server rejects. The server
+      // triggers remain the real enforcement.
+      const signalCooldownKey = `${activeChatBuddyId}:${previewType}`;
+      if (isSignal) {
+        const cooldownMs = isBuzz ? 30_000 : 10 * 60_000;
+        const lastSentAt = signalCooldownRef.current[signalCooldownKey] ?? 0;
+        if (Date.now() - lastSentAt < cooldownMs) {
+          setChatError(
+            isBuzz
+              ? 'Give them a moment before buzzing again.'
+              : 'Give them a little time before knocking again.',
+          );
+          return;
+        }
+        // Start the cooldown NOW, before the async send, so rapid taps (or an
+        // offline queue-and-retry) that fire before this send resolves are
+        // blocked client-side instead of stacking signals that the server
+        // rejects. Released again only if the send hard-fails below.
+        signalCooldownRef.current[signalCooldownKey] = Date.now();
+      }
+
       const trimmedContent = content.trim();
       const normalizedAttachments = Array.isArray(attachments) ? attachments : [];
-      if (!isBuzz && !trimmedContent && normalizedAttachments.length === 0) {
+      if (!isSignal && !trimmedContent && normalizedAttachments.length === 0) {
         return;
       }
 
       const messageContent = isBuzz
         ? '⚡ Buzz!'
+        : isKnock
+          ? '👋 Knock'
         : trimmedContent
           ? content
           : normalizedAttachments.length === 1
@@ -5193,6 +5584,11 @@ function HiItsMeContent() {
           removeOutboxItem(trackedOutboxItem.id);
         }
 
+        // Hard failure (not queued for retry): release the optimistic cooldown
+        // so the user can try the signal again.
+        if (isSignal) {
+          delete signalCooldownRef.current[signalCooldownKey];
+        }
         setChatError(error.message);
         throw error;
       }
@@ -5254,6 +5650,192 @@ function HiItsMeContent() {
     },
     [activeChatBuddyId, dmPreferencesByBuddyId, queueOutboxMessage, removeOutboxItem, userId],
   );
+
+  const handleSendKnockToBuddy = useCallback(async (buddyId: string) => {
+    if (!userId || !acceptedBuddyIdsRef.current.has(buddyId)) {
+      throw new Error('Knocks are only available for buddies.');
+    }
+
+    const clientMessageId = createClientMessageId();
+    const content = '👋 Knock';
+    const expiresAt = getMessageExpiresAt(
+      getDmPreference(dmPreferencesByBuddyId, buddyId).disappearingTimerSeconds,
+    );
+    const trackedOutboxItem = queueOutboxMessage({
+      type: 'dm',
+      targetId: buddyId,
+      content,
+      clientMessageId,
+      status: 'sending',
+      expiresAt,
+      previewType: 'knock',
+    });
+
+    const { data, error } = await sendDirectMessageWithClientMessageId({
+      senderId: userId,
+      receiverId: buddyId,
+      content,
+      clientMessageId,
+      expiresAt,
+      previewType: 'knock',
+    });
+
+    if (error) {
+      const isLikelyNetworkIssue =
+        (typeof navigator !== 'undefined' && !navigator.onLine) ||
+        /network|fetch|offline|timeout/i.test(error.message);
+      if (trackedOutboxItem && isLikelyNetworkIssue) {
+        setOutboxItems((previous) =>
+          normalizeOutboxItems(
+            previous.map((item) =>
+              item.id === trackedOutboxItem.id ? markOutboxAttemptFailure(item, error.message) : item,
+            ),
+          ),
+        );
+        return;
+      }
+      if (trackedOutboxItem) {
+        removeOutboxItem(trackedOutboxItem.id);
+      }
+      throw error;
+    }
+
+    if (trackedOutboxItem) {
+      removeOutboxItem(trackedOutboxItem.id);
+    }
+
+    const insertedMessage = data as ChatMessage;
+    setBuddyLastMessageAt((previous) => ({
+      ...previous,
+      [buddyId]: insertedMessage.created_at,
+    }));
+    setBuddyLastMessagePreview((previous) => ({ ...previous, [buddyId]: '👋 Knock' }));
+    if (activeChatBuddyIdRef.current === buddyId) {
+      setChatMessages((previous) =>
+        previous.some((message) => message.id === insertedMessage.id)
+          ? previous
+          : [...previous, insertedMessage],
+      );
+    }
+  }, [dmPreferencesByBuddyId, queueOutboxMessage, removeOutboxItem, userId]);
+
+  const handleKnockBuddy = useCallback((buddyId: string) => {
+    void handleSendKnockToBuddy(buddyId).catch((error) => {
+      setChatError(error instanceof Error ? error.message : 'Could not send that Knock.');
+    });
+  }, [handleSendKnockToBuddy]);
+
+  // ── Buddy Circles ──────────────────────────────────────────────────────────
+  const reloadBuddyCircles = useCallback(async () => {
+    if (!userId) {
+      setBuddyCircles([]);
+      return;
+    }
+    try {
+      setBuddyCircles(await loadBuddyCircles());
+    } catch (error) {
+      setCircleActionError(error instanceof Error ? error.message : 'Could not load your circles.');
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    void reloadBuddyCircles();
+  }, [reloadBuddyCircles]);
+
+  useEffect(() => {
+    if (!userId || typeof window === 'undefined') {
+      return;
+    }
+    try {
+      const raw = window.localStorage.getItem(`${BUDDY_CIRCLES_COLLAPSED_STORAGE_KEY}:${userId}`);
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (Array.isArray(parsed)) {
+        setCollapsedCircleIds(new Set(parsed.filter((value): value is string => typeof value === 'string')));
+      }
+    } catch {
+      /* ignore malformed cache */
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId || typeof window === 'undefined') {
+      return;
+    }
+    try {
+      window.localStorage.setItem(
+        `${BUDDY_CIRCLES_COLLAPSED_STORAGE_KEY}:${userId}`,
+        JSON.stringify([...collapsedCircleIds]),
+      );
+    } catch {
+      /* storage may be unavailable */
+    }
+  }, [collapsedCircleIds, userId]);
+
+  const runCircleAction = useCallback(
+    async (action: () => Promise<unknown>) => {
+      setCircleActionError(null);
+      try {
+        await action();
+        await reloadBuddyCircles();
+      } catch (error) {
+        setCircleActionError(error instanceof Error ? error.message : 'That circle action did not work.');
+      }
+    },
+    [reloadBuddyCircles],
+  );
+
+  const handleCreateCircle = useCallback(
+    (name: string) => {
+      if (!userId) {
+        return;
+      }
+      void runCircleAction(() => createCircleRecord({ ownerId: userId, name, position: buddyCircles.length }));
+    },
+    [buddyCircles.length, runCircleAction, userId],
+  );
+
+  const handleRenameCircle = useCallback(
+    (circleId: string, name: string) => {
+      void runCircleAction(() => renameBuddyCircle(circleId, name));
+    },
+    [runCircleAction],
+  );
+
+  const handleDeleteCircle = useCallback(
+    (circleId: string) => {
+      void runCircleAction(() => deleteBuddyCircle(circleId));
+    },
+    [runCircleAction],
+  );
+
+  const handleUpdateCircleSettings = useCallback(
+    (circleId: string, settings: { showPresence?: boolean; notifyMode?: 'all' | 'muted' }) => {
+      void runCircleAction(() => updateBuddyCircleSettings(circleId, settings));
+    },
+    [runCircleAction],
+  );
+
+  const handleSetBuddyCircle = useCallback(
+    (buddyId: string, circleId: string | null) => {
+      if (!userId) {
+        return;
+      }
+      void runCircleAction(() => assignBuddyToCircle({ ownerId: userId, buddyId, circleId }));
+    },
+    [runCircleAction, userId],
+  );
+
+  const toggleCircleCollapsed = useCallback((circleId: string) => {
+    setCollapsedCircleIds((previous) => {
+      const next = new Set(previous);
+      if (next.has(circleId)) {
+        next.delete(circleId);
+      } else {
+        next.add(circleId);
+      }
+      return next;
+    });
+  }, []);
 
   const handleQueueRoomMessage = useCallback(
     ({
@@ -5388,241 +5970,53 @@ function HiItsMeContent() {
       : normalizeShellSection(searchParams.get(SHELL_SECTION_QUERY_KEY));
 
   const getUnreadCountForRoom = useCallback(
-    (roomName: string) => {
-      const normalized = normalizeRoomKey(roomName);
-      if (!normalized) {
-        return 0;
-      }
-
-      return Object.entries(unreadMessages).reduce((count, [key, value]) => {
-        if (normalizeRoomKey(key) === normalized) {
-          return count + value;
-        }
-        return count;
-      }, 0);
-    },
+    (roomId: string) => unreadMessages[roomId] ?? 0,
     [unreadMessages],
   );
 
-  const resolveRoomByName = useCallback(async (roomNameInput: string, allowCreate: boolean) => {
-    const roomName = roomNameInput.trim();
-    const roomKey = normalizeRoomKey(roomName);
-    if (!roomName) {
+  const resolveRoomBySlug = useCallback(async (slug: string) => {
+    const normalizedSlug = slug.trim().toLowerCase();
+    if (!normalizedSlug) {
       return null;
     }
 
-    let resolvedRoom: ChatRoom | null = null;
-
-    const normalizeChatRoomRecord = (room: Partial<ChatRoom> | null | undefined): ChatRoom | null => {
-      if (!room) {
-        return null;
-      }
-
-      const normalizedName = typeof room.name === 'string' ? room.name.trim() : '';
-      const roomId = typeof room.id === 'string' ? room.id : '';
-      if (!roomId || !normalizedName) {
-        return null;
-      }
-
-      return {
-        id: roomId,
-        name: normalizedName,
-        room_key: normalizeRoomKey(typeof room.room_key === 'string' ? room.room_key : normalizedName) || null,
-        invite_code: typeof room.invite_code === 'string' && room.invite_code ? room.invite_code : null,
-      };
-    };
-
-    const roomSelectFields = roomKeySchemaUnavailableRef.current ? 'id,name' : 'id,name,room_key,invite_code';
-
-    const existingRoomResult = await supabase
-      .from('chat_rooms')
-      .select(roomSelectFields)
-      .eq('name', roomName)
+    const { data, error } = await supabase
+      .from('rooms')
+      .select('id, slug, name')
+      .eq('slug', normalizedSlug)
+      .eq('is_active', true)
       .maybeSingle();
 
-    let existingRoom = normalizeChatRoomRecord((existingRoomResult.data as Partial<ChatRoom> | null) ?? null);
-    let existingRoomError = existingRoomResult.error;
-
-    if (isChatRoomsRoomKeyMissingError(existingRoomError)) {
-      roomKeySchemaUnavailableRef.current = true;
-      const fallbackRoomResult = await supabase
-        .from('chat_rooms')
-        .select('id,name')
-        .eq('name', roomName)
-        .maybeSingle();
-      existingRoom = normalizeChatRoomRecord((fallbackRoomResult.data as Partial<ChatRoom> | null) ?? null);
-      existingRoomError = fallbackRoomResult.error;
+    if (error || !data) {
+      return null;
     }
 
-    if (existingRoomError && existingRoomError.code !== 'PGRST116') {
-      throw new Error(existingRoomError.message);
-    }
-
-    if (existingRoom) {
-      resolvedRoom = existingRoom;
-    } else {
-      const caseInsensitiveRoomResult = await supabase
-        .from('chat_rooms')
-        .select(roomKeySchemaUnavailableRef.current ? 'id,name' : 'id,name,room_key')
-        .ilike('name', roomName)
-        .limit(1)
-        .maybeSingle();
-
-      let caseInsensitiveRoom = normalizeChatRoomRecord(
-        (caseInsensitiveRoomResult.data as Partial<ChatRoom> | null) ?? null,
-      );
-      let caseInsensitiveRoomError = caseInsensitiveRoomResult.error;
-
-      if (isChatRoomsRoomKeyMissingError(caseInsensitiveRoomError)) {
-        roomKeySchemaUnavailableRef.current = true;
-        const fallbackRoomResult = await supabase
-          .from('chat_rooms')
-          .select('id,name')
-          .ilike('name', roomName)
-          .limit(1)
-          .maybeSingle();
-        caseInsensitiveRoom = normalizeChatRoomRecord(
-          (fallbackRoomResult.data as Partial<ChatRoom> | null) ?? null,
-        );
-        caseInsensitiveRoomError = fallbackRoomResult.error;
-      }
-
-      if (caseInsensitiveRoomError && caseInsensitiveRoomError.code !== 'PGRST116') {
-        throw new Error(caseInsensitiveRoomError.message);
-      }
-
-      if (caseInsensitiveRoom) {
-        resolvedRoom = caseInsensitiveRoom;
-      }
-    }
-
-    if (!resolvedRoom && !roomKeySchemaUnavailableRef.current) {
-      const keyedRoomResult = await supabase
-        .from('chat_rooms')
-        .select('id,name,room_key')
-        .eq('room_key', roomKey)
-        .limit(1)
-        .maybeSingle();
-
-      let keyedRoom = normalizeChatRoomRecord((keyedRoomResult.data as Partial<ChatRoom> | null) ?? null);
-      let keyedRoomError = keyedRoomResult.error;
-
-      if (isChatRoomsRoomKeyMissingError(keyedRoomError)) {
-        roomKeySchemaUnavailableRef.current = true;
-        keyedRoom = null;
-        keyedRoomError = null;
-      }
-
-      if (keyedRoomError && keyedRoomError.code !== 'PGRST116') {
-        throw new Error(keyedRoomError.message);
-      }
-
-      if (keyedRoom) {
-        resolvedRoom = keyedRoom;
-      }
-    }
-
-    if (!resolvedRoom && allowCreate) {
-      const createdRoomResult = await supabase
-        .from('chat_rooms')
-        .insert(roomKeySchemaUnavailableRef.current ? { name: roomName } : { name: roomName, room_key: roomKey })
-        .select(roomKeySchemaUnavailableRef.current ? 'id,name' : 'id,name,room_key')
-        .single();
-
-      let createdRoom = normalizeChatRoomRecord((createdRoomResult.data as Partial<ChatRoom> | null) ?? null);
-      let createRoomError = createdRoomResult.error;
-
-      if (isChatRoomsRoomKeyMissingError(createRoomError)) {
-        roomKeySchemaUnavailableRef.current = true;
-        const fallbackCreateRoomResult = await supabase
-          .from('chat_rooms')
-          .insert({ name: roomName })
-          .select('id,name')
-          .single();
-        createdRoom = normalizeChatRoomRecord(
-          (fallbackCreateRoomResult.data as Partial<ChatRoom> | null) ?? null,
-        );
-        createRoomError = fallbackCreateRoomResult.error;
-      }
-
-      if (createRoomError && createRoomError.code !== '23505') {
-        throw new Error(createRoomError.message);
-      }
-
-      if (createdRoom) {
-        resolvedRoom = createdRoom;
-      }
-    }
-
-    if (!resolvedRoom && allowCreate) {
-      const racedRoomResult = roomKeySchemaUnavailableRef.current
-        ? await supabase
-            .from('chat_rooms')
-            .select('id,name')
-            .ilike('name', roomName)
-            .limit(1)
-            .maybeSingle()
-        : await supabase
-            .from('chat_rooms')
-            .select('id,name,room_key')
-            .eq('room_key', roomKey)
-            .maybeSingle();
-
-      let racedRoom = normalizeChatRoomRecord((racedRoomResult.data as Partial<ChatRoom> | null) ?? null);
-      let racedRoomError = racedRoomResult.error;
-
-      if (isChatRoomsRoomKeyMissingError(racedRoomError)) {
-        roomKeySchemaUnavailableRef.current = true;
-        const fallbackRacedRoomResult = await supabase
-          .from('chat_rooms')
-          .select('id,name')
-          .ilike('name', roomName)
-          .limit(1)
-          .maybeSingle();
-        racedRoom = normalizeChatRoomRecord((fallbackRacedRoomResult.data as Partial<ChatRoom> | null) ?? null);
-        racedRoomError = fallbackRacedRoomResult.error;
-      }
-
-      if (racedRoomError) {
-        throw new Error(racedRoomError.message);
-      }
-
-      resolvedRoom = racedRoom;
-    }
-
-    return resolvedRoom;
+    return {
+      id: data.id as string,
+      slug: data.slug as string,
+      name: data.name as string,
+    } satisfies ChatRoom;
   }, []);
 
   const openRoomView = useCallback(
     async (room: ChatRoom) => {
-      setInitialUnreadForActiveRoom(getUnreadCountForRoom(room.name));
+      setInitialUnreadForActiveRoom(getUnreadCountForRoom(room.id));
       setBodyShellSection('chat');
-      await joinRoom(room.name);
-      await clearUnreads(room.name);
+      await joinRoom(room.id, room.slug, room.name);
+      await clearUnreads(room.id);
       setActiveRoom(room);
-      replaceAppPathInPlace(buildHiItsMePath({ section: 'chat', roomName: room.name }));
+      replaceAppPathInPlace(buildHiItsMePath({ section: 'chat', roomName: room.slug }));
     },
     [clearUnreads, getUnreadCountForRoom, joinRoom],
   );
 
   const handleOpenActiveRoom = useCallback(
-    async (roomName: string) => {
-      if (!roomName.trim()) {
-        return;
-      }
-
+    async (room: ChatRoom) => {
       setRoomJoinError(null);
       setIsJoiningRoom(true);
 
       try {
-        const resolvedRoom = await resolveRoomByName(roomName, true);
-        if (!resolvedRoom) {
-          await leaveRoom(roomName);
-          setRoomJoinError('That room no longer exists.');
-          return;
-        }
-
-        await openRoomView(resolvedRoom);
+        await openRoomView(room);
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Could not open room right now.';
         setRoomJoinError(message);
@@ -5630,31 +6024,30 @@ function HiItsMeContent() {
         setIsJoiningRoom(false);
       }
     },
-    [leaveRoom, openRoomView, resolveRoomByName],
+    [openRoomView],
   );
 
   const handleBackFromRoom = useCallback(() => {
     setInitialUnreadForActiveRoom(0);
     setActiveRoom(null);
-    replaceAppPathInPlace(buildHiItsMePath({ section: 'chat' }));
-  }, []);
+    navigateAppPath(router, buildHiItsMePath({ section: 'chat' }), { replace: true });
+  }, [router]);
 
   const handleLeaveRoom = useCallback(
-    async (roomName: string) => {
-      const normalizedRoomName = roomName.trim();
-      if (!normalizedRoomName) {
+    async (roomId: string) => {
+      if (!roomId) {
         return;
       }
 
-      await leaveRoom(normalizedRoomName);
+      await leaveRoom(roomId);
 
-      if (activeRoom && sameRoom(activeRoom.name, normalizedRoomName)) {
+      if (activeRoom && activeRoom.id === roomId) {
         setInitialUnreadForActiveRoom(0);
         setActiveRoom(null);
-        replaceAppPathInPlace(buildHiItsMePath({ section: 'chat' }));
+        navigateAppPath(router, buildHiItsMePath({ section: 'chat' }), { replace: true });
       }
     },
-    [activeRoom, leaveRoom],
+    [activeRoom, leaveRoom, router],
   );
 
   const handleLeaveCurrentRoom = useCallback(() => {
@@ -5662,7 +6055,7 @@ function HiItsMeContent() {
       return;
     }
 
-    void handleLeaveRoom(activeRoom.name);
+    void handleLeaveRoom(activeRoom.id);
   }, [activeRoom, handleLeaveRoom]);
 
   useEffect(() => {
@@ -5676,7 +6069,7 @@ function HiItsMeContent() {
       return;
     }
 
-    if (activeRoom && sameRoom(activeRoom.name, requestedRoomName)) {
+    if (activeRoom && activeRoom.slug === requestedRoomName) {
       return;
     }
 
@@ -5684,14 +6077,14 @@ function HiItsMeContent() {
 
     void (async () => {
       try {
-        const resolvedRoom = await resolveRoomByName(requestedRoomName, false);
+        const resolvedRoom = await resolveRoomBySlug(requestedRoomName);
         if (isCancelled || !resolvedRoom) {
           return;
         }
 
-        await joinRoom(resolvedRoom.name);
-        setInitialUnreadForActiveRoom(getUnreadCountForRoom(resolvedRoom.name));
-        await clearUnreads(resolvedRoom.name);
+        await joinRoom(resolvedRoom.id, resolvedRoom.slug, resolvedRoom.name);
+        setInitialUnreadForActiveRoom(getUnreadCountForRoom(resolvedRoom.id));
+        await clearUnreads(resolvedRoom.id);
         setActiveRoom(resolvedRoom);
       } catch (error) {
         if (isCancelled) {
@@ -5705,7 +6098,7 @@ function HiItsMeContent() {
     return () => {
       isCancelled = true;
     };
-  }, [activeRoom, clearUnreads, getUnreadCountForRoom, joinRoom, requestedRoomName, resolveRoomByName, userId]);
+  }, [activeRoom, clearUnreads, getUnreadCountForRoom, joinRoom, requestedRoomName, resolveRoomBySlug, userId]);
 
   useEffect(() => {
     if (!userId || !requestedDirectMessageUserId || requestedRoomName) {
@@ -5766,37 +6159,9 @@ function HiItsMeContent() {
     };
   }, [loadSingleUserProfile, openChatWindowForId, requestedDirectMessageUserId, requestedRoomName, userId]);
 
-  const handleJoinRoom = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!userId) {
-      return;
-    }
-
-    const roomName = roomNameDraft.trim();
-    if (!roomName) {
-      setRoomJoinError('Enter a room name to join.');
-      return;
-    }
-
-    setIsJoiningRoom(true);
-    setRoomJoinError(null);
-
-    try {
-      const resolvedRoom = await resolveRoomByName(roomName, true);
-      if (!resolvedRoom) {
-        setRoomJoinError('Could not join room right now.');
-        return;
-      }
-
-      await openRoomView(resolvedRoom);
-      setShowRoomsWindow(false);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Could not join room right now.';
-      setRoomJoinError(message);
-    } finally {
-      setIsJoiningRoom(false);
-    }
-  };
+  const handleBrowseRooms = useCallback(() => {
+    navigateAppPath(router, '/hi-its-me/rooms');
+  }, [router]);
 
   const closeChatWindow = useCallback(() => {
     setActiveChatBuddyId(null);
@@ -5811,9 +6176,9 @@ function HiItsMeContent() {
     setChatError(null);
     setIsChatLoading(false);
     if (activeRoom) {
-      replaceAppPathInPlace(buildHiItsMePath({ section: 'chat', roomName: activeRoom.name }));
+      replaceAppPathInPlace(buildHiItsMePath({ section: 'chat', roomName: activeRoom.slug }));
     } else {
-      replaceAppPathInPlace(buildHiItsMePath({ section: bodyShellSection === 'profile' ? 'im' : bodyShellSection }));
+      replaceAppPathInPlace(buildHiItsMePath({ section: bodyShellSection }));
     }
   }, [activeRoom, bodyShellSection]);
 
@@ -5838,7 +6203,6 @@ function HiItsMeContent() {
     setShowAddWindow(false);
     setShowRoomsWindow(false);
     setIsAdminResetOpen(false);
-    setIsRecoverySetupOpen(false);
 
     if (activeChatBuddyIdRef.current) {
       closeChatWindow();
@@ -5859,16 +6223,109 @@ function HiItsMeContent() {
 
   const openRoomsWindow = useCallback(() => {
     setRoomJoinError(null);
-    if (!roomNameDraft && activeRoom?.name) {
-      setRoomNameDraft(activeRoom.name);
-    }
     focusMainShellSection('chat');
-  }, [activeRoom?.name, focusMainShellSection, roomNameDraft]);
+  }, [focusMainShellSection]);
 
-  const isCurrentUserAway = currentUserPresenceState === 'away';
   const isCurrentUserIdle = currentUserPresenceState === 'idle';
   const activePendingRequest = pendingRequests[0] ?? null;
   const activeChatBuddyPresenceSummary = activeChatBuddy ? getBuddyPresenceSummary(activeChatBuddy) : null;
+  const nativeMilestoneOneMessages = useMemo<NativeMilestoneOneMessage[]>(
+    () => {
+      if (!userId) {
+        return [];
+      }
+
+      const latestOutgoingMessageId = [...chatMessages]
+        .reverse()
+        .find(
+          (message) =>
+            message.sender_id === userId &&
+            !message.deleted_at &&
+            message.preview_type !== 'buzz' &&
+            message.preview_type !== 'knock',
+        )
+        ?.id;
+
+      return chatMessages.map((message) => {
+        const isMine = message.sender_id === userId;
+        const isDeleted = Boolean(message.deleted_at);
+        const plainContent = htmlToPlainText(message.content).trim();
+        const moderatedContent = displayBodyForMessage(
+          message,
+          plainContent || (message.preview_type === 'buzz' ? 'Buzz!' : message.preview_type === 'knock' ? 'Knock' : ''),
+          isMine,
+        );
+
+        return {
+          id: String(message.id),
+          senderId: message.sender_id,
+          content: isDeleted ? 'Message deleted' : moderatedContent,
+          createdAt: message.created_at,
+          isMine,
+          isDeleted,
+          deliveredAt: message.delivered_at ?? null,
+          readAt: message.read_at ?? null,
+          deliveryStatus: message.read_at
+            ? 'read'
+            : message.delivered_at
+              ? 'delivered'
+              : 'sent',
+          deliveryStatusDetail: message.read_at
+            ? new Date(message.read_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : null,
+          showDeliveryStatus:
+            privacySettings.shareReadReceipts &&
+            isMine &&
+            !isDeleted &&
+            latestOutgoingMessageId === message.id,
+          previewType: message.preview_type ?? 'text',
+        };
+      });
+    },
+    [chatMessages, privacySettings.shareReadReceipts, userId],
+  );
+  const nativeMilestoneOneConversation = useMemo<NativeMilestoneOneConversation | null>(() => {
+    if (!activeChatBuddy || !activeChatBuddyPresenceSummary) {
+      return null;
+    }
+
+    const activeConversationPreference = getDmPreference(dmPreferencesByBuddyId, activeChatBuddy.id);
+
+    return {
+      buddyId: activeChatBuddy.id,
+      screenname: activeChatBuddy.screenname,
+      presence: activeChatBuddyPresenceSummary.presenceState,
+      presenceLabel: activeChatBuddyPresenceSummary.presenceLabel,
+      presenceDetail: activeChatBuddyPresenceSummary.presenceDetail,
+      statusLine: activeChatBuddyPresenceSummary.resolvedStatus.statusMessage ?? null,
+      awayMessage: activeChatBuddyPresenceSummary.presenceState === 'away'
+        ? activeChatBuddyPresenceSummary.awayLine
+        : null,
+      isPinned: activeConversationPreference.isPinned,
+      isMuted: activeConversationPreference.isMuted,
+      isArchived: activeConversationPreference.isArchived,
+      sharedRooms: mutualContextState.context.sharedRooms,
+      mutualBuddies: mutualContextState.context.mutualBuddies,
+      mutualBuddyCount: mutualContextState.context.mutualBuddyCount,
+      isLoadingMutualContext: mutualContextState.isLoading,
+      mutualContextError: mutualContextState.error,
+      messages: nativeMilestoneOneMessages,
+      isLoading: isChatLoading,
+      isSending: isSendingMessage,
+      typingText: activeDmTypingText,
+      error: chatError,
+    };
+  }, [
+    activeChatBuddy,
+    activeChatBuddyPresenceSummary,
+    activeDmTypingText,
+    chatError,
+    dmPreferencesByBuddyId,
+    isChatLoading,
+    isSendingMessage,
+    mutualContextState,
+    nativeMilestoneOneMessages,
+  ]);
   const xpModalFrameClass = 'ui-modal-frame';
   const xpModalHeaderClass = 'ui-modal-header';
   const xpModalBodyClass = 'ui-modal-body';
@@ -5878,6 +6335,42 @@ function HiItsMeContent() {
   const showSplitPresenceSections = buddySortMode === 'online_then_alpha' && conversationFilter === 'all';
   const onlineBuddiesSorted = visibleOnlineDirectMessageBuddies;
   const offlineBuddiesSorted = visibleOfflineDirectMessageBuddies;
+  // Circle grouping wins over the presence split whenever the owner has circles
+  // and isn't in a special filter (unread/pinned/archived stay flat).
+  const showCircleGroups = buddyCircles.length > 0 && conversationFilter === 'all';
+  const circleGroupSections = showCircleGroups
+    ? buddyCircles.map((circle) => ({
+        circle,
+        buddies: filteredDirectMessageBuddies.filter(
+          (buddy) => buddyCircleIndex.get(buddy.id)?.id === circle.id,
+        ),
+      }))
+    : [];
+  const ungroupedCircleBuddies = showCircleGroups
+    ? filteredDirectMessageBuddies.filter((buddy) => !buddyCircleIndex.has(buddy.id))
+    : [];
+  const renderDirectMessageRow = (
+    buddy: (typeof filteredDirectMessageBuddies)[number],
+    rowPresenceHidden = false,
+  ) => (
+    <DirectMessageRow
+      key={buddy.id}
+      buddy={buddy}
+      currentUserScreenname={screenname}
+      unreadCount={unreadDirectMessages[buddy.id] ?? 0}
+      isSelected={selectedBuddyId === buddy.id}
+      conversationPreference={getDmPreference(dmPreferencesByBuddyId, buddy.id)}
+      isBlocked={blockedUserIds.includes(buddy.id)}
+      recentActivity={buddyActivityById.get(buddy.id) ?? null}
+      isTypingActive={Boolean(activeDmTypingText && activeChatBuddyId === buddy.id)}
+      lastMessagePreview={buddyLastMessagePreview[buddy.id] ?? ''}
+      openBuddyProfile={openBuddyProfile}
+      handleOpenChat={handleOpenChat}
+      handleReplyToAwayMessage={handleReplyToAwayMessage}
+      handleKnockBuddy={handleKnockBuddy}
+      presenceHidden={rowPresenceHidden}
+    />
+  );
   const isChatSyncBusy = syncState === 'hydrating' || syncState === 'syncing';
   const chatSyncSummary =
     syncState === 'hydrating'
@@ -5912,19 +6405,26 @@ function HiItsMeContent() {
     () => (activeChatBuddyId ? getDmPreference(dmPreferencesByBuddyId, activeChatBuddyId) : null),
     [activeChatBuddyId, dmPreferencesByBuddyId],
   );
+  const activeRoomId = activeRoom?.id ?? null;
   const activeRoomOutboxItems = useMemo(() => {
-    if (!activeRoom?.id) {
+    if (!activeRoomId) {
       return [];
     }
 
-    return outboxItems.filter((item) => item.type === 'room' && item.targetId === activeRoom.id);
-  }, [activeRoom?.id, outboxItems]);
+    return outboxItems.filter((item) => item.type === 'room' && item.targetId === activeRoomId);
+  }, [activeRoomId, outboxItems]);
   const shouldShowSystemStatusChip =
-    syncState === 'hydrating' || syncState === 'syncing' || syncState === 'error' || pendingOutboxCount > 0;
+    syncState === 'hydrating' ||
+    syncState === 'syncing' ||
+    syncState === 'error' ||
+    pendingOutboxCount > 0 ||
+    Boolean(profileSyncError);
   const isConversationOverlayOpen = Boolean(activeChatBuddy || activeRoom);
   const activeTab =
-    showAwayModal || showPrivacySheet
+    showPrivacySheet || (showAwayModal && awayModalMode === 'profile')
       ? 'profile'
+      : showAwayModal
+        ? 'im'
       : Boolean(activeRoom)
         ? 'chat'
         : bodyShellSection;
@@ -5932,13 +6432,14 @@ function HiItsMeContent() {
     ? ['Add your first buddy to get started']
     : [
         `${onlineBuddies.length} online`,
-        `${acceptedBuddies.length} buddy${acceptedBuddies.length === 1 ? '' : 'ies'}`,
+        `${acceptedBuddies.length} ${acceptedBuddies.length === 1 ? 'buddy' : 'buddies'}`,
       ];
   if (pendingRequests.length > 0) {
     headerSummaryParts.push(`${pendingRequests.length} request${pendingRequests.length === 1 ? '' : 's'}`);
   }
-  if (activeRooms.length > 0) {
-    headerSummaryParts.push(`${activeRooms.length} room${activeRooms.length === 1 ? '' : 's'}`);
+  const headerRoomCount = nativeShellActive ? nativeRoomDirectory.length : joinedRooms.length;
+  if (headerRoomCount > 0) {
+    headerSummaryParts.push(`${headerRoomCount} room${headerRoomCount === 1 ? '' : 's'}`);
   }
   const hiItsMeHeaderSummary = headerSummaryParts.join(' · ');
   const totalUnreadDirectCount = Object.values(unreadDirectMessages).reduce((sum, count) => sum + count, 0);
@@ -5952,13 +6453,54 @@ function HiItsMeContent() {
   );
   const roomCards = useMemo(
     () =>
-      activeRooms.map((roomName) => ({
-        roomName,
-        meta: getHimRoomMeta(roomName),
+      joinedRooms.map((room) => ({
+        room,
+        meta: getHimRoomMeta(room.slug),
       })),
-    [activeRooms],
+    [joinedRooms],
   );
-  const roomFilterOptions = useMemo(() => buildRoomFilterOptions(activeRooms), [activeRooms]);
+  const nativeMilestoneOneRooms = useMemo<NativeMilestoneOneRoom[]>(
+    () =>
+      nativeRoomDirectory.map((room) => {
+        const meta = getHimRoomMeta(room.slug);
+        const joinedRoom = joinedRooms.find((candidate) => candidate.id === room.id);
+        const activeParticipants = nativeRoomPresenceById[room.id] ?? [];
+        return {
+          id: room.id,
+          slug: room.slug,
+          name: room.name,
+          subtitle: meta.blurb,
+          unreadCount: joinedRoom?.unreadCount ?? 0,
+          isJoined: Boolean(joinedRoom),
+          activeCount: activeParticipants.length,
+          activeScreennames: activeParticipants.map((participant) => participant.screenname),
+        };
+      }),
+    [joinedRooms, nativeRoomDirectory, nativeRoomPresenceById],
+  );
+  const nativeMilestoneOneRoomConversation = useMemo<NativeMilestoneOneRoomConversation | null>(() => {
+    if (!activeRoom) {
+      return null;
+    }
+    if (nativeRoomConversation?.roomId === activeRoom.id) {
+      return nativeRoomConversation;
+    }
+    return {
+      roomId: activeRoom.id,
+      roomName: activeRoom.name,
+      activeCount: 0,
+      participants: [],
+      messages: [],
+      isLoading: true,
+      isSending: false,
+      typingText: null,
+      error: null,
+    };
+  }, [activeRoom, nativeRoomConversation]);
+  const roomFilterOptions = useMemo(
+    () => buildRoomFilterOptions(joinedRooms.map((r) => r.slug)),
+    [joinedRooms],
+  );
   const filteredRoomCards = useMemo(
     () =>
       roomCards.filter(
@@ -6000,7 +6542,6 @@ function HiItsMeContent() {
           showPrivacySheet ||
           showSystemStatusSheet ||
           isAdminResetOpen ||
-          isRecoverySetupOpen ||
           showAwayModal ||
           showAddWindow ||
           showRoomsWindow
@@ -6017,9 +6558,7 @@ function HiItsMeContent() {
           ? 'System Status'
           : isAdminResetOpen
             ? 'Reset Account Access'
-            : isRecoverySetupOpen
-              ? 'Finish Account Protection'
-              : mainShellTitle);
+            : mainShellTitle);
   const nativeShellSubtitle =
     activeChatBuddy
       ? activeChatBuddyPresenceSummary?.presenceLabel || 'Direct message'
@@ -6033,9 +6572,7 @@ function HiItsMeContent() {
               ? chatSyncSummary
               : isAdminResetOpen
                 ? 'Recovery concierge'
-                : isRecoverySetupOpen
-                  ? 'Set your private recovery code'
-                  : mainShellSubtitle;
+                : mainShellSubtitle;
   const nativeShellCanGoBack = Boolean(
     activeChatBuddy ||
       activeRoom ||
@@ -6043,10 +6580,9 @@ function HiItsMeContent() {
       showPrivacySheet ||
       showSystemStatusSheet ||
       isAdminResetOpen ||
-      isRecoverySetupOpen ||
       showAwayModal ||
       isHeaderMenuOpen ||
-      bodyShellSection !== 'profile',
+      bodyShellSection !== 'im',
   );
   const nativeShellShowsBottomChrome = !isConversationOverlayOpen;
   const shellIsDark = isDark || (typeof document !== 'undefined' && document.documentElement.classList.contains('dark'));
@@ -6063,14 +6599,7 @@ function HiItsMeContent() {
             : (['toggleTheme', 'openMenu'] as const),
     [bodyShellSection, nativeShellMode],
   );
-  const nativeShellAccentTone =
-    activeRoom || bodyShellSection === 'chat'
-      ? 'violet'
-      : bodyShellSection === 'buddy'
-        ? 'emerald'
-        : bodyShellSection === 'profile'
-          ? 'slate'
-          : 'blue';
+  const nativeShellAccentTone = 'amber' as const;
   const headerActionButtonClass =
     'ui-focus-ring ui-window-header-button min-h-[40px] px-3 text-[11px] font-semibold';
 
@@ -6096,7 +6625,7 @@ function HiItsMeContent() {
           <p className="truncate text-[11px] font-semibold text-[var(--rose)]">Private notes</p>
           <p className="truncate text-[11px] text-slate-400">
             {savedMessages[0]
-              ? htmlToPlainText(savedMessages[0].content).trim() || 'Saved keepsakes'
+              ? getSavedMessagePreviewText(savedMessages[0].content)
               : 'Save standout messages or jot down notes'}
           </p>
         </div>
@@ -6201,6 +6730,9 @@ function HiItsMeContent() {
       case 'openMenu':
         setIsHeaderMenuOpen((previous) => !previous);
         return;
+      case 'openAccount':
+        navigateAppPath(router, '/account');
+        return;
       case 'openPrivacy':
         openPrivacyControls();
         return;
@@ -6251,8 +6783,8 @@ function HiItsMeContent() {
           handleBackFromRoom();
           return;
         }
-        if (bodyShellSection !== 'profile') {
-          focusMainShellSection('profile');
+        if (bodyShellSection !== 'im') {
+          focusMainShellSection('im');
         }
         return;
       default:
@@ -6267,6 +6799,461 @@ function HiItsMeContent() {
 
     return subscribeNativeShellCommands(handleNativeShellCommand);
   }, [nativeShellActive]);
+
+  useEffect(() => {
+    if (!nativeShellActive) {
+      return;
+    }
+
+    registerNativeMilestoneOneBridge({
+      async signIn() {
+        return { ok: false, error: 'You are already signed in.' };
+      },
+      async refreshBuddyList() {
+        if (!userId) {
+          return { ok: false, error: 'Your session is still loading.' };
+        }
+        await loadBuddies(userId);
+        return { ok: true };
+      },
+      async refreshRooms() {
+        if (!userId) {
+          return { ok: false, error: 'Your session is still loading.' };
+        }
+        const [, didLoadDirectory] = await Promise.all([
+          syncFromServer(),
+          loadNativeRoomDirectory(),
+        ]);
+        return didLoadDirectory
+          ? { ok: true }
+          : { ok: false, error: 'Could not refresh the room directory.' };
+      },
+      async openBuddy(buddyId) {
+        if (!acceptedBuddyIdsRef.current.has(buddyId)) {
+          return { ok: false, error: 'That buddy is no longer available.' };
+        }
+        handleOpenChat(buddyId);
+        return { ok: true };
+      },
+      async openRoom(roomId) {
+        const room = nativeRoomDirectory.find((candidate) => candidate.id === roomId);
+        if (!room) {
+          return { ok: false, error: 'That room is no longer in your list.' };
+        }
+
+        try {
+          await openRoomView(room);
+          return { ok: true };
+        } catch (error) {
+          return {
+            ok: false,
+            error: error instanceof Error ? error.message : 'Could not open that room.',
+          };
+        }
+      },
+      async updatePresence(nativeStatus, nativeAwayMessage) {
+        if (!userId) {
+          return { ok: false, error: 'Your session is still loading.' };
+        }
+        if (nativeStatus !== 'available' && nativeStatus !== 'away') {
+          return { ok: false, error: 'Choose Available or Away.' };
+        }
+
+        const nextStatus = nativeStatus === 'away' ? AWAY_STATUS : AVAILABLE_STATUS;
+        const nextAwayMessage = (nativeAwayMessage ?? '').trim().slice(0, 320);
+        if (nextStatus === AWAY_STATUS && !nextAwayMessage) {
+          return { ok: false, error: 'Enter an away message before saving.' };
+        }
+
+        setAwayModalError(null);
+        const success = await updateStatus(
+          nextStatus,
+          nextStatus === AWAY_STATUS ? nextAwayMessage : null,
+        );
+        if (!success) {
+          return { ok: false, error: 'Could not update your presence. Please try again.' };
+        }
+
+        autoAwayTriggeredRef.current = false;
+        return { ok: true };
+      },
+      async respondToBuddyRequest(senderId, action) {
+        if (!userId) {
+          return { ok: false, error: 'Your session is still loading.' };
+        }
+        if (action !== 'accept' && action !== 'decline') {
+          return { ok: false, error: 'Choose Accept or Decline.' };
+        }
+        if (!pendingRequestsRef.current.some((request) => request.senderId === senderId)) {
+          return { ok: false, error: 'That buddy request is no longer pending.' };
+        }
+
+        const succeeded = action === 'accept'
+          ? await handleAcceptPendingRequest(senderId, { openChat: false })
+          : await handleDeclinePendingRequest(senderId);
+        if (!succeeded) {
+          return {
+            ok: false,
+            error: action === 'accept'
+              ? 'Could not accept that buddy request. Please try again.'
+              : 'Could not decline that buddy request. Please try again.',
+          };
+        }
+
+        return { ok: true };
+      },
+      async sendMessage(buddyId, content) {
+        if (!userId) {
+          return { ok: false, error: 'Your session is still loading.' };
+        }
+        if (activeChatBuddyIdRef.current !== buddyId) {
+          return { ok: false, error: 'That conversation is no longer open.' };
+        }
+        const trimmedContent = content.trim();
+        if (!trimmedContent) {
+          return { ok: false, error: 'Type a message first.' };
+        }
+
+        try {
+          await handleSendMessage({ content: trimmedContent });
+          return { ok: true };
+        } catch (error) {
+          return {
+            ok: false,
+            error: error instanceof Error ? error.message : 'Could not send that message.',
+          };
+        }
+      },
+      async sendKnock(buddyId) {
+        if (!userId) {
+          return { ok: false, error: 'Your session is still loading.' };
+        }
+        if (!acceptedBuddyIdsRef.current.has(buddyId)) {
+          return { ok: false, error: 'Knocks are only available for buddies.' };
+        }
+
+        try {
+          await handleSendKnockToBuddy(buddyId);
+          return { ok: true };
+        } catch (error) {
+          return {
+            ok: false,
+            error: error instanceof Error ? error.message : 'Could not send that Knock.',
+          };
+        }
+      },
+      async closeConversation() {
+        closeChatWindow();
+        return { ok: true };
+      },
+      async sendTypingPulse(buddyId) {
+        if (activeChatBuddyIdRef.current === buddyId) {
+          sendDmTypingPulse();
+        }
+        return { ok: true };
+      },
+      async sendRoomMessage(roomId, content) {
+        if (!activeRoom || activeRoom.id !== roomId) {
+          return { ok: false, error: 'That room is no longer open.' };
+        }
+        const bridge = nativeRoomBridgeRef.current;
+        if (!bridge) {
+          return { ok: false, error: 'The room is still connecting.' };
+        }
+        return bridge.sendMessage(content);
+      },
+      async closeRoomConversation() {
+        handleBackFromRoom();
+        return { ok: true };
+      },
+      async sendRoomTypingPulse(roomId) {
+        if (activeRoom?.id === roomId) {
+          nativeRoomBridgeRef.current?.sendTypingPulse();
+        }
+        return { ok: true };
+      },
+      async openProfile(buddyId) {
+        if (activeChatBuddyIdRef.current !== buddyId) {
+          return { ok: false, error: 'That conversation is no longer open.' };
+        }
+
+        openBuddyProfile(buddyId);
+        return { ok: true };
+      },
+      async togglePinned(buddyId) {
+        if (activeChatBuddyIdRef.current !== buddyId) {
+          return { ok: false, error: 'That conversation is no longer open.' };
+        }
+
+        try {
+          await upsertConversationPreference(buddyId, (current) => ({
+            isPinned: !current.isPinned,
+          }));
+          return { ok: true };
+        } catch (error) {
+          return {
+            ok: false,
+            error: error instanceof Error ? error.message : 'Could not update pinned state.',
+          };
+        }
+      },
+      async toggleMuted(buddyId) {
+        if (activeChatBuddyIdRef.current !== buddyId) {
+          return { ok: false, error: 'That conversation is no longer open.' };
+        }
+
+        try {
+          await upsertConversationPreference(buddyId, (current) => ({
+            isMuted: !current.isMuted,
+          }));
+          return { ok: true };
+        } catch (error) {
+          return {
+            ok: false,
+            error: error instanceof Error ? error.message : 'Could not update mute state.',
+          };
+        }
+      },
+      async toggleArchived(buddyId) {
+        if (activeChatBuddyIdRef.current !== buddyId) {
+          return { ok: false, error: 'That conversation is no longer open.' };
+        }
+
+        try {
+          const currentPreference = getDmPreference(dmPreferencesByBuddyId, buddyId);
+          await upsertConversationPreference(buddyId, {
+            isArchived: !currentPreference.isArchived,
+          });
+
+          if (!currentPreference.isArchived) {
+            setActiveChatBuddyId(null);
+            activeChatBuddyIdRef.current = null;
+            replaceAppPathInPlace(HI_ITS_ME_PATH);
+          }
+
+          return { ok: true };
+        } catch (error) {
+          return {
+            ok: false,
+            error: error instanceof Error ? error.message : 'Could not update archive state.',
+          };
+        }
+      },
+      async setBuddyCircle(buddyId, circleId) {
+        if (!userId) {
+          return { ok: false, error: 'Your session is still loading.' };
+        }
+        if (!acceptedBuddyIdsRef.current.has(buddyId)) {
+          return { ok: false, error: 'Circles are only available for buddies.' };
+        }
+        if (circleId !== null && !buddyCircles.some((circle) => circle.id === circleId)) {
+          return { ok: false, error: 'That circle no longer exists.' };
+        }
+        try {
+          await assignBuddyToCircle({ ownerId: userId, buddyId, circleId });
+          await reloadBuddyCircles();
+          return { ok: true };
+        } catch (error) {
+          return {
+            ok: false,
+            error: error instanceof Error ? error.message : 'Could not update that circle.',
+          };
+        }
+      },
+      async createBuddyCircle(name, assignBuddyId) {
+        if (!userId) {
+          return { ok: false, error: 'Your session is still loading.' };
+        }
+        const trimmedName = name.trim();
+        if (!trimmedName) {
+          return { ok: false, error: 'Give the circle a name.' };
+        }
+        if (assignBuddyId !== null && !acceptedBuddyIdsRef.current.has(assignBuddyId)) {
+          return { ok: false, error: 'Circles are only available for buddies.' };
+        }
+        try {
+          const circle = await createCircleRecord({
+            ownerId: userId,
+            name: trimmedName,
+            position: buddyCircles.length,
+          });
+          if (assignBuddyId !== null) {
+            await assignBuddyToCircle({ ownerId: userId, buddyId: assignBuddyId, circleId: circle.id });
+          }
+          await reloadBuddyCircles();
+          return { ok: true };
+        } catch (error) {
+          return {
+            ok: false,
+            error: error instanceof Error ? error.message : 'Could not create that circle.',
+          };
+        }
+      },
+      async signOut() {
+        void handleSignOff();
+        return { ok: true };
+      },
+      async showWebAuth() {
+        return { ok: false, error: 'You are already signed in.' };
+      },
+      async sendBuddyRequest(targetUserId: string) {
+        if (!userId) {
+          return { ok: false, error: 'Your session is still loading.' };
+        }
+        try {
+          const result = await sendOrAcceptBuddyRequest(userId, targetUserId);
+          if (!result.ok) {
+            return { ok: false, error: result.feedback || 'Could not send that buddy request.' };
+          }
+          setNativeBuddySuggestions((previous) =>
+            previous.filter((suggestion) => suggestion.id !== targetUserId),
+          );
+          await loadBuddies(userId);
+          return { ok: true };
+        } catch (error) {
+          return {
+            ok: false,
+            error: error instanceof Error ? error.message : 'Could not send that buddy request.',
+          };
+        }
+      },
+    });
+
+    return () => {
+      registerNativeMilestoneOneBridge(null);
+    };
+  }, [
+    handleAcceptPendingRequest,
+    activeRoom,
+    buddyCircles,
+    handleDeclinePendingRequest,
+    handleSendKnockToBuddy,
+    handleSendMessage,
+    reloadBuddyCircles,
+    handleOpenChat,
+    handleBackFromRoom,
+    handleSignOff,
+    closeChatWindow,
+    dmPreferencesByBuddyId,
+    loadBuddies,
+    joinedRooms,
+    loadNativeRoomDirectory,
+    nativeShellActive,
+    nativeRoomDirectory,
+    openBuddyProfile,
+    openRoomView,
+    sendDmTypingPulse,
+    syncFromServer,
+    updateStatus,
+    upsertConversationPreference,
+    userId,
+  ]);
+
+  useEffect(() => {
+    if (!nativeShellActive) {
+      return;
+    }
+
+    const showsNativeBuddyList =
+      bodyShellSection === 'im' &&
+      nativeShellMode === 'standard' &&
+      !profileSheetBuddyId &&
+      !isHeaderMenuOpen &&
+      !isAppLocked &&
+      !showAppLockSheet;
+    const showsNativeRoomList =
+      bodyShellSection === 'chat' &&
+      nativeShellMode === 'standard' &&
+      !isHeaderMenuOpen &&
+      !isAppLocked &&
+      !showAppLockSheet;
+    const showsNativeConversation =
+      bodyShellSection === 'im' &&
+      nativeShellMode === 'conversation' &&
+      Boolean(nativeMilestoneOneConversation) &&
+      !profileSheetBuddyId &&
+      !isHeaderMenuOpen &&
+      !isAppLocked &&
+      !showAppLockSheet;
+    const showsNativeRoomConversation =
+      bodyShellSection === 'chat' &&
+      nativeShellMode === 'conversation' &&
+      Boolean(nativeMilestoneOneRoomConversation) &&
+      !isHeaderMenuOpen &&
+      !isAppLocked &&
+      !showAppLockSheet;
+
+    if (!showsNativeBuddyList && !showsNativeRoomList && !showsNativeConversation && !showsNativeRoomConversation) {
+      void publishNativeMilestoneOneState({ phase: 'hidden', isDark: shellIsDark });
+      return;
+    }
+
+    void publishNativeMilestoneOneState({
+      phase: isBootstrapping ? 'loading' : 'signedIn',
+      selectedSection: bodyShellSection === 'chat' ? 'rooms' : 'buddies',
+      screenname,
+      currentPresence: currentUserPresenceState,
+      currentPresenceDetail: currentUserPresenceDetail,
+      currentAwayMessage: awayMessage || null,
+      ownAvatarUrl: resolveBuddyIconUrl(buddyIconPath ?? null),
+      buddies: nativeMilestoneOneBuddies,
+      suggestedBuddies: nativeBuddySuggestions.map((suggestion) => ({
+        id: suggestion.id,
+        screenname: suggestion.screenname,
+        avatarUrl: suggestion.avatarUrl,
+        mutualCount: suggestion.mutualCount,
+        sharedRoomCount: suggestion.sharedRoomCount,
+      })),
+      circles: nativeMilestoneOneCircles,
+      pendingRequests: pendingRequests.map((request) => ({
+        id: request.senderId,
+        screenname: request.screenname,
+      })),
+      onlineCount: onlineBuddies.filter((buddy) => !presenceHiddenBuddyIds.has(buddy.id)).length,
+      pendingRequestCount: pendingRequests.length,
+      isRefreshing: bodyShellSection === 'chat'
+        ? syncState === 'syncing' || isLoadingNativeRoomDirectory
+        : isLoadingBuddies,
+      isDark: shellIsDark,
+      error: bodyShellSection === 'chat'
+        ? (roomJoinError || nativeRoomDirectoryError || lastSyncError)
+        : profileSyncError,
+      activeConversation: showsNativeConversation ? nativeMilestoneOneConversation : null,
+      rooms: nativeMilestoneOneRooms,
+      activeRoomConversation: showsNativeRoomConversation ? nativeMilestoneOneRoomConversation : null,
+    });
+  }, [
+    bodyShellSection,
+    awayMessage,
+    currentUserPresenceDetail,
+    currentUserPresenceState,
+    isAppLocked,
+    isBootstrapping,
+    isHeaderMenuOpen,
+    isLoadingBuddies,
+    isLoadingNativeRoomDirectory,
+    lastSyncError,
+    nativeMilestoneOneBuddies,
+    nativeMilestoneOneCircles,
+    nativeMilestoneOneConversation,
+    nativeMilestoneOneRoomConversation,
+    nativeMilestoneOneRooms,
+    nativeRoomDirectoryError,
+    nativeShellActive,
+    nativeShellMode,
+    onlineBuddies,
+    pendingRequests,
+    presenceHiddenBuddyIds,
+    profileSheetBuddyId,
+    profileSyncError,
+    roomJoinError,
+    buddyIconPath,
+    nativeBuddySuggestions,
+    screenname,
+    shellIsDark,
+    showAppLockSheet,
+    syncState,
+  ]);
 
   useEffect(() => {
     if (!nativeShellActive) {
@@ -6329,15 +7316,15 @@ function HiItsMeContent() {
           : 'text-[var(--green)]';
   const currentUserPresenceChipClass =
     currentUserPresenceState === 'away'
-      ? 'border border-[rgba(212,150,58,0.18)] bg-[rgba(212,150,58,0.12)] text-[var(--gold)]'
+      ? 'border border-[rgba(232,162,58,0.18)] bg-[rgba(232,162,58,0.12)] text-[var(--gold)]'
       : currentUserPresenceState === 'idle'
-        ? 'border border-[rgba(167,139,250,0.18)] bg-[rgba(167,139,250,0.12)] text-[var(--lavender)]'
+        ? 'border border-[rgba(232,162,58,0.18)] bg-[rgba(232,162,58,0.12)] text-[var(--lavender)]'
         : currentUserPresenceState === 'offline'
           ? 'border border-[rgba(156,142,130,0.18)] bg-[rgba(156,142,130,0.12)] text-[var(--muted)]'
           : 'border border-[rgba(78,201,122,0.18)] bg-[rgba(78,201,122,0.12)] text-[var(--green)]';
   const profileQuickStats = [
     { label: 'buddies', value: acceptedBuddies.length },
-    { label: 'rooms', value: activeRooms.length },
+    { label: 'rooms', value: joinedRooms.length },
     { label: 'saved', value: savedMessages.length },
   ];
 
@@ -6381,7 +7368,7 @@ function HiItsMeContent() {
             </button>
           </>
         )}
-        onXpClose={bodyShellSection !== 'profile' ? () => focusMainShellSection('profile') : undefined}
+        onXpClose={bodyShellSection !== 'im' ? () => focusMainShellSection('im') : undefined}
         onXpSignOff={() => setIsHeaderMenuOpen((previous) => !previous)}
       >
         <div
@@ -6391,10 +7378,17 @@ function HiItsMeContent() {
             <div className="fixed inset-0 z-30" onClick={() => setIsHeaderMenuOpen(false)}>
               <div
                 className={`ui-popover-menu absolute right-2 w-56 rounded-2xl p-1.5 ${
-                  nativeShellActive ? 'top-3' : 'top-[calc(env(safe-area-inset-top)+3.2rem)]'
+                  nativeShellActive ? 'top-[var(--hiitsme-shell-top-inset,env(safe-area-inset-top))]' : 'top-[calc(env(safe-area-inset-top)+3.2rem)]'
                 }`}
                 onClick={(event) => event.stopPropagation()}
               >
+                <button
+                  type="button"
+                  onClick={() => navigateAppPath(router, '/account')}
+                  className="ui-focus-ring ui-popover-item mt-0.5"
+                >
+                  Account
+                </button>
                 <button
                   type="button"
                   onClick={openPrivacyControls}
@@ -6485,7 +7479,6 @@ function HiItsMeContent() {
                         <span className="ui-profile-avatar-badge">
                           Buddy icon
                         </span>
-                        <span className="ui-profile-pro-badge">H.I.M. Pro</span>
                       </button>
                       <div className="mt-4 min-w-0">
                         <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--rose)]">You</p>
@@ -6497,7 +7490,7 @@ function HiItsMeContent() {
                           <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-400">{currentUserPresenceDetail}</p>
                         ) : null}
                         {profileBio ? (
-                          <p className="mt-2 text-[11px] italic text-slate-400 dark:text-slate-400">{profileBio}</p>
+                          <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-400">{profileBio}</p>
                         ) : null}
                         <p className="mt-2 text-[10px] font-semibold text-slate-400 dark:text-slate-500">
                           {buddyIconPath ? 'Tap your avatar to change your photo.' : 'Tap your avatar to add a profile photo.'}
@@ -6568,22 +7561,24 @@ function HiItsMeContent() {
                         >
                           <div className="flex min-w-0 items-center gap-1.5">
                             <span className={`h-1.5 w-1.5 rounded-full ${
-                              syncState === 'error' ? 'bg-red-400' :
+                              profileSyncError || syncState === 'error' ? 'bg-red-400' :
                               isChatSyncBusy ? 'bg-amber-400 animate-pulse' :
-                              pendingOutboxCount > 0 ? 'bg-[#D4963A]' :
+                              pendingOutboxCount > 0 ? 'bg-[#E8A23A]' :
                               'bg-emerald-400'
                             }`} />
                             <span className="truncate">
-                              {syncState === 'error'
-                                ? 'Sync issue'
-                                : isChatSyncBusy
-                                  ? chatSyncSummary
-                                  : pendingOutboxCount > 0
-                                    ? outboxSummary
-                                    : 'System status'}
+                              {profileSyncError
+                                ? 'Profile sync issue'
+                                : syncState === 'error'
+                                  ? 'Sync issue'
+                                  : isChatSyncBusy
+                                    ? chatSyncSummary
+                                    : pendingOutboxCount > 0
+                                      ? outboxSummary
+                                      : 'System status'}
                             </span>
                           </div>
-                          <span className="shrink-0 rounded-full border border-white/70 bg-white/80 px-2 py-0.5 text-[10px] font-semibold text-slate-500 dark:border-slate-700 dark:bg-[#13100E]/70 dark:text-slate-300">
+                          <span className="shrink-0 rounded-full border border-white/70 bg-white/80 px-2 py-0.5 text-[10px] font-semibold text-slate-500 dark:border-slate-700 dark:bg-[#0F1424]/70 dark:text-slate-300">
                             Details
                           </span>
                         </button>
@@ -6616,11 +7611,17 @@ function HiItsMeContent() {
                         ) : null}
                       </div>
                       <form onSubmit={handleSearch} className="mt-3 flex gap-2">
+                        <label htmlFor="find-buddies-input" className="sr-only">Search screen names</label>
                         <input
+                          id="find-buddies-input"
+                          type="search"
                           value={searchTerm}
                           onChange={(event) => setSearchTerm(event.target.value)}
                           className={xpModalInputClass}
                           placeholder="Search screen names..."
+                          autoComplete="off"
+                          autoCapitalize="none"
+                          autoCorrect="off"
                         />
                         <button
                           type="submit"
@@ -6633,12 +7634,12 @@ function HiItsMeContent() {
                       {searchError ? <p className="ui-note-error mt-2">{searchError}</p> : null}
 
                       {(isSearching || searchTerm.trim() !== '' || searchResults.length > 0) ? (
-                        <div className="mt-3 max-h-56 overflow-y-auto rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-[inset_0_1px_1px_rgba(15,23,42,0.05)] dark:border-slate-700 dark:bg-[#13100E]/50">
+                        <div className="mt-3 max-h-56 overflow-y-auto rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-[inset_0_1px_1px_rgba(15,23,42,0.05)] dark:border-slate-700 dark:bg-[#0F1424]/50">
                           {isSearching ? (
-                            <p className="p-2 text-sm italic text-slate-500">Searching screen names...</p>
+                            <p className="p-2 text-sm text-slate-500">Searching screen names...</p>
                           ) : null}
                           {!isSearching && searchTerm.trim() !== '' && searchResults.length === 0 ? (
-                            <p className="p-2 text-sm italic text-slate-500">No screen names found.</p>
+                            <p className="p-2 text-sm text-slate-500">No screen names found.</p>
                           ) : null}
                           {!isSearching &&
                             searchResults.map((profile) => {
@@ -6656,7 +7657,7 @@ function HiItsMeContent() {
                                 >
                                   <div className="min-w-0">
                                     <p className="ui-screenname truncate font-bold">{profile.screenname || 'Unknown User'}</p>
-                                    <p className="truncate text-[11px] italic text-slate-500">
+                                    <p className="truncate text-[11px] text-slate-500">
                                       {isProfileAway
                                         ? `Away: ${resolvedProfileStatus.awayMessage || 'Away'}`
                                         : resolvedProfileStatus.statusMessage}
@@ -6790,11 +7791,22 @@ function HiItsMeContent() {
                               : `${filteredDirectMessageBuddies.length} conversation${filteredDirectMessageBuddies.length === 1 ? '' : 's'} · ${totalUnreadDirectCount} unread`}
                           </p>
                         </div>
-                        <span className="ui-section-count">
-                          {conversationFilter === 'requests' ? pendingRequests.length : filteredDirectMessageBuddies.length}
-                        </span>
+                        <div className="flex shrink-0 items-center gap-2">
+                          {conversationFilter === 'all' ? (
+                            <NewCircleControl onCreate={handleCreateCircle} disabled={!userId} />
+                          ) : null}
+                          <span className="ui-section-count">
+                            {conversationFilter === 'requests' ? pendingRequests.length : filteredDirectMessageBuddies.length}
+                          </span>
+                        </div>
                       </div>
                     </div>
+
+                    {circleActionError ? (
+                      <p className="px-4 pb-1 text-[11px] text-red-500" role="alert">
+                        {circleActionError}
+                      </p>
+                    ) : null}
 
                     <div className="ui-filter-band">
                       <label htmlFor="buddy-sort-mode" className="sr-only">Buddy Sort Mode</label>
@@ -6849,7 +7861,7 @@ function HiItsMeContent() {
 
                       {!isBootstrapping && !isLoadingBuddies && acceptedBuddies.length === 0 && conversationFilter !== 'requests' ? (
                         <div className="ui-empty-state px-6 py-10 ui-fade-in">
-                          <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[rgba(232,96,138,0.16)] bg-[rgba(232,96,138,0.12)]">
+                          <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[rgba(232,162,58,0.16)] bg-[rgba(232,162,58,0.12)]">
                             <AppIcon kind="smile" className="h-8 w-8 text-[var(--rose)]" />
                           </div>
                           <div className="text-center">
@@ -6873,7 +7885,7 @@ function HiItsMeContent() {
                       {!isBootstrapping && conversationFilter === 'requests' ? (
                         pendingRequests.length === 0 ? (
                           <div className="ui-empty-state px-6 py-10 ui-fade-in">
-                            <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[rgba(212,150,58,0.16)] bg-[rgba(212,150,58,0.12)]">
+                            <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[rgba(232,162,58,0.16)] bg-[rgba(232,162,58,0.12)]">
                               <AppIcon kind="mail" className="h-8 w-8 text-[var(--gold)]" />
                             </div>
                             <div className="text-center">
@@ -6915,7 +7927,7 @@ function HiItsMeContent() {
 
                       {!isBootstrapping && conversationFilter !== 'requests' && filteredDirectMessageBuddies.length === 0 && acceptedBuddies.length > 0 ? (
                         <div className="ui-empty-state px-6 py-10 ui-fade-in">
-                          <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[rgba(167,139,250,0.16)] bg-[rgba(167,139,250,0.12)]">
+                          <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[rgba(232,162,58,0.16)] bg-[rgba(232,162,58,0.12)]">
                             <AppIcon kind="chat" className="h-6 w-6 text-[var(--lavender)]" />
                           </div>
                           <div className="text-center">
@@ -6927,7 +7939,7 @@ function HiItsMeContent() {
                         </div>
                       ) : null}
 
-                      {!isBootstrapping && conversationFilter !== 'requests' && !showSplitPresenceSections && visibleDirectMessageRows.map((buddy) => (
+                      {!isBootstrapping && conversationFilter !== 'requests' && !showSplitPresenceSections && !showCircleGroups && visibleDirectMessageRows.map((buddy) => (
                         <DirectMessageRow
                           key={buddy.id}
                           buddy={buddy}
@@ -6941,10 +7953,53 @@ function HiItsMeContent() {
                           lastMessagePreview={buddyLastMessagePreview[buddy.id] ?? ''}
                           openBuddyProfile={openBuddyProfile}
                           handleOpenChat={handleOpenChat}
+                          handleReplyToAwayMessage={handleReplyToAwayMessage}
+                          handleKnockBuddy={handleKnockBuddy}
                         />
                       ))}
 
-                      {!isBootstrapping && conversationFilter !== 'requests' && showSplitPresenceSections ? (
+                      {!isBootstrapping && conversationFilter !== 'requests' && showCircleGroups ? (
+                        <div className="space-y-3 px-2 pb-1">
+                          {circleGroupSections.map(({ circle, buddies }) => (
+                            <BuddyCircleGroup
+                              key={circle.id}
+                              name={circle.name}
+                              total={buddies.length}
+                              collapsed={collapsedCircleIds.has(circle.id)}
+                              onToggleCollapsed={() => toggleCircleCollapsed(circle.id)}
+                              circle={circle}
+                              onRename={(name) => handleRenameCircle(circle.id, name)}
+                              onDelete={() => handleDeleteCircle(circle.id)}
+                              onSetShowPresence={(showPresence) =>
+                                handleUpdateCircleSettings(circle.id, { showPresence })
+                              }
+                              onSetMuted={(muted) =>
+                                handleUpdateCircleSettings(circle.id, { notifyMode: muted ? 'muted' : 'all' })
+                              }
+                            >
+                              {buddies.length > 0 ? (
+                                buddies.map((buddy) => renderDirectMessageRow(buddy, !circle.showPresence))
+                              ) : (
+                                <p className="px-3 py-2 text-[11px] text-slate-400">
+                                  No buddies here yet — assign someone from their profile.
+                                </p>
+                              )}
+                            </BuddyCircleGroup>
+                          ))}
+                          {ungroupedCircleBuddies.length > 0 ? (
+                            <BuddyCircleGroup
+                              name="Ungrouped"
+                              total={ungroupedCircleBuddies.length}
+                              collapsed={collapsedCircleIds.has('__ungrouped__')}
+                              onToggleCollapsed={() => toggleCircleCollapsed('__ungrouped__')}
+                            >
+                              {ungroupedCircleBuddies.map((buddy) => renderDirectMessageRow(buddy))}
+                            </BuddyCircleGroup>
+                          ) : null}
+                        </div>
+                      ) : null}
+
+                      {!isBootstrapping && conversationFilter !== 'requests' && showSplitPresenceSections && !showCircleGroups ? (
                         <div className="space-y-3 px-2 pb-1">
                           {visibleDirectMessageSections.map((section) => (
                             <section key={section.id} className="space-y-2">
@@ -6966,6 +8021,8 @@ function HiItsMeContent() {
                                   lastMessagePreview={buddyLastMessagePreview[buddy.id] ?? ''}
                                   openBuddyProfile={openBuddyProfile}
                                   handleOpenChat={handleOpenChat}
+                                  handleReplyToAwayMessage={handleReplyToAwayMessage}
+                                  handleKnockBuddy={handleKnockBuddy}
                                 />
                               ))}
                             </section>
@@ -6979,7 +8036,7 @@ function HiItsMeContent() {
                             Pending ({pendingBuddies.length})
                           </p>
                           {pendingBuddies.map((buddy) => (
-                            <p key={buddy.id} data-away-text="true" className="ui-screenname mt-0.5 truncate text-[12px] italic">
+                            <p key={buddy.id} data-away-text="true" className="ui-screenname mt-0.5 truncate text-[12px]">
                               {buddy.screenname}
                             </p>
                           ))}
@@ -6996,37 +8053,52 @@ function HiItsMeContent() {
                     <div className="px-4 pt-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="ui-section-kicker">Rooms</p>
-                          <p className="mt-1 text-[16px] font-semibold text-slate-800 dark:text-slate-100">Chat Rooms</p>
-                          <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-                            Find your people, then join or create the room in one move.
+                          <p className="ui-section-kicker">
+                            {chatSubSection === 'rooms' ? 'Rooms' : chatSubSection === 'browse' ? 'Browse' : 'Search'}
+                          </p>
+                          <p className="mt-1 text-[16px] font-semibold text-slate-800 dark:text-slate-100">
+                            {chatSubSection === 'rooms' ? 'Chat Rooms' : chatSubSection === 'browse' ? 'People' : 'Find People'}
                           </p>
                         </div>
-                        <span className="ui-section-count">{activeRooms.length}</span>
+                        {chatSubSection === 'rooms' ? <span className="ui-section-count">{joinedRooms.length}</span> : null}
+                      </div>
+
+                      {/* Sub-nav: Rooms | Browse | Search */}
+                      <div className="mt-3 flex gap-1.5">
+                        {(['rooms', 'browse', 'search'] as const).map((section) => (
+                          <button
+                            key={section}
+                            type="button"
+                            onClick={() => setChatSubSection(section)}
+                            className="ui-focus-ring ui-room-filter-chip capitalize"
+                            data-active={chatSubSection === section ? 'true' : 'false'}
+                          >
+                            {section === 'rooms' ? 'Rooms' : section === 'browse' ? 'Browse' : 'Search'}
+                          </button>
+                        ))}
                       </div>
                     </div>
 
+                    {chatSubSection === 'browse' ? (
+                      <div className="px-2 pb-2 pt-3">
+                        <BrowsePanel currentUserId={userId ?? ''} />
+                      </div>
+                    ) : chatSubSection === 'search' ? (
+                      <div className="px-2 pb-2 pt-3">
+                        <SearchPanel currentUserId={userId ?? ''} />
+                      </div>
+                    ) : null}
+
+                    {chatSubSection === 'rooms' ? (
+                    <>
                     <div className="px-4 pt-3">
-                      <form onSubmit={handleJoinRoom} className="flex gap-2">
-                        <input
-                          id="room-name-input-inline"
-                          value={roomNameDraft}
-                          onChange={(event) => setRoomNameDraft(event.target.value)}
-                          className={xpModalInputClass}
-                          placeholder="cool_kids_club"
-                          maxLength={80}
-                        />
-                        <button
-                          type="submit"
-                          disabled={isJoiningRoom}
-                          className={`${xpModalPrimaryButtonClass} shrink-0`}
-                        >
-                          {isJoiningRoom ? 'Joining...' : 'Join'}
-                        </button>
-                      </form>
-                      <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-500">
-                        The room will be created automatically if it does not exist yet.
-                      </p>
+                      <button
+                        type="button"
+                        onClick={handleBrowseRooms}
+                        className={`${xpModalPrimaryButtonClass} w-full`}
+                      >
+                        Browse Rooms
+                      </button>
                       {roomJoinError ? (
                         <p className="mt-2 text-[11px] font-semibold text-red-600">{roomJoinError}</p>
                       ) : null}
@@ -7052,48 +8124,51 @@ function HiItsMeContent() {
                     ) : null}
 
                     <div className="px-2 pb-2 pt-3">
-                      {activeRooms.length === 0 ? (
+                      {joinedRooms.length === 0 ? (
                         <div className="ui-empty-state px-4 py-8 ui-fade-in">
-                          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-violet-50">
-                            <AppIcon kind="chat" className="h-5 w-5 text-violet-400" />
+                          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-violet-50 dark:bg-violet-950/25">
+                            <AppIcon kind="chat" className="h-5 w-5 text-violet-400 dark:text-violet-300" />
                           </div>
-                          <p className="text-[12px] text-slate-400">Join a room to start chatting.</p>
+                          <p className="text-[12px] text-slate-400">Browse and join a room to start chatting.</p>
                         </div>
                       ) : filteredRoomCards.length === 0 ? (
                         <div className="ui-empty-state px-4 py-8 ui-fade-in">
-                          <div className="flex h-11 w-11 items-center justify-center rounded-full border border-[rgba(232,96,138,0.16)] bg-[rgba(232,96,138,0.12)]">
+                          <div className="flex h-11 w-11 items-center justify-center rounded-full border border-[rgba(232,162,58,0.16)] bg-[rgba(232,162,58,0.12)]">
                             <AppIcon kind="chat" className="h-5 w-5 text-[var(--rose)]" />
                           </div>
                           <p className="text-[12px] text-slate-400">No rooms match this vibe right now.</p>
                         </div>
                       ) : (
-                        filteredRoomCards.map(({ roomName, meta }) => {
-                          const unreadCount = getUnreadCountForRoom(roomName);
-                          const isRoomSelected = Boolean(activeRoom && sameRoom(activeRoom.name, roomName));
-                          const normalizedRoomKey = normalizeRoomKey(roomName);
+                        filteredRoomCards.map(({ room, meta }) => {
+                          const unreadCount = getUnreadCountForRoom(room.id);
+                          const isRoomSelected = Boolean(activeRoom && activeRoom.id === room.id);
+                          const normalizedRoomKey = normalizeRoomKey(room.slug);
 
                           return (
-                            <div key={roomName} className="flex items-center gap-2">
+                            <div key={room.id} className="flex items-center gap-2">
                               <button
                                 type="button"
-                                onClick={() => void handleOpenActiveRoom(roomName)}
+                                onClick={() => void handleOpenActiveRoom(room)}
+                                disabled={isJoiningRoom}
                                 data-testid={`room-row-${normalizedRoomKey}`}
-                                data-room-name={roomName}
+                                data-room-name={room.name}
                                 data-room-unread={unreadCount}
                                 data-active={isRoomSelected ? 'true' : 'false'}
                                 data-live={meta.liveCount > 0 ? 'true' : 'false'}
-                                className="ui-list-row ui-room-card flex-1 text-left"
+                                className="ui-list-row ui-room-card flex-1 text-left disabled:cursor-wait disabled:opacity-60"
                               >
-                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[0.9rem] border border-[rgba(212,150,58,0.18)] bg-[rgba(212,150,58,0.14)] text-[13px] font-bold text-[var(--gold)]">
+                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[0.9rem] border border-[rgba(232,162,58,0.18)] bg-[rgba(232,162,58,0.14)] text-[13px] font-bold text-[var(--gold)]">
                                   #
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center gap-2">
-                                    <p className="truncate text-[13px] font-semibold text-slate-800 dark:text-slate-100">{roomName}</p>
-                                    <span className="ui-room-live-pill">
-                                      <span className="ui-room-live-dot" />
-                                      {meta.liveCount}
-                                    </span>
+                                    <p className="truncate text-[13px] font-semibold text-slate-800 dark:text-slate-100">{room.name}</p>
+                                    {meta.liveCount > 0 ? (
+                                      <span className="ui-room-live-pill">
+                                        <span className="ui-room-live-dot" />
+                                        {meta.liveCount}
+                                      </span>
+                                    ) : null}
                                   </div>
                                   <p className="mt-0.5 truncate text-[11px] text-slate-400 dark:text-slate-500">{meta.blurb}</p>
                                   <div className="mt-2 flex flex-wrap gap-1.5">
@@ -7107,7 +8182,7 @@ function HiItsMeContent() {
                                 {unreadCount > 0 ? (
                                   <span
                                     data-testid={`room-unread-${normalizedRoomKey}`}
-                                    aria-label={`Unread in ${roomName}: ${unreadCount}`}
+                                    aria-label={`Unread in ${room.name}: ${unreadCount}`}
                                     className={`ui-unread-badge flex min-w-[20px] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
                                       isRoomSelected ? '' : 'aim-unread-badge-pulse'
                                     }`}
@@ -7118,9 +8193,9 @@ function HiItsMeContent() {
                               </button>
                               <button
                                 type="button"
-                                onClick={() => void handleLeaveRoom(roomName)}
+                                onClick={() => void handleLeaveRoom(room.id)}
                                 className="ui-focus-ring ui-button-danger ui-button-compact flex h-8 w-8 shrink-0 p-0"
-                                aria-label={`Leave ${roomName}`}
+                                aria-label={`Leave ${room.name}`}
                                 title="Leave room"
                               >
                                 <AppIcon kind="close" className="h-3.5 w-3.5" />
@@ -7130,6 +8205,7 @@ function HiItsMeContent() {
                         })
                       )}
                     </div>
+                    </>) : null}
                   </section>
                 </div>
               ) : null}
@@ -7144,20 +8220,10 @@ function HiItsMeContent() {
                 <div className="grid h-16 grid-cols-4 items-center">
                   <button
                     type="button"
-                    onClick={handleSetupAction}
-                    className="ui-focus-ring ui-tabbar-button"
-                    data-active={activeTab === 'profile' ? 'true' : 'false'}
-                  >
-                    <span className="ui-tabbar-icon">
-                      <HiItsMeTabIcon kind="profile" className="h-5 w-5 text-current" />
-                    </span>
-                    <span className="ui-tabbar-label">Profile</span>
-                  </button>
-                  <button
-                    type="button"
                     onClick={handleOpenImFromActionBar}
                     className="ui-focus-ring ui-tabbar-button"
                     data-active={activeTab === 'im' ? 'true' : 'false'}
+                    aria-current={activeTab === 'im' ? 'page' : undefined}
                   >
                     <span className="ui-tabbar-icon relative">
                       <HiItsMeTabIcon kind="im" className="h-5 w-5 text-current" />
@@ -7167,29 +8233,43 @@ function HiItsMeContent() {
                         </span>
                       ) : null}
                     </span>
-                    <span className="ui-tabbar-label">IM</span>
+                    <span className="ui-tabbar-label">Buddy List</span>
                   </button>
                   <button
                     type="button"
                     onClick={openRoomsWindow}
                     className="ui-focus-ring ui-tabbar-button"
                     data-active={activeTab === 'chat' ? 'true' : 'false'}
+                    aria-current={activeTab === 'chat' ? 'page' : undefined}
                   >
                     <span className="ui-tabbar-icon">
                       <HiItsMeTabIcon kind="chat" className="h-5 w-5 text-current" />
                     </span>
-                    <span className="ui-tabbar-label">Group Chats</span>
+                    <span className="ui-tabbar-label">Rooms</span>
                   </button>
                   <button
                     type="button"
                     onClick={openAddWindow}
                     className="ui-focus-ring ui-tabbar-button"
                     data-active={activeTab === 'buddy' ? 'true' : 'false'}
+                    aria-current={activeTab === 'buddy' ? 'page' : undefined}
                   >
                     <span className="ui-tabbar-icon">
                       <HiItsMeTabIcon kind="buddy" className="h-5 w-5 text-current" />
                     </span>
-                    <span className="ui-tabbar-label">Buddy</span>
+                    <span className="ui-tabbar-label">Find</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSetupAction}
+                    className="ui-focus-ring ui-tabbar-button"
+                    data-active={activeTab === 'profile' ? 'true' : 'false'}
+                    aria-current={activeTab === 'profile' ? 'page' : undefined}
+                  >
+                    <span className="ui-tabbar-icon">
+                      <HiItsMeTabIcon kind="profile" className="h-5 w-5 text-current" />
+                    </span>
+                    <span className="ui-tabbar-label">Profile</span>
                   </button>
                 </div>
               </div>
@@ -7197,101 +8277,6 @@ function HiItsMeContent() {
           </div>
         </div>
       </RetroWindow>
-
-      {isRecoverySetupOpen && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4 backdrop-blur-[1px]">
-          <div className="w-full max-w-md">
-            <div className={xpModalFrameClass}>
-              <div className={`${xpModalHeaderClass} mb-2`}>Finish Account Protection</div>
-              <form onSubmit={handleSaveRecoveryCode} className={xpModalBodyClass}>
-                <div className="ui-note-warning">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="font-semibold">Choose your private recovery code</p>
-                      <p className="mt-1">
-                        Keep it somewhere safe. You will need it if you ever forget your password.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => void handleGenerateRecoveryCodeDraft()}
-                      disabled={isSavingRecoveryCode}
-                      className="ui-focus-ring ui-button-secondary ui-button-compact shrink-0"
-                    >
-                      Generate
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label htmlFor="recovery-code-input" className="mb-1 block text-[12px] font-semibold text-slate-700 dark:text-slate-300">
-                    Recovery code
-                  </label>
-                  <input
-                    ref={recoveryCodeInputRef}
-                    id="recovery-code-input"
-                    value={recoveryCodeDraft}
-                    onChange={(event) => setRecoveryCodeDraft(event.target.value)}
-                    className={xpModalInputClass}
-                    placeholder="MY-SECRET-CODE-2026"
-                    minLength={RECOVERY_CODE_MIN_LENGTH}
-                    disabled={isSavingRecoveryCode}
-                    autoCapitalize="characters"
-                    autoCorrect="off"
-                    spellCheck={false}
-                  />
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="recovery-code-confirm-input"
-                    className="mb-1 block text-[12px] font-semibold text-slate-700 dark:text-slate-300"
-                  >
-                    Confirm recovery code
-                  </label>
-                  <input
-                    id="recovery-code-confirm-input"
-                    value={recoveryCodeConfirmDraft}
-                    onChange={(event) => setRecoveryCodeConfirmDraft(event.target.value)}
-                    className={xpModalInputClass}
-                    placeholder="Repeat your code"
-                    minLength={RECOVERY_CODE_MIN_LENGTH}
-                    disabled={isSavingRecoveryCode}
-                    autoCapitalize="characters"
-                    autoCorrect="off"
-                    spellCheck={false}
-                  />
-                </div>
-
-                {recoverySetupFeedback && (
-                  <p className="ui-note-success">{recoverySetupFeedback}</p>
-                )}
-
-                {recoverySetupError && (
-                  <p className="ui-note-error">{recoverySetupError}</p>
-                )}
-
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void handleSignOff()}
-                    className={xpModalButtonClass}
-                  >
-                    Sign Off
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSavingRecoveryCode}
-                    className={xpModalPrimaryButtonClass}
-                  >
-                    {isSavingRecoveryCode ? 'Saving...' : 'Save Recovery Code'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
 
       {isAdminResetOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-[1px]">
@@ -7352,7 +8337,7 @@ function HiItsMeContent() {
                     <p className="font-bold">Secure reset ready</p>
                     <p className="mt-1">
                       Share this with <span className="font-semibold">{adminResetScreenname.trim() || 'the member'}</span>.
-                      They will choose a fresh password and recovery code after redemption.
+                      They will choose a fresh password after redemption.
                     </p>
                     <p className="mt-1 break-all font-mono text-[13px] font-bold">{issuedAdminTicket.ticket}</p>
                     <p className="mt-1 text-[11px]">
@@ -7395,7 +8380,7 @@ function HiItsMeContent() {
                   ) : null}
 
                   {!adminAuditError && !isLoadingAdminAudit && adminAuditEntries.length === 0 ? (
-                    <p className="mt-2 italic text-slate-500">No recent events.</p>
+                    <p className="mt-2 text-slate-500">No recent events.</p>
                   ) : null}
 
                   {adminAuditEntries.length > 0 ? (
@@ -7552,7 +8537,7 @@ function HiItsMeContent() {
                 ) : null}
 
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <label className={`ui-focus-ring inline-flex items-center rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 shadow-sm dark:border-slate-700 dark:bg-[#13100E]/70 dark:text-slate-200 ${isProfileSchemaUnavailable ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-slate-50 dark:hover:bg-[#13100E]'}`}>
+                  <label className={`ui-focus-ring inline-flex items-center rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 shadow-sm dark:border-slate-700 dark:bg-[#0F1424]/70 dark:text-slate-200 ${isProfileSchemaUnavailable ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-slate-50 dark:hover:bg-[#0F1424]'}`}>
                     Upload Profile Photo
                     <input
                       type="file"
@@ -7608,27 +8593,31 @@ function HiItsMeContent() {
                 </div>
 
                 <div className="mt-3">
-                  <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Status Line</p>
+                  <label htmlFor="profile-status-input" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-widest text-slate-400">Status Line</label>
                   <input
+                    id="profile-status-input"
                     value={profileStatusDraft}
                     onChange={(event) => setProfileStatusDraft(event.target.value.slice(0, PROFILE_STATUS_MAX_LENGTH))}
                     className={xpModalInputClass}
                     placeholder="What should buddies see?"
                     maxLength={PROFILE_STATUS_MAX_LENGTH}
+                    aria-describedby="profile-status-count"
                   />
-                  <p className="mt-1 text-right text-[10px] text-slate-400">{profileStatusDraft.length}/{PROFILE_STATUS_MAX_LENGTH}</p>
+                  <p id="profile-status-count" className="mt-1 text-right text-[10px] text-slate-400">{profileStatusDraft.length}/{PROFILE_STATUS_MAX_LENGTH}</p>
                 </div>
 
                 <div className="mt-3">
-                  <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Bio</p>
+                  <label htmlFor="profile-bio-input" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-widest text-slate-400">Bio</label>
                   <textarea
+                    id="profile-bio-input"
                     value={profileBioDraft}
                     onChange={(event) => setProfileBioDraft(event.target.value.slice(0, PROFILE_BIO_MAX_LENGTH))}
                     className={`${xpModalInputClass} min-h-[84px] resize-none`}
                     placeholder="Add a short AIM-style profile blurb…"
                     maxLength={PROFILE_BIO_MAX_LENGTH}
+                    aria-describedby="profile-bio-count"
                   />
-                  <p className="mt-1 text-right text-[10px] text-slate-400">{profileBioDraft.length}/{PROFILE_BIO_MAX_LENGTH}</p>
+                  <p id="profile-bio-count" className="mt-1 text-right text-[10px] text-slate-400">{profileBioDraft.length}/{PROFILE_BIO_MAX_LENGTH}</p>
                 </div>
               </div>
 
@@ -7647,8 +8636,8 @@ function HiItsMeContent() {
                       }}
                       className={`ui-focus-ring rounded-full border px-3 py-1 text-[11px] font-semibold transition active:scale-95 ${
                         selectedAwayPresetId === preset.id
-                          ? 'border-rose-400/70 bg-[linear-gradient(180deg,#E8608A_0%,#B93A67_100%)] text-white'
-                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-[#13100E]/70 dark:text-slate-200 dark:hover:bg-[#13100E]'
+                          ? 'border-amber-400/70 bg-[linear-gradient(180deg,#E8A23A_0%,#C8861F_100%)] text-white'
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-[#0F1424]/70 dark:text-slate-200 dark:hover:bg-[#0F1424]'
                       }`}
                     >
                       {preset.label}
@@ -7659,8 +8648,8 @@ function HiItsMeContent() {
                     onClick={() => { setSelectedAwayPresetId('__custom__'); setAwayText(''); setAwayLabelDraft(''); }}
                     className={`ui-focus-ring rounded-full border px-3 py-1 text-[11px] font-semibold transition active:scale-95 ${
                       selectedAwayPresetId === '__custom__'
-                        ? 'border-rose-400/70 bg-[linear-gradient(180deg,#E8608A_0%,#B93A67_100%)] text-white'
-                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-[#13100E]/70 dark:text-slate-200 dark:hover:bg-[#13100E]'
+                        ? 'border-amber-400/70 bg-[linear-gradient(180deg,#E8A23A_0%,#C8861F_100%)] text-white'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-[#0F1424]/70 dark:text-slate-200 dark:hover:bg-[#0F1424]'
                     }`}
                   >
                     Custom…
@@ -7671,7 +8660,7 @@ function HiItsMeContent() {
               <div>
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Mood</p>
-                  <span className="text-[10px] italic text-slate-500">{activeAwayMood.hint}</span>
+                  <span className="text-[10px] text-slate-500">{activeAwayMood.hint}</span>
                 </div>
                 <div className="mt-2 grid grid-cols-5 gap-2">
                   {AWAY_MOOD_OPTIONS.map((option) => (
@@ -7692,7 +8681,7 @@ function HiItsMeContent() {
 
               {/* Message textarea */}
               <div>
-                <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Message</p>
+                <label htmlFor="away-message-input" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-widest text-slate-400">Message</label>
                 <textarea
                   id="away-message-input"
                   ref={awayMessageFieldRef}
@@ -7701,10 +8690,11 @@ function HiItsMeContent() {
                   className={`${xpModalInputClass} min-h-[90px] resize-none`}
                   placeholder="what's going on with you right now…"
                   maxLength={320}
+                  aria-describedby="away-message-help away-message-count"
                 />
                 <div className="mt-1 flex items-center justify-between gap-2">
-                  <p className="text-[10px] italic text-slate-500">Use %n for names, %t for time, %d for date.</p>
-                  <p className="text-right text-[10px] text-slate-400">{awayText.length}/320</p>
+                  <p id="away-message-help" className="text-[10px] text-slate-500">Use %n for names, %t for time, %d for date.</p>
+                  <p id="away-message-count" className="text-right text-[10px] text-slate-400">{awayText.length}/320</p>
                 </div>
               </div>
 
@@ -7732,12 +8722,14 @@ function HiItsMeContent() {
                     className={`ios-toggle ${isAutoAwayEnabled ? 'on' : ''}`}
                     role="switch"
                     aria-checked={isAutoAwayEnabled}
+                    aria-label="Show Idle when inactive"
                   />
                 </div>
                 {isAutoAwayEnabled ? (
                   <div className="flex items-center justify-between">
-                    <p className="text-[12px] text-slate-600">Idle timeout</p>
+                    <label htmlFor="idle-timeout-select" className="text-[12px] text-slate-600">Idle timeout</label>
                     <select
+                      id="idle-timeout-select"
                       value={autoAwayMinutes}
                       onChange={(event) => setAutoAwayMinutes(Number(event.target.value))}
                       className={`${xpModalSelectClass} w-auto py-1 pl-3 pr-8 text-[12px]`}
@@ -7760,6 +8752,7 @@ function HiItsMeContent() {
                     className={`ios-toggle ${autoReturnOnActivity && isAutoAwayEnabled ? 'on' : ''} disabled:opacity-50`}
                     role="switch"
                     aria-checked={autoReturnOnActivity}
+                    aria-label="Clear idle on activity"
                   />
                 </div>
                 <div className="flex items-center justify-between">
@@ -7770,8 +8763,25 @@ function HiItsMeContent() {
                     className={`ios-toggle ${saveAwayPreset ? 'on' : ''}`}
                     role="switch"
                     aria-checked={saveAwayPreset}
+                    aria-label="Save as preset"
                   />
                 </div>
+                {saveAwayPreset ? (
+                  <div>
+                    <label htmlFor="away-preset-label-input" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-widest text-slate-400">
+                      Preset label
+                    </label>
+                    <input
+                      id="away-preset-label-input"
+                      type="text"
+                      value={awayLabelDraft}
+                      onChange={(event) => setAwayLabelDraft(event.target.value)}
+                      className={xpModalInputClass}
+                      placeholder="e.g. lunch, focus, offline…"
+                      maxLength={40}
+                    />
+                  </div>
+                ) : null}
               </div>
 
               {isProfileSchemaUnavailable ? (
@@ -7844,6 +8854,16 @@ function HiItsMeContent() {
             </div>
 
             <div className="space-y-3 px-5 pb-2">
+              {profileSyncError ? (
+                <div className="ui-panel-card rounded-2xl px-3.5 py-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Profile</p>
+                  <p className="mt-1 text-[14px] font-semibold text-slate-800 dark:text-slate-100">Profile sync failed</p>
+                  <p className="ui-note-error mt-2">{profileSyncError}</p>
+                  <p className="mt-1 text-[12px] text-slate-500">
+                    Buddy requests and room joins may not work until this clears. It retries automatically each time you sign on.
+                  </p>
+                </div>
+              ) : null}
               <div className="ui-panel-card rounded-2xl px-3.5 py-3">
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Sync</p>
                 <p className="mt-1 text-[14px] font-semibold text-slate-800 dark:text-slate-100">{chatSyncSummary}</p>
@@ -7918,8 +8938,26 @@ function HiItsMeContent() {
               <div className="ui-panel-card rounded-2xl px-4 py-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
+                    <p className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Appear in Browse &amp; Search</p>
+                    <p className="text-[11px] text-slate-400">Let others find your profile in the Browse and Search surfaces. Your away message is shown publicly.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void toggleDiscoverable()}
+                    disabled={isSavingDiscoverable}
+                    className={`ios-toggle ${isDiscoverable ? 'on' : ''} disabled:opacity-50`}
+                    role="switch"
+                    aria-checked={isDiscoverable}
+                    aria-label="Appear in Browse and Search"
+                  />
+                </div>
+              </div>
+
+              <div className="ui-panel-card rounded-2xl px-4 py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
                     <p className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Share read receipts</p>
-                    <p className="text-[11px] text-slate-400">Let buddies know when you have read their messages.</p>
+                    <p className="text-[11px] text-slate-400">Let buddies see when you&rsquo;ve read their messages. When off, you also won&rsquo;t see when buddies read yours.</p>
                   </div>
                   <button
                     type="button"
@@ -7929,14 +8967,16 @@ function HiItsMeContent() {
                     className={`ios-toggle ${privacySettings.shareReadReceipts ? 'on' : ''}`}
                     role="switch"
                     aria-checked={privacySettings.shareReadReceipts}
+                    aria-label="Share read receipts"
                   />
                 </div>
               </div>
 
               <div className="ui-panel-card rounded-2xl px-4 py-4">
-                <p className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Notification previews</p>
+                <label htmlFor="notification-preview-select" className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Notification previews</label>
                 <p className="mt-1 text-[11px] text-slate-400">Choose how much message detail appears in banners.</p>
                 <select
+                  id="notification-preview-select"
                   value={privacySettings.notificationPreviewMode}
                   onChange={(event) =>
                     void updatePrivacyPreferences({
@@ -7964,6 +9004,7 @@ function HiItsMeContent() {
                     className={`ios-toggle ${privacySettings.screenShieldEnabled ? 'on' : ''}`}
                     role="switch"
                     aria-checked={privacySettings.screenShieldEnabled}
+                    aria-label="Screen shield"
                   />
                 </div>
               </div>
@@ -7993,6 +9034,7 @@ function HiItsMeContent() {
                     className={`ios-toggle ${appLockSettings.enabled ? 'on' : ''}`}
                     role="switch"
                     aria-checked={appLockSettings.enabled}
+                    aria-label="App lock"
                   />
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -8017,7 +9059,7 @@ function HiItsMeContent() {
                 {appLockSettings.enabled ? (
                   <div className="mt-3 space-y-3">
                     {biometricAvailability.isAvailable ? (
-                      <div className="flex items-center justify-between gap-3 rounded-[1rem] border border-white/70 bg-white/75 px-3 py-3 dark:border-slate-800 dark:bg-[#13100E]/55">
+                      <div className="flex items-center justify-between gap-3 rounded-[1rem] border border-white/70 bg-white/75 px-3 py-3 dark:border-slate-800 dark:bg-[#0F1424]/55">
                         <div>
                           <p className="text-[12px] font-semibold text-slate-700 dark:text-slate-100">
                             Use {biometricAvailability.label}
@@ -8058,8 +9100,8 @@ function HiItsMeContent() {
                               }
                               className={`ui-focus-ring rounded-full border px-3 py-2 text-[11px] font-semibold transition ${
                                 selected
-                                  ? 'border-rose-500/70 bg-[linear-gradient(180deg,#E8608A_0%,#B93A67_100%)] text-white shadow-[0_12px_30px_rgba(232,96,138,0.24)]'
-                                  : 'border-white/75 bg-white/78 text-slate-600 dark:border-slate-800 dark:bg-[#13100E]/45 dark:text-slate-300'
+                                  ? 'border-amber-500/70 bg-[linear-gradient(180deg,#E8A23A_0%,#C8861F_100%)] text-white shadow-[0_12px_30px_rgba(232,162,58,0.24)]'
+                                  : 'border-white/75 bg-white/78 text-slate-600 dark:border-slate-800 dark:bg-[#0F1424]/45 dark:text-slate-300'
                               }`}
                             >
                               {formatAppLockTimeoutLabel(value)}
@@ -8084,7 +9126,7 @@ function HiItsMeContent() {
                       return (
                         <div
                           key={blockedUserId}
-                          className="flex items-center justify-between gap-3 rounded-[1rem] border border-white/70 bg-white/75 px-3 py-2 dark:border-slate-800 dark:bg-[#13100E]/55"
+                          className="flex items-center justify-between gap-3 rounded-[1rem] border border-white/70 bg-white/75 px-3 py-2 dark:border-slate-800 dark:bg-[#0F1424]/55"
                         >
                           <div className="min-w-0">
                             <p className="ui-screenname truncate text-[12px] font-semibold text-slate-700 dark:text-slate-100">
@@ -8153,23 +9195,9 @@ function HiItsMeContent() {
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4 backdrop-blur-[1px]">
           <div className="w-full max-w-sm">
             <div className={xpModalFrameClass}>
-              <div className={`${xpModalHeaderClass} mb-2`}>Join a Room</div>
-              <form onSubmit={handleJoinRoom} className="flex flex-col gap-3 px-2 pb-2 text-[11px]">
-                <label htmlFor="room-name-input" className="font-semibold text-slate-700 dark:text-slate-300">
-                  Room name
-                </label>
-                <input
-                  id="room-name-input"
-                  value={roomNameDraft}
-                  onChange={(event) => setRoomNameDraft(event.target.value)}
-                  className={xpModalInputClass}
-                  placeholder="cool_kids_club"
-                  maxLength={80}
-                />
-                <p className="text-[12px] text-slate-500">If the room does not exist yet, H.I.M. will create it.</p>
-                {roomJoinError && (
-                  <p className="ui-note-error">{roomJoinError}</p>
-                )}
+              <div className={`${xpModalHeaderClass} mb-2`}>Chat Rooms</div>
+              <div className="flex flex-col gap-3 px-2 pb-2 text-[11px]">
+                <p className="text-[12px] text-slate-500">Browse and join rooms to start chatting.</p>
                 <div className="flex justify-end gap-2">
                   <button
                     type="button"
@@ -8179,14 +9207,14 @@ function HiItsMeContent() {
                     Cancel
                   </button>
                   <button
-                    type="submit"
-                    disabled={isJoiningRoom}
+                    type="button"
+                    onClick={handleBrowseRooms}
                     className={xpModalPrimaryButtonClass}
                   >
-                    {isJoiningRoom ? 'Joining...' : 'Join'}
+                    Browse Rooms
                   </button>
                 </div>
-              </form>
+              </div>
             </div>
           </div>
         </div>
@@ -8249,11 +9277,17 @@ function HiItsMeContent() {
               <div className={`${xpModalHeaderClass} mb-2`}>Add Buddy</div>
               <div className="flex flex-col gap-3 px-2 pb-2 text-[11px]">
                 <form onSubmit={handleSearch} className="flex gap-2">
+                  <label htmlFor="add-buddy-search-input" className="sr-only">Search screen names</label>
                   <input
+                    id="add-buddy-search-input"
+                    type="search"
                     value={searchTerm}
                     onChange={(event) => setSearchTerm(event.target.value)}
                     className={xpModalInputClass}
                     placeholder="Search screen names..."
+                    autoComplete="off"
+                    autoCapitalize="none"
+                    autoCorrect="off"
                   />
                   <button
                     type="submit"
@@ -8265,12 +9299,12 @@ function HiItsMeContent() {
 
                 {searchError && <p className="ui-note-error">{searchError}</p>}
 
-                <div className="max-h-56 overflow-y-auto rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-[inset_0_1px_1px_rgba(15,23,42,0.05)] dark:border-slate-700 dark:bg-[#13100E]/50">
+                <div className="max-h-56 overflow-y-auto rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-[inset_0_1px_1px_rgba(15,23,42,0.05)] dark:border-slate-700 dark:bg-[#0F1424]/50">
                   {isSearching && (
-                    <p className="p-2 text-sm italic text-slate-500">Searching screen names...</p>
+                    <p className="p-2 text-sm text-slate-500">Searching screen names...</p>
                   )}
                   {!isSearching && searchTerm.trim() !== '' && searchResults.length === 0 && (
-                    <p className="p-2 text-sm italic text-slate-500">No screen names found.</p>
+                    <p className="p-2 text-sm text-slate-500">No screen names found.</p>
                   )}
                   {!isSearching &&
                     searchResults.map((profile) => {
@@ -8288,7 +9322,7 @@ function HiItsMeContent() {
                         >
                           <div className="min-w-0">
                             <p className="ui-screenname truncate font-bold">{profile.screenname || 'Unknown User'}</p>
-                            <p className="truncate text-[11px] italic text-slate-500">
+                            <p className="truncate text-[11px] text-slate-500">
                               {isProfileAway
                                 ? `Away: ${resolvedProfileStatus.awayMessage || 'Away'}`
                                 : resolvedProfileStatus.statusMessage}
@@ -8350,7 +9384,7 @@ function HiItsMeContent() {
                   <span className="ui-button-secondary ui-button-compact">{isForwardingToId === 'saved' ? '…' : 'Save'}</span>
                 </button>
 
-                <div className="max-h-64 overflow-y-auto rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-[inset_0_1px_1px_rgba(15,23,42,0.05)] dark:border-slate-700 dark:bg-[#13100E]/50">
+                <div className="max-h-64 overflow-y-auto rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-[inset_0_1px_1px_rgba(15,23,42,0.05)] dark:border-slate-700 dark:bg-[#0F1424]/50">
                   {sortedDirectMessageBuddies.map((buddy) => (
                     <button
                       key={buddy.id}
@@ -8411,6 +9445,18 @@ function HiItsMeContent() {
         isBlocked={selectedProfileSummary ? blockedUserIds.includes(selectedProfileSummary.id) : false}
         isBlocking={isBlockingBuddyId === selectedProfileSummary?.id}
         isReporting={isReportingBuddyId === selectedProfileSummary?.id}
+        mutualContext={mutualContextState.context}
+        isMutualContextLoading={mutualContextState.isLoading}
+        mutualContextError={mutualContextState.error}
+        circles={buddyCircles}
+        currentCircleId={
+          selectedProfileSummary ? buddyCircleIndex.get(selectedProfileSummary.id)?.id ?? null : null
+        }
+        onSetCircle={
+          selectedProfileSummary && selectedProfileSummary.relationshipStatus === 'accepted'
+            ? (circleId) => handleSetBuddyCircle(selectedProfileSummary.id, circleId)
+            : undefined
+        }
         onClose={closeBuddyProfile}
         onStartChat={() => {
           if (!selectedProfileSummary) {
@@ -8463,7 +9509,7 @@ function HiItsMeContent() {
         <div
           aria-live="polite"
           className={`pointer-events-none fixed right-3 z-40 flex w-[min(22rem,calc(100vw-1.5rem))] flex-col gap-2 ${
-            nativeShellActive ? 'top-3' : 'top-[calc(env(safe-area-inset-top)+4.25rem)]'
+            nativeShellActive ? 'top-[var(--hiitsme-shell-top-inset,env(safe-area-inset-top))]' : 'top-[calc(env(safe-area-inset-top)+4.25rem)]'
           }`}
         >
           {buddyActivityToasts.map((item) => (
@@ -8471,11 +9517,11 @@ function HiItsMeContent() {
               key={item.id}
               className={`rounded-2xl border px-3 py-2 text-[12px] shadow-[0_16px_34px_rgba(0,0,0,0.32)] backdrop-blur-xl ${
                 item.tone === 'offline'
-                  ? 'border-[rgba(156,142,130,0.22)] bg-[rgba(29,25,22,0.94)] text-[var(--muted)]'
+                  ? 'border-[rgba(156,142,130,0.22)] bg-[rgba(21, 26, 48,0.94)] text-[var(--muted)]'
                   : item.tone === 'away'
-                    ? 'border-[rgba(212,150,58,0.24)] bg-[rgba(44,31,15,0.92)] text-[var(--gold)]'
+                    ? 'border-[rgba(232,162,58,0.24)] bg-[rgba(44,31,15,0.92)] text-[var(--gold)]'
                     : item.tone === 'back'
-                      ? 'border-[rgba(167,139,250,0.26)] bg-[rgba(42,31,58,0.92)] text-[var(--lavender)]'
+                      ? 'border-[rgba(232,162,58,0.26)] bg-[rgba(42,31,58,0.92)] text-[var(--lavender)]'
                       : 'border-[rgba(78,201,122,0.24)] bg-[rgba(17,37,27,0.92)] text-[var(--green)]'
               }`}
             >
@@ -8520,6 +9566,9 @@ function HiItsMeContent() {
             onSetDisappearingTimer={handleSetDisappearingTimerForActiveChat}
             onForwardMessage={handleBeginForwardMessage}
             onSaveMessage={handleSaveDirectMessage}
+            onReportMessage={(message) =>
+              openReportSheetForDmMessage(message, activeChatBuddy.screenname)
+            }
             onClose={closeChatWindow}
             onSignOff={handleSignOff}
             onOpenProfile={() => openBuddyProfile(activeChatBuddy.id)}
@@ -8544,24 +9593,50 @@ function HiItsMeContent() {
           key={activeRoom.id}
           roomId={activeRoom.id}
           roomName={activeRoom.name}
-          roomKey={activeRoom.room_key ?? null}
           currentUserId={userId}
           currentUserScreenname={screenname}
           currentUserBuddyIconPath={buddyIconPath}
           initialUnreadCount={initialUnreadForActiveRoom}
-          initialDraft={draftCache.rooms[normalizeRoomKey(activeRoom.name)] ?? ''}
+          initialDraft={draftCache.rooms[activeRoom.id] ?? ''}
           outboxItems={activeRoomOutboxItems}
           reloadToken={activeRoomReloadToken}
-          onDraftChange={(draft) => updateRoomDraft(activeRoom.name, draft)}
+          onDraftChange={(draft) => updateRoomDraft(activeRoom.id, draft)}
           onRetryOutboxMessage={handleRetryConversationOutboxMessage}
           onQueueRoomMessage={handleQueueRoomMessage}
-          inviteCode={activeRoom.invite_code ?? null}
           buddies={acceptedBuddies}
           onBack={handleBackFromRoom}
           onLeave={handleLeaveCurrentRoom}
           onSignOff={handleSignOff}
+          blockedUserIds={blockedUserIds}
+          onReportRoomMessage={openReportSheetForRoomMessage}
+          onBlockRoomUser={(payload) => {
+            void handleBlockUserById(payload.userId);
+          }}
+          nativeBridgeRef={nativeRoomBridgeRef}
+          onNativeStateChange={handleNativeRoomStateChange}
         />
       )}
+
+      <MessageReportSheet
+        key={reportTarget ? `${reportTarget.targetUserId}:${reportTarget.sourceMessageId ?? 'profile'}` : 'closed'}
+        isOpen={Boolean(reportTarget)}
+        context={
+          reportTarget
+            ? {
+                targetScreenname: reportTarget.targetScreenname,
+                messagePreview: reportTarget.messagePreview,
+              }
+            : null
+        }
+        isSubmitting={reportSubmitting}
+        errorMessage={reportSubmitError}
+        onClose={() => {
+          if (reportSubmitting) return;
+          setReportTarget(null);
+          setReportSubmitError(null);
+        }}
+        onSubmit={handleSubmitMessageReport}
+      />
     </main>
   );
 }

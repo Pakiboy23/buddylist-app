@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <radialGradient id="himLamp" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#E8A23A" stop-opacity="0.52"></stop>
+      <stop offset="48%" stop-color="#E8A23A" stop-opacity="0.17"></stop>
+      <stop offset="100%" stop-color="#E8A23A" stop-opacity="0"></stop>
+    </radialGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="229" ry="229" fill="#1A1F3A"></rect>
+  <circle cx="730" cy="738" r="252" fill="url(#himLamp)"></circle>
+  <text x="452" y="725" text-anchor="middle" font-family="Newsreader, Georgia, &#39;Times New Roman&#39;, serif" font-size="560" font-weight="500" fill="#F2E6D0">hi</text>
+  <circle cx="730" cy="738" r="52" fill="#E8A23A"></circle>
+  <rect x="13" y="13" width="998" height="998" rx="216" ry="216" fill="none" stroke="#E8A23A" stroke-opacity="0.30" stroke-width="3"></rect>
+</svg>

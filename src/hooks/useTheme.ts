@@ -1,6 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
+
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 
@@ -22,27 +24,22 @@ function getSystemPrefersDark(): boolean {
   return window.matchMedia('(prefers-color-scheme: dark)').matches;
 }
 
-function applyThemeClass(mode: ThemeMode) {
-  if (typeof document === 'undefined') return;
-  const isDark = mode === 'dark' || (mode === 'system' && getSystemPrefersDark());
-  document.documentElement.classList.toggle('dark', isDark);
-  document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
-}
-
 export function useTheme() {
   const [mode, setMode] = useState<ThemeMode>(getStoredTheme);
-  const isDark = mode === 'dark' || (mode === 'system' && getSystemPrefersDark());
+  const [systemPrefersDark, setSystemPrefersDark] = useState<boolean>(getSystemPrefersDark);
+  const isDark = mode === 'dark' || (mode === 'system' && systemPrefersDark);
+
+  useIsomorphicLayoutEffect(() => {
+    if (typeof document === 'undefined') return;
+    document.documentElement.classList.toggle('dark', isDark);
+    document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
+  }, [isDark]);
 
   useEffect(() => {
-    applyThemeClass(mode);
-  }, [mode]);
-
-  // Listen for system preference changes when in 'system' mode
-  useEffect(() => {
-    if (mode !== 'system') return;
+    if (mode !== 'system' || typeof window === 'undefined') return;
 
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = () => applyThemeClass('system');
+    const handler = (event: MediaQueryListEvent) => setSystemPrefersDark(event.matches);
 
     mediaQuery.addEventListener('change', handler);
     return () => mediaQuery.removeEventListener('change', handler);

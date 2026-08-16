@@ -2,14 +2,20 @@
 
 import { KeyboardEvent, useEffect, useId, useRef, useState } from 'react';
 import AppIcon from '@/components/AppIcon';
+import MutualContextCard from '@/components/MutualContextCard';
+import { CirclePicker } from '@/components/BuddyCircles';
 import ProfileAvatar from '@/components/ProfileAvatar';
+import type { BuddyCircle } from '@/lib/buddyCircles';
 import { getPresenceLabel, type ResolvedPresenceState } from '@/lib/presence';
 import {
   ABUSE_REPORT_CATEGORY_OPTIONS,
   type AbuseReportCategory,
 } from '@/lib/trustSafety';
 import { supabase } from '@/lib/supabase';
+import { createEmptyMutualContext, type MutualContext } from '@/lib/mutualContext';
 import { useConnectionStatus } from '@/hooks/useConnectionStatus';
+
+const EMPTY_MUTUAL_CONTEXT = createEmptyMutualContext();
 
 interface BuddyProfileSheetData {
   id: string;
@@ -32,6 +38,13 @@ interface BuddyProfileSheetProps {
   isBlocked?: boolean;
   isBlocking?: boolean;
   isReporting?: boolean;
+  mutualContext?: MutualContext;
+  isMutualContextLoading?: boolean;
+  mutualContextError?: string | null;
+  /** Owner-private buddy circles; when non-empty and the buddy is accepted, shows a circle picker. */
+  circles?: BuddyCircle[];
+  currentCircleId?: string | null;
+  onSetCircle?: (circleId: string | null) => void | Promise<void>;
   onClose: () => void;
   onStartChat: () => void;
   onAddBuddy?: () => void;
@@ -60,6 +73,12 @@ export default function BuddyProfileSheet({
   isBlocked = false,
   isBlocking = false,
   isReporting = false,
+  mutualContext = EMPTY_MUTUAL_CONTEXT,
+  isMutualContextLoading = false,
+  mutualContextError = null,
+  circles = [],
+  currentCircleId = null,
+  onSetCircle,
   onClose,
   onStartChat,
   onAddBuddy,
@@ -201,7 +220,7 @@ export default function BuddyProfileSheet({
                 showStatusDot={showPresence}
               />
               <div className="min-w-0 flex-1">
-                <p className="ui-screenname truncate text-[length:var(--ui-text-xl)] font-semibold text-slate-800">
+                <p className="ui-screenname truncate text-[length:var(--ui-text-xl)] font-semibold text-slate-800 dark:text-slate-100">
                   {buddy.screenname}
                 </p>
                 {showPresence ? (
@@ -209,7 +228,7 @@ export default function BuddyProfileSheet({
                     <p className="text-[length:var(--ui-text-sm)] font-semibold text-[var(--rose)]">
                       {getPresenceLabel(buddy.presenceState)}
                     </p>
-                    <p className="mt-1 text-[length:var(--ui-text-sm)] text-slate-500">
+                    <p className="mt-1 text-[length:var(--ui-text-sm)] text-slate-500 dark:text-slate-400">
                       {buddy.presenceDetail}
                     </p>
                   </>
@@ -222,7 +241,7 @@ export default function BuddyProfileSheet({
                 <p className="text-[length:var(--ui-text-2xs)] font-semibold uppercase tracking-widest text-slate-400">
                   Status Line
                 </p>
-                <p className="mt-1 text-[length:var(--ui-text-md)] text-slate-700">{buddy.statusLine}</p>
+                <p className="mt-1 text-[length:var(--ui-text-md)] text-slate-700 dark:text-slate-200">{buddy.statusLine}</p>
               </div>
             ) : null}
 
@@ -231,7 +250,7 @@ export default function BuddyProfileSheet({
                 <p data-away-label="true" className="text-[length:var(--ui-text-2xs)] font-semibold uppercase tracking-widest">
                   Away Message
                 </p>
-                <p data-away-text="true" className="mt-1 text-[length:var(--ui-text-md)] italic">
+                <p data-away-text="true" className="mt-1 text-[length:var(--ui-text-md)]">
                   {buddy.awayMessage}
                 </p>
               </div>
@@ -242,7 +261,7 @@ export default function BuddyProfileSheet({
                 <p className="text-[length:var(--ui-text-2xs)] font-semibold uppercase tracking-widest text-slate-400">
                   Bio
                 </p>
-                <p className="mt-1 text-[length:var(--ui-text-md)] text-slate-700">
+                <p className="mt-1 text-[length:var(--ui-text-md)] text-slate-700 dark:text-slate-200">
                   {buddy.bio?.trim() || 'No profile bio yet.'}
                 </p>
               </div>
@@ -257,6 +276,16 @@ export default function BuddyProfileSheet({
               </div>
             ) : null}
           </div>
+
+          <MutualContextCard
+            context={mutualContext}
+            isLoading={isMutualContextLoading}
+            errorMessage={mutualContextError}
+          />
+
+          {buddy?.relationshipStatus === 'accepted' && onSetCircle ? (
+            <CirclePicker circles={circles} currentCircleId={currentCircleId} onSetCircle={onSetCircle} />
+          ) : null}
 
           {/* Action buttons */}
           <div className="flex flex-wrap justify-end gap-2">
@@ -365,10 +394,10 @@ export default function BuddyProfileSheet({
                   className="ui-sheet-surface mx-4 w-full max-w-sm rounded-[1.6rem] p-5 shadow-xl"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <p className="text-[length:var(--ui-text-lg)] font-semibold text-slate-800">
+                  <p className="text-[length:var(--ui-text-lg)] font-semibold text-slate-800 dark:text-slate-100">
                     Remove {buddy.screenname}?
                   </p>
-                  <p className="mt-1.5 text-[length:var(--ui-text-sm)] text-slate-500">
+                  <p className="mt-1.5 text-[length:var(--ui-text-sm)] text-slate-500 dark:text-slate-400">
                     Remove {buddy.screenname} from your H.I.M. contacts?
                   </p>
                   <div className="mt-5 flex justify-end gap-2">
@@ -398,12 +427,12 @@ export default function BuddyProfileSheet({
           {hasSafetyActions ? (
             <div className="ui-panel-card rounded-[1.4rem] px-4 py-3">
               <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 dark:bg-[#13100E] dark:text-slate-300">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 dark:bg-[#0F1424] dark:text-slate-300">
                   <AppIcon kind="shield" className="h-4 w-4" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[length:var(--ui-text-sm)] font-semibold text-slate-800">Safety</p>
-                  <p className="mt-0.5 text-[length:var(--ui-text-xs)] text-slate-500">
+                  <p className="text-[length:var(--ui-text-sm)] font-semibold text-slate-800 dark:text-slate-100">Safety</p>
+                  <p className="mt-0.5 text-[length:var(--ui-text-xs)] text-slate-500 dark:text-slate-400">
                     Block unwanted contact or send a report if something feels off.
                   </p>
                 </div>
@@ -436,6 +465,7 @@ export default function BuddyProfileSheet({
                     onClick={onBlockBuddy}
                     disabled={isBlocking}
                     className="ui-focus-ring ui-button-danger rounded-2xl px-4 py-2.5 text-[length:var(--ui-text-md)] disabled:opacity-60"
+                    data-testid="profile-block"
                   >
                     {isBlocking ? 'Blocking…' : 'Block'}
                   </button>
@@ -452,15 +482,17 @@ export default function BuddyProfileSheet({
               </div>
 
               {showReportForm ? (
-                <div className="mt-3 space-y-3 rounded-[1.2rem] border border-slate-200/80 bg-white/80 px-3 py-3 dark:border-slate-800 dark:bg-[#13100E]/50">
+                <div className="mt-3 space-y-3 rounded-[1.2rem] border border-slate-200/80 bg-white/80 px-3 py-3 dark:border-slate-800 dark:bg-[#0F1424]/50">
                   <div>
-                    <label className="mb-1 block text-[length:var(--ui-text-2xs)] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                    <label htmlFor="buddy-profile-report-category" className="mb-1 block text-[length:var(--ui-text-2xs)] font-semibold uppercase tracking-[0.12em] text-slate-400">
                       Category
                     </label>
                     <select
+                      id="buddy-profile-report-category"
                       value={reportCategory}
                       onChange={(event) => setReportCategory(event.target.value as AbuseReportCategory)}
-                      className="ui-focus-ring w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[length:var(--ui-text-sm)] text-slate-700 dark:border-slate-700 dark:bg-[#13100E] dark:text-slate-100"
+                      className="ui-focus-ring w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[length:var(--ui-text-sm)] text-slate-700 dark:border-slate-700 dark:bg-[#0F1424] dark:text-slate-100"
+                      aria-describedby="buddy-profile-report-category-help"
                     >
                       {ABUSE_REPORT_CATEGORY_OPTIONS.map((option) => (
                         <option key={option.value} value={option.value}>
@@ -468,21 +500,22 @@ export default function BuddyProfileSheet({
                         </option>
                       ))}
                     </select>
-                    <p className="mt-1 text-[length:var(--ui-text-2xs)] text-slate-400">
+                    <p id="buddy-profile-report-category-help" className="mt-1 text-[length:var(--ui-text-2xs)] text-slate-400">
                       {ABUSE_REPORT_CATEGORY_OPTIONS.find((option) => option.value === reportCategory)?.helper}
                     </p>
                   </div>
                   <div>
-                    <label className="mb-1 block text-[length:var(--ui-text-2xs)] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                    <label htmlFor="buddy-profile-report-notes" className="mb-1 block text-[length:var(--ui-text-2xs)] font-semibold uppercase tracking-[0.12em] text-slate-400">
                       Notes
                     </label>
                     <textarea
+                      id="buddy-profile-report-notes"
                       value={reportDetails}
                       onChange={(event) => setReportDetails(event.target.value)}
                       rows={3}
                       maxLength={1200}
                       placeholder="Add details to help with review."
-                      className="ui-focus-ring w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[length:var(--ui-text-sm)] text-slate-700 placeholder-slate-400 dark:border-slate-700 dark:bg-[#13100E] dark:text-slate-100 dark:placeholder-slate-500"
+                      className="ui-focus-ring w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[length:var(--ui-text-sm)] text-slate-700 placeholder-slate-400 dark:border-slate-700 dark:bg-[#0F1424] dark:text-slate-100 dark:placeholder-slate-500"
                     />
                   </div>
                   <div className="flex justify-end">

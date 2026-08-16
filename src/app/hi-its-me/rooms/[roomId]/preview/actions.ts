@@ -1,35 +1,57 @@
-'use server';
+import { supabase } from '@/lib/supabase';
 
-import { createSupabaseAdminClient } from '@/lib/supabaseServer';
+type RpcResult = { ok: true; user_id: string } | { ok: false; error: string };
+
+const ERROR_MESSAGES: Record<string, string> = {
+  not_authenticated: 'You are signed out. Please sign in again.',
+  room_not_found: 'Room not found.',
+  room_inactive: 'This room is not currently active.',
+};
+
+function humanize(code: string): string {
+  return ERROR_MESSAGES[code] ?? `Could not complete: ${code}`;
+}
 
 export async function joinRoom(
   roomId: string,
-  userId: string,
+  _userId: string,
 ): Promise<{ success: true } | { error: string }> {
-  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase.rpc('join_room_by_id', { p_room_id: roomId });
 
-  const { data: room, error: roomError } = await supabase
-    .from('chat_rooms')
-    .select('room_key, name')
-    .eq('id', roomId)
-    .single();
-
-  if (roomError || !room) {
-    return { error: 'Room not found.' };
+  if (error) {
+    // Capture auth context for diagnosis if the RPC itself errored.
+    const { data: debug } = await supabase.rpc('debug_auth');
+    return {
+      error: `RPC failed: ${error.message} | auth=${JSON.stringify(debug ?? {})}`,
+    };
   }
 
-  // Insert into user_active_rooms — the sync trigger writes to room_participants.
-  const { error } = await supabase.from('user_active_rooms').insert({
-    user_id: userId,
-    room_key: room.room_key,
-    room_name: room.name,
-    unread_count: 0,
-  });
+  const result = data as RpcResult | null;
+  if (!result) {
+    return { error: 'Empty RPC response.' };
+  }
+  if (!result.ok) {
+    return { error: humanize(result.error) };
+  }
+  return { success: true };
+}
 
-  // 23505 = unique_violation (already a member) — treat as success.
-  if (error && error.code !== '23505') {
-    return { error: error.message };
+export async function leaveRoom(
+  roomId: string,
+  _userId: string,
+): Promise<{ success: true } | { error: string }> {
+  const { data, error } = await supabase.rpc('leave_room_by_id', { p_room_id: roomId });
+
+  if (error) {
+    return { error: `RPC failed: ${error.message}` };
   }
 
+  const result = data as RpcResult | null;
+  if (!result) {
+    return { error: 'Empty RPC response.' };
+  }
+  if (!result.ok) {
+    return { error: humanize(result.error) };
+  }
   return { success: true };
 }

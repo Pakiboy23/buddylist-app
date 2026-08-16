@@ -20,6 +20,22 @@ describe('apiCors', () => {
     expect(response.headers.get('access-control-allow-headers')).toContain('authorization');
   });
 
+  it('echoes the Android Capacitor origin (https://localhost) on preflight responses', () => {
+    const request = new Request('https://hiitsme-app.vercel.app/api/push/dispatch', {
+      method: 'OPTIONS',
+      headers: {
+        origin: 'https://localhost',
+        'access-control-request-method': 'POST',
+        'access-control-request-headers': 'authorization,content-type',
+      },
+    });
+
+    const response = createCorsPreflightResponse(request, ['POST']);
+
+    expect(response.status).toBe(204);
+    expect(response.headers.get('access-control-allow-origin')).toBe('https://localhost');
+  });
+
   it('does not reflect unknown origins', () => {
     const request = new Request('https://hiitsme-app.vercel.app/api/push/dispatch', {
       method: 'OPTIONS',
@@ -34,7 +50,7 @@ describe('apiCors', () => {
   });
 
   it('adds CORS headers to JSON responses for native clients', async () => {
-    const request = new Request('https://hiitsme-app.vercel.app/api/auth/recovery/setup', {
+    const request = new Request('https://hiitsme-app.vercel.app/api/admin/me', {
       method: 'POST',
       headers: {
         origin: 'capacitor://localhost',

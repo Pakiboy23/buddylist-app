@@ -31,27 +31,34 @@ const INACTIVE: ConnectionState = {
  * Pass an empty string to skip all fetching (returns 'none' immediately).
  */
 export function useConnectionStatus(targetUserId: string): ConnectionState {
-  const [status, setStatus] = useState<ConnectionStatus>('loading');
-  const [canAddBuddy, setCanAddBuddy] = useState(false);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [loadedState, setLoadedState] = useState<{
+    targetUserId: string;
+    status: ConnectionStatus;
+    canAddBuddy: boolean;
+    currentUserId: string | null;
+  }>({
+    targetUserId: '',
+    status: 'none',
+    canAddBuddy: false,
+    currentUserId: null,
+  });
 
   // Initial fetch
   useEffect(() => {
     if (!targetUserId) {
-      setStatus('none');
-      setCanAddBuddy(false);
       return;
     }
 
     let cancelled = false;
-    setStatus('loading');
 
     async function fetchState() {
       const session = await waitForSessionOrNull();
       const uid = session?.user.id ?? null;
-      if (!uid || cancelled) return;
-
-      setCurrentUserId(uid);
+      if (cancelled) return;
+      if (!uid) {
+        setLoadedState({ targetUserId, status: 'none', canAddBuddy: false, currentUserId: null });
+        return;
+      }
 
       const [statusResult, roomResult] = await Promise.all([
         supabase.rpc('get_connection_status', {
@@ -67,13 +74,19 @@ export function useConnectionStatus(targetUserId: string): ConnectionState {
       if (cancelled) return;
 
       const raw = (statusResult.data as RawStatus) ?? null;
-      setStatus(raw === null ? 'none' : raw);
-      setCanAddBuddy(Boolean(roomResult.data));
+      setLoadedState({
+        targetUserId,
+        status: raw === null ? 'none' : raw,
+        canAddBuddy: Boolean(roomResult.data),
+        currentUserId: uid,
+      });
     }
 
     void fetchState();
     return () => { cancelled = true; };
   }, [targetUserId]);
+
+  const currentUserId = loadedState.targetUserId === targetUserId ? loadedState.currentUserId : null;
 
   // Realtime subscription for this pair
   useEffect(() => {
@@ -101,7 +114,11 @@ export function useConnectionStatus(targetUserId: string): ConnectionState {
             })
             .then(({ data }) => {
               const raw = (data as RawStatus) ?? null;
-              setStatus(raw === null ? 'none' : raw);
+              setLoadedState((previous) =>
+                previous.targetUserId === targetUserId
+                  ? { ...previous, status: raw === null ? 'none' : raw }
+                  : previous,
+              );
             });
         },
       )
@@ -111,6 +128,9 @@ export function useConnectionStatus(targetUserId: string): ConnectionState {
   }, [targetUserId, currentUserId]);
 
   if (!targetUserId) return INACTIVE;
+
+  const status = loadedState.targetUserId === targetUserId ? loadedState.status : 'loading';
+  const canAddBuddy = loadedState.targetUserId === targetUserId && loadedState.canAddBuddy;
 
   return {
     status,

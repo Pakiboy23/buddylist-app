@@ -1,5 +1,5 @@
 import { createCorsPreflightResponse, jsonWithCors } from '@/lib/apiCors';
-import { assertAdminUser } from '@/lib/passwordRecovery';
+import { assertAdminUser } from '@/lib/adminAuth';
 import { createSupabaseAdminClient, getRequestUser } from '@/lib/supabaseServer';
 
 export const runtime = 'nodejs';

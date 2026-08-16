@@ -15,7 +15,13 @@ function isSameDay(left: Date, right: Date) {
   );
 }
 
-export function getConversationClusterMeta<T extends { created_at: string; sender_id: string }>(
+type MessageWithSender = { created_at: string; sender_id?: string | null; user_id?: string | null };
+
+function getSenderId(msg: MessageWithSender): string | null | undefined {
+  return msg.sender_id ?? msg.user_id;
+}
+
+export function getConversationClusterMeta<T extends MessageWithSender>(
   messages: readonly T[],
   index: number,
 ): ConversationClusterMeta {
@@ -31,11 +37,12 @@ export function getConversationClusterMeta<T extends { created_at: string; sende
   const previousGap = previousTime ? currentTime - previousTime.getTime() : Number.POSITIVE_INFINITY;
   const nextGap = nextTime ? nextTime.getTime() - currentTime : Number.POSITIVE_INFINITY;
 
+  const myId = getSenderId(message);
   return {
     isFirstInRun:
-      !previous || previous.sender_id !== message.sender_id || previousGap > MESSAGE_RUN_GAP_MS,
+      !previous || getSenderId(previous) !== myId || previousGap > MESSAGE_RUN_GAP_MS,
     isLastInRun:
-      !next || next.sender_id !== message.sender_id || nextGap > MESSAGE_RUN_GAP_MS,
+      !next || getSenderId(next) !== myId || nextGap > MESSAGE_RUN_GAP_MS,
     showTimeDivider:
       !previous ||
       !previousTime ||

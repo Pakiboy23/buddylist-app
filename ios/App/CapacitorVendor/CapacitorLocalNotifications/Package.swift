@@ -19,7 +19,8 @@ let package = Package(
                 .product(name: "Capacitor", package: "capacitor-swift-pm"),
                 .product(name: "Cordova", package: "capacitor-swift-pm")
             ],
-            path: "ios/Sources/LocalNotificationsPlugin"),
+            path: "ios/Sources/LocalNotificationsPlugin",
+            resources: [.copy("PrivacyInfo.xcprivacy")]),
         .testTarget(
             name: "LocalNotificationsPluginTests",
             dependencies: ["LocalNotificationsPlugin"],

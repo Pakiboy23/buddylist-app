@@ -123,6 +123,10 @@ function resolvePreviewText(content: string, previewType?: string | null) {
     return '⚡ Buzz!';
   }
 
+  if (previewType === 'knock') {
+    return '👋 Knock — wants to talk.';
+  }
+
   if (previewType === 'voice_note') {
     return 'Sent a voice note.';
   }

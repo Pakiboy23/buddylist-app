@@ -1,22 +1,17 @@
 'use client';
 
-import { FormEvent, KeyboardEvent, type CSSProperties, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { FormEvent, KeyboardEvent, type CSSProperties, type MutableRefObject, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import AppIcon from '@/components/AppIcon';
-import { MessageReactionPicker, MessageReactionStrip } from '@/components/MessageReactions';
+import MutualContextCard from '@/components/MutualContextCard';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import RetroWindow from '@/components/RetroWindow';
 import RichTextToolbar from '@/components/RichTextToolbar';
 import SwipeActionFrame from '@/components/SwipeActionFrame';
 import type { OutboxItem } from '@/lib/outbox';
 import { getJSON, setJSON } from '@/lib/clientStorage';
-import {
-  CHAT_MEDIA_MAX_ATTACHMENTS,
-  type ChatMediaAttachmentRecord,
-  formatFileSize,
-  uploadChatMediaFile,
-  validateChatMediaFile,
-} from '@/lib/chatMedia';
-import { hapticLight, hapticSuccess, hapticWarning } from '@/lib/haptics';
+import { hapticLight, hapticSuccess } from '@/lib/haptics';
+import { sendOrAcceptBuddyRequest, type BuddyRequestStatus } from '@/lib/buddyRequest';
+import { countSeenByOthers, formatSeenByLabel } from '@/lib/roomReadReceipts';
 import { useKeyboardViewport } from '@/hooks/useKeyboardViewport';
 import { useSwipeBack } from '@/hooks/useSwipeBack';
 import {
@@ -24,8 +19,11 @@ import {
   formatConversationMetaTime,
   getConversationClusterMeta,
 } from '@/lib/conversationPresentation';
-import { buildReactionMutationKey, summarizeReactionRows } from '@/lib/messageReactions';
-import { isNativeIosShell } from '@/lib/nativeShell';
+import {
+  isNativeIosShell,
+  type NativeMilestoneOneRoomBridge,
+  type NativeMilestoneOneRoomConversation,
+} from '@/lib/nativeShell';
 import { supabase } from '@/lib/supabase';
 import {
   DEFAULT_RICH_TEXT_FORMAT,
@@ -38,6 +36,7 @@ import {
   RichTextFormat,
   sanitizeRichTextHtml,
 } from '@/lib/richText';
+import { MESSAGE_HIDDEN_PLACEHOLDER } from '@/lib/contentModeration';
 import {
   EXTENDED_ROOM_PROFILE_SELECT_FIELDS,
   isProfileSchemaMissingError,
@@ -47,20 +46,38 @@ import {
 import { useChatContext } from '@/context/ChatContext';
 import { createClientMessageId } from '@/lib/outbox';
 import {
+  createEmptyMutualContext,
+  loadMutualContext,
+  type MutualContext,
+} from '@/lib/mutualContext';
+import {
+  LEGACY_ROOM_MESSAGE_SELECT_FIELDS,
   ROOM_MESSAGE_SELECT_FIELDS,
+  isRoomMessageMetadataSchemaMissingError,
   sendRoomMessageWithClientMessageId,
 } from '@/lib/messageIdempotency';
 
 interface RoomMessage {
   id: string;
   room_id: string;
-  sender_id: string;
-  content: string;
+  user_id: string;
+  body: string;
   created_at: string;
-  client_msg_id?: string | null;
-  edited_at?: string | null;
-  deleted_at?: string | null;
-  deleted_by?: string | null;
+  flagged_at?: string | null;
+}
+
+interface RosterMember {
+  user_id: string;
+  last_seen_at: string;
+}
+
+interface RosterProfile {
+  id: string;
+  screenname: string;
+  awayMessage: string | null;
+  bio: string | null;
+  mutualContext: MutualContext;
+  mutualContextError: string | null;
 }
 
 interface RoomParticipant {
@@ -85,16 +102,6 @@ interface RoomProfile {
   buddy_icon_path: string | null;
 }
 
-interface RoomMessageReactionRow {
-  message_id: string;
-  user_id: string;
-  emoji: string;
-}
-
-interface RoomMessageAttachmentRow extends ChatMediaAttachmentRecord {
-  message_id: string;
-}
-
 interface BuddyStub {
   id: string;
   screenname: string;
@@ -103,7 +110,6 @@ interface BuddyStub {
 interface GroupChatWindowProps {
   roomId: string;
   roomName: string;
-  roomKey?: string | null;
   currentUserId: string;
   currentUserScreenname: string;
   currentUserBuddyIconPath?: string | null;
@@ -117,14 +123,23 @@ interface GroupChatWindowProps {
     content: string;
     clientMessageId?: string;
     errorMessage?: string;
-  }) => void;
+  }) => boolean | void;
   onRetryOutboxMessage?: (itemId: string) => void;
-  inviteCode?: string | null;
   buddies?: BuddyStub[];
   onBack: () => void;
   onLeave: () => void;
   onSignOff?: () => void;
   reloadToken?: number;
+  blockedUserIds?: string[];
+  onReportRoomMessage?: (payload: {
+    messageId: string;
+    senderId: string;
+    senderScreenname: string;
+    contentPreview: string;
+  }) => void;
+  onBlockRoomUser?: (payload: { userId: string; screenname: string }) => void;
+  nativeBridgeRef?: MutableRefObject<NativeMilestoneOneRoomBridge | null>;
+  onNativeStateChange?: (conversation: NativeMilestoneOneRoomConversation) => void;
 }
 
 const GROUP_SENDER_COLOR_CLASSES = [
@@ -165,7 +180,6 @@ function loadStoredRichTextFormat() {
 export default function GroupChatWindow({
   roomId,
   roomName,
-  roomKey = null,
   currentUserId,
   currentUserScreenname,
   currentUserBuddyIconPath = null,
@@ -176,13 +190,18 @@ export default function GroupChatWindow({
   onDraftChange,
   onQueueRoomMessage,
   onRetryOutboxMessage,
-  inviteCode = null,
   buddies = [],
   onBack,
   onLeave,
   onSignOff,
   reloadToken = 0,
+  blockedUserIds = [],
+  onReportRoomMessage,
+  onBlockRoomUser,
+  nativeBridgeRef,
+  onNativeStateChange,
 }: GroupChatWindowProps) {
+  const blockedUserIdSet = useMemo(() => new Set(blockedUserIds), [blockedUserIds]);
   const { clearUnreads } = useChatContext();
   const [messages, setMessages] = useState<RoomMessage[]>([]);
   const [participants, setParticipants] = useState<RoomParticipant[]>([]);
@@ -202,26 +221,12 @@ export default function GroupChatWindow({
   const [showFormatting, setShowFormatting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showConversationMenu, setShowConversationMenu] = useState(false);
-  const [shareLinkCopied, setShareLinkCopied] = useState(false);
   const [showComposerTools, setShowComposerTools] = useState(false);
   const [mentioningMessageId, setMentioningMessageId] = useState<string | null>(null);
-  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
-  const [editDraft, setEditDraft] = useState('');
-  const [isSavingEdit, setIsSavingEdit] = useState(false);
-  const [isDeletingMessageId, setIsDeletingMessageId] = useState<string | null>(null);
-  const [longPressMessageId, setLongPressMessageId] = useState<string | null>(null);
-  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [reactionRows, setReactionRows] = useState<RoomMessageReactionRow[]>([]);
-  const [pendingReactionKeys, setPendingReactionKeys] = useState<Set<string>>(() => new Set());
-  const [attachmentRows, setAttachmentRows] = useState<RoomMessageAttachmentRow[]>([]);
-  const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
-  const [reactionError, setReactionError] = useState<string | null>(null);
-  const [attachmentError, setAttachmentError] = useState<string | null>(null);
-  const [attachmentLoadError, setAttachmentLoadError] = useState<string | null>(null);
+  const [longPressRoomMessageId, setLongPressRoomMessageId] = useState<string | null>(null);
+  const longPressRoomTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [composerAreaHeight, setComposerAreaHeight] = useState(0);
   const [isComposerFocused, setIsComposerFocused] = useState(false);
-  const [enableSupplementalRealtime, setEnableSupplementalRealtime] = useState(false);
-
   const [isClosing, setIsClosing] = useState(false);
   const [relativeTimeTick, setRelativeTimeTick] = useState(0);
 
@@ -229,8 +234,17 @@ export default function GroupChatWindow({
   const [selectedInviteIds, setSelectedInviteIds] = useState<Set<string>>(() => new Set());
   const [isInviting, setIsInviting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
-  const seenReactionKeysRef = useRef(new Set<string>());
-  const [newReactionKeys, setNewReactionKeys] = useState<Set<string>>(() => new Set());
+
+  const [rosterMembers, setRosterMembers] = useState<RosterMember[]>([]);
+  const [memberLastSeenById, setMemberLastSeenById] = useState<Record<string, string>>({});
+  const [isRosterInitialLoading, setIsRosterInitialLoading] = useState(true);
+  const rosterLoadedOnceRef = useRef(false);
+  const [rosterProfileId, setRosterProfileId] = useState<string | null>(null);
+  const [rosterProfile, setRosterProfile] = useState<RosterProfile | null>(null);
+  const [isLoadingRosterProfile, setIsLoadingRosterProfile] = useState(false);
+  const [rosterProfileFeedback, setRosterProfileFeedback] = useState<string | null>(null);
+  const [rosterProfileStatus, setRosterProfileStatus] = useState<BuddyRequestStatus | null>(null);
+  const [isAddingRosterBuddy, setIsAddingRosterBuddy] = useState(false);
 
   const handleBack = useCallback(() => {
     setIsClosing(true);
@@ -243,39 +257,27 @@ export default function GroupChatWindow({
   }, [buddies, participants]);
 
   const handleInviteConfirm = useCallback(async () => {
-    if (selectedInviteIds.size === 0 || isInviting || !roomKey) return;
+    if (selectedInviteIds.size === 0 || isInviting) return;
     setIsInviting(true);
     setInviteError(null);
     try {
-      const inviteeIds = Array.from(selectedInviteIds);
-      const results = await Promise.allSettled(
-        inviteeIds.map((id) =>
-          supabase.rpc('invite_to_room', {
-            p_room_key: roomKey,
-            p_invitee_id: id,
-          }),
-        ),
-      );
-
-      const failures = results.filter(
-        (r) => r.status === 'rejected' || (r.status === 'fulfilled' && r.value.error),
-      );
-
-      if (failures.length > 0) {
-        const firstError = failures[0];
-        const message =
-          firstError.status === 'rejected'
-            ? String(firstError.reason)
-            : firstError.value.error!.message;
-        if (import.meta.env.DEV) {
-          console.error('[invite_to_room] RPC error:', message);
-        }
-        setInviteError(`Could not invite ${failures.length} buddy${failures.length > 1 ? 'ies' : ''}. ${message}`);
+      const { getAccessTokenOrNull } = await import('@/lib/authClient');
+      const { getEdgeFunctionUrl } = await import('@/lib/appApi');
+      const token = await getAccessTokenOrNull();
+      const response = await fetch(getEdgeFunctionUrl('rooms-invite'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ roomId, buddyIds: Array.from(selectedInviteIds) }),
+      });
+      const result = (await response.json()) as { invited?: string[]; error?: string };
+      if (!response.ok || result.error) {
+        setInviteError(result.error ?? 'Invite failed.');
         return;
       }
-
-      const invitedIds = inviteeIds.filter((_, i) => results[i].status === 'fulfilled');
-      // Optimistically add invited buddies to the participants list.
+      const invitedIds = result.invited ?? [];
       const invitedBuddies = buddies.filter((b) => invitedIds.includes(b.id));
       setParticipants((prev) => {
         const existingIds = new Set(prev.map((p) => p.userId));
@@ -287,22 +289,44 @@ export default function GroupChatWindow({
       setShowInviteSheet(false);
       setSelectedInviteIds(new Set());
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      if (import.meta.env.DEV) {
-        console.error('[invite_to_room] Unexpected error:', message);
-      }
-      setInviteError(`Invite failed: ${message}`);
+      setInviteError(err instanceof Error ? err.message : 'Invite failed.');
     } finally {
       setIsInviting(false);
     }
-  }, [buddies, isInviting, roomKey, selectedInviteIds]);
+  }, [buddies, isInviting, roomId, selectedInviteIds]);
 
   const swipeBack = useSwipeBack({ onSwipeBack: handleBack });
+  const lastOwnMessage = useMemo(() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      if (messages[index].user_id === currentUserId) {
+        return messages[index];
+      }
+    }
+    return null;
+  }, [currentUserId, messages]);
+  const lastOwnMessageSeenLabel = useMemo(
+    () =>
+      lastOwnMessage
+        ? formatSeenByLabel(countSeenByOthers(memberLastSeenById, currentUserId, lastOwnMessage.created_at))
+        : null,
+    [currentUserId, lastOwnMessage, memberLastSeenById],
+  );
+  // Only presence-synced entries carry a non-null onlineAt; the invite flow
+  // optimistically appends invitees with onlineAt: null, and those must not
+  // light up as "actively in the room".
+  const activeParticipantIds = useMemo(
+    () =>
+      new Set(
+        participants
+          .filter((participant) => participant.onlineAt !== null)
+          .map((participant) => participant.userId),
+      ),
+    [participants],
+  );
   const [isSending, setIsSending] = useState(false);
   const [hasLiveMessageSinceOpen, setHasLiveMessageSinceOpen] = useState(false);
   const [typingMap, setTypingMap] = useState<Record<string, string>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const attachmentInputRef = useRef<HTMLInputElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const composerAreaRef = useRef<HTMLDivElement>(null);
   const searchInputId = useId();
@@ -371,34 +395,6 @@ export default function GroupChatWindow({
   }, [format]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-    let idleCallbackId: number | null = null;
-
-    const enableRealtime = () => {
-      setEnableSupplementalRealtime(true);
-    };
-
-    if ('requestIdleCallback' in window) {
-      idleCallbackId = window.requestIdleCallback(enableRealtime, { timeout: 350 });
-    } else {
-      timeoutId = setTimeout(enableRealtime, 180);
-    }
-
-    return () => {
-      if (idleCallbackId !== null && 'cancelIdleCallback' in window) {
-        window.cancelIdleCallback(idleCallbackId);
-      }
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
     const composerArea = composerAreaRef.current;
     if (!composerArea) {
       return;
@@ -424,160 +420,6 @@ export default function GroupChatWindow({
     };
   }, []);
 
-  useEffect(() => {
-    const messageIds = messages.map((message) => message.id);
-    if (messageIds.length === 0) {
-      setReactionRows([]);
-      return;
-    }
-
-    let isCancelled = false;
-
-    const loadReactions = async () => {
-      const { data, error } = await supabase
-        .from('room_message_reactions')
-        .select('message_id,user_id,emoji')
-        .in('message_id', messageIds);
-
-      if (isCancelled) {
-        return;
-      }
-
-      if (error) {
-        setReactionError(error.message);
-        return;
-      }
-
-      setReactionError(null);
-      setReactionRows((data ?? []) as RoomMessageReactionRow[]);
-    };
-
-    void loadReactions();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [messages]);
-
-  useEffect(() => {
-    if (!enableSupplementalRealtime) {
-      return;
-    }
-
-    const messageIdSet = new Set(messages.map((message) => message.id));
-    if (messageIdSet.size === 0) {
-      return;
-    }
-
-    const channel = supabase
-      .channel(`room_message_reactions:${roomId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'room_message_reactions' }, (payload) => {
-        const incoming = payload.new as RoomMessageReactionRow;
-        if (!messageIdSet.has(incoming.message_id)) {
-          return;
-        }
-
-        setReactionRows((previous) =>
-          previous.some(
-            (row) =>
-              row.message_id === incoming.message_id && row.user_id === incoming.user_id && row.emoji === incoming.emoji,
-          )
-            ? previous
-            : [...previous, incoming],
-        );
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'room_message_reactions' }, (payload) => {
-        const deleted = payload.old as RoomMessageReactionRow;
-        if (!messageIdSet.has(deleted.message_id)) {
-          return;
-        }
-
-        setReactionRows((previous) =>
-          previous.filter(
-            (row) =>
-              !(
-                row.message_id === deleted.message_id &&
-                row.user_id === deleted.user_id &&
-                row.emoji === deleted.emoji
-              ),
-          ),
-        );
-      })
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [enableSupplementalRealtime, messages, roomId]);
-
-  useEffect(() => {
-    const messageIds = messages.map((message) => message.id);
-    if (messageIds.length === 0) {
-      setAttachmentRows([]);
-      return;
-    }
-
-    let isCancelled = false;
-    const loadAttachments = async () => {
-      const { data, error } = await supabase
-        .from('room_message_attachments')
-        .select('id,message_id,bucket,storage_path,file_name,mime_type,size_bytes')
-        .in('message_id', messageIds)
-        .order('created_at', { ascending: true });
-
-      if (isCancelled) {
-        return;
-      }
-
-      if (error) {
-        setAttachmentLoadError(error.message);
-        return;
-      }
-
-      setAttachmentLoadError(null);
-      setAttachmentRows((data ?? []) as RoomMessageAttachmentRow[]);
-    };
-
-    void loadAttachments();
-    return () => {
-      isCancelled = true;
-    };
-  }, [messages]);
-
-  useEffect(() => {
-    if (!enableSupplementalRealtime) {
-      return;
-    }
-
-    const messageIdSet = new Set(messages.map((message) => message.id));
-    if (messageIdSet.size === 0) {
-      return;
-    }
-
-    const channel = supabase
-      .channel(`room_message_attachments:${roomId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'room_message_attachments' }, (payload) => {
-        const incoming = payload.new as RoomMessageAttachmentRow;
-        if (!messageIdSet.has(incoming.message_id)) {
-          return;
-        }
-        setAttachmentRows((previous) =>
-          previous.some((attachment) => attachment.id === incoming.id) ? previous : [...previous, incoming],
-        );
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'room_message_attachments' }, (payload) => {
-        const deleted = payload.old as { id?: string };
-        if (typeof deleted.id !== 'string') {
-          return;
-        }
-        setAttachmentRows((previous) => previous.filter((attachment) => attachment.id !== deleted.id));
-      })
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [enableSupplementalRealtime, messages, roomId]);
 
   const ensureScreennames = useCallback(async (userIds: string[]) => {
     const uniqueUserIds = [...new Set(userIds.filter(Boolean))];
@@ -649,6 +491,81 @@ export default function GroupChatWindow({
     });
   }, [currentUserBuddyIconPath, currentUserId, currentUserScreenname]);
 
+  const loadRoster = useCallback(async () => {
+    const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    // Full membership (no cutoff): rosterMembers keeps the 5-minute "active"
+    // window, while the complete last_seen_at map powers "Seen by" counts on
+    // own messages.
+    const { data } = await supabase
+      .from('room_memberships')
+      .select('user_id, last_seen_at')
+      .eq('room_id', roomId)
+      .order('last_seen_at', { ascending: false });
+    const allRows = (data ?? []) as RosterMember[];
+    setMemberLastSeenById(
+      Object.fromEntries(allRows.map((row) => [row.user_id, row.last_seen_at])),
+    );
+    const rows = allRows.filter((row) => row.last_seen_at >= cutoff);
+    setRosterMembers(rows);
+    void ensureScreennames(rows.map((r) => r.user_id));
+    if (!rosterLoadedOnceRef.current) {
+      rosterLoadedOnceRef.current = true;
+      setIsRosterInitialLoading(false);
+    }
+  }, [roomId, ensureScreennames]);
+
+  const openRosterProfile = useCallback(async (userId: string) => {
+    if (userId === currentUserId) return;
+    setRosterProfileId(userId);
+    setRosterProfile(null);
+    setRosterProfileFeedback(null);
+    setRosterProfileStatus(null);
+    setIsLoadingRosterProfile(true);
+    try {
+      const [{ data }, contextResult] = await Promise.all([
+        supabase
+          .from('users')
+          .select('id, screenname, away_message, profile_bio')
+          .eq('id', userId)
+          .maybeSingle(),
+        loadMutualContext(userId)
+          .then((context) => ({ context, error: null }))
+          .catch((error) => ({
+            context: createEmptyMutualContext(),
+            error: error instanceof Error ? error.message : 'Could not load shared context.',
+          })),
+      ]);
+      if (data) {
+        setRosterProfile({
+          id: data.id as string,
+          screenname: ((data.screenname as string) ?? '').trim() || screennameMapRef.current[userId] || 'Unknown User',
+          awayMessage: (data.away_message as string | null) || null,
+          bio: (data.profile_bio as string | null) || null,
+          mutualContext: contextResult.context,
+          mutualContextError: contextResult.error,
+        });
+      }
+    } finally {
+      setIsLoadingRosterProfile(false);
+    }
+  }, [currentUserId]);
+
+  const handleAddRosterBuddy = useCallback(async (userId: string) => {
+    if (isAddingRosterBuddy) return;
+    setIsAddingRosterBuddy(true);
+    setRosterProfileFeedback(null);
+    try {
+      const result = await sendOrAcceptBuddyRequest(currentUserId, userId);
+      setRosterProfileFeedback(result.feedback);
+      setRosterProfileStatus(result.status);
+    } catch {
+      setRosterProfileFeedback('Could not send buddy request right now.');
+      setRosterProfileStatus('error');
+    } finally {
+      setIsAddingRosterBuddy(false);
+    }
+  }, [currentUserId, isAddingRosterBuddy]);
+
   useEffect(() => {
     scrollToLatestMessage();
   }, [messages, scrollToLatestMessage]);
@@ -668,8 +585,31 @@ export default function GroupChatWindow({
   }, [composerAreaHeight, isKeyboardOpen, scrollToLatestMessage, viewportHeight]);
 
   useEffect(() => {
-    void clearUnreads(roomName);
-  }, [clearUnreads, roomName]);
+    void clearUnreads(roomId);
+  }, [clearUnreads, roomId]);
+
+  // 30s last_seen_at heartbeat — final update fires on unmount
+  useEffect(() => {
+    const updateLastSeen = () => {
+      void supabase
+        .from('room_memberships')
+        .update({ last_seen_at: new Date().toISOString() })
+        .eq('room_id', roomId)
+        .eq('user_id', currentUserId);
+    };
+    const intervalId = setInterval(updateLastSeen, 30_000);
+    return () => {
+      clearInterval(intervalId);
+      updateLastSeen();
+    };
+  }, [currentUserId, roomId]);
+
+  // Roster — initial load + 60s refresh to expire departed members
+  useEffect(() => {
+    void loadRoster();
+    const intervalId = setInterval(() => void loadRoster(), 60_000);
+    return () => clearInterval(intervalId);
+  }, [loadRoster]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -678,12 +618,28 @@ export default function GroupChatWindow({
       setIsLoadingMessages(true);
       setError(null);
 
-      const { data, error: messagesError } = await supabase
+      let data: unknown = null;
+      let messagesError: { message?: string | null; code?: string | null } | null = null;
+
+      const initial = await supabase
         .from('room_messages')
         .select(ROOM_MESSAGE_SELECT_FIELDS)
         .eq('room_id', roomId)
         .order('created_at', { ascending: true })
         .limit(300);
+      data = initial.data;
+      messagesError = initial.error;
+
+      if (isRoomMessageMetadataSchemaMissingError(messagesError)) {
+        const fallback = await supabase
+          .from('room_messages')
+          .select(LEGACY_ROOM_MESSAGE_SELECT_FIELDS)
+          .eq('room_id', roomId)
+          .order('created_at', { ascending: true })
+          .limit(300);
+        data = fallback.data;
+        messagesError = fallback.error;
+      }
 
       if (isCancelled) {
         return;
@@ -691,7 +647,7 @@ export default function GroupChatWindow({
 
       if (messagesError) {
         setMessages([]);
-        setError(messagesError.message);
+        setError(messagesError.message ?? 'Failed to load messages.');
         setIsLoadingMessages(false);
         return;
       }
@@ -699,7 +655,7 @@ export default function GroupChatWindow({
       const loadedMessages = (data ?? []) as RoomMessage[];
       setMessages(loadedMessages);
       setIsLoadingMessages(false);
-      void ensureScreennames(loadedMessages.map((message) => message.sender_id));
+      void ensureScreennames(loadedMessages.map((message) => message.user_id));
     };
 
     void loadInitialMessages();
@@ -760,8 +716,8 @@ export default function GroupChatWindow({
           previous.some((message) => message.id === incoming.id) ? previous : [...previous, incoming],
         );
         setHasLiveMessageSinceOpen(true);
-        void clearUnreads(roomName);
-        void ensureScreennames([incoming.sender_id]);
+        void clearUnreads(roomId);
+        void ensureScreennames([incoming.user_id]);
       },
     );
 
@@ -777,6 +733,53 @@ export default function GroupChatWindow({
         setMessages((previous) =>
           previous.map((message) => (message.id === updated.id ? { ...message, ...updated } : message)),
         );
+      },
+    );
+
+    // Roster: refresh on membership changes (client-side room filter, same as messages)
+    roomChannel.on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'room_memberships' },
+      (payload) => {
+        const row = payload.new as { room_id?: string; user_id?: string; last_seen_at?: string };
+        if (row.room_id !== roomId) return;
+        void loadRoster();
+      },
+    );
+    roomChannel.on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'room_memberships' },
+      (payload) => {
+        const row = payload.new as { room_id?: string; user_id?: string; last_seen_at?: string };
+        if (row.room_id !== roomId || !row.user_id || !row.last_seen_at) return;
+        setMemberLastSeenById((prev) =>
+          prev[row.user_id!] === row.last_seen_at ? prev : { ...prev, [row.user_id!]: row.last_seen_at! },
+        );
+        const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+        setRosterMembers((prev) => {
+          const next = prev.filter((m) => m.user_id !== row.user_id);
+          if (row.last_seen_at! >= cutoff) {
+            next.push({ user_id: row.user_id!, last_seen_at: row.last_seen_at! });
+            next.sort((a, b) => b.last_seen_at.localeCompare(a.last_seen_at));
+          }
+          return next;
+        });
+        void ensureScreennames([row.user_id]);
+      },
+    );
+    roomChannel.on(
+      'postgres_changes',
+      { event: 'DELETE', schema: 'public', table: 'room_memberships' },
+      (payload) => {
+        const row = payload.old as { room_id?: string; user_id?: string };
+        if (row.room_id !== roomId) return;
+        setRosterMembers((prev) => prev.filter((m) => m.user_id !== row.user_id));
+        setMemberLastSeenById((prev) => {
+          if (!row.user_id || !(row.user_id in prev)) return prev;
+          const next = { ...prev };
+          delete next[row.user_id];
+          return next;
+        });
       },
     );
 
@@ -839,66 +842,30 @@ export default function GroupChatWindow({
       Object.values(typingTimeoutsRef.current).forEach((timeoutId) => clearTimeout(timeoutId));
       typingTimeoutsRef.current = {};
     };
-  }, [clearUnreads, currentUserId, currentUserScreenname, ensureScreennames, roomId, roomName]);
+  }, [clearUnreads, currentUserId, currentUserScreenname, ensureScreennames, loadRoster, roomId, roomName]);
 
-  const clearPendingAttachments = useCallback(() => {
-    setPendingAttachments([]);
-    if (attachmentInputRef.current) {
-      attachmentInputRef.current.value = '';
+
+  const sendRoomContent = useCallback(async (
+    content: string,
+    options: { applyFormatting: boolean } = { applyFormatting: false },
+  ) => {
+    const trimmed = content.trim();
+    if (!trimmed) {
+      return { ok: false as const, error: 'Type a message first.' };
     }
-  }, []);
-
-  const handleSelectAttachments = (files: FileList | null) => {
-    if (!files || files.length === 0) {
-      return;
-    }
-
-    const selected = Array.from(files);
-    const validationError = selected.map((file) => validateChatMediaFile(file)).find(Boolean);
-    if (validationError) {
-      setAttachmentError(validationError);
-      return;
-    }
-
-    setAttachmentError(null);
-    setShowComposerTools(true);
-    setPendingAttachments((previous) => {
-      const existingKeys = new Set(previous.map((file) => `${file.name}:${file.size}:${file.lastModified}`));
-      const combined = [...previous];
-      for (const file of selected) {
-        const key = `${file.name}:${file.size}:${file.lastModified}`;
-        if (!existingKeys.has(key)) {
-          combined.push(file);
-          existingKeys.add(key);
-        }
-      }
-      if (combined.length > CHAT_MEDIA_MAX_ATTACHMENTS) {
-        setAttachmentError(`Max ${CHAT_MEDIA_MAX_ATTACHMENTS} attachments per message.`);
-      }
-      return combined.slice(0, CHAT_MEDIA_MAX_ATTACHMENTS);
-    });
-  };
-
-  const handleSendMessage = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const trimmed = draft.trim();
-    if ((!trimmed && pendingAttachments.length === 0) || isSending) {
-      return;
+    if (isSending) {
+      return { ok: false as const, error: 'A message is already sending.' };
     }
 
     setIsSending(true);
     setError(null);
 
-    const formatted = trimmed
-      ? formatRichText(trimmed, format)
-      : pendingAttachments.length === 1
-        ? 'Sent an attachment.'
-        : 'Sent attachments.';
+    const formatted = options.applyFormatting ? formatRichText(trimmed, format) : trimmed;
     const clientMessageId = createClientMessageId();
     const { data, error: sendError } = await sendRoomMessageWithClientMessageId({
       roomId,
-      senderId: currentUserId,
-      content: formatted,
+      userId: currentUserId,
+      body: formatted,
       clientMessageId,
     });
 
@@ -906,67 +873,27 @@ export default function GroupChatWindow({
 
     if (sendError) {
       const retryableNetworkError =
-        pendingAttachments.length === 0 &&
         Boolean(trimmed) &&
         ((typeof navigator !== 'undefined' && !navigator.onLine) ||
           /network|fetch|offline|timeout/i.test(sendError.message));
       if (retryableNetworkError) {
-        onQueueRoomMessage?.({
+        const queued = onQueueRoomMessage?.({
           roomId,
           content: formatted,
           clientMessageId,
           errorMessage: sendError.message,
-        });
-        setDraft('');
-        onDraftChange?.('');
-        setError('Offline: message queued and will retry automatically.');
+        }) ?? false;
+        if (queued) {
+          setError('Offline: message queued and will retry automatically.');
+          return { ok: true as const };
+        }
       } else {
         setError(sendError.message);
       }
-      return;
+      return { ok: false as const, error: sendError.message };
     }
 
     const insertedMessage = data as RoomMessage;
-    if (pendingAttachments.length > 0) {
-      const attachmentRowsToInsert: Array<{
-        message_id: string;
-        uploader_id: string;
-        bucket: string;
-        storage_path: string;
-        file_name: string;
-        mime_type: string;
-        size_bytes: number;
-      }> = [];
-
-      for (const file of pendingAttachments) {
-        try {
-          const uploaded = await uploadChatMediaFile({ userId: currentUserId, file });
-          attachmentRowsToInsert.push({
-            message_id: insertedMessage.id,
-            uploader_id: currentUserId,
-            bucket: uploaded.bucket,
-            storage_path: uploaded.storagePath,
-            file_name: uploaded.fileName,
-            mime_type: uploaded.mimeType,
-            size_bytes: uploaded.sizeBytes,
-          });
-        } catch (uploadError) {
-          const message =
-            uploadError instanceof Error ? uploadError.message : 'Attachment upload failed.';
-          setError(message);
-        }
-      }
-
-      if (attachmentRowsToInsert.length > 0) {
-        const { error: attachmentInsertError } = await supabase
-          .from('room_message_attachments')
-          .insert(attachmentRowsToInsert);
-        if (attachmentInsertError) {
-          setError(attachmentInsertError.message);
-        }
-      }
-    }
-
     setMessages((previous) =>
       previous.some((message) => message.id === insertedMessage.id)
         ? previous
@@ -974,16 +901,24 @@ export default function GroupChatWindow({
     );
     setHasLiveMessageSinceOpen(true);
     setMentioningMessageId(null);
+    void hapticSuccess();
+    return { ok: true as const };
+  }, [currentUserId, format, isSending, onQueueRoomMessage, roomId]);
+
+  const handleSendMessage = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const result = await sendRoomContent(draft, { applyFormatting: true });
+    if (!result.ok) {
+      return;
+    }
+
     setDraft('');
     onDraftChange?.('');
-    clearPendingAttachments();
-    setAttachmentError(null);
     if (typeof window !== 'undefined') {
       window.requestAnimationFrame(() => {
         focusComposer();
       });
     }
-    void hapticSuccess();
   };
 
   const handleDraftKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -1007,14 +942,14 @@ export default function GroupChatWindow({
     }
 
     event.preventDefault();
-    if (isSending || (!draft.trim() && pendingAttachments.length === 0)) {
+    if (isSending || !draft.trim()) {
       return;
     }
 
     textarea.form?.requestSubmit();
   };
 
-  const notifyTyping = () => {
+  const notifyTyping = useCallback(() => {
     const now = Date.now();
     if (now - lastTypingSentAtRef.current < 1200) {
       return;
@@ -1034,7 +969,7 @@ export default function GroupChatWindow({
         screenname: currentUserScreenname,
       },
     });
-  };
+  }, [currentUserId, currentUserScreenname]);
 
   const handleDraftChange = (nextValue: string) => {
     setDraft(nextValue);
@@ -1044,79 +979,6 @@ export default function GroupChatWindow({
     }
   };
 
-  const removePendingAttachment = (targetIndex: number) => {
-    setPendingAttachments((previous) => {
-      const next = previous.filter((_, index) => index !== targetIndex);
-      if (next.length === 0 && attachmentInputRef.current) {
-        attachmentInputRef.current.value = '';
-      }
-      return next;
-    });
-  };
-
-  const startEditingMessage = (message: RoomMessage) => {
-    if (message.sender_id !== currentUserId || message.deleted_at) {
-      return;
-    }
-
-    setEditingMessageId(message.id);
-    setEditDraft(htmlToPlainText(message.content));
-  };
-
-  const cancelEditingMessage = () => {
-    setEditingMessageId(null);
-    setEditDraft('');
-  };
-
-  const saveEditedMessage = async (messageId: string) => {
-    const trimmed = editDraft.trim();
-    if (!trimmed || isSavingEdit) {
-      return;
-    }
-
-    setIsSavingEdit(true);
-    const updatedContent = formatRichText(trimmed, DEFAULT_RICH_TEXT_FORMAT);
-    const { error } = await supabase
-      .from('room_messages')
-      .update({
-        content: updatedContent,
-        edited_at: new Date().toISOString(),
-      })
-      .eq('id', messageId)
-      .eq('sender_id', currentUserId);
-
-    setIsSavingEdit(false);
-    if (error) {
-      return;
-    }
-
-    cancelEditingMessage();
-  };
-
-  const softDeleteMessage = async (messageId: string) => {
-    if (isDeletingMessageId === messageId) {
-      return;
-    }
-
-    setIsDeletingMessageId(messageId);
-    const { error } = await supabase
-      .from('room_messages')
-      .update({
-        deleted_at: new Date().toISOString(),
-        deleted_by: currentUserId,
-      })
-      .eq('id', messageId)
-      .eq('sender_id', currentUserId);
-    setIsDeletingMessageId(null);
-
-    if (error) {
-      return;
-    }
-
-    if (editingMessageId === messageId) {
-      cancelEditingMessage();
-    }
-  };
 
   const toggleBold = () => {
     setFormat((previous) => ({ ...previous, bold: !previous.bold }));
@@ -1143,7 +1005,7 @@ export default function GroupChatWindow({
   const toggleComposerFormatting = () => {
     setShowFormatting((previous) => {
       const next = !previous;
-      if (next && pendingAttachments.length === 0) {
+      if (next) {
         setShowComposerTools(false);
       }
       return next;
@@ -1151,15 +1013,10 @@ export default function GroupChatWindow({
   };
 
   const startMentioningMessage = (message: RoomMessage) => {
-    if (message.deleted_at) {
-      return;
-    }
-
-    const senderName = screennameMap[message.sender_id] || 'Unknown User';
-    const mentionPrefix = message.sender_id === currentUserId ? '' : `@${senderName} `;
+    const senderName = screennameMap[message.user_id] || 'Unknown User';
+    const mentionPrefix = message.user_id === currentUserId ? '' : `@${senderName} `;
 
     setMentioningMessageId(message.id);
-    setLongPressMessageId(null);
     if (mentionPrefix) {
       setDraft((previous) => {
         if (previous.trimStart().toLowerCase().startsWith(mentionPrefix.trim().toLowerCase())) {
@@ -1180,74 +1037,12 @@ export default function GroupChatWindow({
     setMentioningMessageId(null);
   };
 
-  const toggleReaction = useCallback(
-    async (messageId: string, emoji: string) => {
-      const mutationKey = buildReactionMutationKey(messageId, emoji);
-      if (pendingReactionKeys.has(mutationKey)) {
-        return;
-      }
-
-      const hasExistingReaction = reactionRows.some(
-        (row) => row.message_id === messageId && row.user_id === currentUserId && row.emoji === emoji,
-      );
-
-      setPendingReactionKeys((previous) => {
-        const next = new Set(previous);
-        next.add(mutationKey);
-        return next;
-      });
-      setReactionError(null);
-      setLongPressMessageId(null);
-      setReactionRows((previous) =>
-        hasExistingReaction
-          ? previous.filter(
-              (row) => !(row.message_id === messageId && row.user_id === currentUserId && row.emoji === emoji),
-            )
-          : [...previous, { message_id: messageId, user_id: currentUserId, emoji }],
-      );
-      void hapticLight();
-
-      const { error } = hasExistingReaction
-        ? await supabase
-            .from('room_message_reactions')
-            .delete()
-            .eq('message_id', messageId)
-            .eq('user_id', currentUserId)
-            .eq('emoji', emoji)
-        : await supabase.from('room_message_reactions').insert({
-            message_id: messageId,
-            user_id: currentUserId,
-            emoji,
-          });
-
-      setPendingReactionKeys((previous) => {
-        const next = new Set(previous);
-        next.delete(mutationKey);
-        return next;
-      });
-
-      if (!error) {
-        return;
-      }
-
-      setReactionRows((previous) =>
-        hasExistingReaction
-          ? [...previous, { message_id: messageId, user_id: currentUserId, emoji }]
-          : previous.filter(
-              (row) => !(row.message_id === messageId && row.user_id === currentUserId && row.emoji === emoji),
-            ),
-      );
-      setReactionError(error.message);
-      void hapticWarning();
-    },
-    [currentUserId, pendingReactionKeys, reactionRows],
-  );
 
   const xpTinyToolbarButtonClass = (active = false) =>
     `ui-focus-ring inline-flex h-7 min-w-7 items-center justify-center rounded-lg border px-1.5 text-[length:var(--ui-text-xs)] font-semibold text-slate-700 transition ${
       active
-        ? 'border-[#E8608A]/40 bg-[#E8608A]/10 text-[#E8608A] shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:border-[#E8608A]/30 dark:bg-[#E8608A]/15 dark:text-[#E8608A]'
-        : 'border-slate-200 bg-white/80 hover:bg-white dark:border-slate-700 dark:bg-[#13100E]/65 dark:text-slate-200 dark:hover:bg-[#13100E]'
+        ? 'border-[#E8A23A]/40 bg-[#E8A23A]/10 text-[#E8A23A] shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:border-[#E8A23A]/30 dark:bg-[#E8A23A]/15 dark:text-[#E8A23A]'
+        : 'border-slate-200 bg-white/80 hover:bg-white dark:border-slate-700 dark:bg-[#0F1424]/65 dark:text-slate-200 dark:hover:bg-[#0F1424]'
     }`;
 
   const resolvedTypingUsers = useMemo(() => {
@@ -1271,76 +1066,94 @@ export default function GroupChatWindow({
     return `${resolvedTypingUsers[0]}, ${resolvedTypingUsers[1]} +${resolvedTypingUsers.length - 2} more typing...`;
   }, [resolvedTypingUsers]);
 
-  const reactionSummaryByMessageId = useMemo(
-    () => summarizeReactionRows(reactionRows, currentUserId),
-    [currentUserId, reactionRows],
-  );
-
   useEffect(() => {
-    const seenReactionKeys = seenReactionKeysRef.current;
-    const newlyDiscoveredKeys: string[] = [];
-
-    for (const [messageId, entries] of reactionSummaryByMessageId) {
-      for (const entry of entries) {
-        const emoji = entry.emoji;
-        const reactionKey = `${messageId}-${emoji}`;
-        if (!seenReactionKeys.has(reactionKey)) {
-          seenReactionKeys.add(reactionKey);
-          newlyDiscoveredKeys.push(reactionKey);
-        }
-      }
-    }
-
-    if (newlyDiscoveredKeys.length === 0) {
+    if (!nativeBridgeRef) {
       return;
     }
 
-    setNewReactionKeys((previous) => {
-      const next = new Set(previous);
-      newlyDiscoveredKeys.forEach((key) => next.add(key));
-      return next;
-    });
+    const bridge: NativeMilestoneOneRoomBridge = {
+      sendMessage: (content) => sendRoomContent(content),
+      sendTypingPulse: notifyTyping,
+    };
+    nativeBridgeRef.current = bridge;
 
-    const clearTimer = setTimeout(() => {
-      setNewReactionKeys((previous) => {
-        const next = new Set(previous);
-        newlyDiscoveredKeys.forEach((key) => next.delete(key));
-        return next;
-      });
-    }, 950);
+    return () => {
+      if (nativeBridgeRef.current === bridge) {
+        nativeBridgeRef.current = null;
+      }
+    };
+  }, [nativeBridgeRef, notifyTyping, sendRoomContent]);
 
-    return () => clearTimeout(clearTimer);
-  }, [reactionSummaryByMessageId]);
-
-  const attachmentsByMessageId = useMemo(() => {
-    const grouped = new Map<string, RoomMessageAttachmentRow[]>();
-    for (const attachment of attachmentRows) {
-      const existing = grouped.get(attachment.message_id) ?? [];
-      existing.push(attachment);
-      grouped.set(attachment.message_id, existing);
+  useEffect(() => {
+    if (!onNativeStateChange) {
+      return;
     }
-    return grouped;
-  }, [attachmentRows]);
+
+    onNativeStateChange({
+      roomId,
+      roomName,
+      activeCount: activeParticipantIds.size,
+      participants: participants
+        .filter((participant) => participant.onlineAt !== null)
+        .map((participant) => ({
+          id: participant.userId,
+          screenname: participant.screenname,
+          isMe: participant.userId === currentUserId,
+        })),
+      messages: messages.map((message) => {
+        const viewerIsAuthor = message.user_id === currentUserId;
+        const effectiveBody = message.flagged_at && !viewerIsAuthor
+          ? MESSAGE_HIDDEN_PLACEHOLDER
+          : message.body;
+        return {
+          id: message.id,
+          senderId: message.user_id,
+          senderScreenname:
+            screennameMap[message.user_id] ||
+            (viewerIsAuthor ? currentUserScreenname : 'Unknown User'),
+          content: htmlToPlainText(effectiveBody),
+          createdAt: message.created_at,
+          isMine: viewerIsAuthor,
+        };
+      }),
+      isLoading: isLoadingMessages,
+      isSending,
+      typingText,
+      error,
+    });
+  }, [
+    activeParticipantIds.size,
+    currentUserId,
+    currentUserScreenname,
+    error,
+    isLoadingMessages,
+    isSending,
+    messages,
+    onNativeStateChange,
+    participants,
+    roomId,
+    roomName,
+    screennameMap,
+    typingText,
+  ]);
+
   const richTextPresentationByMessageId = useMemo(() => {
     const presentation = new Map<string, ReturnType<typeof getRichTextPresentation>>();
     for (const message of messages) {
-      presentation.set(message.id, getRichTextPresentation(message.content));
+      const viewerIsAuthor = message.user_id === currentUserId;
+      const effectiveBody =
+        message.flagged_at && !viewerIsAuthor
+          ? MESSAGE_HIDDEN_PLACEHOLDER
+          : message.body;
+      presentation.set(message.id, getRichTextPresentation(effectiveBody));
     }
     return presentation;
-  }, [messages]);
+  }, [messages, currentUserId]);
   const messagesById = useMemo(() => {
     return new Map(messages.map((message) => [message.id, message] as const));
   }, [messages]);
   const mentioningMessage = mentioningMessageId ? messagesById.get(mentioningMessageId) ?? null : null;
-  const visibleOutboxItems = useMemo(() => {
-    const deliveredClientIds = new Set(
-      messages
-        .map((message) => message.client_msg_id)
-        .filter((clientMessageId): clientMessageId is string => Boolean(clientMessageId)),
-    );
-
-    return outboxItems.filter((item) => !deliveredClientIds.has(item.id));
-  }, [messages, outboxItems]);
+  const visibleOutboxItems = outboxItems;
 
   const normalizedInitialUnreadCount = Math.max(0, Math.floor(initialUnreadCount));
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
@@ -1351,7 +1164,7 @@ export default function GroupChatWindow({
     }
 
     for (const message of messages) {
-      const plainText = htmlToPlainText(message.content).toLowerCase();
+      const plainText = htmlToPlainText(message.body).toLowerCase();
       matches.set(message.id, plainText.includes(normalizedSearchQuery));
     }
 
@@ -1377,11 +1190,7 @@ export default function GroupChatWindow({
   const composerAreaStyle = {
     paddingBottom: isKeyboardOpen ? '0.75rem' : 'calc(env(safe-area-inset-bottom) + 0.75rem)',
   } satisfies CSSProperties;
-  const composerToolsExpanded = showComposerTools || pendingAttachments.length > 0;
-  const attachmentSummaryLabel =
-    pendingAttachments.length > 0
-      ? `${pendingAttachments.length} file${pendingAttachments.length === 1 ? '' : 's'} ready`
-      : null;
+  const composerToolsExpanded = showComposerTools;
 
   return (
     <div
@@ -1395,7 +1204,7 @@ export default function GroupChatWindow({
         title={`#${roomName}`}
         variant="xp_shell"
         xpTitleText={`#${roomName}`}
-        xpSubtitleText={`${participants.length} participant${participants.length === 1 ? '' : 's'}`}
+        xpSubtitleText={`${rosterMembers.length} active`}
         headerActions={
           nativeShellActive ? undefined : (
             <>
@@ -1434,7 +1243,7 @@ export default function GroupChatWindow({
             >
               <div className="flex items-start gap-3">
                 <div className="min-w-0 flex flex-1 items-center gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[rgba(212,150,58,0.18)] bg-[rgba(212,150,58,0.14)] text-[15px] font-bold text-[var(--gold)]">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[rgba(232,162,58,0.18)] bg-[rgba(232,162,58,0.14)] text-[15px] font-bold text-[var(--gold)]">
                     #
                   </div>
                   <div className="min-w-0 flex-1">
@@ -1443,7 +1252,7 @@ export default function GroupChatWindow({
                         #{roomName}
                       </span>
                       <span className="text-[11px] font-semibold text-[var(--gold)]">
-                        {participants.length} online
+                        {rosterMembers.length} active
                       </span>
                     </div>
                     <p className="mt-0.5 truncate text-[12px] text-slate-500 dark:text-slate-400">
@@ -1505,30 +1314,61 @@ export default function GroupChatWindow({
                     </button>
                   ) : null}
 
-                  {/* Members */}
-                  <div className="rounded-[1rem] border border-white/60 bg-white/70 px-3 py-2 dark:border-slate-700 dark:bg-[#13100E]/55">
+                  {/* Members — roster driven by last_seen_at (5-min window) */}
+                  <div className="rounded-[1rem] border border-white/60 bg-white/70 px-3 py-2 dark:border-slate-700 dark:bg-[#0F1424]/55">
                     <p className="ui-section-kicker">
-                      Members{participants.length > 0 ? ` · ${participants.length}` : ''}
+                      Active now{rosterMembers.length > 0 ? ` · ${rosterMembers.length}` : ''}
                     </p>
-                    <ul className="mt-2 space-y-1.5">
-                      {participants.map((participant) => (
-                        <li key={participant.userId} className="flex items-center gap-2">
-                          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--green)]" aria-hidden="true" />
-                          <span className="truncate text-[12px] font-semibold text-slate-800 dark:text-slate-100">
-                            {participant.screenname}
-                            {participant.userId === currentUserId ? (
-                              <span className="ml-1 font-normal text-slate-400 dark:text-slate-500">(You)</span>
-                            ) : null}
-                          </span>
-                        </li>
-                      ))}
-                      {participants.length === 0 ? (
-                        <li className="text-[12px] text-slate-400 dark:text-slate-500">No one else here yet.</li>
-                      ) : null}
+                    <ul className="mt-2 space-y-0.5">
+                      {isRosterInitialLoading ? (
+                        <>
+                          {[0, 1, 2].map((i) => (
+                            <li key={i} className="flex items-center gap-2 px-1 py-1">
+                              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-slate-200 dark:bg-slate-700" />
+                              <div className="ui-skeleton h-3 rounded-full" style={{ width: `${48 + i * 16}%` }} />
+                            </li>
+                          ))}
+                        </>
+                      ) : (
+                        <>
+                          {rosterMembers.map((member) => {
+                            const screenname = screennameMap[member.user_id] || 'Unknown User';
+                            const isMe = member.user_id === currentUserId;
+                            return (
+                              <li key={member.user_id}>
+                                {isMe ? (
+                                  <div className="flex items-center gap-2 px-1 py-1">
+                                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--green)]" aria-hidden="true" />
+                                    <span className="truncate text-[12px] font-semibold text-slate-800 dark:text-slate-100">
+                                      {screenname}
+                                      <span className="ml-1 font-normal text-slate-400 dark:text-slate-500">(You)</span>
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => void openRosterProfile(member.user_id)}
+                                    className="ui-focus-ring flex w-full items-center gap-2 rounded-xl px-1 py-1 text-left transition hover:bg-slate-100/60 active:scale-[0.98] dark:hover:bg-white/5"
+                                  >
+                                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--green)]" aria-hidden="true" />
+                                    <span className="truncate text-[12px] font-semibold text-slate-800 dark:text-slate-100">
+                                      {screenname}
+                                    </span>
+                                    <AppIcon kind="chevron" className="ml-auto h-3 w-3 shrink-0 rotate-[-90deg] text-slate-400" />
+                                  </button>
+                                )}
+                              </li>
+                            );
+                          })}
+                          {rosterMembers.length === 0 ? (
+                            <li className="py-1 text-[12px] text-slate-400 dark:text-slate-500">No recent activity yet.</li>
+                          ) : null}
+                        </>
+                      )}
                     </ul>
                   </div>
                   {/* Search */}
-                  <div className="rounded-[1rem] border border-white/60 bg-white/70 px-3 py-2 dark:border-slate-700 dark:bg-[#13100E]/55">
+                  <div className="rounded-[1rem] border border-white/60 bg-white/70 px-3 py-2 dark:border-slate-700 dark:bg-[#0F1424]/55">
                     <label htmlFor={searchInputId} className="ui-section-kicker">Search</label>
                     <div className="mt-2 flex items-center gap-2">
                       <AppIcon kind="search" className="h-3.5 w-3.5 shrink-0 text-slate-400" />
@@ -1563,24 +1403,6 @@ export default function GroupChatWindow({
                     ) : null}
                   </div>
 
-                  {inviteCode ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void navigator.clipboard
-                          .writeText(`${window.location.origin}/join/${inviteCode}`)
-                          .then(() => {
-                            setShareLinkCopied(true);
-                            setTimeout(() => setShareLinkCopied(false), 2000);
-                          });
-                      }}
-                      className="ui-focus-ring ui-button-secondary ui-button-compact flex items-center gap-2"
-                      title="Copy invite link"
-                    >
-                      <AppIcon kind="link" className="h-3.5 w-3.5 shrink-0" />
-                      {shareLinkCopied ? 'Link copied!' : 'Share invite link'}
-                    </button>
-                  ) : null}
                   <button
                     type="button"
                     onClick={onLeave}
@@ -1697,6 +1519,140 @@ export default function GroupChatWindow({
             </div>
           ) : null}
 
+          {/* Roster profile sheet */}
+          {rosterProfileId ? (
+            <div
+              className="absolute inset-0 z-30 flex flex-col justify-end"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Member profile"
+            >
+              <button
+                type="button"
+                className="absolute inset-0 bg-black/40"
+                onClick={() => {
+                  setRosterProfileId(null);
+                  setRosterProfile(null);
+                  setRosterProfileFeedback(null);
+                  setRosterProfileStatus(null);
+                }}
+                aria-label="Close profile"
+              />
+              <div className="relative z-10 rounded-t-[1.75rem] bg-[var(--bg2)] px-4 pb-8 pt-5">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--rose)]">
+                    Member
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRosterProfileId(null);
+                      setRosterProfile(null);
+                      setRosterProfileFeedback(null);
+                      setRosterProfileStatus(null);
+                    }}
+                    className="ui-focus-ring ui-conversation-action"
+                    aria-label="Close profile"
+                  >
+                    <AppIcon kind="close" className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+
+                {isLoadingRosterProfile ? (
+                  <div className="space-y-3 py-4">
+                    <div className="ui-skeleton mx-auto h-5 w-32 rounded-full" />
+                    <div className="ui-skeleton h-4 w-full rounded-full" />
+                    <div className="ui-skeleton h-4 w-3/4 rounded-full" />
+                  </div>
+                ) : rosterProfile ? (
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-[22px] font-bold text-slate-100">{rosterProfile.screenname}</p>
+                      {rosterProfile.awayMessage ? (
+                        <p className="mt-1 text-[13px] text-slate-400">&ldquo;{rosterProfile.awayMessage}&rdquo;</p>
+                      ) : null}
+                      {rosterProfile.bio ? (
+                        <p className="mt-2 text-[13px] leading-relaxed text-slate-300">{rosterProfile.bio}</p>
+                      ) : null}
+                    </div>
+                    <MutualContextCard
+                      context={rosterProfile.mutualContext}
+                      errorMessage={rosterProfile.mutualContextError}
+                      compact
+                    />
+                    {rosterProfileFeedback ? (
+                      <p className="text-[12px] font-semibold text-[var(--green)]">{rosterProfileFeedback}</p>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => void handleAddRosterBuddy(rosterProfile.id)}
+                      disabled={isAddingRosterBuddy || rosterProfileStatus !== null}
+                      className="ui-focus-ring ui-button-primary ui-button-compact w-full justify-center disabled:opacity-40"
+                    >
+                      {isAddingRosterBuddy
+                        ? 'Sending…'
+                        : rosterProfileStatus === 'already_accepted'
+                          ? 'Already in H.I.M. contacts'
+                          : rosterProfileStatus === 'already_sent'
+                            ? 'Request Pending'
+                            : rosterProfileStatus === 'sent' || rosterProfileStatus === 'accepted_incoming'
+                              ? 'Request Sent'
+                              : 'Add to Buddylist'}
+                    </button>
+                    {(onReportRoomMessage || onBlockRoomUser) ? (
+                      <div className="flex items-center justify-center gap-4 pt-1">
+                        {onReportRoomMessage ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onReportRoomMessage({
+                                messageId: '',
+                                senderId: rosterProfile.id,
+                                senderScreenname: rosterProfile.screenname,
+                                contentPreview: '',
+                              });
+                              setRosterProfileId(null);
+                              setRosterProfile(null);
+                              setRosterProfileFeedback(null);
+                              setRosterProfileStatus(null);
+                            }}
+                            className="ui-focus-ring text-[13px] font-semibold text-red-400 hover:text-red-300"
+                            aria-label={`Report ${rosterProfile.screenname}`}
+                            data-testid="roster-report"
+                          >
+                            Report
+                          </button>
+                        ) : null}
+                        {onBlockRoomUser ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onBlockRoomUser({
+                                userId: rosterProfile.id,
+                                screenname: rosterProfile.screenname,
+                              });
+                              setRosterProfileId(null);
+                              setRosterProfile(null);
+                              setRosterProfileFeedback(null);
+                              setRosterProfileStatus(null);
+                            }}
+                            className="ui-focus-ring text-[13px] font-semibold text-red-400 hover:text-red-300"
+                            aria-label={`Block ${rosterProfile.screenname}`}
+                            data-testid="roster-block"
+                          >
+                            Block
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <p className="py-4 text-center text-[13px] text-slate-400">Could not load profile.</p>
+                )}
+              </div>
+            </div>
+          ) : null}
+
           {/* Messages area */}
           <div
             id={messagesLogId}
@@ -1719,8 +1675,8 @@ export default function GroupChatWindow({
             )}
             {!isLoadingMessages && messages.length === 0 && (
               <div className="ui-empty-state h-full px-6 ui-fade-in">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-violet-50">
-                  <AppIcon kind="chat" className="h-7 w-7 text-violet-400" />
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-violet-50 dark:bg-violet-950/25">
+                  <AppIcon kind="chat" className="h-7 w-7 text-violet-400 dark:text-violet-300" />
                 </div>
                 <div>
                   <p className="text-[length:var(--ui-text-md)] font-semibold text-slate-500">No messages yet</p>
@@ -1734,33 +1690,32 @@ export default function GroupChatWindow({
               <div
                 className="flex flex-col gap-0.5"
                 onClick={() => {
-                  setLongPressMessageId(null);
                   setShowConversationMenu(false);
+                  setLongPressRoomMessageId(null);
                 }}
               >
                 {messages.map((message, index) => {
-                  const senderName = screennameMap[message.sender_id] || 'Unknown User';
-                  const isMine = message.sender_id === currentUserId;
-                  const isDeleted = Boolean(message.deleted_at);
-                  const isEditing = editingMessageId === message.id;
+                  if (blockedUserIdSet.has(message.user_id)) {
+                    return null;
+                  }
+                  const senderName = screennameMap[message.user_id] || 'Unknown User';
+                  const isMine = message.user_id === currentUserId;
                   const isMatch = normalizedSearchQuery ? Boolean(messageMatches.get(message.id)) : false;
-                  const senderColorClass = isMine ? 'text-[var(--rose)]' : getStableSenderColorClass(message.sender_id);
-                  const plainMessageText = htmlToPlainText(message.content).toLowerCase();
+                  const senderColorClass = isMine ? 'text-[var(--rose)]' : getStableSenderColorClass(message.user_id);
+                  const plainMessageText = htmlToPlainText(message.body).toLowerCase();
                   const isMentioningCurrentUser =
                     !isMine && plainMessageText.includes(`@${currentUserScreenname.trim().toLowerCase()}`);
                   const timestampDate = new Date(message.created_at);
                   const fullTimestamp = timestampDate.toLocaleString();
-                  const reactionEntries = reactionSummaryByMessageId.get(String(message.id)) ?? [];
-                  const activeReactionEmojis = reactionEntries
-                    .filter((entry) => entry.reactedByMe)
-                    .map((entry) => entry.emoji);
-                  const messageAttachments = attachmentsByMessageId.get(message.id) ?? [];
+                  const fallbackBody =
+                    message.flagged_at && message.user_id !== currentUserId
+                      ? MESSAGE_HIDDEN_PLACEHOLDER
+                      : message.body;
                   const richTextPresentation = richTextPresentationByMessageId.get(message.id) ?? {
-                    html: sanitizeRichTextHtml(message.content),
+                    html: sanitizeRichTextHtml(fallbackBody),
                     hasCustomStyling: false,
                   };
                   const hasCustomStyling = richTextPresentation.hasCustomStyling;
-                  const isEdited = Boolean(message.edited_at && !message.deleted_at);
                   void relativeTimeTick;
                   const clusterMeta = getConversationClusterMeta(messages, index);
                   const dividerLabel = formatConversationDividerLabel(message.created_at);
@@ -1769,7 +1724,8 @@ export default function GroupChatWindow({
                     clusterMeta.isFirstInRun ? (
                       <ProfileAvatar
                         screenname={senderName}
-                        buddyIconPath={buddyIconMap[message.sender_id] ?? null}
+                        buddyIconPath={buddyIconMap[message.user_id] ?? null}
+                        presenceState={activeParticipantIds.has(message.user_id) ? 'available' : null}
                         tone="slate"
                         size="sm"
                         className="mb-1"
@@ -1799,32 +1755,37 @@ export default function GroupChatWindow({
                           {senderAvatar}
                           <SwipeActionFrame
                             align="start"
-                            enabled={!isMine && !isDeleted && !isEditing}
+                            enabled={!isMine}
                             label="Mention"
                             onTrigger={() => startMentioningMessage(message)}
                             className="max-w-[82%]"
                           >
                             <div
                               className="group relative focus:outline-none"
-                              tabIndex={!isDeleted && !isEditing ? 0 : undefined}
+                              tabIndex={0}
                               onTouchStart={() => {
-                                if (isDeleted) return;
-                                longPressTimerRef.current = setTimeout(() => {
+                                if (isMine) return;
+                                longPressRoomTimerRef.current = setTimeout(() => {
                                   void hapticLight();
-                                  setLongPressMessageId(message.id);
+                                  setLongPressRoomMessageId(message.id);
                                 }, 500);
                               }}
                               onTouchEnd={() => {
-                                if (longPressTimerRef.current) {
-                                  clearTimeout(longPressTimerRef.current);
-                                  longPressTimerRef.current = null;
+                                if (longPressRoomTimerRef.current) {
+                                  clearTimeout(longPressRoomTimerRef.current);
+                                  longPressRoomTimerRef.current = null;
                                 }
                               }}
                               onTouchMove={() => {
-                                if (longPressTimerRef.current) {
-                                  clearTimeout(longPressTimerRef.current);
-                                  longPressTimerRef.current = null;
+                                if (longPressRoomTimerRef.current) {
+                                  clearTimeout(longPressRoomTimerRef.current);
+                                  longPressRoomTimerRef.current = null;
                                 }
+                              }}
+                              onContextMenu={(event) => {
+                                if (isMine) return;
+                                event.preventDefault();
+                                setLongPressRoomMessageId(message.id);
                               }}
                             >
                               {!isMine && clusterMeta.isFirstInRun ? (
@@ -1843,7 +1804,7 @@ export default function GroupChatWindow({
                               ) : null}
 
                               <div
-                                className={`relative msg-enter px-3 py-2 ${
+                                className={`relative msg-enter px-3 py-2 ui-focus-ring ${
                                   hasCustomStyling
                                     ? 'text-[length:var(--ui-text-lg)] leading-[1.48]'
                                     : 'text-[length:var(--ui-text-md)] leading-[1.42]'
@@ -1852,164 +1813,81 @@ export default function GroupChatWindow({
                                 } ${
                                   isMine
                                     ? hasCustomStyling
-                                      ? `rounded-[1.35rem] border border-blue-200/80 bg-white/96 text-slate-900 shadow-[0_10px_24px_rgba(37,99,235,0.16)] ${clusterMeta.isLastInRun ? 'rounded-br-[8px] bubble-tail-out' : ''}`
-                                      : `rounded-[1.35rem] bg-[#E8608A]/22 text-white shadow-[0_8px_22px_rgba(232,96,138,0.26)] ${clusterMeta.isLastInRun ? 'rounded-br-[7px] bubble-tail-out' : ''}`
-                                    : `rounded-[1.35rem] border border-white/70 bg-white/85 text-slate-800 shadow-sm backdrop-blur-sm dark:border-slate-700/70 dark:bg-[#13100E]/70 dark:text-slate-100 ${clusterMeta.isLastInRun ? 'rounded-bl-[7px] bubble-tail-in' : ''} ${isMentioningCurrentUser ? 'border-amber-300/70 bg-amber-50/80 dark:border-amber-400/35 dark:bg-amber-950/25' : ''}`
-                                } ${isMatch ? 'ring-2 ring-amber-400' : ''} ${!isDeleted && !isEditing ? 'ui-focus-ring' : ''}`}
+                                      ? `rounded-[1.35rem] border border-blue-200/80 bg-white/96 text-slate-900 shadow-[0_10px_24px_rgba(232,162,58,0.16)] dark:border-slate-600/60 dark:bg-[#151A30]/95 dark:text-slate-100 ${clusterMeta.isLastInRun ? 'rounded-br-[8px] bubble-tail-out' : ''}`
+                                      : `rounded-[1.35rem] bg-[#E8A23A]/22 text-white shadow-[0_8px_22px_rgba(232,162,58,0.26)] ${clusterMeta.isLastInRun ? 'rounded-br-[7px] bubble-tail-out' : ''}`
+                                    : `rounded-[1.35rem] border border-white/70 bg-white/85 text-slate-800 shadow-sm backdrop-blur-sm dark:border-slate-700/70 dark:bg-[#0F1424]/70 dark:text-slate-100 ${clusterMeta.isLastInRun ? 'rounded-bl-[7px] bubble-tail-in' : ''} ${isMentioningCurrentUser ? 'border-amber-300/70 bg-amber-50/80 dark:border-amber-400/35 dark:bg-amber-950/25' : ''}`
+                                } ${isMatch ? 'ring-2 ring-amber-400' : ''}`}
                               >
-                                {isEditing ? (
-                                  <div className="flex min-w-[200px] flex-col gap-2">
-                                    <input
-                                      value={editDraft}
-                                      onChange={(event) => setEditDraft(event.target.value)}
-                                      aria-label="Edit message"
-                                      className={`ui-focus-ring w-full rounded-xl border bg-white/20 px-2.5 py-1.5 text-[length:var(--ui-text-sm)] ${
-                                        isMine
-                                          ? 'border-white/30 text-white placeholder-white/50'
-                                          : 'border-slate-200 text-slate-800'
-                                      }`}
-                                      maxLength={1500}
-                                      autoFocus
-                                    />
-                                    <div className="flex justify-end gap-1.5">
-                                      <button
-                                        type="button"
-                                        onClick={cancelEditingMessage}
-                                        className={`ui-focus-ring rounded-xl px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold ${
-                                          isMine ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                                        }`}
-                                      >
-                                        Cancel
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => void saveEditedMessage(message.id)}
-                                        disabled={isSavingEdit || !editDraft.trim()}
-                                        className={`ui-focus-ring rounded-xl px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold disabled:opacity-60 ${
-                                          isMine ? 'bg-white/30 text-white hover:bg-white/40' : 'bg-[#E8608A] text-white hover:bg-[#B93A67]'
-                                        }`}
-                                      >
-                                        Save
-                                      </button>
-                                    </div>
-                                  </div>
-                                ) : isDeleted ? (
-                                  <span className="italic opacity-50">Message deleted</span>
-                                ) : (
-                                  <span
-                                    className={`aim-rich-html ${hasCustomStyling ? 'aim-rich-html--styled' : ''}`}
-                                    dangerouslySetInnerHTML={{ __html: richTextPresentation.html }}
-                                  />
-                                )}
-                                {isEdited && !isEditing ? (
-                                  <span className={`ml-1.5 text-[length:var(--ui-text-2xs)] ${
-                                    isMine ? (hasCustomStyling ? 'text-slate-400' : 'text-blue-200') : 'text-slate-400'
-                                  }`}>(edited)</span>
-                                ) : null}
+                                <span
+                                  className={`aim-rich-html ${hasCustomStyling ? 'aim-rich-html--styled' : ''}`}
+                                  dangerouslySetInnerHTML={{ __html: richTextPresentation.html }}
+                                />
                               </div>
 
-                              {!isDeleted && !isEditing ? (
-                                <div
-                                  data-swipe-ignore="true"
-                                  className={`absolute bottom-full right-0 z-10 mb-2 min-w-[15rem] rounded-2xl border border-white/70 bg-white/90 p-2 shadow-lg backdrop-blur-md ui-fade-in dark:border-slate-700/70 dark:bg-[#13100E]/88 ${
-                                    longPressMessageId === message.id ? 'flex' : 'hidden group-hover:flex group-focus-within:flex'
-                                  } flex-col gap-2`}
-                                >
-                                  <div className="space-y-1">
-                                    <p className="px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-                                      React
-                                    </p>
-                                    <MessageReactionPicker
-                                      activeEmojis={activeReactionEmojis}
-                                      disabledEmojis={activeReactionEmojis.filter((emoji) =>
-                                        pendingReactionKeys.has(buildReactionMutationKey(message.id, emoji)),
-                                      )}
-                                      onPick={(emoji) => {
-                                        void toggleReaction(message.id, emoji);
-                                      }}
-                                    />
-                                  </div>
-                                  <div className="flex flex-wrap items-center gap-1">
-                                    {!isMine ? (
-                                      <button
-                                        type="button"
-                                        onClick={() => startMentioningMessage(message)}
-                                        className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-[#13100E]"
-                                        aria-label={`Mention ${senderName} from message sent at ${metaTimeLabel}`}
-                                      >
-                                        Mention
-                                      </button>
-                                    ) : null}
-                                    {isMine ? (
-                                      <>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            startEditingMessage(message);
-                                            setLongPressMessageId(null);
-                                          }}
-                                          className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-[#13100E]"
-                                          aria-label={`Edit message sent at ${metaTimeLabel}`}
-                                        >
-                                          Edit
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            void softDeleteMessage(message.id);
-                                            setLongPressMessageId(null);
-                                          }}
-                                          disabled={isDeletingMessageId === message.id}
-                                          className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-red-500 hover:bg-red-50 disabled:opacity-60"
-                                          aria-label={`Delete message sent at ${metaTimeLabel}`}
-                                        >
-                                          {isDeletingMessageId === message.id ? '…' : 'Delete'}
-                                        </button>
-                                      </>
-                                    ) : null}
-                                  </div>
-                                </div>
+                              {isMine && message.id === lastOwnMessage?.id && lastOwnMessageSeenLabel ? (
+                                <p className="mb-1.5 pr-1 text-right text-[10px] font-medium uppercase tracking-[0.12em] text-slate-400">
+                                  {lastOwnMessageSeenLabel}
+                                </p>
                               ) : null}
 
-                              {!isDeleted && reactionEntries.length > 0 ? (
-                                <MessageReactionStrip
-                                  align={isMine ? 'end' : 'start'}
-                                  animatedReactionKeys={newReactionKeys}
-                                  disabledReactionKeys={pendingReactionKeys}
-                                  entries={reactionEntries}
-                                  messageId={message.id}
-                                  onToggle={(emoji) => {
-                                    void toggleReaction(message.id, emoji);
-                                  }}
-                                />
-                              ) : null}
-
-                              {!isDeleted && messageAttachments.length > 0 ? (
-                                <div className={`-mt-1 mb-1 space-y-1 ${isMine ? 'text-right' : ''}`}>
-                                  {messageAttachments.map((attachment) => {
-                                    const { data } = supabase.storage
-                                      .from(attachment.bucket)
-                                      .getPublicUrl(attachment.storage_path);
-                                    return (
-                                      <a
-                                        key={attachment.id}
-                                        href={data.publicUrl}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className={`ui-focus-ring block rounded-lg text-[length:var(--ui-text-2xs)] underline ${isMine ? 'text-blue-200' : 'text-blue-600'}`}
-                                        title={attachment.storage_path}
-                                        aria-label={`Open attachment ${attachment.file_name}${attachment.size_bytes ? `, ${formatFileSize(attachment.size_bytes)}` : ''}`}
-                                      >
-                                        <span className="inline-flex items-center gap-1">
-                                          <AppIcon kind="attachment" className="h-3 w-3" />
-                                          <span>{attachment.file_name}</span>
-                                        </span>
-                                        {attachment.size_bytes ? ` (${formatFileSize(attachment.size_bytes)})` : ''}
-                                      </a>
-                                    );
-                                  })}
-                                </div>
-                              ) : null}
+                              <div
+                                data-swipe-ignore="true"
+                                className={`absolute bottom-full right-0 z-10 mb-2 min-w-[10rem] flex-col gap-1 rounded-2xl border border-white/70 bg-white/90 p-2 shadow-lg backdrop-blur-md dark:border-slate-700/70 dark:bg-[#0F1424]/88 ${
+                                  longPressRoomMessageId === message.id
+                                    ? 'flex'
+                                    : 'hidden group-hover:flex group-focus-within:flex'
+                                }`}
+                              >
+                                {!isMine ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      startMentioningMessage(message);
+                                      setLongPressRoomMessageId(null);
+                                    }}
+                                    className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-[#0F1424]"
+                                    aria-label={`Mention ${senderName}`}
+                                  >
+                                    Mention
+                                  </button>
+                                ) : null}
+                                {!isMine && onReportRoomMessage ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      onReportRoomMessage({
+                                        messageId: message.id,
+                                        senderId: message.user_id,
+                                        senderScreenname: senderName,
+                                        contentPreview: plainMessageText,
+                                      });
+                                      setLongPressRoomMessageId(null);
+                                    }}
+                                    className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/30"
+                                    aria-label={`Report message from ${senderName}`}
+                                    data-testid="room-message-report"
+                                  >
+                                    Report
+                                  </button>
+                                ) : null}
+                                {!isMine && onBlockRoomUser ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      onBlockRoomUser({
+                                        userId: message.user_id,
+                                        screenname: senderName,
+                                      });
+                                      setLongPressRoomMessageId(null);
+                                    }}
+                                    className="ui-focus-ring rounded-full px-2.5 py-1 text-[length:var(--ui-text-xs)] font-semibold text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/30"
+                                    aria-label={`Block ${senderName}`}
+                                    data-testid="room-message-block"
+                                  >
+                                    Block sender
+                                  </button>
+                                ) : null}
+                              </div>
                             </div>
                           </SwipeActionFrame>
                         </div>
@@ -2033,10 +1911,10 @@ export default function GroupChatWindow({
                         : 'text-slate-400';
                   const bubbleToneClass =
                     item.status === 'failed'
-                      ? 'border border-red-200/80 bg-red-50/90 text-red-950 shadow-[0_8px_24px_rgba(239,68,68,0.12)]'
+                      ? 'border border-red-200/80 bg-red-50/90 text-red-950 shadow-[0_8px_24px_rgba(239,68,68,0.12)] dark:border-red-500/30 dark:bg-red-950/25 dark:text-red-200'
                       : item.status === 'queued'
-                        ? 'border border-amber-200/80 bg-amber-50/90 text-amber-950 shadow-[0_8px_24px_rgba(245,158,11,0.12)]'
-                        : 'bg-[#E8608A]/75 text-white shadow-[0_2px_8px_rgba(232,96,138,0.28)]';
+                        ? 'border border-amber-200/80 bg-amber-50/90 text-amber-950 shadow-[0_8px_24px_rgba(245,158,11,0.12)] dark:border-amber-500/30 dark:bg-amber-950/25 dark:text-amber-200'
+                        : 'bg-[#E8A23A]/75 text-white shadow-[0_2px_8px_rgba(232,162,58,0.28)]';
 
                   return (
                     <div key={`outbox-${item.id}`} className="flex flex-col">
@@ -2093,16 +1971,6 @@ export default function GroupChatWindow({
             )}
           </div>
 
-          {reactionError ? (
-            <p role="alert" className="mx-3 mt-1 text-[length:var(--ui-text-2xs)] text-red-600">
-              {reactionError}
-            </p>
-          ) : null}
-          {attachmentLoadError ? (
-            <p role="alert" className="mx-3 mt-1 text-[length:var(--ui-text-2xs)] text-red-600">
-              {attachmentLoadError}
-            </p>
-          ) : null}
           {error ? (
             <p role="alert" className="mx-3 mt-1 text-[length:var(--ui-text-2xs)] text-red-600">
               {error}
@@ -2129,12 +1997,10 @@ export default function GroupChatWindow({
               <div className="ui-compose-context-chip flex items-start justify-between gap-3 rounded-2xl px-3 py-2.5">
                 <div className="min-w-0">
                   <p className="text-[length:var(--ui-text-2xs)] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                    Mentioning {screennameMap[mentioningMessage.sender_id] || 'Unknown User'}
+                    Mentioning {screennameMap[mentioningMessage.user_id] || 'Unknown User'}
                   </p>
                   <p className="truncate text-[length:var(--ui-text-xs)] text-slate-600 dark:text-slate-200">
-                    {mentioningMessage.deleted_at
-                      ? 'Message deleted'
-                      : htmlToPlainText(mentioningMessage.content).trim() || 'Original message'}
+                    {htmlToPlainText(mentioningMessage.body).trim() || 'Original message'}
                   </p>
                 </div>
                 <button
@@ -2183,9 +2049,6 @@ export default function GroupChatWindow({
                 </button>
               </div>
               <div className="flex items-center gap-2">
-                {attachmentSummaryLabel ? (
-                  <span className="ui-compose-summary-pill">{attachmentSummaryLabel}</span>
-                ) : null}
                 {normalizedSearchQuery ? (
                   <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500">
                     {searchMatchCount} result{searchMatchCount === 1 ? '' : 's'}
@@ -2196,28 +2059,6 @@ export default function GroupChatWindow({
 
             {(composerToolsExpanded || showFormatting) ? (
               <div className="ui-toolbar-surface space-y-3 rounded-2xl px-3 py-3">
-                {composerToolsExpanded ? (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => attachmentInputRef.current?.click()}
-                      className={`${xpTinyToolbarButtonClass(pendingAttachments.length > 0)} h-8 gap-1.5 px-3`}
-                      aria-label={`Attach files to your message in room ${roomName}`}
-                    >
-                      <AppIcon kind="attachment" className="h-3.5 w-3.5" />
-                      <span>Attachment</span>
-                    </button>
-                    <input
-                      ref={attachmentInputRef}
-                      type="file"
-                      multiple
-                      onChange={(event) => handleSelectAttachments(event.target.files)}
-                      className="hidden"
-                      aria-label={`Choose attachments for room ${roomName}`}
-                    />
-                  </div>
-                ) : null}
-
                 {showFormatting ? (
                   <div className="space-y-2">
                     <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
@@ -2259,41 +2100,7 @@ export default function GroupChatWindow({
                   </div>
                 ) : null}
 
-                {pendingAttachments.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {pendingAttachments.map((file, index) => (
-                      <div
-                        key={`${file.name}-${file.size}-${file.lastModified}`}
-                        className="ui-compose-summary-pill inline-flex max-w-full items-center gap-2 rounded-full px-3 py-1.5"
-                      >
-                        <AppIcon kind="attachment" className="h-3 w-3 shrink-0" />
-                        <span className="truncate text-[length:var(--ui-text-2xs)]">
-                          {file.name}
-                          {` · ${formatFileSize(file.size)}`}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => removePendingAttachment(index)}
-                          className="ui-focus-ring shrink-0 rounded-full p-0.5 text-slate-400 hover:text-slate-600 dark:text-slate-400 dark:hover:text-slate-200"
-                          aria-label={`Remove attachment ${file.name}`}
-                        >
-                          <AppIcon kind="close" className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-
-                {attachmentError ? (
-                  <p role="alert" className="text-[length:var(--ui-text-2xs)] text-red-600">
-                    {attachmentError}
-                  </p>
-                ) : null}
               </div>
-            ) : attachmentError ? (
-              <p role="alert" className="text-[length:var(--ui-text-2xs)] text-red-600">
-                {attachmentError}
-              </p>
             ) : null}
 
             {/* Pill compose input */}
@@ -2323,10 +2130,10 @@ export default function GroupChatWindow({
                 rows={1}
                 maxLength={1500}
                 aria-describedby={composerHelpId}
-                className="min-h-[24px] flex-1 resize-none rounded-xl bg-transparent text-[length:var(--ui-text-md)] text-white placeholder-[#6B5B4E] focus:outline-none focus:border-[#E8608A]"
+                className="min-h-[24px] flex-1 resize-none rounded-xl bg-transparent text-[length:var(--ui-text-md)] text-white placeholder-[#6B5B4E] focus:outline-none focus:border-[#E8A23A]"
                 style={composerTextStyle}
               />
-              {(draft.trim() || pendingAttachments.length > 0) ? (
+              {draft.trim() ? (
                 <button
                   type="submit"
                   disabled={isSending}
