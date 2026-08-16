@@ -11,8 +11,12 @@ verbatim — this note is the delta.
   **Resolved Aug 5–16:** the live App Store 2.2 (build 314) IS the PR #98 fix;
   the founder smoke-tested Add/Knock/accept on the store build Aug 5 (all passed),
   and PR #98 merged to main Aug 5. No 2.2.1 needed.
-- Baseline metrics: superseded by `campaign-2026-q3/reporting/weekly-scorecard.md`
-  (weeks 1–2 already recorded). Use the week-2 scorecard line as the pre-push baseline.
+- Baseline metrics: superseded by `campaign-2026-q3/reporting/weekly-scorecard.md`.
+  **Week 1 (Aug 3–9) is recorded; the week-2 entry (Aug 10–16) lands Mon Aug 17** via the
+  scheduled Monday scorecard pull — that entry is the pre-push baseline for this run,
+  and the only permitted source for Day 6/7 "real numbers" copy. If the week-2 entry
+  has not merged by Day 6, pull the numbers live before writing — never reuse week 1
+  as if it were the pre-push baseline.
 
 ## Re-dated calendar (Day 5 must land on a Sunday)
 
@@ -36,6 +40,9 @@ package's own guardrails. Replace in every variant:
 - Dry founder X variant "Apple approved H.I.M. 2.2 today, which is…" → retire, or rewrite in past tense ("Apple approved H.I.M. 2.2 this month…").
 - LinkedIn "Today, Apple approved…" → "Earlier this month, Apple approved H.I.M. 2.2. It's live on the App Store, and this post is the launch I owed it."
 - Email subject/body: still valid (no "today" claim in subject; body line "Apple approved H.I.M. 2.2 today" → "H.I.M. 2.2 is live on the App Store").
+- Substack Note "H.I.M. 2.2 is live today." → "H.I.M. 2.2 is live."
+- Creator/press DM "I released H.I.M. 2.2 today." → "I recently released H.I.M. 2.2."
+- Substack long-form post (01) opener "Today Apple approved H.I.M. 2.2, and it is already live in the App Store." → "Apple approved H.I.M. 2.2 earlier this month, and it is live in the App Store. This post is the launch it deserved and didn't get on day one — solo founder math." (Line 47's "For today, though…" is fine — present-tense rhetoric, not a date claim.)
 
 The candor angle is an asset, not a liability: "shipped two weeks ago, launch post
 today — solo founder math" is on-brand build-in-public voice.
