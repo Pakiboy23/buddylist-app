@@ -98,10 +98,19 @@ this window (Aug 16): its 8 DMs are split out below; its first room prompt execu
 **Store (verified live):** 2.2 READY_FOR_SALE · 0 reviews · **promo text v2 rotated on its Aug 17 gate date** (executed manually when the scheduled rotation lagged; the late trigger re-applies idempotently).
 
 **Safety block (O11/O12, never public):** reports 0 · blocks 0 · flags 0/0 ·
-deletions in-window: **2** = 2/19 = **10.5% — at the guardrail for a second straight week** (~2/wk steady). Watch, no action yet.
+deletions in-window: **2** = 2/19 = **10.5% — ABOVE the 10% guardrail: the first weekly
+breach of the flight** (week 1 was 6.7%, under). Flight-cumulative — the guardrail's
+actual definition — is 4/49 = **8.2%, still under**. Escalation rule: a second weekly
+breach, or cumulative crossing 10%, names this a risk with root-cause work (deleted-at
+clustering vs signup source); until then it is a breached weekly read on a small
+denominator (2 people).
 
-**Adoption deltas (all accounts, 116 → 128):** away message 17→18 · icons 20→21 ·
-Circles still **0** · Knock 6→**8** · Buzz 0 · reactions 2 · saved 3 · push 5.
+**Adoption deltas (all accounts at Monday capture, 116 → 128):** away message 17→18 ·
+icons 20→21 · Circles still **0** · Knock 6→**8** · Buzz 0 · reactions 2 · saved 3 · push 5.
+*Denominator reconciliation (captures are ~13:00Z Mondays, signup weeks are
+midnight-aligned): 116 + 19 wk2 signups − 6 already inside the Aug 10 capture − 1
+deletion between captures = 128 exactly. At this capture: auth.users 130, public.users
+128, orphan auth rows 2.*
 
 **Measurement caveat (new):** pairs created in week 1 that read "accepted" dropped from
 5 (measured Aug 10) to 1 (measured Aug 17) — the accept flow appears to rewrite row
@@ -116,5 +125,6 @@ downstream of arrival remains unsolved, and now visibly decays: WAU halved as th
 cohort churned through a silent app, zero pairs accepted, backlog grew to 86. The in-app
 engine (welcomes, nudges, daily room prompts) went live with 8 hours left in the window —
 week 3 is its first measured test, and it coincides with the 2.2 launch run (Day 0 Aug 18),
-so week 3 reads as: push × engine together vs the same zero-organic baseline. O12 sits at
-the guardrail a second week; one more week at ~10% makes it a named risk, not a watch item.
+so week 3 reads as: push × engine together vs the same zero-organic baseline. O12 breached
+its weekly read for the first time (10.5% on a 2-person numerator; flight-cumulative 8.2%
+still under) — a second weekly breach or a cumulative cross names it a risk.
