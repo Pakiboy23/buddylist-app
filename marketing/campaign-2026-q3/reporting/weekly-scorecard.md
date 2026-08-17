@@ -73,3 +73,48 @@ Acquisition and return are working — 30 signups (3–6× the week-1 target, no
 1. ASC Analytics screenshots (impressions/PPV/downloads by source, Aug 3–9) — compare against the Jul 24–28 steady state.
 2. Vercel Web Analytics screenshot (pageviews by utm_source, referrers).
 3. Sign-off or veto on the **counter-proposal activation definition** above (accepted-request variant; v2-as-proposed is rejected and recorded).
+
+---
+
+## Week 2 scorecard — Aug 10–16 (recorded Mon Aug 17) · PRE-PUSH BASELINE for the 2.2 launch run (Day 0 Tue Aug 18)
+
+**Window discipline:** closed Aug 10–16 cohort (n=19), unique-pair edge convention,
+deletions counted inside the window. The in-app engine went live on the LAST day of
+this window (Aug 16): its 8 DMs are split out below; its first room prompt executed
+00:18Z Aug 17 (trigger queue latency) and therefore belongs to week 3.
+
+| Objective | Target (week 2) | Actual | vs week 1 | Note |
+|---|---|---|---|---|
+| O2 signups | 8–12 | **19** | 30 | Above target again, still zero push — the listing acquires on its own |
+| O3 WAU (trailing 7d) | hold/grow | **17** | 37 | **Halved. The week-1 cohort is evaporating — retention is now the flagship problem** |
+| O4 activation ≤72h (room post) | ≥35% | **0.0%** (0/19) | 0/30 | Zero under the counter-proposal definition too (0/19) |
+| O5 room msgs/wk | ≥350 + daily floor | **0 organic** | 0 | Engine's first prompt landed just past the window; week 3 is its first real test |
+| Conversation (DMs) | — | **4 organic** (12 total − 8 engine sends) | 3 | Cohort ever-DM: 0/19 |
+| O6 new accepted buddy pairs | 5–8 | **0** | 5 | **MISS.** 10 new pairs, all pending, 6 requesters (rail novelty fading: 72 → 10) |
+| Pending backlog | — | **86 unique pairs unaccepted** | 67 | Nudge engine started draining it Aug 16 (4/day) |
+| O7 iOS push opt-in (cohort) | ≥40% | **0%** (0/19) | 0/30 | Product gap unchanged; 5/128 all accounts |
+| O8 / O9 | ~700 pageviews / funnel | *founder screenshots pending* | — | APIs plan-gated |
+
+**Store (verified live):** 2.2 READY_FOR_SALE · 0 reviews · **promo text v2 rotated on its Aug 17 gate date** (executed manually when the scheduled rotation lagged; the late trigger re-applies idempotently).
+
+**Safety block (O11/O12, never public):** reports 0 · blocks 0 · flags 0/0 ·
+deletions in-window: **2** = 2/19 = **10.5% — at the guardrail for a second straight week** (~2/wk steady). Watch, no action yet.
+
+**Adoption deltas (all accounts, 116 → 128):** away message 17→18 · icons 20→21 ·
+Circles still **0** · Knock 6→**8** · Buzz 0 · reactions 2 · saved 3 · push 5.
+
+**Measurement caveat (new):** pairs created in week 1 that read "accepted" dropped from
+5 (measured Aug 10) to 1 (measured Aug 17) — the accept flow appears to rewrite row
+timestamps/status in place, so week-attributed acceptance counts are unstable
+retroactively. From week 3 the scorecard tracks acceptance as snapshot deltas
+(total accepted pairs now vs last Monday), not creation-week attribution.
+
+### Week-2 reading
+
+Acquisition remains solved without a single post (19 signups vs an 8–12 target); everything
+downstream of arrival remains unsolved, and now visibly decays: WAU halved as the week-1
+cohort churned through a silent app, zero pairs accepted, backlog grew to 86. The in-app
+engine (welcomes, nudges, daily room prompts) went live with 8 hours left in the window —
+week 3 is its first measured test, and it coincides with the 2.2 launch run (Day 0 Aug 18),
+so week 3 reads as: push × engine together vs the same zero-organic baseline. O12 sits at
+the guardrail a second week; one more week at ~10% makes it a named risk, not a watch item.
