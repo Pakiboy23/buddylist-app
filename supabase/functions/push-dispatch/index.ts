@@ -276,7 +276,7 @@ function shouldPruneFcmToken(status: number, body: string): boolean {
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, content-type',
+  'Access-Control-Allow-Headers': 'authorization, content-type, x-him-fanout-secret',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
@@ -289,19 +289,46 @@ Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS_HEADERS });
   if (req.method !== 'POST') return Response.json({ error: 'Method not allowed.' }, { status: 405, headers: CORS_HEADERS });
 
-  const authHeader = req.headers.get('authorization') ?? '';
-  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
-  if (!token) return Response.json({ error: 'Unauthorized.' }, { status: 401, headers: CORS_HEADERS });
-
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
 
-  const anonClient = createClient(supabaseUrl, anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data: { user } } = await anonClient.auth.getUser(token);
-  if (!user) return Response.json({ error: 'Unauthorized.' }, { status: 401, headers: CORS_HEADERS });
-
   const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+
+  // ── auth: two modes ──
+  // 1. Client mode (the original): a signed-in user's JWT, and the caller must
+  //    be the author of the message being announced.
+  // 2. Automation mode: server-side inserts (the founder engine's welcome DMs,
+  //    nudges and room prompts) are written straight to Postgres by a trigger,
+  //    so no client is awake to dispatch. Those calls present a shared secret
+  //    held in Vault and readable only by service_role. Without this path every
+  //    automated message arrives silently.
+  // Platform-level verify_jwt is off for this function (as with rooms-invite)
+  // because the function performs its own verification below.
+  const fanoutSecret = (req.headers.get('x-him-fanout-secret') ?? '').trim();
+  let isAutomation = false;
+  if (fanoutSecret) {
+    const { data: expected, error: secretError } = await admin.rpc('push_fanout_secret');
+    const expectedSecret = typeof expected === 'string' ? expected.trim() : '';
+    if (secretError || !expectedSecret) {
+      return Response.json({ error: 'Fanout secret unavailable.' }, { status: 503, headers: CORS_HEADERS });
+    }
+    if (fanoutSecret !== expectedSecret) {
+      return Response.json({ error: 'Unauthorized.' }, { status: 401, headers: CORS_HEADERS });
+    }
+    isAutomation = true;
+  }
+
+  const authHeader = req.headers.get('authorization') ?? '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+  let user: { id: string } | null = null;
+  if (!isAutomation) {
+    if (!token) return Response.json({ error: 'Unauthorized.' }, { status: 401, headers: CORS_HEADERS });
+    const anonClient = createClient(supabaseUrl, anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
+    const { data: { user: authedUser } } = await anonClient.auth.getUser(token);
+    if (!authedUser) return Response.json({ error: 'Unauthorized.' }, { status: 401, headers: CORS_HEADERS });
+    user = { id: authedUser.id };
+  }
 
   let body: { kind?: string; messageId?: number | string; roomMessageId?: string; buddyId?: string };
   try { body = await req.json(); }
@@ -489,14 +516,19 @@ Deno.serve(async (req: Request) => {
         .maybeSingle();
       if (msgErr || !msg) return Response.json({ error: 'Message not found.' }, { status: 404, headers: CORS_HEADERS });
       const m = msg as { sender_id: string; receiver_id: string; content: string; preview_type?: string | null };
-      if (m.sender_id !== user.id) return Response.json({ error: 'Message not found.' }, { status: 404, headers: CORS_HEADERS });
+      // Client mode may only announce its own message; automation takes the
+      // author from the row it was handed.
+      if (!isAutomation && m.sender_id !== user!.id) {
+        return Response.json({ error: 'Message not found.' }, { status: 404, headers: CORS_HEADERS });
+      }
+      const senderId = m.sender_id;
 
-      const senderName = await resolveSenderName(user.id);
+      const senderName = await resolveSenderName(senderId);
       const result = await dispatchToRecipients({
         recipientIds: [m.receiver_id],
         senderName,
         previewText: resolvePreviewText(m.content, m.preview_type),
-        targetPath: `/hi-its-me?dm=${encodeURIComponent(user.id)}`,
+        targetPath: `/hi-its-me?dm=${encodeURIComponent(senderId)}`,
         variant: 'dm',
       });
       return Response.json({ ok: true, ...result }, { headers: CORS_HEADERS });
@@ -514,7 +546,10 @@ Deno.serve(async (req: Request) => {
         .maybeSingle();
       if (msgErr || !msg) return Response.json({ error: 'Room message not found.' }, { status: 404, headers: CORS_HEADERS });
       const rm = msg as { room_id: string; user_id: string; body: string };
-      if (rm.user_id !== user.id) return Response.json({ error: 'Room message not found.' }, { status: 404, headers: CORS_HEADERS });
+      if (!isAutomation && rm.user_id !== user!.id) {
+        return Response.json({ error: 'Room message not found.' }, { status: 404, headers: CORS_HEADERS });
+      }
+      const roomSenderId = rm.user_id;
 
       const { data: room, error: roomErr } = await admin
         .from('rooms')
@@ -526,10 +561,10 @@ Deno.serve(async (req: Request) => {
 
       const { data: members } = await admin.from('room_memberships').select('user_id').eq('room_id', rm.room_id);
       const recipientIds = Array.from(
-        new Set(((members ?? []) as { user_id: string }[]).map((m) => m.user_id).filter((id) => id && id !== user.id)),
+        new Set(((members ?? []) as { user_id: string }[]).map((m) => m.user_id).filter((id) => id && id !== roomSenderId)),
       );
 
-      const senderName = await resolveSenderName(user.id);
+      const senderName = await resolveSenderName(roomSenderId);
       const result = await dispatchToRecipients({
         recipientIds,
         senderName,
@@ -544,13 +579,17 @@ Deno.serve(async (req: Request) => {
     if (body.kind === 'buddy_request' || body.kind === 'buddy_accept') {
       const buddyId = typeof body.buddyId === 'string' ? body.buddyId.trim() : '';
       if (!buddyId) return Response.json({ error: 'buddyId is required.' }, { status: 400, headers: CORS_HEADERS });
+      // Buddy pushes name the acting user, so they require a real caller.
+      if (isAutomation) {
+        return Response.json({ error: 'Buddy pushes require a user token.' }, { status: 400, headers: CORS_HEADERS });
+      }
 
-      const senderName = await resolveSenderName(user.id);
+      const senderName = await resolveSenderName(user!.id);
       const previewText = body.kind === 'buddy_request' ? 'sent you a buddy request.' : 'accepted your buddy request.';
       const targetPath =
         body.kind === 'buddy_request'
           ? '/hi-its-me?tab=im'
-          : `/hi-its-me?tab=im&dm=${encodeURIComponent(user.id)}`;
+          : `/hi-its-me?tab=im&dm=${encodeURIComponent(user!.id)}`;
       const result = await dispatchToRecipients({ recipientIds: [buddyId], senderName, previewText, targetPath, variant: 'buddy' });
       return Response.json({ ok: true, ...result }, { headers: CORS_HEADERS });
     }

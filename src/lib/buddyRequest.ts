@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { dispatchBuddyAcceptedPush, dispatchBuddyRequestPush } from '@/lib/pushDispatch';
+import { maybePromptForPushAfterFriendshipAction } from '@/lib/pushPromptMoments';
 import { humanizeDbError } from '@/lib/friendlyError';
 
 interface BuddyRow {
@@ -62,6 +63,8 @@ export async function sendOrAcceptBuddyRequest(
     const acceptError = outRes.error ?? inRes.error;
     if (acceptError) return { status: 'error', feedback: humanizeDbError(acceptError.message), ok: false };
     dispatchBuddyAcceptedPush(buddyId);
+    // A mutual buddy is the moment push is obviously worth having.
+    void maybePromptForPushAfterFriendshipAction('buddy_accepted');
     return { status: 'accepted_incoming', feedback: 'Buddy request accepted!', ok: true };
   }
 
