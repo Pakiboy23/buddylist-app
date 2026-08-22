@@ -86,6 +86,32 @@ jobs:
             exit 1
           fi
 
+      - name: Shipped bundle sanity (single entry point)
+        run: |
+          # A merge that hits conflicts in tracked build output can be "resolved"
+          # by keeping both sides, producing an index.html with two module entry
+          # scripts and two complete chunk graphs. The app then boots twice.
+          #
+          # Neither guard above catches it: the resync guard only asks whether the
+          # bundle changed alongside source (it did), and the placeholder guard
+          # only inspects backend URLs (correct in both graphs). This shipped to
+          # main in #104 and was rebuilt in #119.
+          #
+          # Content-hashed chunks cannot be conflict-resolved by hand. If this
+          # fires, delete the trees and regenerate:
+          #   npm run build && npm run ios:sync
+          fail=0
+          for f in dist/index.html native-web/index.html ios/App/App/public/index.html; do
+            [ -f "$f" ] || continue
+            n=$(grep -oE '<script[^>]*type="module"[^>]*src="[^"]*"' "$f" | wc -l | tr -d ' ')
+            if [ "$n" != "1" ]; then
+              echo "::error::$f has $n module entry scripts, expected exactly 1. Regenerate with 'npm run build && npm run ios:sync' — do not hand-resolve conflicts in build output."
+              grep -oE '<script[^>]*type="module"[^>]*src="[^"]*"' "$f" | sed 's/^/    /'
+              fail=1
+            fi
+          done
+          exit $fail
+
 # Note: `lint` (eslint .) is intentionally NOT gated here — the repo currently
 # has ~3.5k pre-existing eslint errors, so blocking on it would reject every PR.
 # Clean those up incrementally, then add a `pnpm run lint` step to this job.

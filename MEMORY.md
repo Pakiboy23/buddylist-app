@@ -37,7 +37,7 @@ Diagnosis on record: this is **one discovery-and-prompting problem across the wh
 - [ ] PR #111 (open) `him-app-expert` skill as live product truth
 - [ ] PR #104 (draft, Aug 19) contextual push permission prompt + server-side dispatch — `pushPromptMoments.ts`, migration `20260819060000`, engine frozen texts. **Addresses the 0% push opt-in gap.**
 - [ ] Issues #106 GH-13 · #107 GH-17 · #108 web porch (logged-out hiitsme.app is Sign-in only) · #109 first-run iOS push prompt
-- [ ] SECURITY (carried from S9, still unverified): revoke ASC key `XV95PUP6YN` — leaked in git history at `00b2839`; revoke + regenerate `LMT6SQA4GV`
+- [ ] SECURITY: confirm ASC key `XV95PUP6YN` is revoked in the ASC console (leaked at `00b2839`; not checkable via API). `LMT6SQA4GV` done — revoked and deleted; replaced by `9R3T4646YP`.
 - [ ] Stale branch `codex/him-hi-app-icon` holds two orphan commits (`6f758aa` dist/iOS resync, `23633cf` splash re-optimization) that exist nowhere else — land or discard deliberately
 
 ## Blockers
@@ -92,7 +92,11 @@ Diagnosis on record: this is **one discovery-and-prompting problem across the wh
 
 ## Known Issues
 - **Memory lives on `main` and drifts fast.** The session-9 file survived only because PR #64 carried it; a parallel copy on `codex/him-hi-app-icon` diverged. Write memory on `main` and push it.
-- **dist/ drift:** always `npm run build` (emptyOutDir) before committing a resync; CI guard enforces dist / native-web / ios-public sync. Builds 293–304 shipped bricked once from a bundle built without real Supabase env (#93) — check env before every native bundle.
+- **Tracked build output is the #1 recurring hazard — it has bricked iOS twice.** Always `npm run build` (emptyOutDir) before committing a resync.
+  - #93: builds 293–304 shipped bricked from a bundle built without real Supabase env.
+  - #104 → #119 (Aug 22): a merge hit **144 conflicts, all in `dist/` and `ios/App/App/public/`, zero in source**. Resolving them kept both sides, so `index.html` carried **two module entry scripts and 57 chunks instead of 29** — the app booted twice. Web was safe (Vercel rebuilds from source) but Xcode Cloud archives `ios/App/App/public` **verbatim**, so any build cut from main would have shipped it.
+  - **Never hand-resolve conflicts in build output** — content-hashed chunk names have no meaningful merge. Delete both trees and regenerate.
+  - CI now guards all three failure modes: source-changed-without-resync, placeholder backend, and (added after #119) exactly one module entry point per bundle.
 - `npx cap copy ios` regenerates `capacitor.config.json` and DROPS `HiItsMeShellPlugin` — use `npm run ios:sync`.
 - O12 (deletion rate) breached its **weekly** read for the first time in week 2: 2/19 = 10.5% vs a 10% guardrail. Flight-cumulative 4/49 = 8.2%, still under. A second weekly breach or a cumulative cross escalates it to a named risk.
 
@@ -120,4 +124,4 @@ Diagnosis on record: this is **one discovery-and-prompting problem across the wh
 - Supabase project `keckqpadzxwwmagnmpuk`; migrations through `20260822000001`.
 - Porch link in use until issue #108 ships: `https://him.samaan.tech/why.html?utm_source=…&utm_campaign=him_v2_2`. Never tell people to search bare "H.I.M." — always "H.I.M. — Friends, Not Dates".
 - Live pages: hiitsme.app/privacy, /terms, /support.
-- SECURITY: ASC key `XV95PUP6YN` leaked in git history (`00b2839`) — revoke. `LMT6SQA4GV` passed through chat — revoke + regenerate. `.gitignore` covers `*.p8`. Never store passwords here.
+- ASC API key: **`9R3T4646YP`** (installed `fastlane/.keys/`, mode 600, git-ignored; verified HTTP 200 on 2026-08-22). Issuer `f42ab007-1295-4ecb-b309-023ddfdac034` — same UUID as the Xcode Cloud team id. `LMT6SQA4GV` **confirmed revoked** (401 on 2026-08-22); local copy deleted. `XV95PUP6YN` was leaked in git history (`00b2839`) — **revocation still unverified**, and ASC exposes no API to list keys, so it needs a Users-and-Access console check. `.gitignore` covers `/fastlane/.keys/`. Never store keys or passwords here.
