@@ -1,107 +1,120 @@
 # Project Memory
-Last updated: 2026-06-12 | Session 9 | Branch: main
-Memory health: 9/10
+Last updated: 2026-08-22 | Session 10 | Branch: main @ `51b223b`
+Memory health: 8/10 — rebuilt from git + marketing docs after a 71-day gap. Sessions 1–9 in `MEMORY-ARCHIVE.md`. Post-06-12 entries are reconstructed, not first-hand; verify before betting on a detail.
 
 ## Project Overview
-H.I.M. (`hiitsme`) — retro AIM-style mobile-first messaging app. Vite + React 19 + React Router v7 web app, deployed on Vercel (web) and wrapped via Capacitor 8 for iOS + Android. Supabase for auth/Postgres/realtime/edge-functions. **In App Store review** (com.hiitsme.app, v2.0).
+H.I.M. (`hiitsme`) — retro AIM-style mobile-first messaging app. Vite + React 19 + React Router v7, Vercel (web), Capacitor 8 (iOS + Android), Supabase backend. **Shipped.** v2.2 (build 314) is live on the App Store; repo is on 2.3. ~128 accounts. Now in a growth flight, not a build sprint.
 
 ## Where We Left Off
-- **Current task:** Resubmission after second rejection (5.1.1(v) account deletion + 1.5 Support URL). All four deletion bugs fixed and verified; Support URL live.
-- **Status:** PR #64 open (legacy-trigger migration, applied to prod + verified against a data-bearing account). PRs #59–#63 merged. Builds 199/200 exist in ASC; Account-menu fix (#63) needs a NEW build.
-- **Next immediate step:** Merge PR #64 → bump `CURRENT_PROJECT_VERSION` ≥ 201 → Xcode Cloud build → TestFlight on physical iPhone → record the deletion flow → Resolution Center reply (text drafted in session) → attach new build to v2.0 → resubmit.
-- **Open question:** Delete the stale 6.5" screenshot set in ASC? whatsNew text?
+- **Current task:** Week 3 of **OPERATION PORCH LIGHT** (growth flight Aug 3 – Sep 13), running alongside the 2.2 launch run (Day 0 was Tue Aug 18).
+- **Status:** `main` clean. GH-17 `marketing_snapshots` shipped with its first live capture. Four PRs open, four issues open.
+- **Next immediate step:** Follow `marketing/campaign-2026-q3/reporting/WEEK3-FOUNDER-RUNBOOK.md` — **this weekend is deliberately no-code**: (1) post the Sunday Reset teaser, NOT a Circles reveal (Circles have 0 owners/0 members — do not demo an empty surface); (2) host Sunday Reset in-app 90 min on Aug 23; (3) hand-drain the 86-pair pending buddy backlog with real DMs; (4) Mon Aug 24 run `reporting/gh17-snapshot.sql` in the Supabase SQL editor and fill `week3-scorecard-template.md`.
+- **Open question:** merge order for the four open PRs, and whether PR #104 (push) warrants a 2.2.1 — the runbook says no 2.2.1 unless a live bridge error appears.
 
-## Completed (Session 9 — 2026-06-07 → 06-12)
-- ASC API automation: `scripts/asc/asc.mjs` (zero-dep ES256 JWT client) + `scripts/asc/upload-screenshots.mjs`. Full metadata remediation via API: age rating 9+→18+, Support URL → hiitsme.app/support, reviewer notes lead with deletion steps, description fixes, 8× 6.9" screenshots uploaded (`scripts/store-screenshots.mjs`).
-- Rejection #1 fixed — 2.1(a) iPad unresponsive (build 167): `width:100vw` overflow + opaque boot-splash with no escape. `width:100%` + boot watchdog + pointer-events fix (PR #59). Verified on iPad Air 11 M3 sim. Shipped build 200.
-- Copy de-gendering: "gay men" dropped from app-facing copy; consent bullet now "may reveal my sexual orientation" (PR #60); internal strategy docs left as-is per user.
-- Rejection #2, 1.5: `/support` page live (`public/support.html` + vercel.json rewrite, PR #61).
-- Rejection #2, 5.1.1(v) — FOUR stacked deletion bugs found + fixed:
-  1. CORS: `supabase.functions.invoke` sends `x-client-info`; Allow-Headers lacked it → preflight blocked (edge fn v2).
-  2. `isMissingTable()` only matched `42P01`/"does not exist" — PostgREST returns `PGRST205`/"schema cache" → abort (edge fn v3, PR #62).
-  3. iOS native ⋯ menu had NO path to /account — added "Account" UIAction → `openAccount` shell action (PR #63; needs build ≥201).
-  4. Legacy rooms-v1 triggers on `_archive_user_active_rooms` deleted from the DROPPED `room_participants` table → 42P01 aborted every cascade delete for users with rooms-v1 history. Dropped triggers + function (migration `20260612000001`, applied to prod as `20260612065205`, PR #64). Verified: rollback-guarded delete of a data-bearing admin account succeeds end-to-end.
-- Demo account `appreviewer2026` polished (buddies/messages); deletion reference video at `/tmp/him_rec/account-deletion.mp4`; `scripts/record-deletion.mjs` gained SIGNIN_*/SKIP_DELETE modes + delete-response logging.
+## The core product finding (most important thing in this file)
+Across weeks 1 and 2 the pattern held and sharpened: **acquisition is solved without any marketing push; everything downstream of arrival is not, and is now decaying.**
+
+| | Week 1 (Aug 3–9) | Week 2 (Aug 10–16) |
+|---|---|---|
+| Signups (target) | **30** (5–10) | **19** (8–12) |
+| WAU trailing 7d | **37** (baseline 4) | **17 — halved** |
+| Activation ≤72h | **0%** | **0%** |
+| Room messages | **0** organic | **0** organic |
+| DMs sent | 3 | 4 organic (+8 engine) |
+| Accepted buddy pairs | 5 | **0** |
+| Pending backlog | 67 | **86** |
+| iOS push opt-in | 0% | 0% |
+
+Diagnosis on record: this is **one discovery-and-prompting problem across the whole surface**, not four independent feature misses. The one feature with a visible surface in the default view (Suggested Buddies, shipped Aug 4) moved its metric 2.5–19× in six days; everything shipped Jul 22 without a surface (Circles, Knock, Buzz) sits at or near zero. Room entry is a *zero-entry* problem — seeding content does not fix a surface nobody opens.
 
 ## Active Work
-- [ ] Merge PR #64; build ≥201; device recording; Resolution Center reply; resubmit v2.0
-- [ ] SECURITY: revoke ASC key `XV95PUP6YN` (leaked in git history, commit `00b2839`); revoke+regenerate `LMT6SQA4GV` after submission work completes
-- [ ] Optional: delete stale 6.5" ASC screenshot set; write whatsNew
+- [ ] Week-3 founder runbook (above) — Sunday Reset, backlog drain, Monday scorecard
+- [ ] PR #114 (draft) paste-ready `gh17-daily.sql` for the founder run
+- [ ] PR #113 (draft) GH-13 `users.acquisition_source` written once at web signup
+- [ ] PR #111 (open) `him-app-expert` skill as live product truth
+- [ ] PR #104 (draft, Aug 19) contextual push permission prompt + server-side dispatch — `pushPromptMoments.ts`, migration `20260819060000`, engine frozen texts. **Addresses the 0% push opt-in gap.**
+- [ ] Issues #106 GH-13 · #107 GH-17 · #108 web porch (logged-out hiitsme.app is Sign-in only) · #109 first-run iOS push prompt
+- [ ] SECURITY (carried from S9, still unverified): revoke ASC key `XV95PUP6YN` — leaked in git history at `00b2839`; revoke + regenerate `LMT6SQA4GV`
+- [ ] Stale branch `codex/him-hi-app-icon` holds two orphan commits (`6f758aa` dist/iOS resync, `23633cf` splash re-optimization) that exist nowhere else — land or discard deliberately
 
 ## Blockers
-- None — all deletion bugs fixed; waiting on build + device recording.
+- O8/O9 unreadable: Vercel Web Analytics API is plan-gated (404) and ASC Analytics is not exposed to the current key. Both need founder dashboard screenshots — **pending since week 1**.
 
 ## Key Decisions
 | Date | Decision | Reasoning | Affects |
 |------|----------|-----------|---------|
-| 2026-06-12 | Drop rooms-v1 sync triggers instead of recreating `room_participants` | Table is dead by design (rooms v2); triggers were pure debris | `_archive_user_active_rooms`, account deletion |
-| 2026-06-11 | Account deletion testing MUST use data-bearing accounts | Fresh empty accounts skip archive cascades — false "verified" | delete-account testing |
-| 2026-06-10 | Native ⋯ menu gets explicit "Account" item | 5.1.1(v): deletion must be reachable in-app on iOS; web popover ≠ native menu | `AppDelegate.swift`, `nativeShell.ts`, hi-its-me page |
-| 2026-06-09 | Edge fn CORS Allow-Headers: `authorization, x-client-info, apikey, content-type` | `functions.invoke` adds x-client-info; missing → preflight 4xx | all edge functions |
-| 2026-06-08 | ASC metadata managed via API (`scripts/asc/asc.mjs`) | Repeatable, scriptable; Resolution Center is NOT in the API (paste manually) | App Store ops |
-| 2026-06-08 | `width:100%` not `100vw` on root | 100vw + iPad scrollbar/safe-area = horizontal overflow → "unresponsive" verdict | `globals.css`, `index.html` |
-| 2026-05-29 | App icon = "hi." wordmark, not Samaan chiraag | Wrong semantic for chat + fragile at 60×60 | `AppIcon.appiconset/`, Android mipmaps |
-| 2026-05-25 | Notification preview default = sender-only for new accounts | Outing risk from lock-screen message text; existing users backfilled `full` | `20260525000003`, `pushPreview.ts` |
-| 2026-05-25 | `ITSAppUsesNonExemptEncryption=false` in Info.plist | Skips export prompt per upload | `Info.plist` |
-| 2026-05-17 | Push permission never requested on cold launch | Guideline 2.5.13; deliberate action only | `nativePush.ts` |
-| 2026-05-15 | Content moderation = DB trigger + `bad-words` wordlist | BEFORE INSERT trigger is cleanest server-side gate | `20260515021650` |
-| 2026-05-14 | Midnight design system: amber `#E8A23A`, indigo `#1A1F3A`, stone `#F5F1E8` | Samaan brand book | whole UI |
+| 2026-08-22 | `marketing_snapshots` counts distinct unordered pairs, RLS on with no policies | `public.buddies` is not symmetric — pending is one directional row, accepted writes both but some mirrors are missing, so `count(*)/2` is wrong. RLS-off would expose an ops table to anon via PostgREST | `20260822000001` |
+| 2026-08-22 | Do not reveal Circles as a launch feature | 0 owners / 0 members after a month live; demoing an empty surface is worse than silence | week-3 content plan |
+| 2026-08-17 | Acceptance tracked as Monday-to-Monday snapshot deltas, not creation-week attribution | The accept flow rewrites row timestamps in place, so week-attributed counts mutate retroactively (wk-1 "accepted" read 5 on Aug 10, 1 on Aug 17) | `weekly-scorecard.md` |
+| 2026-08-10 | activation-v2 (room post OR request sent OR DM ≤72h) **rejected**; counter-proposal = DM OR room post OR request **ACCEPTED** | The rejected version scores 43% on a one-tap action that is 93% unreciprocated — it grades the flight on the metric the flight moved. Every qualifying action must require a second person | measurement plan |
+| 2026-08-10 | Never publish user counts; never claim "Apple approved X today" | Small denominators read as failure; approval claims age badly | all channels |
+| 2026-07-22 | H.I.M. Pro entitlement ships **dormant** (`is_pro`) | Plan of record without committing the paywall | `20260722160000` |
+| 2026-06-12 | Drop rooms-v1 sync triggers rather than recreate `room_participants` | Table is dead by design under rooms v2; triggers were pure debris | account deletion |
+| 2026-06-11 | Deletion testing MUST use data-bearing accounts | Empty accounts skip archive cascades → false "verified" | delete-account testing |
+| 2026-06-09 | Edge fn CORS Allow-Headers must include `x-client-info` | `functions.invoke` always sends it; missing → preflight 4xx | all edge functions |
+| 2026-06-08 | ASC metadata managed via API (`scripts/asc/asc.mjs`) | Repeatable; Resolution Center is NOT in the API (paste manually) | App Store ops |
+| 2026-06-08 | `width:100%` not `100vw` on root | 100vw + iPad scrollbar/safe-area = overflow → "unresponsive" rejection | `globals.css` |
+| 2026-05-25 | Notification preview defaults to sender-only | Outing risk from lock-screen message text | `pushPreview.ts` |
+| 2026-05-17 | Push permission never requested on cold launch | Guideline 2.5.13 | `nativePush.ts` |
+| 2026-05-14 | Midnight system: amber `#E8A23A`, indigo `#1A1F3A`, stone `#F5F1E8` | Samaan brand book | whole UI |
 | ~2026-04 | Next.js → Vite + React Router v7 | Cleaner Capacitor bundling | frontend + `api/` |
-| v1 | DMs and rooms NOT a unified surface | Intentional product scope | parity backlog |
+| v1 | DMs and rooms are NOT a unified surface | Intentional product scope | parity backlog |
 
 ## Key Files
 | File | Purpose |
 |------|---------|
-| `scripts/asc/asc.mjs` | ASC API client — `auth() { ASC_KEY_ID=… ASC_ISSUER_ID=… ASC_KEY_PATH=fastlane/.keys/AuthKey_*.p8 node scripts/asc/asc.mjs "$@"; }` |
-| `scripts/asc/upload-screenshots.mjs` | Reserve→PUT chunks→commit screenshot uploads |
-| `scripts/store-screenshots.mjs` | Playwright store screenshots (430×932 @3x = 1290×2796) |
-| `scripts/record-deletion.mjs` | Deletion-flow recorder; env SIGNIN_SCREENNAME/PASSWORD, SKIP_DELETE |
-| `supabase/functions/delete-account/index.ts` | Edge fn v3: wipes ~14 tables then auth.users; CORS + isMissingTable fixed |
-| `src/app/account/delete/page.tsx` | Two-step delete UI (testids: account-delete-cta, delete-confirm-input/-submit, delete-final-confirm) |
-| `ios/App/App/AppDelegate.swift` | Native shell: ⋯ menu (now with Account), Liquid Glass dock, accent resolver |
-| `src/lib/nativeShell.ts` | NativeShellAction union (incl. `openAccount`) + bridge |
-| `src/app/hi-its-me/page.tsx` | Main view; shell-action switch routes `openAccount` → /account |
-| `public/support.html` | Support page (Guideline 1.5) — live at hiitsme.app/support |
+| `marketing/campaign-2026-q3/reporting/WEEK3-FOUNDER-RUNBOOK.md` | **Start here.** Ordered weekend actions + explicit do-not list |
+| `marketing/campaign-2026-q3/reporting/weekly-scorecard.md` | Week 1 + 2 scorecards, full method notes and decision records |
+| `marketing/campaign-2026-q3/reporting/gh17-snapshot.sql` | Monday production capture query |
+| `marketing/campaign-2026-q3/strategy/{growth-plan,measurement-plan}.md` | Objectives O2–O12, targets by week |
+| `marketing/release-2-2/launch-package/` | 2.2 launch copy incl. `DAY4-DAY5-COPY.md`, `EXECUTION-2026-08-18.md` |
+| `scripts/asc/asc.mjs` | ASC API client — `ASC_KEY_ID=… ASC_ISSUER_ID=… ASC_KEY_PATH=fastlane/.keys/AuthKey_*.p8 node scripts/asc/asc.mjs …` |
+| `scripts/capture-app-store.mjs` | Playwright store screenshot capture |
+| `supabase/functions/` | `admin-me`, `delete-account`, `export-account`, `push-dispatch`, `rooms-invite` |
+| `src/lib/nativeShell.ts` | `NativeShellAction` union + JS↔Swift bridge |
+| `ios/App/App/AppDelegate.swift` | Native shell: ⋯ menu, Liquid Glass dock, accent resolver |
+| `ios/App/App/NativeMilestoneOneView.swift` | Native BuddyList presence surface (away replies, Knock, mutual context, Circles) |
 | `src/context/ChatContext.tsx` | Persistent room state + unread logic |
-| `src/lib/contentModeration.ts` | Mirrors DB trigger; `displayBodyForMessage()` placeholder |
-| `scripts/prepare-ios-swift-packages.mjs` | Vendors plugins + privacy manifests + registers HiItsMeShellPlugin |
-| `supabase/migrations/` | Through `20260612000001_drop_legacy_room_participants_sync_triggers.sql` |
+| `AGENTS.md` | Codex-facing twin of `CLAUDE.md` |
+| `supabase/migrations/` | Through `20260822000001_marketing_snapshots.sql` |
 
 ## Architecture Notes
-- Realtime: `active_chat_room:${roomId}`, `global_notifications_messages`, `global_notifications_room_messages`
-- Rooms v2: `public.rooms` + `room_memberships`; join/leave via SECURITY DEFINER RPCs (RLS recursion on direct INSERT)
-- Native push: registration listener → `user_push_tokens`; `requestAndRegisterPush()` is the ONLY permission trigger
-- Liquid Glass: SwiftUI top-dock re-enabled builds 170+; install deferred to first JS chrome publish; WebView edge-to-edge; `HiItsMeShellPlugin` registered by `prepare-ios-swift-packages.mjs`
-- Xcode Cloud assigns build numbers — 199/200 exist despite `CURRENT_PROJECT_VERSION=179`; next build must set ≥201
-- PostgREST missing-table error = `PGRST205` "schema cache", NOT Postgres `42P01` — guard for both
+- **Rooms v2:** `public.rooms` + `room_memberships`; join/leave via SECURITY DEFINER RPCs (RLS recursion on direct INSERT). `invited_by` stamped on invite-joins since GH-14.
+- **Realtime:** `active_chat_room:${roomId}`, `global_notifications_messages`, `global_notifications_room_messages`.
+- **`public.buddies` is asymmetric** — pending = one directional row, accepted = both directions but mirrors sometimes missing. Always count distinct unordered pairs. `public.users` has **no** `created_at`; use `auth.users.created_at`.
+- **In-app engine** (welcome DMs, buddy nudges ~4/day, daily room prompts) went live Aug 16; first room prompt fired 00:18Z Aug 17 on trigger-queue latency. Frozen texts live on the PR #104 branch, not yet merged. 4 nudges/day will not drain an 86-pair backlog — hence the manual drain.
+- **Push:** registration listener → `user_push_tokens`; `requestAndRegisterPush()` is the only permission trigger. There is still **no first-run prompt** (issue #109) — this is why opt-in reads 0%.
+- Xcode Cloud assigns build numbers, so `CURRENT_PROJECT_VERSION` (288) lags what is live (314).
+- PostgREST missing-table error is `PGRST205` "schema cache", not Postgres `42P01`. Guard both.
 
 ## Known Issues
-- **Memory drift recovered:** session 6–8 commits (incl. `736a4b3` MEMORY.md update) lived on un-pushed local main, clobbered when PRs merged via GitHub; preserved on `backup/local-main-session8`. This file = recovered s8 base + s9. Push memory commits promptly.
-- **dist/ drift:** always `npm run build` (emptyOutDir) before committing a resync; CI guard enforces dist/native-web/ios-public sync.
-- `npx cap copy ios` regenerates `capacitor.config.json` and DROPS `HiItsMeShellPlugin` — use full `npm run ios:sync`.
+- **Memory lives on `main` and drifts fast.** The session-9 file survived only because PR #64 carried it; a parallel copy on `codex/him-hi-app-icon` diverged. Write memory on `main` and push it.
+- **dist/ drift:** always `npm run build` (emptyOutDir) before committing a resync; CI guard enforces dist / native-web / ios-public sync. Builds 293–304 shipped bricked once from a bundle built without real Supabase env (#93) — check env before every native bundle.
+- `npx cap copy ios` regenerates `capacitor.config.json` and DROPS `HiItsMeShellPlugin` — use `npm run ios:sync`.
+- O12 (deletion rate) breached its **weekly** read for the first time in week 2: 2/19 = 10.5% vs a 10% guardrail. Flight-cumulative 4/49 = 8.2%, still under. A second weekly breach or a cumulative cross escalates it to a named risk.
 
 ## Session Log
 | Session | Date | Summary |
 |---------|------|---------|
-| 1 | 2026-05-14 | Recovery init. Midnight migration (PR #32), resync (PR #33), MEMORY.md (PR #34). |
-| 2 | 2026-05-15 | Account deletion + block/report (PR #36), content filter (PRs #37–38). |
-| 3 | 2026-05-17 | PRs #40–44, legal pages live, amber alignment (PR #46). |
-| 4 | 2026-05-17 | Brand artwork + icon fix. Live screenshots. |
-| 5 | 2026-05-25 | TestFlight live. Android mipmaps. UIGlassEffect deferred. |
-| 6 | 2026-05-25 | Compliance: privacy manifests, audit log (`security_events`), GDPR docs, EU banner, preview toggle. |
-| 7 | 2026-05-29 | "hi." icon shipped. Liquid Glass dock attempted/reverted. Build 167. |
-| 8 | 2026-06-07 | dist/ drift fixed, build 177. Liquid Glass status corrected (re-enabled 170–177). |
-| 9 | 2026-06-12 | App Store review saga: ASC API tooling, 2.1(a) iPad fix (build 200), 5.1.1(v) deletion fixed (4 bugs: CORS, PGRST205, native menu, legacy triggers), /support live, screenshots uploaded. PR #64 open. |
+| 1–9 | 05-14 → 06-12 | Build + trust/safety + two App Store rejections survived. See `MEMORY-ARCHIVE.md`. |
+| — | 06-14 → 07-06 | "hi." icon merged (#65). Android FCM push + Play release tooling (#67), Play upload CI (#68), assetlinks fix (#71). Security: revoked client EXECUTE on internal SECURITY DEFINER fns (#69), scoped chat-media storage to signed URLs (#70). |
+| — | 07-11 → 07-23 | **Presence becomes the primary experience** (#84). Native BuddyList: away replies, Knock, mutual context, Buddy Circles (#86). "Seen by N" room receipts (#80). Orphan-profile self-heal (#81–83). Dormant Pro entitlement (#87). v2.1 release + GTM package (#88–89). OPERATION PORCH LIGHT campaign authored (#73). |
+| — | 07-29 → 08-05 | Pre-flight baseline + Vercel Web Analytics (#90–92). **Builds 293–304 bricked** by a bundle missing Supabase env — urgent rebuild (#93). Buddy photos + global Suggested Buddies (#95), Profile unified into Buddy List (#96). v2.2 auto-released Aug 4. |
+| — | 08-10 → 08-19 | Week-1 scorecard (#99) and week-2 scorecard (#103). `invited_by` on invite-joins (#100). 2.2 launch package, Day 0 Aug 18 (#102). Claude Code GH workflows (#105). |
+| 10 | 2026-08-22 | Memory rebuild after 71-day gap: switched off the stale `codex/him-hi-app-icon` branch, fast-forwarded `main` (49 commits), archived sessions 1–9, reconstructed current state. |
 
 ## User Preferences
 - Concise, direct responses; no trailing summaries
 - Readability + maintainability over cleverness
+- No em dashes in app-facing copy; no pitch-deck words
 - UI work: verify in a browser before declaring done
-- Default to no comments unless WHY is non-obvious
+- Default to no comments unless the WHY is non-obvious
 - Prod writes (deploys/migrations): ask per action, then move fast once approved
+- Never publish user counts or fake in-app activity — quiet-room reframes are allowed, fake occupancy is not
 
 ## External Context
-- ASC: app `6761863631`, v2.0 `03671932-b7be-418a-8dd6-49b16de88cc0`, en-US loc `c50ae36c…66a5`, reviewDetail `8627b22d…c4b7d`, 6.9" set `3b03f508…9e32`. Demo account `appreviewer2026` (password in ASC reviewer details — never store here).
-- Supabase project `keckqpadzxwwmagnmpuk`; remote migrations through `20260612065205`.
-- SECURITY: `AuthKey_XV95PUP6YN.p8` leaked in git history (`00b2839`) — REVOKE in ASC. `LMT6SQA4GV` passed through chat — revoke+regenerate when submission done. `.gitignore` covers `*.p8`.
-- Legal pages live: hiitsme.app/privacy + /terms; support: hiitsme.app/support.
+- ASC: app `6761863631`. Live: 2.2 build 314, READY_FOR_SALE, **0 customer reviews**. Repo on 2.3.
+- Supabase project `keckqpadzxwwmagnmpuk`; migrations through `20260822000001`.
+- Porch link in use until issue #108 ships: `https://him.samaan.tech/why.html?utm_source=…&utm_campaign=him_v2_2`. Never tell people to search bare "H.I.M." — always "H.I.M. — Friends, Not Dates".
+- Live pages: hiitsme.app/privacy, /terms, /support.
+- SECURITY: ASC key `XV95PUP6YN` leaked in git history (`00b2839`) — revoke. `LMT6SQA4GV` passed through chat — revoke + regenerate. `.gitignore` covers `*.p8`. Never store passwords here.
