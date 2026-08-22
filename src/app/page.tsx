@@ -11,6 +11,7 @@ import { CONSENT_ERROR_MESSAGES, validateSignupConsent } from '@/lib/signupConse
 import { initSoundSystem, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
 import { upsertOwnProfileWithRepair } from '@/lib/profileRepair';
+import { captureAcquisitionSource, readAcquisitionSource } from '@/lib/acquisitionSource';
 import { logSecurityEvent } from '@/lib/securityEvent';
 import {
   publishNativeMilestoneOneState,
@@ -81,6 +82,12 @@ export default function Home() {
 
   useEffect(() => {
     initSoundSystem();
+  }, []);
+
+  // GH-13: record the landing URL's source before anything can navigate away
+  // or toggle the form. No-ops on native and on every render after the first.
+  useEffect(() => {
+    captureAcquisitionSource();
   }, []);
 
   useEffect(() => {
@@ -255,6 +262,10 @@ export default function Home() {
         const consentTimestamp = new Date().toISOString();
         // A failed profile insert here strands the account: auth exists, but
         // every FK to users(id) breaks. Repair + retry, and surface failure.
+        // GH-13: first touch for this tab, web only. null on native and when
+        // sessionStorage is unavailable, in which case the column stays NULL
+        // rather than being guessed at.
+        const acquisitionSource = readAcquisitionSource();
         const profileOutcome = await upsertOwnProfileWithRepair({
           id: data.session.user.id,
           email: trimmedEmail,
@@ -264,6 +275,7 @@ export default function Home() {
           last_active_at: consentTimestamp,
           age_confirmed_at: consentTimestamp,
           art9_consent_at: consentTimestamp,
+          ...(acquisitionSource ? { acquisition_source: acquisitionSource } : {}),
         });
         if (profileOutcome.error) {
           // Don't march the user into a broken account: without a users row,
