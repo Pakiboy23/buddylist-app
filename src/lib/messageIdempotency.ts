@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { dispatchDirectMessagePush, dispatchRoomMessagePush } from '@/lib/pushDispatch';
+import { maybePromptForPushAfterFriendshipAction } from '@/lib/pushPromptMoments';
 
 type DatabaseErrorLike = {
   code?: string | null;
@@ -132,6 +133,8 @@ export async function sendDirectMessageWithClientMessageId(input: {
   if (!isClientMessageConflict(error)) {
     if (!error && data?.id) {
       dispatchDirectMessagePush(data.id);
+      // Sending a DM means a reply is expected — ask about notifications now.
+      void maybePromptForPushAfterFriendshipAction('first_dm_sent');
     }
     return {
       data: (data as DirectMessageRow | null) ?? null,
