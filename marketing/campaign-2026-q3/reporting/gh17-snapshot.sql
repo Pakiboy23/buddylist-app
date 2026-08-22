@@ -1,8 +1,11 @@
 -- SUPERSEDED 2026-08-22 — do not paste this file into the SQL editor.
 -- The live schema does not match this draft: public.users has no created_at,
 -- and public.buddies is not stored symmetrically so count(*) / 2 is wrong for
--- both pending and accepted. Corrected and applied version:
---   supabase/migrations/20260822000001_marketing_snapshots.sql
+-- both pending and accepted.
+--
+-- Paste-ready replacement:  marketing/campaign-2026-q3/reporting/gh17-daily.sql
+-- Applied schema:           supabase/migrations/20260822000001_marketing_snapshots.sql
+--
 -- Kept here only as the original GH-17 draft.
 
 -- GH-17 founder-run snapshot
