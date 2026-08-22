@@ -1,15 +1,18 @@
 # Project Memory
-Last updated: 2026-08-22 | Session 10 | Branch: main @ `51b223b`
+Last updated: 2026-08-22 (end of session) | Session 10 | Branch: main @ `303d125`
 Memory health: 8/10 — rebuilt from git + marketing docs after a 71-day gap. Sessions 1–9 in `MEMORY-ARCHIVE.md`. Post-06-12 entries are reconstructed, not first-hand; verify before betting on a detail.
 
 ## Project Overview
 H.I.M. (`hiitsme`) — retro AIM-style mobile-first messaging app. Vite + React 19 + React Router v7, Vercel (web), Capacitor 8 (iOS + Android), Supabase backend. **Shipped.** v2.2 (build 314) is live on the App Store; repo is on 2.3. ~128 accounts. Now in a growth flight, not a build sprint.
 
 ## Where We Left Off
-- **Current task:** Week 3 of **OPERATION PORCH LIGHT** (growth flight Aug 3 – Sep 13), running alongside the 2.2 launch run (Day 0 was Tue Aug 18).
-- **Status:** `main` clean. GH-17 `marketing_snapshots` shipped with its first live capture. Four PRs open, four issues open.
-- **Next immediate step:** Follow `marketing/campaign-2026-q3/reporting/WEEK3-FOUNDER-RUNBOOK.md` — **this weekend is deliberately no-code**: (1) post the Sunday Reset teaser, NOT a Circles reveal (Circles have 0 owners/0 members — do not demo an empty surface); (2) host Sunday Reset in-app 90 min on Aug 23; (3) hand-drain the 86-pair pending buddy backlog with real DMs; (4) Mon Aug 24 run `reporting/gh17-snapshot.sql` in the Supabase SQL editor and fill `week3-scorecard-template.md`.
-- **Open question:** merge order for the four open PRs, and whether PR #104 (push) warrants a 2.2.1 — the runbook says no 2.2.1 unless a live bridge error appears.
+- **Current task:** Week 3 of **OPERATION PORCH LIGHT** (Aug 3 – Sep 13), alongside the 2.2 launch run (Day 0 Tue Aug 18).
+- **Status:** Session 10 ended with `main` clean at `303d125`, **app verified healthy end-to-end** (see Health check below). Board is clear except #25 and three growth issues.
+- **Next immediate step (Sun Aug 23):** the runbook weekend, unchanged except one number — (1) post the **Sunday Reset teaser, NOT a Circles reveal**; (2) host Sunday Reset in-app 90 min; (3) hand-drain the pending backlog, which is now **134 pairs, not the 86 the runbook was written against**; (4) **Mon Aug 24:** run `reporting/gh17-daily.sql` in the Supabase SQL editor — verified paste-ready — then fill `week3-scorecard-template.md`. Monday's run produces the **first real snapshot delta** (only one row exists so far).
+- **Open question:** #25 Speed Insights adds a dependency — merge, rebase, or close?
+
+## Health check — verified 2026-08-22 end of session
+Web `hiitsme.app` /, /privacy, /terms, /support all **200**; porch `him.samaan.tech/why.html` **200**; served bundle has **1** entry script (hash differs from the tracked one, confirming Vercel rebuilds from source). Supabase: 135 users, 7 rooms, last DM Aug 21 16:41Z, last room msg 16:15Z, last signup 12:00Z, 6 push tokens, **0 flagged messages pending review**. All **6 edge functions ACTIVE** (`push-dispatch` v9). App Store: **2.2 READY_FOR_SALE**. ASC key `9R3T4646YP` verified HTTP 200.
 
 ## The core product finding (most important thing in this file)
 Across weeks 1 and 2 the pattern held and sharpened: **acquisition is solved without any marketing push; everything downstream of arrival is not, and is now decaying.**
@@ -31,14 +34,14 @@ Two things moved the wrong way since the week-2 capture: **WAU 37 → 17 → 13*
 Diagnosis on record: this is **one discovery-and-prompting problem across the whole surface**, not four independent feature misses. The one feature with a visible surface in the default view (Suggested Buddies, shipped Aug 4) moved its metric 2.5–19× in six days; everything shipped Jul 22 without a surface (Circles, Knock, Buzz) sits at or near zero. Room entry is a *zero-entry* problem — seeding content does not fix a surface nobody opens.
 
 ## Active Work
-- [ ] Week-3 founder runbook (above) — Sunday Reset, backlog drain, Monday scorecard
-- [ ] PR #114 (draft) paste-ready `gh17-daily.sql` for the founder run
-- [ ] PR #113 (draft) GH-13 `users.acquisition_source` written once at web signup
-- [ ] PR #111 (open) `him-app-expert` skill as live product truth
-- [ ] PR #104 (draft, Aug 19) contextual push permission prompt + server-side dispatch — `pushPromptMoments.ts`, migration `20260819060000`, engine frozen texts. **Addresses the 0% push opt-in gap.**
-- [ ] Issues #106 GH-13 · #107 GH-17 · #108 web porch (logged-out hiitsme.app is Sign-in only) · #109 first-run iOS push prompt
-- [ ] SECURITY: confirm ASC key `XV95PUP6YN` is revoked in the ASC console (leaked at `00b2839`; not checkable via API). `LMT6SQA4GV` done — revoked and deleted; replaced by `9R3T4646YP`.
-- [ ] Stale branch `codex/him-hi-app-icon` holds two orphan commits (`6f758aa` dist/iOS resync, `23633cf` splash re-optimization) that exist nowhere else — land or discard deliberately
+- [ ] Week-3 founder runbook — Sunday Reset, backlog drain (**134**), Monday scorecard
+- [ ] **#25** Vercel Speed Insights — NOT stale (touched Aug 16); one import + one dep, needs rebase. Adds a dependency, so it needs an explicit call
+- [ ] **#109** first-run iOS push prompt after a friendship action — the fix for the 0% opt-in. Note `pushColdLaunchGuard.test.ts` asserts the current policy; update it in the same PR
+- [ ] **#108** web porch: logged-out `hiitsme.app` is Sign-in only
+- [ ] **#107** GH-17 follow-through (table + daily SQL shipped; keep running it Mondays)
+- [ ] SECURITY: confirm ASC key `XV95PUP6YN` is revoked in the ASC console — leaked at `00b2839`, **not checkable via API**, still unverified since June
+- [ ] Housekeeping: `codex/him-hi-app-icon` now holds nothing unique — safe to delete
+- [ ] Xcode Cloud runs a full iOS archive on markdown-only PRs; worth a path filter
 
 ## Blockers
 - O8/O9 unreadable: Vercel Web Analytics API is plan-gated (404) and ASC Analytics is not exposed to the current key. Both need founder dashboard screenshots — **pending since week 1**.
@@ -108,7 +111,7 @@ Diagnosis on record: this is **one discovery-and-prompting problem across the wh
 | — | 07-11 → 07-23 | **Presence becomes the primary experience** (#84). Native BuddyList: away replies, Knock, mutual context, Buddy Circles (#86). "Seen by N" room receipts (#80). Orphan-profile self-heal (#81–83). Dormant Pro entitlement (#87). v2.1 release + GTM package (#88–89). OPERATION PORCH LIGHT campaign authored (#73). |
 | — | 07-29 → 08-05 | Pre-flight baseline + Vercel Web Analytics (#90–92). **Builds 293–304 bricked** by a bundle missing Supabase env — urgent rebuild (#93). Buddy photos + global Suggested Buddies (#95), Profile unified into Buddy List (#96). v2.2 auto-released Aug 4. |
 | — | 08-10 → 08-19 | Week-1 scorecard (#99) and week-2 scorecard (#103). `invited_by` on invite-joins (#100). 2.2 launch package, Day 0 Aug 18 (#102). Claude Code GH workflows (#105). |
-| 10 | 2026-08-22 | Memory rebuild after 71-day gap: switched off the stale `codex/him-hi-app-icon` branch, fast-forwarded `main` (49 commits), archived sessions 1–9, reconstructed current state. |
+| 10 | 2026-08-22 | Memory rebuild after a 71-day gap (archived s1–9, ff'd `main` 49 commits off the stale codex branch). Then: recovered the one salvageable orphan commit as #116 (−354KB splash); corrected the `him-app-expert` skill, which claimed `buddies` is symmetric when prod says otherwise (#117); recorded the live read showing **WAU 37→17→13** and **backlog 67→86→134** (#118); verified and merged #119, which fixed a **double-entry-point bundle** that #104 had merged onto main and that would have shipped via Xcode Cloud; added the CI guard that would have caught it (#120). Rotated the ASC key to `9R3T4646YP` (verified 200), confirmed `LMT6SQA4GV` revoked (401) and deleted it. Ended with a full health check, all green. |
 
 ## User Preferences
 - Concise, direct responses; no trailing summaries
