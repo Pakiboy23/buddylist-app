@@ -25,6 +25,9 @@ Across weeks 1 and 2 the pattern held and sharpened: **acquisition is solved wit
 | Pending backlog | 67 | **86** |
 | iOS push opt-in | 0% | 0% |
 
+**Live production read, Sat 2026-08-22 (mid-week-3, via `gh17-daily.sql`):** total users **135** · WAU(7d) **13** · active 24h **4** · signups 24h **3** · DMs 24h **7** · room msgs 24h **1** · **pending backlog 134** · accepted pairs **29**.
+Two things moved the wrong way since the week-2 capture: **WAU 37 → 17 → 13** is still decaying, and the **pending backlog 67 → 86 → 134** has nearly doubled rather than draining. The runbook's hand-drain target was written against 86.
+
 Diagnosis on record: this is **one discovery-and-prompting problem across the whole surface**, not four independent feature misses. The one feature with a visible surface in the default view (Suggested Buddies, shipped Aug 4) moved its metric 2.5–19× in six days; everything shipped Jul 22 without a surface (Circles, Knock, Buzz) sits at or near zero. Room entry is a *zero-entry* problem — seeding content does not fix a surface nobody opens.
 
 ## Active Work
@@ -81,7 +84,7 @@ Diagnosis on record: this is **one discovery-and-prompting problem across the wh
 ## Architecture Notes
 - **Rooms v2:** `public.rooms` + `room_memberships`; join/leave via SECURITY DEFINER RPCs (RLS recursion on direct INSERT). `invited_by` stamped on invite-joins since GH-14.
 - **Realtime:** `active_chat_room:${roomId}`, `global_notifications_messages`, `global_notifications_room_messages`.
-- **`public.buddies` is asymmetric** — pending = one directional row, accepted = both directions but mirrors sometimes missing. Always count distinct unordered pairs. `public.users` has **no** `created_at`; use `auth.users.created_at`.
+- **`public.buddies` is asymmetric** — verified against prod 2026-08-22: pending 134 raw rows / **0 mirrored**; accepted 51 raw rows / 44 mirrored / **7 orphaned** → 29 true pairs. `count(*)/2` understates pending by half. Always count distinct unordered pairs. (The `him-app-expert` skill claimed symmetry; corrected in PR #117.) `public.users` has **no** `created_at`; use `auth.users.created_at`.
 - **In-app engine** (welcome DMs, buddy nudges ~4/day, daily room prompts) went live Aug 16; first room prompt fired 00:18Z Aug 17 on trigger-queue latency. Frozen texts live on the PR #104 branch, not yet merged. 4 nudges/day will not drain an 86-pair backlog — hence the manual drain.
 - **Push:** registration listener → `user_push_tokens`; `requestAndRegisterPush()` is the only permission trigger. There is still **no first-run prompt** (issue #109) — this is why opt-in reads 0%.
 - Xcode Cloud assigns build numbers, so `CURRENT_PROJECT_VERSION` (288) lags what is live (314).
