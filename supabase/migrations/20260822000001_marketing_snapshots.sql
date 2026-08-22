@@ -1,13 +1,20 @@
--- SUPERSEDED 2026-08-22 — do not paste this file into the SQL editor.
--- The live schema does not match this draft: public.users has no created_at,
--- and public.buddies is not stored symmetrically so count(*) / 2 is wrong for
--- both pending and accepted. Corrected and applied version:
---   supabase/migrations/20260822000001_marketing_snapshots.sql
--- Kept here only as the original GH-17 draft.
-
--- GH-17 founder-run snapshot
--- Paste into Supabase SQL editor on production (keckqpadzxwwmagnmpuk).
--- Safe to re-run the same day: snapshot_date is unique and we upsert.
+-- GH-17 founder/ops daily snapshot table + first capture.
+-- Source draft: marketing/campaign-2026-q3/reporting/gh17-snapshot.sql
+--
+-- Three deviations from that draft, forced by the live schema
+-- (verified 2026-08-22 against production keckqpadzxwwmagnmpuk):
+--
+--   1. public.users has no created_at column, so new_signups_24h reads
+--      auth.users.created_at instead.
+--
+--   2. public.buddies is not stored symmetrically, so count(*) / 2 is wrong.
+--      'pending' is a single directional row (requester -> target) and
+--      'accepted' writes both directions (src/lib/buddyRequest.ts), but some
+--      accepted rows are missing their mirror. Halving undercounts pending and
+--      mis-counts accepted, so both columns count distinct unordered pairs.
+--
+--   3. RLS is enabled with no policies. The table is ops-only ("no client
+--      reads"); without RLS, PostgREST would expose it to anon.
 
 create table if not exists public.marketing_snapshots (
   id uuid primary key default gen_random_uuid(),
@@ -27,6 +34,16 @@ create table if not exists public.marketing_snapshots (
 
 comment on table public.marketing_snapshots is
   'Founder/ops daily capture. Not a product surface. No client reads.';
+
+comment on column public.marketing_snapshots.pending_buddy_pairs is
+  'Distinct unordered {user_id, buddy_id} pairs with status = pending.';
+comment on column public.marketing_snapshots.accepted_buddy_pairs is
+  'Distinct unordered {user_id, buddy_id} pairs with status = accepted.';
+comment on column public.marketing_snapshots.new_signups_24h is
+  'auth.users.created_at within 24h; public.users has no created_at.';
+
+alter table public.marketing_snapshots enable row level security;
+revoke all on table public.marketing_snapshots from anon, authenticated;
 
 insert into public.marketing_snapshots (
   snapshot_date,
@@ -48,7 +65,7 @@ select
      where last_active_at >= timezone('utc', now()) - interval '7 days'),
   (select count(*) from public.users
      where last_active_at >= timezone('utc', now()) - interval '24 hours'),
-  (select count(*) from public.users
+  (select count(*) from auth.users
      where created_at >= timezone('utc', now()) - interval '24 hours'),
   (select count(*) from public.room_memberships
      where joined_at >= timezone('utc', now()) - interval '24 hours'),
@@ -59,8 +76,12 @@ select
      where created_at >= timezone('utc', now()) - interval '24 hours'),
   (select count(*) from public.room_messages
      where created_at >= timezone('utc', now()) - interval '24 hours'),
-  (select count(*) / 2 from public.buddies where status = 'pending'),
-  (select count(*) / 2 from public.buddies where status = 'accepted')
+  (select count(*) from (
+     select distinct least(user_id, buddy_id) as a, greatest(user_id, buddy_id) as b
+     from public.buddies where status = 'pending') pending_pairs),
+  (select count(*) from (
+     select distinct least(user_id, buddy_id) as a, greatest(user_id, buddy_id) as b
+     from public.buddies where status = 'accepted') accepted_pairs)
 on conflict (snapshot_date) do update set
   total_users = excluded.total_users,
   active_last_7d = excluded.active_last_7d,
@@ -73,7 +94,3 @@ on conflict (snapshot_date) do update set
   pending_buddy_pairs = excluded.pending_buddy_pairs,
   accepted_buddy_pairs = excluded.accepted_buddy_pairs,
   created_at = timezone('utc', now());
-
-select * from public.marketing_snapshots
-order by snapshot_date desc
-limit 14;
