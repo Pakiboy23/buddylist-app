@@ -28,7 +28,7 @@ Canonical public line: **H.I.M. — Friends, Not Dates.** Never tell people to s
 | Design tokens | Midnight + chiraag. `src/app/globals.css`: ink `#0F1424`, stone `#F5F1E8`, chiraag `#E8A23A`, indigo `#1A1F3A`, anaar `#9C2E2E` | `him-CLAUDE.md` rose `#E8608A` / gold / `#13100E`. That palette is **not in `src/`**. Do not restyle toward it. |
 | Auth email | Primary `${screenname}@hiitsme.app`, legacy fallback `@buddylist.com` (`src/lib/authIdentity.ts`) | `him-CLAUDE.md` saying primary is `@buddylist.com` |
 | Rooms | v2: `public.rooms`, `room_memberships`, `room_messages.body`. Join/leave via `join_room_by_id` / `leave_room_by_id` | `him-CLAUDE.md` `user_active_rooms` + dual-write to `room_participants` |
-| Social graph | `buddies` (symmetric, pending → accepted) | Do not build on `user_connections` |
+| Social graph | `buddies` (**asymmetric**, pending → accepted). `pending` is ONE directional row (requester → target); `accepted` writes both directions but some mirrors are missing. Count DISTINCT UNORDERED pairs — `count(*) / 2` is wrong for both statuses. | Do not build on `user_connections`. Do not assume symmetry. |
 | Public copy | No dating vocab. No AOL/AIM in **public** copy (issue #108) | Internal AIM-era mechanics (sounds, buddy list) may stay. `src/app/page.tsx` still plays `/sounds/aol-welcome.mp3` on native sign-on — do not advertise that. |
 | Wordmark | lowercase `him` in product chrome. Periods only in body copy and press ("H.I.M.") | Uppercase wordmark |
 
@@ -76,8 +76,8 @@ Open tickets (opened 22 Aug):
 
 - **#108** web porch on logged-out `hiitsme.app` `/`. Native `/` stays Sign in.
 - **#109** first-run iOS push after a friendship action.
-- **#106** `users.acquisition_source` write-once at web signup.
-- **#107** `marketing_snapshots` + founder SQL insert.
+- ~~**#106** `users.acquisition_source` write-once at web signup.~~ Shipped 22 Aug (#113).
+- ~~**#107** `marketing_snapshots` + founder SQL insert.~~ Shipped 22 Aug (#114); run `marketing/campaign-2026-q3/reporting/gh17-daily.sql`.
 
 Do **not** this weekend: Circles (0 owners), Buzz demos, Reddit launch blast, a 2.2.1 unless a live bridge error, user counts in posts, "Apple approved 2.2 today," reusing WAU 37.
 
