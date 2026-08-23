@@ -1,5 +1,5 @@
 # Project Memory
-Last updated: 2026-08-22 (end of session) | Session 10 | Branch: main @ `303d125`
+Last updated: 2026-08-23 | Session 11 | Branch: ops/porch-and-quota
 Memory health: 8/10 — rebuilt from git + marketing docs after a 71-day gap. Sessions 1–9 in `MEMORY-ARCHIVE.md`. Post-06-12 entries are reconstructed, not first-hand; verify before betting on a detail.
 
 ## Project Overview
@@ -7,9 +7,9 @@ H.I.M. (`hiitsme`) — retro AIM-style mobile-first messaging app. Vite + React 
 
 ## Where We Left Off
 - **Current task:** Week 3 of **OPERATION PORCH LIGHT** (Aug 3 – Sep 13), alongside the 2.2 launch run (Day 0 Tue Aug 18).
-- **Status:** Session 10 ended with `main` clean at `303d125`, **app verified healthy end-to-end** (see Health check below). Board is clear except #25 and three growth issues.
+- **Status:** Session 10 ended with `main` clean at `303d125`, **app verified healthy end-to-end** (see Health check below). #25/#107/#109 are closed. #108 (web porch) ships in this session.
 - **Next immediate step (Sun Aug 23):** the runbook weekend, unchanged except one number — (1) post the **Sunday Reset teaser, NOT a Circles reveal**; (2) host Sunday Reset in-app 90 min; (3) hand-drain the pending backlog, which is now **134 pairs, not the 86 the runbook was written against**; (4) **Mon Aug 24:** run `reporting/gh17-daily.sql` in the Supabase SQL editor — verified paste-ready — then fill `week3-scorecard-template.md`. Monday's run produces the **first real snapshot delta** (only one row exists so far).
-- **Open question:** #25 Speed Insights adds a dependency — merge, rebase, or close?
+- **Open question:** Confirm ASC key `XV95PUP6YN` is revoked in the console — still unverified since June.
 
 ## Health check — verified 2026-08-22 end of session
 Web `hiitsme.app` /, /privacy, /terms, /support all **200**; porch `him.samaan.tech/why.html` **200**; served bundle has **1** entry script (hash differs from the tracked one, confirming Vercel rebuilds from source). Supabase: 135 users, 7 rooms, last DM Aug 21 16:41Z, last room msg 16:15Z, last signup 12:00Z, 6 push tokens, **0 flagged messages pending review**. All **6 edge functions ACTIVE** (`push-dispatch` v9). App Store: **2.2 READY_FOR_SALE**. ASC key `9R3T4646YP` verified HTTP 200.
@@ -35,13 +35,13 @@ Diagnosis on record: this is **one discovery-and-prompting problem across the wh
 
 ## Active Work
 - [ ] Week-3 founder runbook — Sunday Reset, backlog drain (**134**), Monday scorecard
-- [ ] **#25** Vercel Speed Insights — NOT stale (touched Aug 16); one import + one dep, needs rebase. Adds a dependency, so it needs an explicit call
-- [ ] **#109** first-run iOS push prompt after a friendship action — the fix for the 0% opt-in. Note `pushColdLaunchGuard.test.ts` asserts the current policy; update it in the same PR
-- [ ] **#108** web porch: logged-out `hiitsme.app` is Sign-in only
-- [ ] **#107** GH-17 follow-through (table + daily SQL shipped; keep running it Mondays)
+- [x] **#25** Vercel Speed Insights — closed as not planned (growth week; Web Analytics already on web)
+- [x] **#109** contextual push is on main (#104). Not on live 2.2. 2.3 builds 368-370 hit ITMS-90382 (upload limit) Sat 22 Aug after Xcode Cloud archived markdown PRs. Retry one archive from current main after the 24h window.
+- [x] **#108** web porch on logged-out hiitsme.app `/`. Native `/` stays Sign in. `/signin` and `?signin=1` keep LoginPage.
+- [x] **#107** GH-17 table + daily SQL shipped; run it Mondays
 - [ ] SECURITY: confirm ASC key `XV95PUP6YN` is revoked in the ASC console — leaked at `00b2839`, **not checkable via API**, still unverified since June
 - [ ] Housekeeping: `codex/him-hi-app-icon` now holds nothing unique — safe to delete
-- [ ] Xcode Cloud runs a full iOS archive on markdown-only PRs; worth a path filter
+- [x] Xcode Cloud path filter: ci_pre_xcodebuild.sh refuses docs-only archive (ITMS-90382). Still set Files-and-Folders on the Archive workflow in App Store Connect.
 
 ## Blockers
 - O8/O9 unreadable: Vercel Web Analytics API is plan-gated (404) and ASC Analytics is not exposed to the current key. Both need founder dashboard screenshots — **pending since week 1**.
@@ -89,7 +89,7 @@ Diagnosis on record: this is **one discovery-and-prompting problem across the wh
 - **Realtime:** `active_chat_room:${roomId}`, `global_notifications_messages`, `global_notifications_room_messages`.
 - **`public.buddies` is asymmetric** — verified against prod 2026-08-22: pending 134 raw rows / **0 mirrored**; accepted 51 raw rows / 44 mirrored / **7 orphaned** → 29 true pairs. `count(*)/2` understates pending by half. Always count distinct unordered pairs. (The `him-app-expert` skill claimed symmetry; corrected in PR #117.) `public.users` has **no** `created_at`; use `auth.users.created_at`.
 - **In-app engine** (welcome DMs, buddy nudges ~4/day, daily room prompts) went live Aug 16; first room prompt fired 00:18Z Aug 17 on trigger-queue latency. Frozen texts live on the PR #104 branch, not yet merged. 4 nudges/day will not drain an 86-pair backlog — hence the manual drain.
-- **Push:** registration listener → `user_push_tokens`; `requestAndRegisterPush()` is the only permission trigger. There is still **no first-run prompt** (issue #109) — this is why opt-in reads 0%.
+- **Push:** registration listener → `user_push_tokens`; `requestAndRegisterPush()` is the only permission trigger. Contextual first-run prompt is on main via #104 (`pushPromptMoments.ts`: `buddy_accepted`, `first_dm_sent`). Live 2.2 still has 0% opt-in because that binary predates #104. 2.3 upload blocked by ITMS-90382 (22 Aug).
 - Xcode Cloud assigns build numbers, so `CURRENT_PROJECT_VERSION` (288) lags what is live (314).
 - PostgREST missing-table error is `PGRST205` "schema cache", not Postgres `42P01`. Guard both.
 
@@ -112,6 +112,7 @@ Diagnosis on record: this is **one discovery-and-prompting problem across the wh
 | — | 07-29 → 08-05 | Pre-flight baseline + Vercel Web Analytics (#90–92). **Builds 293–304 bricked** by a bundle missing Supabase env — urgent rebuild (#93). Buddy photos + global Suggested Buddies (#95), Profile unified into Buddy List (#96). v2.2 auto-released Aug 4. |
 | — | 08-10 → 08-19 | Week-1 scorecard (#99) and week-2 scorecard (#103). `invited_by` on invite-joins (#100). 2.2 launch package, Day 0 Aug 18 (#102). Claude Code GH workflows (#105). |
 | 10 | 2026-08-22 | Memory rebuild after a 71-day gap (archived s1–9, ff'd `main` 49 commits off the stale codex branch). Then: recovered the one salvageable orphan commit as #116 (−354KB splash); corrected the `him-app-expert` skill, which claimed `buddies` is symmetric when prod says otherwise (#117); recorded the live read showing **WAU 37→17→13** and **backlog 67→86→134** (#118); verified and merged #119, which fixed a **double-entry-point bundle** that #104 had merged onto main and that would have shipped via Xcode Cloud; added the CI guard that would have caught it (#120). Rotated the ASC key to `9R3T4646YP` (verified 200), confirmed `LMT6SQA4GV` revoked (401) and deleted it. Ended with a full health check, all green. |
+| 11 | 2026-08-23 | Closed #25 as not planned. Closed #107/#109 as shipped. Web porch on logged-out `/` (#108). Xcode Cloud refuses docs-only archives so they cannot burn ITMS-90382 quota. Do not upload 2.3 until the 24h window from Sat 22 Aug 07:37 GMT is done. |
 
 ## User Preferences
 - Concise, direct responses; no trailing summaries
@@ -125,6 +126,6 @@ Diagnosis on record: this is **one discovery-and-prompting problem across the wh
 ## External Context
 - ASC: app `6761863631`. Live: 2.2 build 314, READY_FOR_SALE, **0 customer reviews**. Repo on 2.3.
 - Supabase project `keckqpadzxwwmagnmpuk`; migrations through `20260822000001`.
-- Porch link in use until issue #108 ships: `https://him.samaan.tech/why.html?utm_source=…&utm_campaign=him_v2_2`. Never tell people to search bare "H.I.M." — always "H.I.M. — Friends, Not Dates".
+- Porch: logged-out web `/` is the in-app porch (issue #108). Native `/` is still Sign in. Fallback marketing page remains `https://him.samaan.tech/why.html`. Never tell people to search bare "H.I.M." — always "H.I.M. — Friends, Not Dates".
 - Live pages: hiitsme.app/privacy, /terms, /support.
 - ASC API key: **`9R3T4646YP`** (installed `fastlane/.keys/`, mode 600, git-ignored; verified HTTP 200 on 2026-08-22). Issuer `f42ab007-1295-4ecb-b309-023ddfdac034` — same UUID as the Xcode Cloud team id. `LMT6SQA4GV` **confirmed revoked** (401 on 2026-08-22); local copy deleted. `XV95PUP6YN` was leaked in git history (`00b2839`) — **revocation still unverified**, and ASC exposes no API to list keys, so it needs a Users-and-Access console check. `.gitignore` covers `/fastlane/.keys/`. Never store keys or passwords here.

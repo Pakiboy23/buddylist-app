@@ -17,12 +17,27 @@ $VENDOR_ROOT/CapawesomeCapacitorBadge
 "
 XCODEBUILD_ACTION="${CI_XCODEBUILD_ACTION:-}"
 
+# shellcheck disable=SC1091
+. "$REPOSITORY_ROOT/ci_scripts/docs-only.sh"
+
 # Xcode Cloud's test-without-building runners only receive the ci_scripts folder,
 # not the full repository checkout. Source validation must therefore be limited
 # to build/archive environments that actually have the checked-in assets.
 if [ "$XCODEBUILD_ACTION" = "test-without-building" ]; then
     echo "Skipping source validation for Xcode Cloud test-without-building runner"
     exit 0
+fi
+
+# ITMS-90382: App Store rejects further uploads once the daily cap is hit.
+# Markdown-only PRs (MEMORY.md, skills, scorecards) were archiving and burning
+# that cap on 22 Aug 2026 (2.3 builds 368, 369, 370). Refuse archive here.
+# Also set a Files-and-Folders start condition on the Archive workflow in
+# App Store Connect: src/, ios/, android/, supabase/, api/, public/,
+# capacitor.config.ts, package.json, native-web/, dist/.
+if [ "$XCODEBUILD_ACTION" = "archive" ] && docs_only_change; then
+    echo "error: docs-only change; refusing Xcode Cloud archive to preserve ITMS-90382 quota."
+    echo "error: Set a Files-and-Folders start condition on the Archive workflow in App Store Connect."
+    exit 1
 fi
 
 if [ ! -f "$WEB_BUNDLE_DIR/index.html" ]; then

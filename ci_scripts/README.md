@@ -21,6 +21,17 @@ npm run ios:sync
 
 That sync command now runs `scripts/prepare-ios-swift-packages.mjs` automatically after `npx cap sync ios`.
 
+## Archive quota (ITMS-90382)
+
+Xcode Cloud archived markdown-only PRs on 22 Aug 2026 and App Store Connect returned ITMS-90382 (upload limit) on 2.3 builds 368, 369, and 370. `ci_pre_xcodebuild.sh` now fails archive when the diff vs origin/main is only markdown / skills / marketing / docs.
+
+Also set this on the Archive workflow in App Store Connect (Start Condition, Files and Folders), include:
+
+- `src/`, `ios/`, `android/`, `supabase/`, `api/`, `public/`
+- `capacitor.config.ts`, `package.json`, `native-web/`, `dist/`
+
+Exclude `*.md`, `.agents/`, `.claude/`, `marketing/`, `docs/`, `MEMORY.md`. Build (non-archive) can still run on every PR.
+
 ## Recommended workflows
 
 Create these workflows in Xcode or App Store Connect after enabling Xcode Cloud for the project:

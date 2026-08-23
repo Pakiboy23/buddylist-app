@@ -15,6 +15,7 @@ import { isEuTimezone } from '@/lib/euTimezone';
 const SHOW_STORAGE_NOTICE = isEuTimezone();
 
 // Pages — lazy-loaded for code splitting
+const RootEntry = lazy(() => import('@/app/rootEntry'));
 const LoginPage = lazy(() => import('@/app/page'));
 const ResetPasswordPage = lazy(() => import('@/app/reset-password/page'));
 const AccountPage = lazy(() => import('@/app/account/page'));
@@ -89,7 +90,8 @@ export default function App() {
       <AppErrorBoundary>
         <Suspense fallback={<AppLaunchFallback />}>
           <Routes>
-            <Route path="/" element={<LoginPage />} />
+            <Route path="/" element={<RootEntry />} />
+            <Route path="/signin" element={<LoginPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/account" element={<AccountPage />} />
             <Route path="/account/delete" element={<DeleteAccountPage />} />
