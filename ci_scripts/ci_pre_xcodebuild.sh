@@ -30,14 +30,36 @@ fi
 
 # ITMS-90382: App Store rejects further uploads once the daily cap is hit.
 # Markdown-only PRs (MEMORY.md, skills, scorecards) were archiving and burning
-# that cap on 22 Aug 2026 (2.3 builds 368, 369, 370). Refuse archive here.
-# Also set a Files-and-Folders start condition on the Archive workflow in
-# App Store Connect: src/, ios/, android/, supabase/, api/, public/,
-# capacitor.config.ts, package.json, native-web/, dist/.
-if [ "$XCODEBUILD_ACTION" = "archive" ] && docs_only_change; then
-    echo "error: docs-only change; refusing Xcode Cloud archive to preserve ITMS-90382 quota."
-    echo "error: Set a Files-and-Folders start condition on the Archive workflow in App Store Connect."
-    exit 1
+# that cap on 22 Aug 2026 (2.3 builds 368, 369, 370).
+#
+# Always print what the gate saw. The 23 Aug failure (PR #124 archived despite
+# being two docs files) was undiagnosable from the Xcode Cloud log because this
+# script decided silently.
+echo "Archive gate: action=${XCODEBUILD_ACTION:-unset}" \
+     "pr=${CI_PULL_REQUEST_NUMBER:-none}" \
+     "branch=${CI_BRANCH:-none}" \
+     "tag=${CI_TAG:-none}"
+
+if [ "$XCODEBUILD_ACTION" = "archive" ]; then
+    CHANGE_CLASS=$(classify_change)
+    echo "Archive gate: change=$CHANGE_CLASS"
+
+    if [ "$CHANGE_CLASS" = "docs-only" ]; then
+        echo "error: docs-only change; refusing Xcode Cloud archive to preserve ITMS-90382 quota."
+        echo "error: Set a Files-and-Folders start condition on the Archive workflow in App Store Connect."
+        exit 1
+    fi
+
+    # Fail CLOSED on a pull request we cannot classify. Xcode Cloud checks out
+    # shallow and cannot always reach origin/main, and an unclassified PR is
+    # exactly the case that burned quota on 23 Aug. Branch and tag builds still
+    # archive normally, so releasing from main is unaffected.
+    if [ "$CHANGE_CLASS" = "unknown" ] && is_pull_request_build; then
+        echo "error: cannot classify this pull-request diff (origin/main did not resolve in the CI checkout)."
+        echo "error: refusing archive rather than spending ITMS-90382 quota on an unclassified PR build."
+        echo "error: archive from main, or set a Files-and-Folders start condition on the Archive workflow."
+        exit 1
+    fi
 fi
 
 if [ ! -f "$WEB_BUNDLE_DIR/index.html" ]; then
