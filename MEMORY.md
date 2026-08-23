@@ -8,6 +8,7 @@ H.I.M. (`hiitsme`) — retro AIM-style mobile-first messaging app. Vite + React 
 ## Where We Left Off
 - **Current task:** Week 3 of **OPERATION PORCH LIGHT** (Aug 3 – Sep 13), alongside the 2.2 launch run (Day 0 Tue Aug 18).
 - **Status:** Session 10 ended with `main` clean at `303d125`, **app verified healthy end-to-end** (see Health check below). #25/#107/#109 are closed. #108 (web porch) ships in this session.
+- **Highest-leverage action (Sun Aug 23):** trigger **one** Xcode Cloud archive of `main` for 2.3. The upload cap cleared at 07:37 GMT and the branch is verified archive-ready; see `marketing/release-2-3/asc-submission.md` §3 for the exact ASC API calls. Contextual push cannot move opt-in off 0% until this binary ships.
 - **Next immediate step (Sun Aug 23):** the runbook weekend, unchanged except one number — (1) post the **Sunday Reset teaser, NOT a Circles reveal**; (2) host Sunday Reset in-app 90 min; (3) hand-drain the pending backlog, which is now **134 pairs, not the 86 the runbook was written against**; (4) **Mon Aug 24:** run `reporting/gh17-daily.sql` in the Supabase SQL editor — verified paste-ready — then fill `week3-scorecard-template.md`. Monday's run produces the **first real snapshot delta** (only one row exists so far).
 - **Open question:** Confirm ASC key `XV95PUP6YN` is revoked in the console — still unverified since June.
 
@@ -36,7 +37,7 @@ Diagnosis on record: this is **one discovery-and-prompting problem across the wh
 ## Active Work
 - [ ] Week-3 founder runbook — Sunday Reset, backlog drain (**134**), Monday scorecard
 - [x] **#25** Vercel Speed Insights — closed as not planned (growth week; Web Analytics already on web)
-- [x] **#109** contextual push is on main (#104). Not on live 2.2. 2.3 builds 368-370 hit ITMS-90382 (upload limit) Sat 22 Aug after Xcode Cloud archived markdown PRs. Retry one archive from current main after the 24h window.
+- [ ] **Ship 2.3.** Contextual push is on main (#104) and is NOT on live 2.2, which is why iOS opt-in reads 0%. `main` @ `51bf7e5` **verified archive-ready 23 Aug** (typecheck, 188/188 unit tests, push cold-launch guard 5/5, single entry point, no placeholder backend, `dist/` identical to `ios/App/App/public/`, push logic confirmed inside `assets/page-YgW8gzNP.js`). ITMS-90382 window cleared **07:37 GMT Sun 23 Aug**. Remaining work is founder-machine only: ASC creds are not available in-container. Runbook + paste-ready What's New: `marketing/release-2-3/asc-submission.md`.
 - [x] **#108** web porch on logged-out hiitsme.app `/`. Native `/` stays Sign in. `/signin` and `?signin=1` keep LoginPage.
 - [x] **#107** GH-17 table + daily SQL shipped; run it Mondays
 - [ ] SECURITY: confirm ASC key `XV95PUP6YN` is revoked in the ASC console — leaked at `00b2839`, **not checkable via API**, still unverified since June
@@ -69,6 +70,7 @@ Diagnosis on record: this is **one discovery-and-prompting problem across the wh
 ## Key Files
 | File | Purpose |
 |------|---------|
+| `marketing/release-2-3/asc-submission.md` | **2.3 submission package** — build-readiness gates, paste-ready What's New, ASC archive-trigger runbook, blockers |
 | `marketing/campaign-2026-q3/reporting/WEEK3-FOUNDER-RUNBOOK.md` | **Start here.** Ordered weekend actions + explicit do-not list |
 | `marketing/campaign-2026-q3/reporting/weekly-scorecard.md` | Week 1 + 2 scorecards, full method notes and decision records |
 | `marketing/campaign-2026-q3/reporting/gh17-snapshot.sql` | Monday production capture query |
