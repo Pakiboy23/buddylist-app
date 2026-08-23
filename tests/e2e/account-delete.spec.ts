@@ -11,7 +11,7 @@ const DELETE_E2E_ENV = {
 const { values: ENV, missing: missingEnv } = readNamedEnv(DELETE_E2E_ENV);
 
 async function signOn(page: Page, screenname: string, password: string) {
-  await page.goto('/');
+  await page.goto('/signin');
   await page.getByPlaceholder('e.g. sk8erboi99').fill(screenname);
   await page.getByPlaceholder('Enter password').fill(password);
   await page.locator('button[type="submit"]').click();

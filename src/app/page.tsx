@@ -91,6 +91,20 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('signup') !== '1') return;
+      setIsSignUp(true);
+      setAuthView('sign-on');
+      setAgeConfirmed(false);
+      setArt9Confirmed(false);
+      setStatusMsg('Choose a screen name, email, and password to create your account.');
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
     let isMounted = true;
 
     const checkSession = async () => {

@@ -54,7 +54,7 @@ Do not introduce SSR, server components, or Next.js App Router primitives. The N
 - **Rooms v2 RLS:** direct INSERT on `room_memberships` recurses. Always go through the SECURITY DEFINER RPCs.
 - **Password recovery** is custom (synthetic emails cannot receive mail): `account_recovery_codes`, `password_reset_tickets`, `password_reset_audit`, `password_reset_attempts`. Do not "simplify" onto Supabase's email reset.
 - **Account deletion** is `supabase/functions/delete-account`. It must succeed on data-bearing accounts, not empty ones. Guards: CORS allows `x-client-info`; `isMissingTable()` matches both `42P01` and `PGRST205`; native ⋯ menu has Account; rooms-v1 archive triggers were dropped. Do not reintroduce those four bugs.
-- **Push:** `requestAndRegisterPush()` in `src/lib/nativePush.ts`. Today the only caller is `/account`. `src/lib/pushColdLaunchGuard.test.ts` **asserts that**. Issue #109 wants the prompt after the first friendship action (buddy accept, first DM, or first room message) — when you do that, update the guard test in the same PR. Never prompt on cold launch (Guideline 2.5.13). Notification preview default is sender-only.
+- **Push:** `requestAndRegisterPush()` lives in `src/lib/nativePush.ts`. Callers: `/account` (manual) and `src/lib/pushPromptMoments.ts` (contextual, once per install, only while system state is `prompt`). Friendship-action callers are `buddyRequest.ts` (`buddy_accepted`) and `messageIdempotency.ts` (`first_dm_sent`). First room message is **not** wired. `pushColdLaunchGuard.test.ts` is the contract. Never prompt on cold launch (Guideline 2.5.13). Notification preview default is sender-only. Code shipped in #104; live App Store 2.2 does not have it until a 2.3 binary uploads (ITMS-90382 blocked 368–370 on 22 Aug).
 - **Invites:** `rooms-invite` requires an accepted buddy. There are no shareable invite links. `/join/:inviteCode` discards the code. Do not invent viral links.
 - **`dist/` is tracked.** Always `npm run build` (emptyOutDir) before a dist resync. `npx cap copy ios` drops `HiItsMeShellPlugin` — use `npm run ios:sync`.
 - **Content moderation:** DB trigger + client `displayBodyForMessage()`. Wordlist is generated; do not hand-edit `profanityTerms.generated.ts`.
@@ -72,10 +72,10 @@ Owner security: revoke ASC key `XV95PUP6YN` (leaked in git history `00b2839`). R
 
 ## Growth (Aug 2026, week 3 of the Q3 flight)
 
-Open tickets (opened 22 Aug):
+Open tickets:
 
-- **#108** web porch on logged-out `hiitsme.app` `/`. Native `/` stays Sign in.
-- **#109** first-run iOS push after a friendship action.
+- **#108** web porch on logged-out `hiitsme.app` `/`. Native `/` stays Sign in. `/signin` and `?signin=1` keep LoginPage.
+- ~~**#109** first-run iOS push after a friendship action.~~ Code on main via #104; not on live 2.2. 2.3 upload blocked by ITMS-90382 (22 Aug).
 - ~~**#106** `users.acquisition_source` write-once at web signup.~~ Shipped 22 Aug (#113).
 - ~~**#107** `marketing_snapshots` + founder SQL insert.~~ Shipped 22 Aug (#114); run `marketing/campaign-2026-q3/reporting/gh17-daily.sql`.
 
