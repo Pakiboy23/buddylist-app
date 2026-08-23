@@ -90,6 +90,7 @@ export default function App() {
         <Suspense fallback={<AppLaunchFallback />}>
           <Routes>
             <Route path="/" element={<LoginPage />} />
+            <Route path="/signin" element={<LoginPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/account" element={<AccountPage />} />
             <Route path="/account/delete" element={<DeleteAccountPage />} />

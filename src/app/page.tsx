@@ -1,13 +1,16 @@
 import { FormEvent, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { useAppRouter } from '@/lib/appNavigation';
 import AppIcon from '@/components/AppIcon';
 import HimWordmark from '@/components/HimWordmark';
 import RetroWindow from '@/components/RetroWindow';
+import WebPorch from '@/components/WebPorch';
 import { waitForSessionOrNull } from '@/lib/authClient';
 import { getSignInAuthEmailCandidates, isInvalidCredentialsError } from '@/lib/authIdentity';
 import { navigateAppPath } from '@/lib/appNavigation';
 import { CONSENT_ERROR_MESSAGES, validateSignupConsent } from '@/lib/signupConsent';
+import { resolveAuthLanding } from '@/lib/authLanding';
 import { initSoundSystem, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
 import { upsertOwnProfileWithRepair } from '@/lib/profileRepair';
@@ -56,6 +59,16 @@ export default function Home() {
   const isCompletingSignUpProtectionRef = useRef(false);
   const router = useAppRouter();
   const controlsDisabled = isLoading || !isHydrated;
+  // GH-108: cold web visitors on `/` get the porch; native and /signin (or
+  // the legacy ?signin=1 links) keep this sign-in card. Derived from the
+  // router location because `/` and `/signin` render this same component
+  // instance — a one-shot useState would go stale on porch -> signin.
+  const location = useLocation();
+  const landing = resolveAuthLanding({
+    isNative: Capacitor.isNativePlatform(),
+    pathname: location.pathname,
+    search: location.search,
+  });
 
   const playSignOnSound = useCallback(async () => {
     try {
@@ -150,6 +163,18 @@ export default function Home() {
     setArt9Confirmed(false);
     applyViewStatusMessage('sign-on', false);
   };
+
+  // GH-108: a /signin?create=1 deep link (fresh load or the porch's Create
+  // account button target) opens the card in create mode. Ref-guarded so the
+  // toggle can't re-fire and wipe a half-typed form on re-renders.
+  const createIntentHandledRef = useRef(false);
+  useEffect(() => {
+    if (createIntentHandledRef.current) return;
+    createIntentHandledRef.current = true;
+    if (new URLSearchParams(window.location.search).get('create') === '1') {
+      openSignUp();
+    }
+  });
 
   const performPasswordSignIn = useCallback(
     async (enteredScreenname: string, enteredPassword: string): Promise<NativeMilestoneOneActionResult> => {
@@ -496,6 +521,20 @@ export default function Home() {
   const busySubmitLabel =
     authView === 'forgot-password' ? 'Sending...' : isSignUp ? 'Creating...' : 'Signing in...';
   const shouldShowStatusCard = statusMsg !== baselineStatusMsg;
+
+  if (landing === 'porch') {
+    return (
+      <WebPorch
+        onSignIn={() => navigateAppPath(router, '/signin')}
+        onCreateAccount={() => {
+          // Same component instance survives the route change, so flip the
+          // form to create mode directly; ?create=1 keeps a refresh honest.
+          openSignUp();
+          navigateAppPath(router, '/signin?create=1');
+        }}
+      />
+    );
+  }
 
   return (
     <main className="ui-auth-shell relative h-[100dvh] overflow-hidden">
