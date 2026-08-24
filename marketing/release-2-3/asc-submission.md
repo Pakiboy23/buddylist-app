@@ -6,6 +6,8 @@
 
 2.3 is the release that makes push actually reach a device. Live 2.2 (build 314, released 4 Aug) predates every push change, which is why iOS push opt-in has read 0% for all three flight cohorts. Nothing downstream of arrival improves until this binary ships.
 
+> **Status 2026-08-24: build 375 is uploaded and Ready to Submit.** No further archive is needed. Skip to §3.3.
+
 ---
 
 ## 0. Build readiness — verified on `main` @ `51bf7e5`, 2026-08-23
@@ -21,7 +23,11 @@
 | `dist/` ↔ `ios/App/App/public/` | IDENTICAL for every file; only Capacitor runtime (`cordova.js`, `cordova_plugins.js`) is iOS-only |
 | Contextual push present in the shipped iOS bundle | CONFIRMED in `assets/page-YgW8gzNP.js`: `him.pushPrompt.askedAt`, `buddy_accepted`, `first_dm_sent`, `Push prompt skipped` |
 
+| Uploaded to App Store Connect | **CONFIRMED** — TestFlight Build Uploads: 2.3 (375) Complete, 2026-08-23 08:49 UTC; 2.3 (374) Complete, 08:32 UTC. Both Ready to Submit. |
+
 The build was verified into a scratch output directory so tracked `dist/` was never rewritten. Working tree is clean.
+
+**Build 375 is shippable as 2.3.** It was cut from `claude/goose-dating-app-pyhsx3`, which differs from `main` only in `MEMORY.md`, `marketing/` and `ci_scripts/` — none of which reach the binary. `dist/` and `ios/App/App/public/` are byte-identical to `main`.
 
 **`CURRENT_PROJECT_VERSION` is 288 and that is fine.** Xcode Cloud assigns build numbers, so the pbxproj value has lagged what is live since 2.1. Do not bump it by hand.
 
@@ -80,15 +86,27 @@ Do not attach H.I.M. Pro. The `is_pro` entitlement is still deliberately dormant
 
 ### 3.1 Quota
 
-Builds 368, 369 and 370 hit **ITMS-90382** (daily upload cap) on Sat 22 Aug after Xcode Cloud archived markdown-only PRs. The 24h window opened at 07:37 GMT Sat and **cleared at 07:37 GMT Sun 23 Aug**.
+**ITMS-90382 is a rolling count, not a daily window.** Observed 22–23 Aug:
 
-`ci_scripts/ci_pre_xcodebuild.sh` now refuses an archive whose diff vs `origin/main` is only markdown, skills, marketing or docs, so this cannot recur from that cause. An archive of `main` itself has an empty diff against `origin/main`, which `docs_only_change` correctly treats as *not* docs-only, so archiving `main` still works.
+| Build | UTC | Upload |
+|---|---|---|
+| 368 | Sat 07:33 | failed |
+| 370 | Sat 07:41 | failed |
+| 371 | Sun 05:43 | **Complete** |
+| 372 | Sun 05:45 | failed |
+| 373 | Sun 05:46 | failed |
+| 374 | Sun 08:32 | **Complete** |
+| 375 | Sun 08:49 | **Complete** |
 
-**Still outstanding:** set the Files-and-Folders start condition on the Archive workflow in App Store Connect. The script is the backstop; the start condition is the thing that stops the run from being spent at all. Include `src/`, `ios/`, `android/`, `supabase/`, `api/`, `public/`, `capacitor.config.ts`, `package.json`, `native-web/`, `dist/`. Exclude `*.md`, `.agents/`, `.claude/`, `marketing/`, `docs/`, `MEMORY.md`.
+371 uploaded cleanly two minutes before 372 and 373 were rejected. It took the last available slot; the others went over. Do not reason about this as "the cap clears at HH:MM".
 
-### 3.2 Trigger the archive
+**The #122 guard never worked.** `docs_only_change` conflated *"no diff"* with *"could not compute a diff"* — both produced an empty string and both fell through to "not docs-only". That fallthrough exists so archiving `main` (legitimately empty diff) still works, but Xcode Cloud checks out shallow and cannot reliably fetch `origin/main`, so the diff came back empty for the opposite reason. Build **374** was two docs files and it uploaded anyway. Rewritten so `unknown` is a distinct verdict and the gate fails **closed** on an unclassifiable pull-request build.
 
-Requires ASC credentials, which are **not** available in a Claude Code container — run these from the founder machine.
+**The real fix is not the script.** The Xcode Cloud console shows "Untitled Workflow" archiving `main`, `claude/*`, `docs/*` and `fix/*`, and TestFlight lists at least ten 2.3 builds already Ready to Submit. Every push, on any branch, uploads. Unhook Archive from the PR and branch triggers — `ci_scripts/README.md` already prescribes `CI` = Build on PRs, `Beta` = Archive on manual/tags. The Files-and-Folders start condition (include `src/`, `ios/`, `android/`, `supabase/`, `api/`, `public/`, `capacitor.config.ts`, `package.json`, `native-web/`, `dist/`; exclude `*.md`, `.agents/`, `.claude/`, `marketing/`, `docs/`, `MEMORY.md`) only narrows the blast radius.
+
+### 3.2 Trigger an archive — NOT NEEDED for 2.3
+
+Build 375 is already uploaded. Keep this for future releases. Requires ASC credentials, which are **not** available in a Claude Code container — run from the founder machine.
 
 ```sh
 export ASC_KEY_ID=9R3T4646YP
@@ -120,9 +138,9 @@ node scripts/asc/asc.mjs POST /v1/ciBuildRuns /tmp/ciBuildRun.json
 
 Xcode fallback if Xcode Cloud is uncooperative: `npm run ios:preflight`, then Product > Archive on the `HIM` scheme, then Distribute to App Store Connect.
 
-### 3.3 After the build processes
+### 3.3 Submit 2.3 — THIS IS THE ONLY REMAINING STEP
 
-1. Attach the build to the 2.3 version record in ASC.
+1. Attach **build 375** to the 2.3 version record in ASC (Distribution).
 2. Paste §1 into "What's New in This Version."
 3. Confirm 18+ age rating, export-compliance answer, and that no IAP is attached.
 4. Submit. Phased release ON.
@@ -134,7 +152,8 @@ Xcode fallback if Xcode Cloud is uncooperative: `npm run ios:preflight`, then Pr
 
 | # | Item | State |
 |---|---|---|
-| B1 | ASC credentials unavailable in-container | Archive must be triggered from the founder machine. Not fixable here. |
-| B2 | Files-and-Folders start condition on the Archive workflow | **Not set.** Manual, ASC console only. The CI script is a backstop, not a substitute. |
+| B1 | ASC credentials unavailable in-container | Anything touching App Store Connect is founder-machine only. Not fixable here. |
+| B2 | Archive workflow fires on every branch and PR | **Unchanged.** Manual, ASC console only. Unhook Archive from PR/branch triggers; the Files-and-Folders start condition is the weaker half-measure. This is the single highest-value fix in this document. |
 | B3 | ASC key `XV95PUP6YN` revocation | Leaked at `00b2839`, unverified since June, not checkable via API. Console check required. |
-| B4 | 2.3 contextual push is unexercised in production | It has never run on a real device against live APNs. Verify on the founder device before phased release widens. |
+| B4 | 2.3 contextual push is unexercised in production | Every 2.3 build shows 3 TestFlight invites and **0 installs, 0 sessions**. The prompt has never run against live APNs. Verify on the founder device before phased release widens. |
+| B5 | The rewritten guard's docs-only path is unproven in Xcode Cloud | Build 375 was a `ci_scripts` change, correctly classified as code, so it tested nothing. Read the `Archive gate:` line in the build log to confirm the gate evaluates at all. |

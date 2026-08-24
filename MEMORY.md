@@ -1,5 +1,5 @@
 # Project Memory
-Last updated: 2026-08-23 | Session 11 | Branch: ops/porch-and-quota
+Last updated: 2026-08-24 | Session 12 | Branch: claude/goose-dating-app-pyhsx3
 Memory health: 8/10 — rebuilt from git + marketing docs after a 71-day gap. Sessions 1–9 in `MEMORY-ARCHIVE.md`. Post-06-12 entries are reconstructed, not first-hand; verify before betting on a detail.
 
 ## Project Overview
@@ -8,7 +8,8 @@ H.I.M. (`hiitsme`) — retro AIM-style mobile-first messaging app. Vite + React 
 ## Where We Left Off
 - **Current task:** Week 3 of **OPERATION PORCH LIGHT** (Aug 3 – Sep 13), alongside the 2.2 launch run (Day 0 Tue Aug 18).
 - **Status:** Session 10 ended with `main` clean at `303d125`, **app verified healthy end-to-end** (see Health check below). #25/#107/#109 are closed. #108 (web porch) ships in this session.
-- **Highest-leverage action (Sun Aug 23):** trigger **one** Xcode Cloud archive of `main` for 2.3. The upload cap cleared at 07:37 GMT and the branch is verified archive-ready; see `marketing/release-2-3/asc-submission.md` §3 for the exact ASC API calls. Contextual push cannot move opt-in off 0% until this binary ships.
+- **2.3 IS UPLOADED. It is not blocked on anything technical.** TestFlight Build Uploads shows **2.3 (375) Complete, Ready to Submit** (and 374 alongside it). 375's app content is byte-identical to an archive from `main` — the branch differs only in `MEMORY.md`, `marketing/`, `ci_scripts/`, none of which reach the binary. **Remaining work is Distribution only:** attach 375, paste What's New from `marketing/release-2-3/asc-submission.md` §1, confirm 18+ / no IAP, submit with phased release on.
+- **Do NOT casually push to any branch.** See Known Issues — the Xcode Cloud "Untitled Workflow" archives *and uploads* on every branch and every PR. Each push spends an App Store upload slot.
 - **Next immediate step (Sun Aug 23):** the runbook weekend, unchanged except one number — (1) post the **Sunday Reset teaser, NOT a Circles reveal**; (2) host Sunday Reset in-app 90 min; (3) hand-drain the pending backlog, which is now **134 pairs, not the 86 the runbook was written against**; (4) **Mon Aug 24:** run `reporting/gh17-daily.sql` in the Supabase SQL editor — verified paste-ready — then fill `week3-scorecard-template.md`. Monday's run produces the **first real snapshot delta** (only one row exists so far).
 - **Open question:** Confirm ASC key `XV95PUP6YN` is revoked in the console — still unverified since June.
 
@@ -37,14 +38,18 @@ Diagnosis on record: this is **one discovery-and-prompting problem across the wh
 ## Active Work
 - [ ] Week-3 founder runbook — Sunday Reset, backlog drain (**134**), Monday scorecard
 - [x] **#25** Vercel Speed Insights — closed as not planned (growth week; Web Analytics already on web)
-- [ ] **Ship 2.3.** Contextual push is on main (#104) and is NOT on live 2.2, which is why iOS opt-in reads 0%. `main` @ `51bf7e5` **verified archive-ready 23 Aug** (typecheck, 188/188 unit tests, push cold-launch guard 5/5, single entry point, no placeholder backend, `dist/` identical to `ios/App/App/public/`, push logic confirmed inside `assets/page-YgW8gzNP.js`). ITMS-90382 window cleared **07:37 GMT Sun 23 Aug**. Remaining work is founder-machine only: ASC creds are not available in-container. Runbook + paste-ready What's New: `marketing/release-2-3/asc-submission.md`.
+- [ ] **Submit 2.3.** Build **375 is uploaded and Ready to Submit**; nothing further needs building. Contextual push (#104) is in that binary — verified by string literals `him.pushPrompt.askedAt` / `buddy_accepted` / `first_dm_sent` inside `assets/page-YgW8gzNP.js`, since minified names are gone. `main` @ `51bf7e5` passed every gate on 23 Aug (typecheck, 188/188 unit tests, push cold-launch guard 5/5, single entry point, no placeholder backend, `dist/` identical to `ios/App/App/public/`). Console-only from here: Distribution → attach 375 → What's New from `marketing/release-2-3/asc-submission.md` §1 → submit.
+- [ ] **Verify contextual push on a real device before phased release widens.** Every 2.3 build shows 3 TestFlight invites and **0 installs, 0 sessions** — the prompt has never run against live APNs, and it is the entire point of the release.
 - [x] **#108** web porch on logged-out hiitsme.app `/`. Native `/` stays Sign in. `/signin` and `?signin=1` keep LoginPage.
 - [x] **#107** GH-17 table + daily SQL shipped; run it Mondays
 - [ ] SECURITY: confirm ASC key `XV95PUP6YN` is revoked in the ASC console — leaked at `00b2839`, **not checkable via API**, still unverified since June
 - [ ] Housekeeping: `codex/him-hi-app-icon` now holds nothing unique — safe to delete
-- [x] Xcode Cloud path filter: ci_pre_xcodebuild.sh refuses docs-only archive (ITMS-90382). Still set Files-and-Folders on the Archive workflow in App Store Connect.
+- [ ] **Take Archive off the PR and branch triggers in App Store Connect.** This is the real fix, not the path filter. `ci_scripts/README.md` already prescribes it: `CI` = Build on PRs, `Beta` = Archive on manual/tags. The Files-and-Folders start condition narrows the blast radius; unhooking Archive removes it.
+- [x] Archive guard rewritten after it failed open in production (see Known Issues). `classify_change` now returns docs-only / code / **unknown**, and the gate fails **closed** on an unclassifiable PR build.
 
 ## Blockers
+- **Every push uploads a build.** Until Archive is unhooked from PR/branch triggers in ASC, any commit to any branch spends an App Store upload slot. This is what burned ITMS-90382 on 22 Aug.
+- ASC credentials are not available in a Claude Code container (no `fastlane/.keys/`, no `ASC_*`). Anything touching App Store Connect is founder-machine only.
 - O8/O9 unreadable: Vercel Web Analytics API is plan-gated (404) and ASC Analytics is not exposed to the current key. Both need founder dashboard screenshots — **pending since week 1**.
 
 ## Key Decisions
@@ -102,6 +107,9 @@ Diagnosis on record: this is **one discovery-and-prompting problem across the wh
   - #104 → #119 (Aug 22): a merge hit **144 conflicts, all in `dist/` and `ios/App/App/public/`, zero in source**. Resolving them kept both sides, so `index.html` carried **two module entry scripts and 57 chunks instead of 29** — the app booted twice. Web was safe (Vercel rebuilds from source) but Xcode Cloud archives `ios/App/App/public` **verbatim**, so any build cut from main would have shipped it.
   - **Never hand-resolve conflicts in build output** — content-hashed chunk names have no meaningful merge. Delete both trees and regenerate.
   - CI now guards all three failure modes: source-changed-without-resync, placeholder backend, and (added after #119) exactly one module entry point per bundle.
+- **The Xcode Cloud "Untitled Workflow" archives AND uploads on every branch and every PR.** Verified 23 Aug against the console: builds exist for `main`, `claude/*`, `docs/*`, `fix/*`, and TestFlight lists at least ten 2.3 builds already Ready to Submit (360, 361, 362, 364, 365, 366, 367, 371, 374, 375, more behind *See More*). The 22 Aug ITMS-90382 exhaustion was read as "markdown PRs archived"; the real shape is broader and much older. **A docs commit is an App Store upload.**
+- **The #122 docs-only archive guard failed OPEN and never worked in Xcode Cloud.** `docs_only_change` treated *"no diff"* and *"could not compute a diff"* as the same empty string, and both fell through to "not docs-only" — a fallthrough that exists so archiving `main` (legitimately empty diff) still works. Xcode Cloud checks out shallow and its script environment cannot reliably fetch `origin/main`, so the diff came back empty for the opposite reason. Proof: build **374** was two docs files and it archived *and* uploaded. Fixed by making `unknown` a distinct verdict and failing **closed** on unclassifiable PR builds, keyed off `CI_PULL_REQUEST_NUMBER` (needs no git history). **The docs-only refusal path is still unproven in Xcode Cloud** — read the `Archive gate:` log line to confirm.
+- **ITMS-90382 is a rolling count, not a time window.** Build 371 uploaded cleanly at 05:43 UTC Sun, two minutes before 372 and 373 were rejected; 374/375 succeeded at 08:32/08:49. 371 took the last slot. Do not reason about it as "the cap clears at HH:MM".
 - `npx cap copy ios` regenerates `capacitor.config.json` and DROPS `HiItsMeShellPlugin` — use `npm run ios:sync`.
 - O12 (deletion rate) breached its **weekly** read for the first time in week 2: 2/19 = 10.5% vs a 10% guardrail. Flight-cumulative 4/49 = 8.2%, still under. A second weekly breach or a cumulative cross escalates it to a named risk.
 
@@ -115,6 +123,7 @@ Diagnosis on record: this is **one discovery-and-prompting problem across the wh
 | — | 08-10 → 08-19 | Week-1 scorecard (#99) and week-2 scorecard (#103). `invited_by` on invite-joins (#100). 2.2 launch package, Day 0 Aug 18 (#102). Claude Code GH workflows (#105). |
 | 10 | 2026-08-22 | Memory rebuild after a 71-day gap (archived s1–9, ff'd `main` 49 commits off the stale codex branch). Then: recovered the one salvageable orphan commit as #116 (−354KB splash); corrected the `him-app-expert` skill, which claimed `buddies` is symmetric when prod says otherwise (#117); recorded the live read showing **WAU 37→17→13** and **backlog 67→86→134** (#118); verified and merged #119, which fixed a **double-entry-point bundle** that #104 had merged onto main and that would have shipped via Xcode Cloud; added the CI guard that would have caught it (#120). Rotated the ASC key to `9R3T4646YP` (verified 200), confirmed `LMT6SQA4GV` revoked (401) and deleted it. Ended with a full health check, all green. |
 | 11 | 2026-08-23 | Closed #25 as not planned. Closed #107/#109 as shipped. Web porch on logged-out `/` (#108). Xcode Cloud refuses docs-only archives so they cannot burn ITMS-90382 quota. Do not upload 2.3 until the 24h window from Sat 22 Aug 07:37 GMT is done. |
+| 12 | 2026-08-24 | Competitor scare (Goose) assessed and dismissed — it is a dating app whose founder quit after a WIRED investigation into AI-generated promo accounts; H.I.M.'s real problem remains its own funnel. Verified `main` archive-ready and wrote `marketing/release-2-3/asc-submission.md`, the first 2.3 submission package (#124). Then discovered, by triggering it, that **the #122 archive guard fails open in Xcode Cloud** and that **every branch archives and uploads** — builds 374/375 went to App Store Connect from a docs PR. Rewrote the guard to fail closed on unclassifiable PR builds. Net: 2.3 (375) is uploaded and Ready to Submit; only Distribution remains. |
 
 ## User Preferences
 - Concise, direct responses; no trailing summaries
