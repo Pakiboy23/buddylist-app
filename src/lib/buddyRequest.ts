@@ -22,6 +22,61 @@ export interface BuddyRequestResult {
   ok: boolean;
 }
 
+
+export interface AcceptBuddyRequestResult {
+  ok: boolean;
+  /** Raw Postgrest message; callers humanize for display. */
+  error?: string;
+}
+
+/**
+ * Accept an incoming buddy request.
+ *
+ * This is the ONLY place the accept writes live. Both Accept buttons reach it —
+ * the native buddy-list row via `respondToBuddyRequest`, and the web Requests
+ * list — so the contextual push prompt fires wherever a request is accepted.
+ *
+ * That co-location is the point. The prompt used to live only in
+ * `sendOrAcceptBuddyRequest`, which is reached from search and suggestions, so
+ * tapping Accept on a pending request — the single moment the contextual prompt
+ * exists for — never asked. `pushColdLaunchGuard.test.ts` restricts the prompt
+ * to this module and `messageIdempotency.ts`, so the accept path has to route
+ * through here rather than prompting from the page component.
+ *
+ * `buddies` is asymmetric: pending is one directional row (requester -> target),
+ * so accepting writes both directions explicitly.
+ */
+export async function acceptIncomingBuddyRequest(
+  currentUserId: string,
+  senderId: string,
+  options?: { notifyBuddy?: boolean },
+): Promise<AcceptBuddyRequestResult> {
+  const [outgoing, incoming] = await Promise.all([
+    supabase.from('buddies').upsert(
+      { user_id: currentUserId, buddy_id: senderId, status: 'accepted' },
+      { onConflict: 'user_id,buddy_id' },
+    ),
+    supabase.from('buddies').upsert(
+      { user_id: senderId, buddy_id: currentUserId, status: 'accepted' },
+      { onConflict: 'user_id,buddy_id' },
+    ),
+  ]);
+
+  const error = outgoing.error ?? incoming.error;
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  if (options?.notifyBuddy !== false) {
+    dispatchBuddyAcceptedPush(senderId);
+  }
+  // A mutual buddy is the moment push is obviously worth having. Fires
+  // regardless of notifyBuddy: that flag is about notifying them, this is about
+  // asking us.
+  void maybePromptForPushAfterFriendshipAction('buddy_accepted');
+  return { ok: true };
+}
+
 export async function sendOrAcceptBuddyRequest(
   currentUserId: string,
   buddyId: string,
@@ -50,21 +105,10 @@ export async function sendOrAcceptBuddyRequest(
   }
 
   if (incoming === 'pending') {
-    const [outRes, inRes] = await Promise.all([
-      supabase.from('buddies').upsert(
-        { user_id: currentUserId, buddy_id: buddyId, status: 'accepted' },
-        { onConflict: 'user_id,buddy_id' },
-      ),
-      supabase.from('buddies').upsert(
-        { user_id: buddyId, buddy_id: currentUserId, status: 'accepted' },
-        { onConflict: 'user_id,buddy_id' },
-      ),
-    ]);
-    const acceptError = outRes.error ?? inRes.error;
-    if (acceptError) return { status: 'error', feedback: humanizeDbError(acceptError.message), ok: false };
-    dispatchBuddyAcceptedPush(buddyId);
-    // A mutual buddy is the moment push is obviously worth having.
-    void maybePromptForPushAfterFriendshipAction('buddy_accepted');
+    const accept = await acceptIncomingBuddyRequest(currentUserId, buddyId);
+    if (!accept.ok) {
+      return { status: 'error', feedback: humanizeDbError(accept.error ?? ''), ok: false };
+    }
     return { status: 'accepted_incoming', feedback: 'Buddy request accepted!', ok: true };
   }
 

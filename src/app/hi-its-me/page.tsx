@@ -35,7 +35,7 @@ import {
   type BuddyRelationshipRecord,
 } from '@/lib/buddyRelationships';
 import { deleteBuddyIconFile, resolveBuddyIconUrl, uploadBuddyIconFile, validateBuddyIconFile } from '@/lib/buddyIcon';
-import { sendOrAcceptBuddyRequest } from '@/lib/buddyRequest';
+import { acceptIncomingBuddyRequest, sendOrAcceptBuddyRequest } from '@/lib/buddyRequest';
 import { fetchBuddySuggestions, type BuddySuggestion } from '@/lib/buddySuggestions';
 import {
   getRaw,
@@ -85,7 +85,7 @@ import {
   sendDirectMessageWithClientMessageId,
   sendRoomMessageWithClientMessageId,
 } from '@/lib/messageIdempotency';
-import { dispatchBuddyAcceptedPush, dispatchBuddyRequestPush } from '@/lib/pushDispatch';
+import { dispatchBuddyRequestPush } from '@/lib/pushDispatch';
 import { displayBodyForMessage } from '@/lib/contentModeration';
 import { buildAwayMessageReplyDraft } from '@/lib/awayMessageReply';
 import {
@@ -5208,37 +5208,25 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         return false;
       }
 
-      const [outgoingResponse, incomingResponse] = await Promise.all([
-        supabase.from('buddies').upsert(
-          {
-            user_id: userId,
-            buddy_id: buddyId,
-            status: 'accepted',
-          },
-          { onConflict: 'user_id,buddy_id' },
-        ),
-        supabase.from('buddies').upsert(
-          {
-            user_id: buddyId,
-            buddy_id: userId,
-            status: 'accepted',
-          },
-          { onConflict: 'user_id,buddy_id' },
-        ),
-      ]);
+      // Routed through buddyRequest.ts rather than upserting here, so the
+      // contextual push prompt fires on this path too. Both Accept buttons land
+      // here (native respondToBuddyRequest, and the web Requests list), and
+      // until now neither asked for push — the exact moment the prompt exists
+      // for. pushColdLaunchGuard.test.ts restricts the prompt to that module,
+      // so the write has to live there, not in this component.
+      const result = await acceptIncomingBuddyRequest(userId, buddyId, {
+        notifyBuddy: options?.notifyBuddy === true,
+      });
 
-      const relationshipError = outgoingResponse.error ?? incomingResponse.error;
-      if (relationshipError) {
-        setSearchError(relationshipError.message);
-        setProfileSheetError(relationshipError.message);
-        setPendingRequestError(relationshipError.message);
+      if (!result.ok) {
+        const message = result.error ?? 'Could not accept that buddy request.';
+        setSearchError(message);
+        setProfileSheetError(message);
+        setPendingRequestError(message);
         return false;
       }
 
       await loadBuddies(userId);
-      if (options?.notifyBuddy) {
-        dispatchBuddyAcceptedPush(buddyId);
-      }
       setPendingRequestError(null);
       setProfileSheetError(null);
       return true;
