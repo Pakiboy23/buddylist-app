@@ -22,7 +22,7 @@ Do not reuse week-1 WAU 37 in Day 6/7 copy.
 
 ## Store / web (paste from screenshots)
 
-- ASC impressions / PPV / first-time downloads / source split:
+- ASC impressions / PPV / first-time downloads / source split: **filled from the Analytics API — see "O9: ASC analytics" below** (exact numbers, not screenshot reads)
 - Vercel pageviews + top referrers / UTMs:
 
 ## Three-sentence reading
@@ -77,3 +77,51 @@ the `_24h` columns are a rolling Friday-night-into-Saturday slice, not a week.
 
 O2, O3, O4, O5, O7, O12, App Store reviews, and the ASC/Vercel block are all
 unfilled. This capture does not touch them.
+
+---
+
+## O9: ASC analytics — API pull, Mon Aug 24 (exact, not screenshots)
+
+Source: App Store Connect Analytics Reports API, `ONE_TIME_SNAPSHOT` requested
+2026-08-23, delivered 2026-08-24. Reports: *App Store Discovery and Engagement
+Standard* (impressions, product page views) and *App Downloads Standard*
+(first-time downloads). Data in both files spans **2026-06-25 → 2026-08-23**,
+so every window below is fully covered. Worldwide, all devices.
+
+**Conversion here = first-time downloads ÷ impressions** (the ASC-style
+definition). FTD ÷ product page views shown as a second read. Counts are
+event counts, not unique devices.
+
+| Window | Impressions | Product page views | First-time downloads | Conv (FTD/imp) | FTD/PPV |
+|---|---|---|---|---|---|
+| Jul 24–28 (baseline) | 98 | 7 | 0 | 0% | 0% |
+| Aug 3–9 | 21,820 | 352 | 55 | 0.25% | 15.6% |
+| Aug 10–16 | 6,833 | 151 | 38 | 0.56% | 25.2% |
+| Aug 17–22 (week 3) | 996 | 60 | 15 | 1.51% | 25.0% |
+
+### Source split
+
+| Window | Impressions by source | PPV by source | FTD by source |
+|---|---|---|---|
+| Jul 24–28 | search 85 · browse 13 | search 3 · browse 3 · app ref 1 | — (zero) |
+| Aug 3–9 | search 21,797 · browse 23 | search 335 · browse 13 · app ref 3 · web ref 1 | search 53 · browse 1 · unavailable 1 |
+| Aug 10–16 | search 6,822 · browse 11 | search 142 · browse 9 | search 38 |
+| Aug 17–22 | search 987 · browse 9 | search 44 · browse 6 · **app ref 8 · web ref 2** | search 10 · **app ref 4 · web ref 1** |
+
+### How to read this
+
+- **The Aug 3–9 impression spike (21.8k) was search visibility, and it is
+  gone**: 6.8k the next week, 996 in week 3 — a 22× collapse back toward the
+  98-impression July baseline. Whatever ranked the app in search that week
+  (launch-window boost, keyword refresh) has decayed.
+- **Conversion moved the other way every week**: 0.25% → 0.56% → 1.51%.
+  Week-3 traffic is 22× smaller and 6× more qualified. FTD/PPV holds at ~25%
+  — people who reach the page download at a steady rate; the funnel's loss is
+  upstream, at impressions.
+- **Week 3 is the first window where referrers show up in downloads**: 4
+  app-referrer + 1 web-referrer FTD (a third of the week's 15), matching the
+  social-link push and the interim porch. Search-only weeks came before it.
+- Jul 24–28 baseline is genuinely zero downloads on 98 impressions — the
+  pre-flight state, not missing data.
+- Taps (store CTA event) for completeness: 105 → 60 → 21 across the three
+  August windows.
