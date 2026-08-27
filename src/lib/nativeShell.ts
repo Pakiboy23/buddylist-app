@@ -112,6 +112,8 @@ export interface NativeMilestoneOneBuddy {
   presence: NativeMilestoneOnePresence;
   presenceLabel: string;
   presenceDetail: string;
+  /** Authored away message or status line, shown whatever the presence state. */
+  statusNote?: string | null;
   awayMessage?: string | null;
   unreadCount: number;
   isPinned: boolean;

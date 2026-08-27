@@ -89,3 +89,30 @@ export function getPresenceDetail({
       return trimmedStatusMessage || 'Available';
   }
 }
+
+/**
+ * The buddy's authored line for list rows — the thing H.I.M. is actually
+ * about. Away messages and status lines are expression, not just presence
+ * metadata, so a set note stays readable even while its author is offline
+ * (which, on a small network, is most of the time anyone looks). Pass only
+ * authored text: synthesized fallbacks ("Available", "Offline") must not
+ * masquerade as something the buddy wrote.
+ */
+export function getStatusNote({
+  state,
+  awayMessage,
+  statusMessage,
+}: {
+  state: ResolvedPresenceState;
+  awayMessage?: string | null | undefined;
+  statusMessage?: string | null | undefined;
+}): string | null {
+  const away = (awayMessage ?? '').trim();
+  const status = (statusMessage ?? '').trim();
+
+  if (state === 'away') {
+    return away || null;
+  }
+
+  return status || away || null;
+}
