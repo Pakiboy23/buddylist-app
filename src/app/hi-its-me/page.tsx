@@ -134,6 +134,7 @@ import {
   formatPresenceSince,
   getPresenceDetail,
   getPresenceLabel,
+  getStatusNote,
   resolvePresenceState,
 } from '@/lib/presence';
 import {
@@ -636,10 +637,16 @@ function resolveStatusFields({
       ? trimmedStatusMessage
       : composeStatusMessage(resolvedStatus);
 
+  const authoredStatusMessage =
+    trimmedStatusMessage && !looksLikeLegacyStatusMessage(trimmedStatusMessage, resolvedStatus)
+      ? trimmedStatusMessage
+      : '';
+
   return {
     status: resolvedStatus,
     awayMessage: resolvedAwayMessage,
     statusMessage: resolvedStatusMessage,
+    authoredStatusMessage,
   };
 }
 
@@ -805,6 +812,16 @@ const DirectMessageRow = memo(function DirectMessageRow({
         idleSince: buddy.idle_since,
         lastActiveAt: buddy.last_active_at,
       });
+  // The buddy's own words get a line of their own, whatever their presence —
+  // an away message shouldn't vanish the moment its author signs off.
+  const statusNote = presenceHidden
+    ? null
+    : getStatusNote({
+        state: presenceState,
+        awayMessage: awayLine,
+        statusMessage: resolvedStatus.authoredStatusMessage,
+      });
+  const metaDetail = statusNote && statusNote === presenceDetail ? '' : presenceDetail;
 
   const showArrivalWave =
     !presenceHidden && (recentActivity?.tone === 'online' || recentActivity?.tone === 'back');
@@ -876,13 +893,25 @@ const DirectMessageRow = memo(function DirectMessageRow({
               </span>
             ) : null}
           </div>
-          <p className="truncate text-[11px] text-slate-400" title={recentActivity?.message || presenceDetail}>
-            {isTypingActive ? (
-              <span className="font-medium text-[var(--rose)]">typing…</span>
-            ) : (
-              lastMessagePreview || presenceDetail
-            )}
-          </p>
+          {statusNote ? (
+            <p
+              className={`truncate text-[11px] italic ${
+                presenceState === 'away' ? 'text-[var(--gold)]' : 'text-slate-500 dark:text-slate-300'
+              }`}
+              title={statusNote}
+            >
+              “{statusNote}”
+            </p>
+          ) : null}
+          {isTypingActive || lastMessagePreview || metaDetail ? (
+            <p className="truncate text-[11px] text-slate-400" title={recentActivity?.message || metaDetail}>
+              {isTypingActive ? (
+                <span className="font-medium text-[var(--rose)]">typing…</span>
+              ) : (
+                lastMessagePreview || metaDetail
+              )}
+            </p>
+          ) : null}
         </div>
       </button>
 
@@ -3825,6 +3854,11 @@ const [showAddWindow, setShowAddWindow] = useState(false);
           idleSince: buddy.idle_since,
           lastActiveAt: buddy.last_active_at,
         }),
+        statusNote: getStatusNote({
+          state: presenceState,
+          awayMessage: awayLine,
+          statusMessage: resolvedStatus.authoredStatusMessage,
+        }),
       };
     },
     [screenname],
@@ -3886,6 +3920,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
           presence: presenceHidden ? 'offline' : presence.presenceState,
           presenceLabel: presenceHidden ? 'Presence hidden' : presence.presenceLabel,
           presenceDetail: presenceHidden ? '' : presence.presenceDetail,
+          statusNote: presenceHidden ? null : presence.statusNote,
           awayMessage: presenceHidden || presence.presenceState !== 'away' ? null : presence.awayLine,
           unreadCount: unreadDirectMessages[buddy.id] ?? 0,
           isPinned: preference.isPinned,

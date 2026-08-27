@@ -20,6 +20,8 @@ struct NativeMilestoneOneBuddy: Decodable, Equatable, Identifiable {
     let presence: NativeMilestoneOnePresence
     let presenceLabel: String
     let presenceDetail: String
+    /// Authored away message or status line — shown whatever the presence state.
+    let statusNote: String?
     let awayMessage: String?
     let unreadCount: Int
     let isPinned: Bool
@@ -2709,10 +2711,24 @@ private struct NativeBuddyRow: View {
                                     .foregroundColor(NativeMilestonePalette.gold)
                             }
                         }
-                        Text(buddy.presenceHidden == true ? "Presence hidden" : buddy.presenceDetail)
-                            .font(.caption)
-                            .foregroundColor(NativeMilestonePalette.muted(isDark: isDark))
-                            .lineLimit(1)
+                        if buddy.presenceHidden != true,
+                           let note = buddy.statusNote?.trimmingCharacters(in: .whitespacesAndNewlines),
+                           !note.isEmpty {
+                            Text("\u{201C}\(note)\u{201D}")
+                                .font(.caption.italic())
+                                .foregroundColor(
+                                    buddy.presence == .away
+                                        ? NativeMilestonePalette.gold
+                                        : NativeMilestonePalette.text(isDark: isDark).opacity(0.75)
+                                )
+                                .lineLimit(2)
+                        }
+                        if buddy.presenceHidden == true || buddy.statusNote != buddy.presenceDetail {
+                            Text(buddy.presenceHidden == true ? "Presence hidden" : buddy.presenceDetail)
+                                .font(.caption)
+                                .foregroundColor(NativeMilestonePalette.muted(isDark: isDark))
+                                .lineLimit(1)
+                        }
                     }
                 }
             }
