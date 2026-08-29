@@ -19,7 +19,16 @@ Note: The repo was migrated off Next.js in commit `5ec1d04` (early 2026). Anythi
 
 ## Commands
 
+Package manager is **pnpm**, pinned by the `packageManager` field in
+`package.json`. Install with `pnpm install`. Never `npm install` or `yarn`: a
+second lockfile resolves the same semver ranges to different versions, and CI
+fails the "One lockfile only" guard. Running scripts via `npm run` is fine —
+only installing differs.
+
 ```bash
+# Setup
+pnpm install                   # pnpm only; npm/yarn write a conflicting lockfile
+
 # Development
 npm run dev                    # Vite dev server (default port 5173)
 

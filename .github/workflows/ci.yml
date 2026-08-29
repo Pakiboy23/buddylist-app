@@ -32,9 +32,10 @@ jobs:
           fetch-depth: 0
 
       - name: Install pnpm
+        # No `version:` input on purpose — pnpm/action-setup@v4 reads the
+        # packageManager field in package.json, and errors if both are set and
+        # disagree. One source of truth for the pnpm version.
         uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -74,6 +75,31 @@ jobs:
             echo "Changed source:"; echo "$src_changed"
             exit 1
           fi
+
+      - name: One lockfile only
+        run: |
+          # This repo installs with pnpm everywhere: both workflows, and Vercel
+          # (which auto-detects pnpm-lock.yaml since vercel.json sets no
+          # installCommand). A second lockfile does not just sit there — it
+          # resolves the same semver ranges to DIFFERENT versions, and whichever
+          # file you read decides what you believe is installed.
+          #
+          # That is not hypothetical. On 29 Aug 2026 the two disagreed about
+          # Capacitor (npm 8.3.0 vs pnpm 8.3.1), which sent `cap sync` rewriting
+          # CapApp-SPM/Package.swift back and forth (#129, #130), and about
+          # eslint-plugin-react-hooks (7.0.1 vs 7.1.1), which made `npm run lint`
+          # report 0 problems locally and 31 under CI's install.
+          #
+          # `npm install` recreates package-lock.json silently, so this guard is
+          # what keeps the second file from coming back.
+          extra=$(ls package-lock.json yarn.lock bun.lockb 2>/dev/null || true)
+          if [ -n "$extra" ]; then
+            echo "::error::Found a lockfile other than pnpm-lock.yaml: $extra"
+            echo "::error::This project installs with pnpm (see the packageManager field in package.json)."
+            echo "::error::Delete the extra lockfile and run 'pnpm install' instead of npm/yarn."
+            exit 1
+          fi
+          echo "pnpm-lock.yaml is the only lockfile."
 
       - name: Shipped bundle sanity (no placeholder backend)
         run: |
