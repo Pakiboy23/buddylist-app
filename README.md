@@ -121,10 +121,11 @@ Notes:
 
 ## Local Setup
 
-1. Install dependencies:
+1. Install dependencies (this project uses pnpm — `npm install` would write a
+   second lockfile that resolves differently, so CI rejects it):
 
 ```bash
-npm install
+pnpm install
 ```
 
 2. Apply Supabase SQL migrations in this order:
@@ -325,8 +326,8 @@ Usually means `npm run dev` was started from the wrong directory. Run from repo 
 
 ```bash
 cd /path/to/hiitsme-app
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 ```
 
 ## Deployment Notes (Vercel)

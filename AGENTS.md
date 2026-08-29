@@ -115,7 +115,8 @@ E2E tests need: `PLAYWRIGHT_USER_A_SCREENNAME`, `PLAYWRIGHT_USER_A_PASSWORD`, `P
 - iOS: Archive via Xcode after `npm run ios:preflight`. Xcode Cloud CI in `ci_scripts/`.
 - Android: Keystore config in `android/keystore.properties` (not committed). Env var alternative: `ANDROID_KEYSTORE_PATH`, etc.
 - Both platforms default to bundled mode. Keep `ios/App/App/public` and `native-web/` in sync with web builds.
-- iOS SPM: never run `npx cap copy ios`; always `npm run ios:sync`; never hand-edit `CapApp-SPM/Package.swift` — its `capacitor-swift-pm` pin must match the installed `@capacitor/ios` in `package-lock.json`.
+- iOS SPM: never run `npx cap copy ios`; always `pnpm run ios:sync`; never hand-edit `CapApp-SPM/Package.swift` — its `capacitor-swift-pm` pin must match the installed `@capacitor/ios` in `pnpm-lock.yaml`.
+- Package manager: pnpm, pinned by the `packageManager` field. Install with `pnpm install`; never `npm install` or `yarn` — they write a second lockfile that resolves the same ranges to different versions, and CI fails the "One lockfile only" guard.
 
 ## App Store / Play Store readiness
 
