@@ -5706,6 +5706,16 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         throw error;
       }
 
+      // Typing a message to someone is proof you're at the keyboard, so sending
+      // one takes your away message down — the away round-trip a buddy list has
+      // always had. Signals (buzz / knock) are a nudge, not a conversation, and
+      // leave the away message standing. The auto-reply path never lands here:
+      // sendAutoAwayReply inserts straight into `messages`, so a buddy messaging
+      // you can never clear your own away status.
+      if (!isSignal && userStatusRef.current === AWAY_STATUS) {
+        void updateStatus(AVAILABLE_STATUS, null);
+      }
+
       const insertedMessage = data as ChatMessage;
       setBuddyLastMessageAt((previous) => ({
         ...previous,
@@ -5761,7 +5771,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         }
       }
     },
-    [activeChatBuddyId, dmPreferencesByBuddyId, queueOutboxMessage, removeOutboxItem, userId],
+    [activeChatBuddyId, dmPreferencesByBuddyId, queueOutboxMessage, removeOutboxItem, updateStatus, userId],
   );
 
   const handleSendKnockToBuddy = useCallback(async (buddyId: string) => {
