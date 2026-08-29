@@ -23,7 +23,30 @@ That sync command now runs `scripts/prepare-ios-swift-packages.mjs` automaticall
 
 ## Archive quota (ITMS-90382)
 
-Xcode Cloud archived markdown-only PRs on 22 Aug 2026 and App Store Connect returned ITMS-90382 (upload limit) on 2.3 builds 368, 369, and 370. `ci_pre_xcodebuild.sh` now fails archive when the diff vs origin/main is only markdown / skills / marketing / docs.
+Every archive Xcode Cloud runs also **uploads** to App Store Connect, and
+ITMS-90382 is a rolling count of upload slots — not a time window. So any
+archive outside a release spends a slot a real release needs. Xcode Cloud
+archived markdown-only PRs on 22 Aug 2026 and App Store Connect returned
+ITMS-90382 on 2.3 builds 368, 369 and 370; builds 374/375 later reached ASC
+from a docs PR the same way.
+
+`ci_pre_xcodebuild.sh` now refuses an archive unless it is **main or a tag**:
+
+| Trigger | Archive |
+| --- | --- |
+| Pull request | refused |
+| Branch other than `main` | refused |
+| `main` | allowed |
+| Tag | allowed |
+
+It refuses *before* `xcodebuild` runs, so no archive is produced and no slot is
+spent. Non-archive actions (Build, test-without-building) still run on every PR,
+so pull requests keep full compile coverage. The docs-only and unclassifiable-PR
+gates remain underneath for `main` builds.
+
+Note this is the repo-side half. The complete fix is still to unhook Archive
+from the PR and branch start conditions in App Store Connect — console-only, and
+not something the repo can enforce.
 
 Also set this on the Archive workflow in App Store Connect (Start Condition, Files and Folders), include:
 

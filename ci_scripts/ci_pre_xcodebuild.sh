@@ -41,6 +41,38 @@ echo "Archive gate: action=${XCODEBUILD_ACTION:-unset}" \
      "tag=${CI_TAG:-none}"
 
 if [ "$XCODEBUILD_ACTION" = "archive" ]; then
+    # Release trains only.
+    #
+    # Every archive Xcode Cloud runs also UPLOADS to App Store Connect, and
+    # ITMS-90382 is a rolling count of upload slots, not a time window. So a
+    # pull-request or feature-branch archive silently spends a slot that a real
+    # release needs — builds 374/375 reached App Store Connect from a docs PR
+    # this way on 24 Aug, and the 22 Aug exhaustion was the same shape.
+    #
+    # The docs-only and unknown gates below only catch changes with no code in
+    # them. A PR that touches src/ classifies as "code", archives, and uploads —
+    # which is precisely what happened on every PR merged on 29 Aug.
+    #
+    # The complete fix is to unhook Archive from the PR and branch start
+    # conditions in App Store Connect (see ci_scripts/README.md); that is
+    # console-only and cannot be done from the repo. This gate is the repo-side
+    # half, and it is the effective one: it refuses BEFORE xcodebuild runs, so
+    # no archive is produced and no upload slot is spent. main and tag builds
+    # are untouched, so releasing is unaffected.
+    if is_pull_request_build; then
+        echo "error: pull-request build (pr=${CI_PULL_REQUEST_NUMBER:-?}); refusing Xcode Cloud archive."
+        echo "error: every archive uploads, and ITMS-90382 counts slots, not time."
+        echo "error: archive from main or from a tag. Build (non-archive) actions still run on PRs."
+        exit 1
+    fi
+
+    if [ -z "${CI_TAG:-}" ] && [ "${CI_BRANCH:-}" != "main" ]; then
+        echo "error: branch '${CI_BRANCH:-unknown}' is not main and no tag is set; refusing Xcode Cloud archive."
+        echo "error: every archive uploads, and ITMS-90382 counts slots, not time."
+        echo "error: archive from main or from a tag."
+        exit 1
+    fi
+
     CHANGE_CLASS=$(classify_change)
     echo "Archive gate: change=$CHANGE_CLASS"
 
