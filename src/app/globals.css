@@ -528,34 +528,6 @@ html.dark body {
   color: #bfdbfe;
 }
 
-.ui-section-header {
-  display: flex;
-  min-height: 2.25rem;
-  width: 100%;
-  align-items: center;
-  gap: 0.55rem;
-  padding: 0.4rem 0.9rem;
-  border-radius: 9999px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: #64748b;
-  transition: background-color 120ms ease, color 120ms ease;
-}
-
-.ui-section-header:hover {
-  background: rgba(255, 255, 255, 0.32);
-}
-
-.dark .ui-section-header {
-  color: #94a3b8;
-}
-
-.dark .ui-section-header:hover {
-  background: rgba(30, 41, 59, 0.5);
-}
-
 .ui-section-count {
   margin-left: auto;
   display: inline-flex;
@@ -972,6 +944,406 @@ html.dark body {
   border-color: rgba(232, 162, 58, 0.22);
   background: rgba(232, 162, 58, 0.12);
 }
+/* ── Buddy list: groups and rows ────────────────────────────────────────────
+   The structure is the classic buddy list — named groups carrying an
+   online/total count, everyone signed off collected at the bottom, one line
+   per buddy. The surface is the same midnight/chiraag system as the rest of
+   the app; only the density and the ordering are borrowed. */
+
+.ui-buddy-group + .ui-buddy-group {
+  margin-top: 0.15rem;
+}
+
+.ui-buddy-group[data-tone='muted'] {
+  opacity: 0.85;
+}
+
+.ui-group-header {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.3rem 0.35rem 0.3rem 0.15rem;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.07);
+}
+
+.dark .ui-group-header {
+  border-bottom-color: rgba(255, 255, 255, 0.07);
+}
+
+.ui-group-header-toggle {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 0.6rem;
+  padding: 0.25rem 0.35rem;
+  text-align: left;
+  transition: background-color 120ms ease;
+}
+
+.ui-group-header-toggle:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.dark .ui-group-header-toggle:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.ui-group-caret {
+  display: inline-block;
+  font-size: 8px;
+  line-height: 1;
+  color: #94a3b8;
+  transform: rotate(90deg);
+  transition: transform 140ms ease;
+}
+
+.ui-group-caret[data-collapsed='true'] {
+  transform: rotate(0deg);
+}
+
+.ui-group-caret[data-static='true'] {
+  opacity: 0.35;
+}
+
+p.ui-group-header-toggle:hover {
+  background: transparent;
+}
+
+.ui-group-name {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #334155;
+}
+
+.dark .ui-group-name {
+  color: #e2e8f0;
+}
+
+.ui-group-count {
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #94a3b8;
+}
+
+.dark .ui-group-count {
+  color: #7c8aa5;
+}
+
+.ui-group-manage {
+  flex-shrink: 0;
+  border-radius: 9999px;
+  padding: 0.1rem 0.4rem;
+  font-size: 12px;
+  color: #94a3b8;
+  transition: color 120ms ease;
+}
+
+.ui-group-manage:hover {
+  color: var(--color-accent, #E8A23A);
+}
+
+/* ── Buddy row ───────────────────────────────────────────────────────────── */
+
+.ui-buddy-row-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.ui-buddy-row {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 0.6rem;
+  border-radius: 0.75rem;
+  border: 0.5px solid transparent;
+  /* Right padding clears the sibling action cluster that floats over the row's
+     trailing edge: two 2.15rem controls + 0.1rem gap + 0.4rem inset, plus slack. */
+  padding: 0.4rem 5.1rem 0.4rem 0.5rem;
+  text-align: left;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.ui-buddy-row:hover {
+  background: rgba(255, 255, 255, 0.42);
+}
+
+.dark .ui-buddy-row:hover {
+  background: rgba(26, 31, 58, 0.9);
+}
+
+.ui-buddy-row[data-active='true'] {
+  border-color: rgba(232, 162, 58, 0.22);
+  background: rgba(232, 162, 58, 0.12);
+}
+
+.ui-buddy-row-body {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.05rem;
+}
+
+.ui-buddy-row-name-line {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.ui-buddy-row-name {
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: #1e293b;
+}
+
+.dark .ui-buddy-row-name {
+  color: #f1f5f9;
+}
+
+/* .ui-screenname, defined later in this file, sets color and font-size with
+   !important for the monospace screenname treatment, and its font-weight wins on
+   source order. The row has to beat all three: signed-off names must go light —
+   the buddy list's oldest tell that someone isn't there — and row density needs
+   a slightly smaller size. Compound selectors carry the non-important wins;
+   !important is matched only where the base rule already uses it. */
+.ui-screenname.ui-buddy-row-name {
+  font-size: 13.5px !important;
+  font-weight: 600;
+}
+
+.ui-screenname.ui-buddy-row-name.is-signed-off {
+  font-style: italic;
+  font-weight: 500;
+  color: #94a3b8 !important;
+}
+
+.dark .ui-screenname.ui-buddy-row-name.is-signed-off {
+  color: #7c8aa5 !important;
+}
+
+.ui-screenname.ui-buddy-row-name[data-selected='true'] {
+  color: var(--rose, #E8A23A) !important;
+}
+
+.ui-buddy-row-tag {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.02em;
+}
+
+.ui-buddy-row-tag.is-blocked {
+  border-radius: 9999px;
+  background: rgba(239, 68, 68, 0.12);
+  padding: 0.1rem 0.35rem;
+  color: #ef4444;
+}
+
+.ui-buddy-row-secondary {
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--muted, #6B6B6B);
+}
+
+.ui-buddy-row-secondary[data-tone='status'] {
+  font-style: italic;
+  color: var(--gold, #C8861F);
+}
+
+.dark .ui-buddy-row-secondary[data-tone='status'] {
+  color: var(--gold, #E8A23A);
+}
+
+.ui-buddy-row-secondary[data-tone='typing'] {
+  font-weight: 600;
+  color: var(--rose, #E8A23A);
+}
+
+.ui-buddy-row-unread {
+  display: inline-flex;
+  min-width: 20px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  padding: 0.1rem 0.35rem;
+  font-size: 10px;
+  font-weight: 700;
+  /* Sits clear of the sibling action cluster that floats over the row's edge. */
+  margin-right: 0.5rem;
+}
+
+.ui-buddy-row-actions {
+  position: absolute;
+  right: 0.4rem;
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+}
+
+.ui-buddy-row-action {
+  display: inline-flex;
+  height: 2.15rem;
+  min-width: 2.15rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  font-size: 13px;
+  color: #94a3b8;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.ui-buddy-row-action:hover {
+  background: rgba(15, 23, 42, 0.06);
+  color: #475569;
+}
+
+.dark .ui-buddy-row-action:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #e2e8f0;
+}
+
+/* ── Find a Buddy ────────────────────────────────────────────────────────── */
+
+.ui-buddy-find {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ui-buddy-find input {
+  width: 100%;
+  min-height: 2.1rem;
+  border-radius: 9999px;
+  border: 0.5px solid rgba(148, 163, 184, 0.35);
+  background: rgba(255, 255, 255, 0.7);
+  padding: 0 2.1rem 0 0.85rem;
+  font-size: 12.5px;
+  color: #1e293b;
+}
+
+.ui-buddy-find input::placeholder {
+  color: #94a3b8;
+}
+
+.dark .ui-buddy-find input {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(15, 20, 36, 0.6);
+  color: #f1f5f9;
+}
+
+.ui-buddy-find-clear {
+  position: absolute;
+  right: 0.35rem;
+  display: inline-flex;
+  height: 1.5rem;
+  width: 1.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.ui-buddy-find-clear:hover {
+  color: #475569;
+}
+
+.dark .ui-buddy-find-clear:hover {
+  color: #e2e8f0;
+}
+
+/* ── Sign-on strip: your name, your status, your away message ─────────────── */
+
+.ui-self-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.15rem 0.1rem 0.6rem;
+}
+
+.ui-self-strip-body {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.ui-self-strip-name {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #1e293b;
+}
+
+.dark .ui-self-strip-name {
+  color: #f8fafc;
+}
+
+.ui-self-strip-away {
+  font-size: 11px;
+  font-style: italic;
+  line-height: 1.3;
+  color: #94a3b8;
+}
+
+.ui-status-combo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 9999px;
+  border: 0.5px solid rgba(148, 163, 184, 0.35);
+  background: rgba(255, 255, 255, 0.72);
+  padding: 0.15rem 0.15rem 0.15rem 0.5rem;
+}
+
+.dark .ui-status-combo {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(15, 20, 36, 0.6);
+}
+
+.ui-status-combo select {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0.1rem 1.1rem 0.1rem 0.1rem;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.dark .ui-status-combo select {
+  color: #e2e8f0;
+}
+
+.ui-status-combo-dot {
+  height: 0.45rem;
+  width: 0.45rem;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  background: currentColor;
+}
+
+/* Empty-group line — a group that exists but has nobody in it right now. */
+.ui-group-empty {
+  padding: 0.35rem 0.5rem 0.5rem 1.4rem;
+  font-size: 11px;
+  font-style: italic;
+  color: #94a3b8;
+}
 
 .ui-status-chip {
   display: flex;
@@ -1098,14 +1470,6 @@ html.dark body {
   border-color: rgba(255, 255, 255, 0.08);
   background: rgba(15, 23, 42, 0.62);
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.24), inset 0 0.5px 0 rgba(255, 255, 255, 0.05);
-}
-
-.ui-filter-band {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.85rem 0.95rem 0.25rem;
 }
 
 .ui-filter-chip {
@@ -1953,37 +2317,6 @@ body.privacy-shield-active::after {
   color: var(--muted);
 }
 
-.ui-section-header {
-  border: 1px solid var(--ui-shell-border-subtle);
-  background: var(--bg3);
-  letter-spacing: 0.12em;
-}
-
-.dark .ui-section-header {
-  border: 1px solid rgba(247, 240, 232, 0.08);
-  background: rgba(26, 31, 58, 0.72);
-}
-
-.ui-section-header:hover {
-  background: var(--bg4);
-}
-
-.dark .ui-section-header:hover {
-  background: rgba(26, 31, 58, 0.94);
-}
-
-.ui-section-header[data-tone='online'] {
-  color: var(--rose);
-}
-
-.ui-section-header[data-tone='away'] {
-  color: var(--gold);
-}
-
-.ui-section-header[data-tone='offline'] {
-  color: var(--muted);
-}
-
 .ui-list-row p.text-slate-400 {
   color: var(--muted) !important;
   font-size: 12px !important;
@@ -2287,22 +2620,6 @@ body.privacy-shield-active::after {
   height: 1px;
   background: linear-gradient(90deg, var(--rose) 0%, var(--gold) 100%);
   opacity: 0.6;
-}
-
-.ui-my-status-label {
-  font-family: var(--font-screenname), "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--rose);
-}
-
-.ui-my-status-text {
-  margin-top: 0.45rem;
-  color: var(--text);
-  font-size: 12px;
-  line-height: 1.55;
 }
 
 .ui-my-status-chips {

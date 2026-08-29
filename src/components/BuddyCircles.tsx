@@ -91,8 +91,18 @@ export function NewCircleControl({ onCreate, disabled = false }: NewCircleContro
 interface BuddyCircleGroupProps {
   name: string;
   total: number;
+  // How many of `total` are signed on. Renders the header count as "3/6" — the
+  // buddy-list convention where the first number is who you can actually reach.
+  // Omit for groups where an online half is meaningless (Offline, Requests).
+  onlineCount?: number;
   collapsed: boolean;
   onToggleCollapsed: () => void;
+  // False while the list is filtered by a search: collapsing is meaningless when
+  // the query decides what shows, and a caret that toggles nothing visible while
+  // quietly rewriting persisted state is worse than no caret.
+  collapsible?: boolean;
+  // Dims the whole group (used by Offline, whose names read as signed-off).
+  tone?: 'default' | 'muted';
   // Present only for real circles (omitted for the "Ungrouped" pseudo-section).
   circle?: BuddyCircle;
   onRename?: (name: string) => void | Promise<void>;
@@ -105,8 +115,11 @@ interface BuddyCircleGroupProps {
 export function BuddyCircleGroup({
   name,
   total,
+  onlineCount,
   collapsed,
   onToggleCollapsed,
+  collapsible = true,
+  tone = 'default',
   circle,
   onRename,
   onDelete,
@@ -119,32 +132,56 @@ export function BuddyCircleGroup({
   const isManageable = Boolean(circle);
   const presenceHidden = circle ? !circle.showPresence : false;
   const muted = circle ? circle.notifyMode === 'muted' : false;
+  const countLabel = typeof onlineCount === 'number' ? `${onlineCount}/${total}` : `${total}`;
+  // The emoji indicators below are decorative; everything they mean has to reach
+  // the accessible name here, or a screen-reader user loses them entirely.
+  const countDescription = [
+    typeof onlineCount === 'number'
+      ? `${onlineCount} of ${total} online`
+      : `${total} ${total === 1 ? 'buddy' : 'buddies'}`,
+    presenceHidden ? 'presence hidden' : '',
+    muted ? 'alerts muted' : '',
+  ]
+    .filter(Boolean)
+    .join(', ');
+  const headerInner = (
+    <>
+      <span className="ui-group-caret" data-collapsed={collapsed ? 'true' : 'false'} data-static={collapsible ? 'false' : 'true'}>
+        ▶
+      </span>
+      <span className="ui-group-name truncate">{name}</span>
+      <span className="ui-group-count">({countLabel})</span>
+      {presenceHidden ? (
+        <span title="Presence hidden for this circle" aria-hidden="true">
+          🙈
+        </span>
+      ) : null}
+      {muted ? (
+        <span title="In-app alerts muted for this circle" aria-hidden="true">
+          🔕
+        </span>
+      ) : null}
+    </>
+  );
 
   return (
-    <section className="space-y-2">
-      <div className="ui-section-header" data-tone="circle">
-        <button
-          type="button"
-          onClick={onToggleCollapsed}
-          className="ui-focus-ring flex min-w-0 flex-1 items-center gap-1.5 text-left"
-          aria-expanded={!collapsed}
-        >
-          <span aria-hidden="true" className={`text-[10px] transition-transform ${collapsed ? '' : 'rotate-90'}`}>
-            ▶
-          </span>
-          <span className="truncate">{name}</span>
-          {presenceHidden ? (
-            <span title="Presence hidden for this circle" aria-label="Presence hidden">
-              🙈
-            </span>
-          ) : null}
-          {muted ? (
-            <span title="In-app alerts muted for this circle" aria-label="Muted">
-              🔕
-            </span>
-          ) : null}
-        </button>
-        <span className="ui-section-count">{total}</span>
+    <section className="ui-buddy-group" data-tone={tone} data-collapsed={collapsed ? 'true' : 'false'}>
+      <div className="ui-group-header">
+        {collapsible ? (
+          <button
+            type="button"
+            onClick={onToggleCollapsed}
+            className="ui-focus-ring ui-group-header-toggle"
+            aria-expanded={!collapsed}
+            aria-label={`${name}, ${countDescription}`}
+          >
+            {headerInner}
+          </button>
+        ) : (
+          <p className="ui-group-header-toggle" aria-label={`${name}, ${countDescription}`}>
+            {headerInner}
+          </p>
+        )}
         {isManageable ? (
           <button
             type="button"
@@ -152,7 +189,7 @@ export function BuddyCircleGroup({
               setRenameDraft(name);
               setSettingsOpen((open) => !open);
             }}
-            className="ui-focus-ring ml-1 rounded-full px-1.5 text-[13px] text-slate-400 hover:text-slate-200"
+            className="ui-focus-ring ui-group-manage"
             aria-label={`Manage ${name} circle`}
             aria-expanded={settingsOpen}
             title="Manage circle"
