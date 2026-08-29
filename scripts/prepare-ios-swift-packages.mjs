@@ -87,6 +87,20 @@ const packages = [
     privacySourceDir: 'ios/Plugin',
     // UserDefaults.standard in Badge.swift — CA92.1: access info the same app wrote
     accessedAPIs: [{ type: 'NSPrivacyAccessedAPICategoryUserDefaults', reasons: ['CA92.1'] }],
+    sourcePatches: [
+      {
+        file: 'ios/Plugin/BadgePlugin.swift',
+        // Upstream only clears the badge from willEnterForegroundNotification, which
+        // does not fire on the first launch of a process — so a badge set while the
+        // app was dead survived until the user backgrounded and returned. Clearing
+        // once in load() covers cold launch too.
+        find: '        self.implementation = Badge(config: badgeConfig())\n',
+        replace:
+          '        self.implementation = Badge(config: badgeConfig())\n' +
+          '        // Handle cold launch, as `willEnterForegroundNotification` is not fired on initial app launch\n' +
+          '        self.implementation?.handleOnResume()\n',
+      },
+    ],
   },
 ];
 
