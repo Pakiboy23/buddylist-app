@@ -41,30 +41,23 @@ echo "Archive gate: action=${XCODEBUILD_ACTION:-unset}" \
      "tag=${CI_TAG:-none}"
 
 if [ "$XCODEBUILD_ACTION" = "archive" ]; then
-    # No pull-request build can ever ship: releases archive from main or a tag.
-    # A PR archive can therefore only spend ITMS-90382 upload quota. Classifying
-    # the diff was never the right question — PR #129 (29 Aug 2026) was a genuine
-    # code change, classified 'code', archived, and died at "Preparing build for
-    # App Store Connect", burning an upload attempt to recolour a splash screen.
-    #
-    # This subsumes the old 'unknown'-on-a-PR rule: is_pull_request_build needs no
-    # git history, so it still holds on the shallow checkouts where classify_change
-    # cannot resolve origin/main. Compilation is unaffected — the Build actions run
-    # on PRs and are what actually catch breakage.
-    if is_pull_request_build; then
-        echo "error: pull-request build; refusing Xcode Cloud archive to preserve ITMS-90382 quota."
-        echo "error: PR compilation is covered by the Build actions; releases archive from main or a tag."
-        echo "error: Set a Files-and-Folders start condition on the Archive workflow in App Store"
-        echo "error: Connect so these stop starting at all — this gate only refuses them after the fact."
-        exit 1
-    fi
-
     CHANGE_CLASS=$(classify_change)
     echo "Archive gate: change=$CHANGE_CLASS"
 
     if [ "$CHANGE_CLASS" = "docs-only" ]; then
         echo "error: docs-only change; refusing Xcode Cloud archive to preserve ITMS-90382 quota."
         echo "error: Set a Files-and-Folders start condition on the Archive workflow in App Store Connect."
+        exit 1
+    fi
+
+    # Fail CLOSED on a pull request we cannot classify. Xcode Cloud checks out
+    # shallow and cannot always reach origin/main, and an unclassified PR is
+    # exactly the case that burned quota on 23 Aug. Branch and tag builds still
+    # archive normally, so releasing from main is unaffected.
+    if [ "$CHANGE_CLASS" = "unknown" ] && is_pull_request_build; then
+        echo "error: cannot classify this pull-request diff (origin/main did not resolve in the CI checkout)."
+        echo "error: refusing archive rather than spending ITMS-90382 quota on an unclassified PR build."
+        echo "error: archive from main, or set a Files-and-Folders start condition on the Archive workflow."
         exit 1
     fi
 fi
