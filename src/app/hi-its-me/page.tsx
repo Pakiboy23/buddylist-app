@@ -853,6 +853,27 @@ const DirectMessageRow = memo(function DirectMessageRow({
   const secondaryTone = isTypingActive ? 'typing' : statusNote ? 'status' : 'meta';
   const isSignedOff = presenceState === 'offline' || presenceHidden;
 
+  // An explicit aria-label wins outright over name-from-content, so everything
+  // the row shows visually has to be restated here or a screen-reader user gets
+  // only the screenname: the unread count, the presence, the away message, and
+  // the pinned / muted / blocked markers that are otherwise emoji-only.
+  const rowAction = isBlocked
+    ? `View ${buddy.screenname}`
+    : presenceState === 'away' && awayLine
+      ? `Reply to ${buddy.screenname}'s away message`
+      : `IM ${buddy.screenname}`;
+  const rowLabel = [
+    rowAction,
+    presenceHidden ? 'presence hidden' : presenceLabel,
+    unreadCount > 0 ? `${unreadCount} unread` : '',
+    isTypingActive ? 'typing' : statusNote ? `says ${statusNote}` : '',
+    conversationPreference.isPinned ? 'pinned' : '',
+    conversationPreference.isMuted ? 'muted' : '',
+    isBlocked ? 'blocked' : '',
+  ]
+    .filter(Boolean)
+    .join(', ');
+
   return (
     <div className="ui-buddy-row-wrap" data-active={isSelected ? 'true' : 'false'}>
       <button
@@ -862,7 +883,7 @@ const DirectMessageRow = memo(function DirectMessageRow({
         data-screenname={buddy.screenname}
         data-active={isSelected ? 'true' : 'false'}
         data-presence={presenceState}
-        className="ui-buddy-row"
+        className="ui-focus-ring ui-buddy-row"
         // Click the name, get the window — the buddy list's whole point.
         onClick={() => {
           if (isBlocked) {
@@ -873,13 +894,7 @@ const DirectMessageRow = memo(function DirectMessageRow({
             handleOpenChat(buddy.id);
           }
         }}
-        aria-label={
-          isBlocked
-            ? `View ${buddy.screenname}`
-            : presenceState === 'away' && awayLine
-              ? `Reply to ${buddy.screenname}'s away message`
-              : `IM ${buddy.screenname}`
-        }
+        aria-label={rowLabel}
       >
         <ProfileAvatar
           screenname={buddy.screenname}
@@ -926,7 +941,7 @@ const DirectMessageRow = memo(function DirectMessageRow({
         {unreadCount > 0 ? (
           <span
             data-testid={`dm-unread-${buddy.id}`}
-            aria-label={`Unread from ${buddy.screenname}: ${unreadCount}`}
+            aria-hidden="true"
             className={`ui-unread-badge ui-buddy-row-unread ${isSelected ? '' : 'aim-unread-badge-pulse'}`}
           >
             {unreadCount}
@@ -3896,13 +3911,19 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     ];
 
     const groups = named
-      .map((group) => ({
-        ...group,
-        onlineCount: group.members.filter(isSignedOn).length,
-        totalCount: group.members.length,
-        rows: group.members.filter(staysInNamedGroup).filter(matchesQuery),
-        presenceHidden: group.circle ? !group.circle.showPresence : false,
-      }))
+      .map((group) => {
+        const presenceHidden = group.circle ? !group.circle.showPresence : false;
+        return {
+          ...group,
+          // A presence-hidden circle has no honest online half — reporting "0/6"
+          // over six visible rows would be a lie, so the header shows the total
+          // alone.
+          onlineCount: presenceHidden ? undefined : group.members.filter(isSignedOn).length,
+          totalCount: group.members.length,
+          rows: group.members.filter(staysInNamedGroup).filter(matchesQuery),
+          presenceHidden,
+        };
+      })
       .filter((group) => group.totalCount > 0);
 
     const offlineMembers = filteredDirectMessageBuddies.filter((buddy) => !staysInNamedGroup(buddy));
@@ -3918,10 +3939,11 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         rows: offlineMembers.filter(matchesQuery),
         presenceHidden: false,
       },
-      totalOnline: groups.reduce((sum, group) => sum + group.onlineCount, 0),
+      totalOnline: groups.reduce((sum, group) => sum + (group.onlineCount ?? 0), 0),
       totalBuddies: filteredDirectMessageBuddies.length,
       // With a query typed, an empty group is noise rather than structure.
       hasQuery: query.length > 0,
+      query,
     };
   }, [
     buddyCircleIndex,
@@ -6716,6 +6738,22 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       </button>
     </div>
   );
+  // Find a Buddy reaches every group on the page, Requests and Archived included.
+  const matchingPendingRequests = buddyListGroups.hasQuery
+    ? pendingRequests.filter((request) => request.screenname.toLowerCase().includes(buddyListGroups.query))
+    : pendingRequests;
+  const matchingArchivedBuddies =
+    buddyListGroups.hasQuery
+      ? archivedDirectMessageBuddies.filter((buddy) =>
+          buddy.screenname.toLowerCase().includes(buddyListGroups.query),
+        )
+      : archivedDirectMessageBuddies;
+  const buddyListMatchCount =
+    buddyListGroups.groups.reduce((sum, group) => sum + group.rows.length, 0) +
+    buddyListGroups.offline.rows.length +
+    matchingPendingRequests.length +
+    (conversationFilter === 'all' ? matchingArchivedBuddies.length : 0);
+
   const conversationFilterOptions = [
     { id: 'all', label: 'All', count: unarchivedDirectMessageBuddies.length },
     {
@@ -8041,6 +8079,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                                 total={group.totalCount}
                                 onlineCount={group.onlineCount}
                                 collapsed={buddyListGroups.hasQuery ? false : collapsedCircleIds.has(group.id)}
+                                collapsible={!buddyListGroups.hasQuery}
                                 onToggleCollapsed={() => toggleCircleCollapsed(group.id)}
                                 circle={circle}
                                 onRename={circle ? (name) => handleRenameCircle(circle.id, name) : undefined}
@@ -8082,6 +8121,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                                   ? false
                                   : collapsedCircleIds.has(OFFLINE_BUDDY_GROUP_ID)
                               }
+                              collapsible={!buddyListGroups.hasQuery}
                               onToggleCollapsed={() => toggleCircleCollapsed(OFFLINE_BUDDY_GROUP_ID)}
                               tone="muted"
                             >
@@ -8089,14 +8129,19 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                             </BuddyCircleGroup>
                           ) : null}
 
-                          {pendingRequests.length > 0 ? (
+                          {matchingPendingRequests.length > 0 ? (
                             <BuddyCircleGroup
                               name="Requests"
-                              total={pendingRequests.length}
-                              collapsed={collapsedCircleIds.has(REQUESTS_BUDDY_GROUP_ID)}
+                              total={matchingPendingRequests.length}
+                              collapsed={
+                                buddyListGroups.hasQuery
+                                  ? false
+                                  : collapsedCircleIds.has(REQUESTS_BUDDY_GROUP_ID)
+                              }
+                              collapsible={!buddyListGroups.hasQuery}
                               onToggleCollapsed={() => toggleCircleCollapsed(REQUESTS_BUDDY_GROUP_ID)}
                             >
-                              {pendingRequests.map((request) => (
+                              {matchingPendingRequests.map((request) => (
                                 <div key={request.senderId} className="ui-list-row">
                                   <div className="min-w-0 flex-1">
                                     <p className="ui-screenname truncate text-[13px] font-semibold text-slate-800 dark:text-slate-100">
@@ -8125,22 +8170,43 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                             </BuddyCircleGroup>
                           ) : null}
 
-                          {conversationFilter === 'all' && archivedDirectMessageBuddies.length > 0 ? (
+                          {conversationFilter === 'all' && matchingArchivedBuddies.length > 0 ? (
                             <BuddyCircleGroup
                               name="Archived"
-                              total={archivedDirectMessageBuddies.length}
-                              collapsed={collapsedCircleIds.has(ARCHIVED_BUDDY_GROUP_ID)}
+                              total={matchingArchivedBuddies.length}
+                              collapsed={
+                                buddyListGroups.hasQuery
+                                  ? false
+                                  : collapsedCircleIds.has(ARCHIVED_BUDDY_GROUP_ID)
+                              }
+                              collapsible={!buddyListGroups.hasQuery}
                               onToggleCollapsed={() => toggleCircleCollapsed(ARCHIVED_BUDDY_GROUP_ID)}
                               tone="muted"
                             >
-                              {archivedDirectMessageBuddies
-                                .filter(
-                                  (buddy) =>
-                                    !buddyListGroups.hasQuery ||
-                                    buddy.screenname.toLowerCase().includes(buddyQuery.trim().toLowerCase()),
-                                )
-                                .map((buddy) => renderDirectMessageRow(buddy))}
+                              {matchingArchivedBuddies.map((buddy) => renderDirectMessageRow(buddy))}
                             </BuddyCircleGroup>
+                          ) : null}
+
+                          {/* A query that matches nobody must say so; a blank
+                              panel reads as a broken list. */}
+                          {buddyListGroups.hasQuery && buddyListMatchCount === 0 ? (
+                            <div className="ui-empty-state px-6 py-8 ui-fade-in">
+                              <div className="text-center">
+                                <p className="text-[14px] font-semibold text-slate-500">
+                                  No buddy matches “{buddyQuery.trim()}”
+                                </p>
+                                <p className="mt-1 text-[12px] leading-relaxed text-slate-400">
+                                  Check the spelling, or clear the search to see your whole list.
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setBuddyQuery('')}
+                                className="ui-focus-ring ui-button-secondary ui-button-compact mt-1"
+                              >
+                                Clear search
+                              </button>
+                            </div>
                           ) : null}
                         </div>
                       ) : null}
