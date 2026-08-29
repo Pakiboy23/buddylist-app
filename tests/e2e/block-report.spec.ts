@@ -22,14 +22,12 @@ function dmRow(page: Page, screenname: string) {
 }
 
 async function openDmWith(page: Page, screenname: string) {
-  // hi-its-me lists DM rows with the buddy's screenname; click the row to enter
-  // the chat thread. The first child button on the row opens the thread.
-  const row = page.locator(`[data-testid^="dm-row-"]`).filter({ hasText: screenname }).first();
+  // The buddy row IS the button: clicking the name opens the thread, the way a
+  // buddy list has always worked. Secondary controls (knock, get info) are
+  // siblings of the row, not children, so they can't be hit by mistake here.
+  const row = dmRow(page, screenname);
   await expect(row).toBeVisible();
-  // Click the row's chat-opening control. The thread-open control is the
-  // dm-row button (second child); fall back to row click for any layout drift.
-  const openButton = row.locator('button').first();
-  await openButton.click();
+  await row.click();
 }
 
 test.describe('block and report flow', () => {
