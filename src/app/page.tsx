@@ -14,9 +14,6 @@ import { upsertOwnProfileWithRepair } from '@/lib/profileRepair';
 import { captureAcquisitionSource, readAcquisitionSource } from '@/lib/acquisitionSource';
 import { logSecurityEvent } from '@/lib/securityEvent';
 import {
-  publishNativeMilestoneOneState,
-  registerNativeMilestoneOneBridge,
-  type NativeMilestoneOneActionResult,
 } from '@/lib/nativeShell';
 
 const SIGN_ON_SOUND = '/sounds/aol-welcome.mp3';
@@ -166,7 +163,7 @@ export default function Home() {
   };
 
   const performPasswordSignIn = useCallback(
-    async (enteredScreenname: string, enteredPassword: string): Promise<NativeMilestoneOneActionResult> => {
+    async (enteredScreenname: string, enteredPassword: string): Promise<{ ok: boolean; error?: string }> => {
       const trimmedScreenname = enteredScreenname.trim();
 
       // New-style accounts retain the member's real email in public.users.
@@ -319,124 +316,6 @@ export default function Home() {
     await performPasswordSignIn(trimmedScreenname, password);
     setIsLoading(false);
   };
-
-  useEffect(() => {
-    registerNativeMilestoneOneBridge({
-      async signIn(nativeScreenname, nativePassword) {
-        const trimmedScreenname = nativeScreenname.trim();
-        if (!trimmedScreenname || !nativePassword) {
-          return { ok: false, error: 'Enter your screen name and password.' };
-        }
-
-        setScreenname(trimmedScreenname);
-        setPassword(nativePassword);
-        setIsLoading(true);
-        setStatusMsg('Dialing in...');
-        try {
-          return await performPasswordSignIn(trimmedScreenname, nativePassword);
-        } finally {
-          setIsLoading(false);
-        }
-      },
-      async showWebAuth(mode) {
-        setResetSent(false);
-        if (mode === 'signup') {
-          setAuthView('sign-on');
-          setIsSignUp(true);
-          setAgeConfirmed(false);
-          setArt9Confirmed(false);
-          setStatusMsg('Choose a screen name, email, and password to create your account.');
-        } else {
-          setAuthView('forgot-password');
-          setIsSignUp(false);
-          setStatusMsg('Enter the email linked to your account and we\'ll send a reset link.');
-        }
-        return { ok: true };
-      },
-      async refreshBuddyList() {
-        return { ok: false, error: 'Sign in to refresh your BuddyList.' };
-      },
-      async refreshRooms() {
-        return { ok: false, error: 'Sign in to refresh rooms.' };
-      },
-      async openBuddy() {
-        return { ok: false, error: 'Sign in to open a buddy.' };
-      },
-      async openRoom() {
-        return { ok: false, error: 'Sign in to open a room.' };
-      },
-      async updatePresence() {
-        return { ok: false, error: 'Sign in to update your presence.' };
-      },
-      async respondToBuddyRequest() {
-        return { ok: false, error: 'Sign in to manage buddy requests.' };
-      },
-      async sendMessage() {
-        return { ok: false, error: 'Sign in to send messages.' };
-      },
-      async sendKnock() {
-        return { ok: false, error: 'Sign in to send a Knock.' };
-      },
-      async sendBuddyRequest() {
-        return { ok: false, error: 'Sign in to add buddies.' };
-      },
-      async closeConversation() {
-        return { ok: true };
-      },
-      async sendTypingPulse() {
-        return { ok: true };
-      },
-      async sendRoomMessage() {
-        return { ok: false, error: 'Sign in to send room messages.' };
-      },
-      async closeRoomConversation() {
-        return { ok: true };
-      },
-      async sendRoomTypingPulse() {
-        return { ok: true };
-      },
-      async openProfile() {
-        return { ok: false, error: 'Sign in to view profiles.' };
-      },
-      async togglePinned() {
-        return { ok: false, error: 'Sign in to pin conversations.' };
-      },
-      async toggleMuted() {
-        return { ok: false, error: 'Sign in to mute conversations.' };
-      },
-      async toggleArchived() {
-        return { ok: false, error: 'Sign in to archive conversations.' };
-      },
-      async setBuddyCircle() {
-        return { ok: false, error: 'Sign in to organize circles.' };
-      },
-      async createBuddyCircle() {
-        return { ok: false, error: 'Sign in to organize circles.' };
-      },
-      async signOut() {
-        return { ok: true };
-      },
-    });
-
-    return () => {
-      registerNativeMilestoneOneBridge(null);
-    };
-  }, [performPasswordSignIn]);
-
-  useEffect(() => {
-    if (!isHydrated) {
-      return;
-    }
-
-    const showsNativeSignIn = authView === 'sign-on' && !isSignUp;
-    void publishNativeMilestoneOneState({
-      phase: showsNativeSignIn ? 'signedOut' : 'hidden',
-      isDark: true,
-      error: showsNativeSignIn && statusMsg.startsWith('Connection failed:')
-        ? statusMsg.replace(/^Connection failed:\s*/, '')
-        : null,
-    });
-  }, [authView, isHydrated, isSignUp, statusMsg]);
 
   const handleForgotPassword = async () => {
     const trimmedEmail = email.trim().toLowerCase();

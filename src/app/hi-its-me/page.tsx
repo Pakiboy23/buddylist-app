@@ -34,9 +34,8 @@ import {
   aggregateBuddyRelationships,
   type BuddyRelationshipRecord,
 } from '@/lib/buddyRelationships';
-import { deleteBuddyIconFile, resolveBuddyIconUrl, uploadBuddyIconFile, validateBuddyIconFile } from '@/lib/buddyIcon';
-import { acceptIncomingBuddyRequest, sendOrAcceptBuddyRequest } from '@/lib/buddyRequest';
-import { fetchBuddySuggestions, type BuddySuggestion } from '@/lib/buddySuggestions';
+import { deleteBuddyIconFile, uploadBuddyIconFile, validateBuddyIconFile } from '@/lib/buddyIcon';
+import { acceptIncomingBuddyRequest } from '@/lib/buddyRequest';
 import {
   getRaw,
   getVersionedData,
@@ -86,7 +85,6 @@ import {
   sendRoomMessageWithClientMessageId,
 } from '@/lib/messageIdempotency';
 import { dispatchBuddyRequestPush } from '@/lib/pushDispatch';
-import { displayBodyForMessage } from '@/lib/contentModeration';
 import { buildAwayMessageReplyDraft } from '@/lib/awayMessageReply';
 import {
   buildBuddyCircleIndex,
@@ -146,18 +144,9 @@ import {
 import {
   confirmNativeShellAvailable,
   isNativeIosShell,
-  publishNativeMilestoneOneState,
   publishNativeShellChromeState,
-  registerNativeMilestoneOneBridge,
   registerNativeShellBridge,
   subscribeNativeShellCommands,
-  type NativeMilestoneOneBuddy,
-  type NativeMilestoneOneCircle,
-  type NativeMilestoneOneConversation,
-  type NativeMilestoneOneMessage,
-  type NativeMilestoneOneRoom,
-  type NativeMilestoneOneRoomBridge,
-  type NativeMilestoneOneRoomConversation,
   type NativeShellAdminAuditItem,
   type NativeShellAdminAuditResult,
   type NativeShellAdminIssueResult,
@@ -1092,10 +1081,9 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   const [isJoiningRoom, setIsJoiningRoom] = useState(false);
   const [activeRoom, setActiveRoom] = useState<ChatRoom | null>(null);
   const [nativeRoomDirectory, setNativeRoomDirectory] = useState<ChatRoom[]>([]);
-  const [isLoadingNativeRoomDirectory, setIsLoadingNativeRoomDirectory] = useState(false);
-  const [nativeRoomDirectoryError, setNativeRoomDirectoryError] = useState<string | null>(null);
-  const [nativeRoomPresenceById, setNativeRoomPresenceById] = useState<Record<string, RoomLobbyParticipant[]>>({});
-  const [nativeRoomConversation, setNativeRoomConversation] = useState<NativeMilestoneOneRoomConversation | null>(null);
+  const [, setIsLoadingNativeRoomDirectory] = useState(false);
+  const [, setNativeRoomDirectoryError] = useState<string | null>(null);
+  const [, setNativeRoomPresenceById] = useState<Record<string, RoomLobbyParticipant[]>>({});
   const [isAdminUser, setIsAdminUser] = useState(false);
   const [isAdminResetOpen, setIsAdminResetOpen] = useState(false);
   const [adminResetScreenname, setAdminResetScreenname] = useState('');
@@ -1132,7 +1120,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   const hasPresenceSyncedRef = useRef(false);
   const isSigningOffRef = useRef(false);
   const activeChatBuddyIdRef = useRef<string | null>(null);
-  const nativeRoomBridgeRef = useRef<NativeMilestoneOneRoomBridge | null>(null);
   const acceptedBuddyIdsRef = useRef<Set<string>>(new Set());
   const blockedUserIdsRef = useRef<Set<string>>(new Set());
   const presenceHiddenBuddyIdsRef = useRef<Set<string>>(new Set());
@@ -1208,10 +1195,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     lastSyncedAt,
     lastSyncError,
   } = useChatContext();
-
-  const handleNativeRoomStateChange = useCallback((conversation: NativeMilestoneOneRoomConversation) => {
-    setNativeRoomConversation(conversation);
-  }, []);
 
   const loadNativeRoomDirectory = useCallback(async () => {
     setIsLoadingNativeRoomDirectory(true);
@@ -1307,15 +1290,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       channel.unsubscribe();
     };
   }, [activeRoom, screenname, userId]);
-
-  useEffect(() => {
-    setNativeRoomConversation((previous) =>
-      previous?.roomId === activeRoom?.id ? previous : null,
-    );
-    if (!activeRoom) {
-      nativeRoomBridgeRef.current = null;
-    }
-  }, [activeRoom]);
 
   useEffect(() => {
     activeChatBuddyIdRef.current = activeChatBuddyId;
@@ -3981,66 +3955,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   // Ranked global suggestions for the native buddy-list rail (issue #94).
   // Refreshes when the accepted-buddy set changes so accepted suggestions
   // fall out of the rail on the next pass.
-  const [nativeBuddySuggestions, setNativeBuddySuggestions] = useState<BuddySuggestion[]>([]);
-  useEffect(() => {
-    if (!nativeShellActive || !userId) {
-      return;
-    }
-    let cancelled = false;
-    void fetchBuddySuggestions(8).then((suggestions) => {
-      if (!cancelled) {
-        setNativeBuddySuggestions(suggestions);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [nativeShellActive, userId, alphabeticallySortedAcceptedBuddies.length]);
-
-  const nativeMilestoneOneBuddies = useMemo<NativeMilestoneOneBuddy[]>(
-    () =>
-      alphabeticallySortedAcceptedBuddies.map((buddy) => {
-        const presence = getBuddyPresenceSummary(buddy);
-        const preference = getDmPreference(dmPreferencesByBuddyId, buddy.id);
-        const circle = buddyCircleIndex.get(buddy.id) ?? null;
-        const presenceHidden = presenceHiddenBuddyIds.has(buddy.id);
-        return {
-          id: buddy.id,
-          screenname: buddy.screenname,
-          presence: presenceHidden ? 'offline' : presence.presenceState,
-          presenceLabel: presenceHidden ? 'Presence hidden' : presence.presenceLabel,
-          presenceDetail: presenceHidden ? '' : presence.presenceDetail,
-          statusNote: presenceHidden ? null : presence.statusNote,
-          awayMessage: presenceHidden || presence.presenceState !== 'away' ? null : presence.awayLine,
-          unreadCount: unreadDirectMessages[buddy.id] ?? 0,
-          isPinned: preference.isPinned,
-          circleId: circle?.id ?? null,
-          presenceHidden,
-          avatarUrl: resolveBuddyIconUrl(buddy.buddy_icon_path ?? null),
-        };
-      }),
-    [
-      alphabeticallySortedAcceptedBuddies,
-      buddyCircleIndex,
-      dmPreferencesByBuddyId,
-      getBuddyPresenceSummary,
-      presenceHiddenBuddyIds,
-      unreadDirectMessages,
-    ],
-  );
-
-  const nativeMilestoneOneCircles = useMemo<NativeMilestoneOneCircle[]>(
-    () =>
-      buddyCircles.map((circle) => ({
-        id: circle.id,
-        name: circle.name,
-        showPresence: circle.showPresence,
-        muted: circle.notifyMode === 'muted',
-        memberCount: circle.memberBuddyIds.length,
-      })),
-    [buddyCircles],
-  );
-
   const selectedProfileBuddy = useMemo(() => {
     if (!profileSheetBuddyId) {
       return null;
@@ -6352,103 +6266,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   const isCurrentUserIdle = currentUserPresenceState === 'idle';
   const activePendingRequest = pendingRequests[0] ?? null;
   const activeChatBuddyPresenceSummary = activeChatBuddy ? getBuddyPresenceSummary(activeChatBuddy) : null;
-  const nativeMilestoneOneMessages = useMemo<NativeMilestoneOneMessage[]>(
-    () => {
-      if (!userId) {
-        return [];
-      }
-
-      const latestOutgoingMessageId = [...chatMessages]
-        .reverse()
-        .find(
-          (message) =>
-            message.sender_id === userId &&
-            !message.deleted_at &&
-            message.preview_type !== 'buzz' &&
-            message.preview_type !== 'knock',
-        )
-        ?.id;
-
-      return chatMessages.map((message) => {
-        const isMine = message.sender_id === userId;
-        const isDeleted = Boolean(message.deleted_at);
-        const plainContent = htmlToPlainText(message.content).trim();
-        const moderatedContent = displayBodyForMessage(
-          message,
-          plainContent || (message.preview_type === 'buzz' ? 'Buzz!' : message.preview_type === 'knock' ? 'Knock' : ''),
-          isMine,
-        );
-
-        return {
-          id: String(message.id),
-          senderId: message.sender_id,
-          content: isDeleted ? 'Message deleted' : moderatedContent,
-          createdAt: message.created_at,
-          isMine,
-          isDeleted,
-          deliveredAt: message.delivered_at ?? null,
-          readAt: message.read_at ?? null,
-          deliveryStatus: message.read_at
-            ? 'read'
-            : message.delivered_at
-              ? 'delivered'
-              : 'sent',
-          deliveryStatusDetail: message.read_at
-            ? new Date(message.read_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            : null,
-          showDeliveryStatus:
-            privacySettings.shareReadReceipts &&
-            isMine &&
-            !isDeleted &&
-            latestOutgoingMessageId === message.id,
-          previewType: message.preview_type ?? 'text',
-        };
-      });
-    },
-    [chatMessages, privacySettings.shareReadReceipts, userId],
-  );
-  const nativeMilestoneOneConversation = useMemo<NativeMilestoneOneConversation | null>(() => {
-    if (!activeChatBuddy || !activeChatBuddyPresenceSummary) {
-      return null;
-    }
-
-    const activeConversationPreference = getDmPreference(dmPreferencesByBuddyId, activeChatBuddy.id);
-
-    return {
-      buddyId: activeChatBuddy.id,
-      screenname: activeChatBuddy.screenname,
-      presence: activeChatBuddyPresenceSummary.presenceState,
-      presenceLabel: activeChatBuddyPresenceSummary.presenceLabel,
-      presenceDetail: activeChatBuddyPresenceSummary.presenceDetail,
-      statusLine: activeChatBuddyPresenceSummary.resolvedStatus.statusMessage ?? null,
-      awayMessage: activeChatBuddyPresenceSummary.presenceState === 'away'
-        ? activeChatBuddyPresenceSummary.awayLine
-        : null,
-      isPinned: activeConversationPreference.isPinned,
-      isMuted: activeConversationPreference.isMuted,
-      isArchived: activeConversationPreference.isArchived,
-      sharedRooms: mutualContextState.context.sharedRooms,
-      mutualBuddies: mutualContextState.context.mutualBuddies,
-      mutualBuddyCount: mutualContextState.context.mutualBuddyCount,
-      isLoadingMutualContext: mutualContextState.isLoading,
-      mutualContextError: mutualContextState.error,
-      messages: nativeMilestoneOneMessages,
-      isLoading: isChatLoading,
-      isSending: isSendingMessage,
-      typingText: activeDmTypingText,
-      error: chatError,
-    };
-  }, [
-    activeChatBuddy,
-    activeChatBuddyPresenceSummary,
-    activeDmTypingText,
-    chatError,
-    dmPreferencesByBuddyId,
-    isChatLoading,
-    isSendingMessage,
-    mutualContextState,
-    nativeMilestoneOneMessages,
-  ]);
   const xpModalFrameClass = 'ui-modal-frame';
   const xpModalHeaderClass = 'ui-modal-header';
   const xpModalBodyClass = 'ui-modal-body';
@@ -6565,44 +6382,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       })),
     [joinedRooms],
   );
-  const nativeMilestoneOneRooms = useMemo<NativeMilestoneOneRoom[]>(
-    () =>
-      nativeRoomDirectory.map((room) => {
-        const meta = getHimRoomMeta(room.slug);
-        const joinedRoom = joinedRooms.find((candidate) => candidate.id === room.id);
-        const activeParticipants = nativeRoomPresenceById[room.id] ?? [];
-        return {
-          id: room.id,
-          slug: room.slug,
-          name: room.name,
-          subtitle: meta.blurb,
-          unreadCount: joinedRoom?.unreadCount ?? 0,
-          isJoined: Boolean(joinedRoom),
-          activeCount: activeParticipants.length,
-          activeScreennames: activeParticipants.map((participant) => participant.screenname),
-        };
-      }),
-    [joinedRooms, nativeRoomDirectory, nativeRoomPresenceById],
-  );
-  const nativeMilestoneOneRoomConversation = useMemo<NativeMilestoneOneRoomConversation | null>(() => {
-    if (!activeRoom) {
-      return null;
-    }
-    if (nativeRoomConversation?.roomId === activeRoom.id) {
-      return nativeRoomConversation;
-    }
-    return {
-      roomId: activeRoom.id,
-      roomName: activeRoom.name,
-      activeCount: 0,
-      participants: [],
-      messages: [],
-      isLoading: true,
-      isSending: false,
-      typingText: null,
-      error: null,
-    };
-  }, [activeRoom, nativeRoomConversation]);
   const roomFilterOptions = useMemo(
     () => buildRoomFilterOptions(joinedRooms.map((r) => r.slug)),
     [joinedRooms],
@@ -6894,466 +6673,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     return subscribeNativeShellCommands(handleNativeShellCommand);
   }, [nativeShellActive]);
 
-  useEffect(() => {
-    if (!nativeShellActive) {
-      return;
-    }
 
-    registerNativeMilestoneOneBridge({
-      async signIn() {
-        return { ok: false, error: 'You are already signed in.' };
-      },
-      async refreshBuddyList() {
-        if (!userId) {
-          return { ok: false, error: 'Your session is still loading.' };
-        }
-        await loadBuddies(userId);
-        return { ok: true };
-      },
-      async refreshRooms() {
-        if (!userId) {
-          return { ok: false, error: 'Your session is still loading.' };
-        }
-        const [, didLoadDirectory] = await Promise.all([
-          syncFromServer(),
-          loadNativeRoomDirectory(),
-        ]);
-        return didLoadDirectory
-          ? { ok: true }
-          : { ok: false, error: 'Could not refresh the room directory.' };
-      },
-      async openBuddy(buddyId) {
-        if (!acceptedBuddyIdsRef.current.has(buddyId)) {
-          return { ok: false, error: 'That buddy is no longer available.' };
-        }
-        handleOpenChat(buddyId);
-        return { ok: true };
-      },
-      async openRoom(roomId) {
-        const room = nativeRoomDirectory.find((candidate) => candidate.id === roomId);
-        if (!room) {
-          return { ok: false, error: 'That room is no longer in your list.' };
-        }
-
-        try {
-          await openRoomView(room);
-          return { ok: true };
-        } catch (error) {
-          return {
-            ok: false,
-            error: error instanceof Error ? error.message : 'Could not open that room.',
-          };
-        }
-      },
-      async updatePresence(nativeStatus, nativeAwayMessage) {
-        if (!userId) {
-          return { ok: false, error: 'Your session is still loading.' };
-        }
-        if (nativeStatus !== 'available' && nativeStatus !== 'away') {
-          return { ok: false, error: 'Choose Available or Away.' };
-        }
-
-        const nextStatus = nativeStatus === 'away' ? AWAY_STATUS : AVAILABLE_STATUS;
-        const nextAwayMessage = (nativeAwayMessage ?? '').trim().slice(0, 320);
-        if (nextStatus === AWAY_STATUS && !nextAwayMessage) {
-          return { ok: false, error: 'Enter an away message before saving.' };
-        }
-
-        setAwayModalError(null);
-        const success = await updateStatus(
-          nextStatus,
-          nextStatus === AWAY_STATUS ? nextAwayMessage : null,
-        );
-        if (!success) {
-          return { ok: false, error: 'Could not update your presence. Please try again.' };
-        }
-
-        autoAwayTriggeredRef.current = false;
-        return { ok: true };
-      },
-      async respondToBuddyRequest(senderId, action) {
-        if (!userId) {
-          return { ok: false, error: 'Your session is still loading.' };
-        }
-        if (action !== 'accept' && action !== 'decline') {
-          return { ok: false, error: 'Choose Accept or Decline.' };
-        }
-        if (!pendingRequestsRef.current.some((request) => request.senderId === senderId)) {
-          return { ok: false, error: 'That buddy request is no longer pending.' };
-        }
-
-        const succeeded = action === 'accept'
-          ? await handleAcceptPendingRequest(senderId, { openChat: false })
-          : await handleDeclinePendingRequest(senderId);
-        if (!succeeded) {
-          return {
-            ok: false,
-            error: action === 'accept'
-              ? 'Could not accept that buddy request. Please try again.'
-              : 'Could not decline that buddy request. Please try again.',
-          };
-        }
-
-        return { ok: true };
-      },
-      async sendMessage(buddyId, content) {
-        if (!userId) {
-          return { ok: false, error: 'Your session is still loading.' };
-        }
-        if (activeChatBuddyIdRef.current !== buddyId) {
-          return { ok: false, error: 'That conversation is no longer open.' };
-        }
-        const trimmedContent = content.trim();
-        if (!trimmedContent) {
-          return { ok: false, error: 'Type a message first.' };
-        }
-
-        try {
-          await handleSendMessage({ content: trimmedContent });
-          return { ok: true };
-        } catch (error) {
-          return {
-            ok: false,
-            error: error instanceof Error ? error.message : 'Could not send that message.',
-          };
-        }
-      },
-      async sendKnock(buddyId) {
-        if (!userId) {
-          return { ok: false, error: 'Your session is still loading.' };
-        }
-        if (!acceptedBuddyIdsRef.current.has(buddyId)) {
-          return { ok: false, error: 'Knocks are only available for buddies.' };
-        }
-
-        try {
-          await handleSendKnockToBuddy(buddyId);
-          return { ok: true };
-        } catch (error) {
-          return {
-            ok: false,
-            error: error instanceof Error ? error.message : 'Could not send that Knock.',
-          };
-        }
-      },
-      async closeConversation() {
-        closeChatWindow();
-        return { ok: true };
-      },
-      async sendTypingPulse(buddyId) {
-        if (activeChatBuddyIdRef.current === buddyId) {
-          sendDmTypingPulse();
-        }
-        return { ok: true };
-      },
-      async sendRoomMessage(roomId, content) {
-        if (!activeRoom || activeRoom.id !== roomId) {
-          return { ok: false, error: 'That room is no longer open.' };
-        }
-        const bridge = nativeRoomBridgeRef.current;
-        if (!bridge) {
-          return { ok: false, error: 'The room is still connecting.' };
-        }
-        return bridge.sendMessage(content);
-      },
-      async closeRoomConversation() {
-        handleBackFromRoom();
-        return { ok: true };
-      },
-      async sendRoomTypingPulse(roomId) {
-        if (activeRoom?.id === roomId) {
-          nativeRoomBridgeRef.current?.sendTypingPulse();
-        }
-        return { ok: true };
-      },
-      async openProfile(buddyId) {
-        if (activeChatBuddyIdRef.current !== buddyId) {
-          return { ok: false, error: 'That conversation is no longer open.' };
-        }
-
-        openBuddyProfile(buddyId);
-        return { ok: true };
-      },
-      async togglePinned(buddyId) {
-        if (activeChatBuddyIdRef.current !== buddyId) {
-          return { ok: false, error: 'That conversation is no longer open.' };
-        }
-
-        try {
-          await upsertConversationPreference(buddyId, (current) => ({
-            isPinned: !current.isPinned,
-          }));
-          return { ok: true };
-        } catch (error) {
-          return {
-            ok: false,
-            error: error instanceof Error ? error.message : 'Could not update pinned state.',
-          };
-        }
-      },
-      async toggleMuted(buddyId) {
-        if (activeChatBuddyIdRef.current !== buddyId) {
-          return { ok: false, error: 'That conversation is no longer open.' };
-        }
-
-        try {
-          await upsertConversationPreference(buddyId, (current) => ({
-            isMuted: !current.isMuted,
-          }));
-          return { ok: true };
-        } catch (error) {
-          return {
-            ok: false,
-            error: error instanceof Error ? error.message : 'Could not update mute state.',
-          };
-        }
-      },
-      async toggleArchived(buddyId) {
-        if (activeChatBuddyIdRef.current !== buddyId) {
-          return { ok: false, error: 'That conversation is no longer open.' };
-        }
-
-        try {
-          const currentPreference = getDmPreference(dmPreferencesByBuddyId, buddyId);
-          await upsertConversationPreference(buddyId, {
-            isArchived: !currentPreference.isArchived,
-          });
-
-          if (!currentPreference.isArchived) {
-            setActiveChatBuddyId(null);
-            activeChatBuddyIdRef.current = null;
-            replaceAppPathInPlace(HI_ITS_ME_PATH);
-          }
-
-          return { ok: true };
-        } catch (error) {
-          return {
-            ok: false,
-            error: error instanceof Error ? error.message : 'Could not update archive state.',
-          };
-        }
-      },
-      async setBuddyCircle(buddyId, circleId) {
-        if (!userId) {
-          return { ok: false, error: 'Your session is still loading.' };
-        }
-        if (!acceptedBuddyIdsRef.current.has(buddyId)) {
-          return { ok: false, error: 'Circles are only available for buddies.' };
-        }
-        if (circleId !== null && !buddyCircles.some((circle) => circle.id === circleId)) {
-          return { ok: false, error: 'That circle no longer exists.' };
-        }
-        try {
-          await assignBuddyToCircle({ ownerId: userId, buddyId, circleId });
-          await reloadBuddyCircles();
-          return { ok: true };
-        } catch (error) {
-          return {
-            ok: false,
-            error: error instanceof Error ? error.message : 'Could not update that circle.',
-          };
-        }
-      },
-      async createBuddyCircle(name, assignBuddyId) {
-        if (!userId) {
-          return { ok: false, error: 'Your session is still loading.' };
-        }
-        const trimmedName = name.trim();
-        if (!trimmedName) {
-          return { ok: false, error: 'Give the circle a name.' };
-        }
-        if (assignBuddyId !== null && !acceptedBuddyIdsRef.current.has(assignBuddyId)) {
-          return { ok: false, error: 'Circles are only available for buddies.' };
-        }
-        try {
-          const circle = await createCircleRecord({
-            ownerId: userId,
-            name: trimmedName,
-            position: buddyCircles.length,
-          });
-          if (assignBuddyId !== null) {
-            await assignBuddyToCircle({ ownerId: userId, buddyId: assignBuddyId, circleId: circle.id });
-          }
-          await reloadBuddyCircles();
-          return { ok: true };
-        } catch (error) {
-          return {
-            ok: false,
-            error: error instanceof Error ? error.message : 'Could not create that circle.',
-          };
-        }
-      },
-      async signOut() {
-        void handleSignOff();
-        return { ok: true };
-      },
-      async showWebAuth() {
-        return { ok: false, error: 'You are already signed in.' };
-      },
-      async sendBuddyRequest(targetUserId: string) {
-        if (!userId) {
-          return { ok: false, error: 'Your session is still loading.' };
-        }
-        try {
-          const result = await sendOrAcceptBuddyRequest(userId, targetUserId);
-          if (!result.ok) {
-            return { ok: false, error: result.feedback || 'Could not send that buddy request.' };
-          }
-          setNativeBuddySuggestions((previous) =>
-            previous.filter((suggestion) => suggestion.id !== targetUserId),
-          );
-          await loadBuddies(userId);
-          return { ok: true };
-        } catch (error) {
-          return {
-            ok: false,
-            error: error instanceof Error ? error.message : 'Could not send that buddy request.',
-          };
-        }
-      },
-    });
-
-    return () => {
-      registerNativeMilestoneOneBridge(null);
-    };
-  }, [
-    handleAcceptPendingRequest,
-    activeRoom,
-    buddyCircles,
-    handleDeclinePendingRequest,
-    handleSendKnockToBuddy,
-    handleSendMessage,
-    reloadBuddyCircles,
-    handleOpenChat,
-    handleBackFromRoom,
-    handleSignOff,
-    closeChatWindow,
-    dmPreferencesByBuddyId,
-    loadBuddies,
-    joinedRooms,
-    loadNativeRoomDirectory,
-    nativeShellActive,
-    nativeRoomDirectory,
-    openBuddyProfile,
-    openRoomView,
-    sendDmTypingPulse,
-    syncFromServer,
-    updateStatus,
-    upsertConversationPreference,
-    userId,
-  ]);
-
-  useEffect(() => {
-    if (!nativeShellActive) {
-      return;
-    }
-
-    const showsNativeBuddyList =
-      bodyShellSection === 'im' &&
-      nativeShellMode === 'standard' &&
-      !profileSheetBuddyId &&
-      !isHeaderMenuOpen &&
-      !isAppLocked &&
-      !showAppLockSheet;
-    const showsNativeRoomList =
-      bodyShellSection === 'chat' &&
-      nativeShellMode === 'standard' &&
-      !isHeaderMenuOpen &&
-      !isAppLocked &&
-      !showAppLockSheet;
-    const showsNativeConversation =
-      bodyShellSection === 'im' &&
-      nativeShellMode === 'conversation' &&
-      Boolean(nativeMilestoneOneConversation) &&
-      !profileSheetBuddyId &&
-      !isHeaderMenuOpen &&
-      !isAppLocked &&
-      !showAppLockSheet;
-    const showsNativeRoomConversation =
-      bodyShellSection === 'chat' &&
-      nativeShellMode === 'conversation' &&
-      Boolean(nativeMilestoneOneRoomConversation) &&
-      !isHeaderMenuOpen &&
-      !isAppLocked &&
-      !showAppLockSheet;
-
-    if (!showsNativeBuddyList && !showsNativeRoomList && !showsNativeConversation && !showsNativeRoomConversation) {
-      void publishNativeMilestoneOneState({ phase: 'hidden', isDark: shellIsDark });
-      return;
-    }
-
-    void publishNativeMilestoneOneState({
-      phase: isBootstrapping ? 'loading' : 'signedIn',
-      selectedSection: bodyShellSection === 'chat' ? 'rooms' : 'buddies',
-      screenname,
-      currentPresence: currentUserPresenceState,
-      currentPresenceDetail: currentUserPresenceDetail,
-      currentAwayMessage: awayMessage || null,
-      ownAvatarUrl: resolveBuddyIconUrl(buddyIconPath ?? null),
-      buddies: nativeMilestoneOneBuddies,
-      suggestedBuddies: nativeBuddySuggestions.map((suggestion) => ({
-        id: suggestion.id,
-        screenname: suggestion.screenname,
-        avatarUrl: suggestion.avatarUrl,
-        mutualCount: suggestion.mutualCount,
-        sharedRoomCount: suggestion.sharedRoomCount,
-      })),
-      circles: nativeMilestoneOneCircles,
-      awayPresets: awayPresets.map((preset) => ({
-        id: preset.id,
-        label: preset.label,
-        message: preset.message,
-      })),
-      pendingRequests: pendingRequests.map((request) => ({
-        id: request.senderId,
-        screenname: request.screenname,
-      })),
-      onlineCount: onlineBuddies.filter((buddy) => !presenceHiddenBuddyIds.has(buddy.id)).length,
-      pendingRequestCount: pendingRequests.length,
-      isRefreshing: bodyShellSection === 'chat'
-        ? syncState === 'syncing' || isLoadingNativeRoomDirectory
-        : isLoadingBuddies,
-      isDark: shellIsDark,
-      error: bodyShellSection === 'chat'
-        ? (roomJoinError || nativeRoomDirectoryError || lastSyncError)
-        : profileSyncError,
-      activeConversation: showsNativeConversation ? nativeMilestoneOneConversation : null,
-      rooms: nativeMilestoneOneRooms,
-      activeRoomConversation: showsNativeRoomConversation ? nativeMilestoneOneRoomConversation : null,
-    });
-  }, [
-    bodyShellSection,
-    awayMessage,
-    awayPresets,
-    currentUserPresenceDetail,
-    currentUserPresenceState,
-    isAppLocked,
-    isBootstrapping,
-    isHeaderMenuOpen,
-    isLoadingBuddies,
-    isLoadingNativeRoomDirectory,
-    lastSyncError,
-    nativeMilestoneOneBuddies,
-    nativeMilestoneOneCircles,
-    nativeMilestoneOneConversation,
-    nativeMilestoneOneRoomConversation,
-    nativeMilestoneOneRooms,
-    nativeRoomDirectoryError,
-    nativeShellActive,
-    nativeShellMode,
-    onlineBuddies,
-    pendingRequests,
-    presenceHiddenBuddyIds,
-    profileSheetBuddyId,
-    profileSyncError,
-    roomJoinError,
-    buddyIconPath,
-    nativeBuddySuggestions,
-    screenname,
-    shellIsDark,
-    showAppLockSheet,
-    syncState,
-  ]);
 
   useEffect(() => {
     if (!nativeShellActive) {
@@ -9809,8 +9129,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
           onBlockRoomUser={(payload) => {
             void handleBlockUserById(payload.userId);
           }}
-          nativeBridgeRef={nativeRoomBridgeRef}
-          onNativeStateChange={handleNativeRoomStateChange}
         />
       )}
 

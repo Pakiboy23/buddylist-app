@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, KeyboardEvent, type CSSProperties, type MutableRefObject, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { FormEvent, KeyboardEvent, type CSSProperties, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import AppIcon from '@/components/AppIcon';
 import MutualContextCard from '@/components/MutualContextCard';
 import ProfileAvatar from '@/components/ProfileAvatar';
@@ -21,8 +21,6 @@ import {
 } from '@/lib/conversationPresentation';
 import {
   isNativeIosShell,
-  type NativeMilestoneOneRoomBridge,
-  type NativeMilestoneOneRoomConversation,
 } from '@/lib/nativeShell';
 import { supabase } from '@/lib/supabase';
 import {
@@ -138,8 +136,6 @@ interface GroupChatWindowProps {
     contentPreview: string;
   }) => void;
   onBlockRoomUser?: (payload: { userId: string; screenname: string }) => void;
-  nativeBridgeRef?: MutableRefObject<NativeMilestoneOneRoomBridge | null>;
-  onNativeStateChange?: (conversation: NativeMilestoneOneRoomConversation) => void;
 }
 
 const GROUP_SENDER_COLOR_CLASSES = [
@@ -198,8 +194,6 @@ export default function GroupChatWindow({
   blockedUserIds = [],
   onReportRoomMessage,
   onBlockRoomUser,
-  nativeBridgeRef,
-  onNativeStateChange,
 }: GroupChatWindowProps) {
   const blockedUserIdSet = useMemo(() => new Set(blockedUserIds), [blockedUserIds]);
   const { clearUnreads } = useChatContext();
@@ -1065,77 +1059,6 @@ export default function GroupChatWindow({
     }
     return `${resolvedTypingUsers[0]}, ${resolvedTypingUsers[1]} +${resolvedTypingUsers.length - 2} more typing...`;
   }, [resolvedTypingUsers]);
-
-  useEffect(() => {
-    if (!nativeBridgeRef) {
-      return;
-    }
-
-    const bridge: NativeMilestoneOneRoomBridge = {
-      sendMessage: (content) => sendRoomContent(content),
-      sendTypingPulse: notifyTyping,
-    };
-    nativeBridgeRef.current = bridge;
-
-    return () => {
-      if (nativeBridgeRef.current === bridge) {
-        nativeBridgeRef.current = null;
-      }
-    };
-  }, [nativeBridgeRef, notifyTyping, sendRoomContent]);
-
-  useEffect(() => {
-    if (!onNativeStateChange) {
-      return;
-    }
-
-    onNativeStateChange({
-      roomId,
-      roomName,
-      activeCount: activeParticipantIds.size,
-      participants: participants
-        .filter((participant) => participant.onlineAt !== null)
-        .map((participant) => ({
-          id: participant.userId,
-          screenname: participant.screenname,
-          isMe: participant.userId === currentUserId,
-        })),
-      messages: messages.map((message) => {
-        const viewerIsAuthor = message.user_id === currentUserId;
-        const effectiveBody = message.flagged_at && !viewerIsAuthor
-          ? MESSAGE_HIDDEN_PLACEHOLDER
-          : message.body;
-        return {
-          id: message.id,
-          senderId: message.user_id,
-          senderScreenname:
-            screennameMap[message.user_id] ||
-            (viewerIsAuthor ? currentUserScreenname : 'Unknown User'),
-          content: htmlToPlainText(effectiveBody),
-          createdAt: message.created_at,
-          isMine: viewerIsAuthor,
-        };
-      }),
-      isLoading: isLoadingMessages,
-      isSending,
-      typingText,
-      error,
-    });
-  }, [
-    activeParticipantIds.size,
-    currentUserId,
-    currentUserScreenname,
-    error,
-    isLoadingMessages,
-    isSending,
-    messages,
-    onNativeStateChange,
-    participants,
-    roomId,
-    roomName,
-    screennameMap,
-    typingText,
-  ]);
 
   const richTextPresentationByMessageId = useMemo(() => {
     const presentation = new Map<string, ReturnType<typeof getRichTextPresentation>>();
