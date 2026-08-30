@@ -143,6 +143,12 @@ struct NativeMilestoneOneRoomConversation: Decodable, Equatable {
     let error: String?
 }
 
+struct NativeMilestoneOneAwayPreset: Decodable, Equatable, Identifiable {
+    let id: String
+    let label: String
+    let message: String
+}
+
 struct NativeMilestoneOneState: Decodable, Equatable {
     let phase: NativeMilestoneOnePhase
     let selectedSection: NativeMilestoneOneSection
@@ -164,6 +170,8 @@ struct NativeMilestoneOneState: Decodable, Equatable {
     // v2.2 additions decode with safe fallbacks so older web payloads keep working.
     var ownAvatarUrl: String? = nil
     var suggestedBuddies: [NativeMilestoneOneSuggestedBuddy] = []
+    // v2.4: saved away messages, offered as one-tap picks in the status menu.
+    var awayPresets: [NativeMilestoneOneAwayPreset] = []
 
     static let loading = NativeMilestoneOneState(
         phase: .loading,
@@ -243,6 +251,7 @@ struct NativeMilestoneOneState: Decodable, Equatable {
         case activeRoomConversation
         case ownAvatarUrl
         case suggestedBuddies
+        case awayPresets
     }
 
     init(from decoder: Decoder) throws {
@@ -269,6 +278,7 @@ struct NativeMilestoneOneState: Decodable, Equatable {
         activeRoomConversation = try container.decodeIfPresent(NativeMilestoneOneRoomConversation.self, forKey: .activeRoomConversation)
         ownAvatarUrl = try container.decodeIfPresent(String.self, forKey: .ownAvatarUrl)
         suggestedBuddies = try container.decodeIfPresent([NativeMilestoneOneSuggestedBuddy].self, forKey: .suggestedBuddies) ?? []
+        awayPresets = try container.decodeIfPresent([NativeMilestoneOneAwayPreset].self, forKey: .awayPresets) ?? []
     }
 }
 
@@ -1231,21 +1241,23 @@ private struct NativeBuddyListView: View {
     private var listContent: some View {
         List {
             Section {
-                Button(action: model.openOwnProfile) {
-                    NativeCurrentUserCard(state: model.state)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Edit your profile")
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-
-                NativePresenceControls(state: model.state) {
-                    model.beginPresenceEditing()
-                    presenceEditor = NativePresenceEditorDestination(
-                        initialPresence: model.state.currentPresence == .away ? .away : .available,
-                        initialAwayMessage: model.state.currentAwayMessage ?? ""
-                    )
-                }
+                NativeSelfStrip(
+                    state: model.state,
+                    openProfile: model.openOwnProfile,
+                    selectAvailable: {
+                        Task { await model.updatePresence(status: "available", awayMessage: "") }
+                    },
+                    selectPreset: { preset in
+                        Task { await model.updatePresence(status: "away", awayMessage: preset.message) }
+                    },
+                    composeAway: {
+                        model.beginPresenceEditing()
+                        presenceEditor = NativePresenceEditorDestination(
+                            initialPresence: .away,
+                            initialAwayMessage: model.state.currentAwayMessage ?? ""
+                        )
+                    }
+                )
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
             }
@@ -1342,7 +1354,7 @@ private struct NativeBuddyListView: View {
             }
         }
         .listStyle(.plain)
-        .environment(\.defaultMinListRowHeight, 56)
+        .environment(\.defaultMinListRowHeight, 48)
     }
 }
 
@@ -2438,36 +2450,19 @@ private struct NativePresenceEditorDestination: Identifiable {
     let initialAwayMessage: String
 }
 
-private struct NativePresenceControls: View {
+// The web's sign-on strip (`ui-self-strip` in page.tsx): who you are and what
+// you're set to, in one compact row above the list. The status menu is the away
+// menu — Available, a custom away message, and your saved away messages as
+// one-tap picks, which is all "Busy" or "Be Right Back" ever were. Only
+// Available and Away are offered because those are the only states broadcast.
+private struct NativeSelfStrip: View {
     let state: NativeMilestoneOneState
-    let edit: () -> Void
+    let openProfile: () -> Void
+    let selectAvailable: () -> Void
+    let selectPreset: (NativeMilestoneOneAwayPreset) -> Void
+    let composeAway: () -> Void
 
-    var body: some View {
-        HStack(spacing: 10) {
-            Button(action: edit) {
-                NativePresenceControlLabel(
-                    eyebrow: "Status",
-                    value: statusLabel,
-                    systemImage: "circle.fill",
-                    accent: NativeMilestonePalette.presence(state.currentPresence ?? .available),
-                    isDark: state.isDark
-                )
-            }
-            .buttonStyle(.plain)
-
-            Button(action: edit) {
-                NativePresenceControlLabel(
-                    eyebrow: "Away message",
-                    value: awayMessageLabel,
-                    systemImage: "quote.bubble.fill",
-                    accent: NativeMilestonePalette.gold,
-                    isDark: state.isDark
-                )
-            }
-            .buttonStyle(.plain)
-        }
-        .accessibilityElement(children: .contain)
-    }
+    private var isAway: Bool { state.currentPresence == .away }
 
     private var statusLabel: String {
         switch state.currentPresence ?? .available {
@@ -2482,48 +2477,78 @@ private struct NativePresenceControls: View {
         }
     }
 
-    private var awayMessageLabel: String {
-        let message = (state.currentAwayMessage ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        return message.isEmpty ? "Set message" : "Edit message"
+    private var statusLine: String {
+        (state.currentPresenceDetail ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
     }
-}
-
-private struct NativePresenceControlLabel: View {
-    let eyebrow: String
-    let value: String
-    let systemImage: String
-    let accent: Color
-    let isDark: Bool
 
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: systemImage)
-                .font(.subheadline.weight(.bold))
-                .foregroundColor(accent)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(eyebrow)
-                    .font(.caption2.weight(.bold))
-                    .foregroundColor(NativeMilestonePalette.muted(isDark: isDark))
-                    .textCase(.uppercase)
-                Text(value)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(NativeMilestonePalette.text(isDark: isDark))
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 10) {
+                Button(action: openProfile) {
+                    HStack(spacing: 10) {
+                        NativeBuddyAvatar(
+                            name: state.screenname ?? "Me",
+                            presence: state.currentPresence ?? .available,
+                            size: 40,
+                            avatarUrl: state.ownAvatarUrl
+                        )
+                        Text(state.screenname ?? "")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundColor(NativeMilestonePalette.text(isDark: state.isDark))
+                            .lineLimit(1)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Edit your profile")
+
+                Spacer(minLength: 8)
+
+                Menu {
+                    Button("Available", action: selectAvailable)
+                    Button(isAway ? "Edit away message…" : "Away — write a message…", action: composeAway)
+                    if !state.awayPresets.isEmpty {
+                        Section("Your away messages") {
+                            ForEach(state.awayPresets) { preset in
+                                Button("Away — \(preset.label)") {
+                                    selectPreset(preset)
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 5) {
+                        Circle()
+                            .fill(NativeMilestonePalette.presence(state.currentPresence ?? .available))
+                            .frame(width: 8, height: 8)
+                        Text(statusLabel)
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.caption2.weight(.bold))
+                    }
+                    .font(.caption.weight(.bold))
+                    .foregroundColor(NativeMilestonePalette.text(isDark: state.isDark))
+                    .padding(.horizontal, 11)
+                    .padding(.vertical, 8)
+                    .background(NativeMilestonePalette.card(isDark: state.isDark), in: Capsule())
+                    .overlay {
+                        Capsule()
+                            .stroke(NativeMilestonePalette.separator(isDark: state.isDark), lineWidth: 1)
+                    }
+                }
+                .accessibilityLabel("Your status: \(statusLabel)")
+            }
+
+            if !statusLine.isEmpty {
+                Text(statusLine)
+                    .font(.caption)
+                    .foregroundColor(
+                        isAway
+                            ? NativeMilestonePalette.gold
+                            : NativeMilestonePalette.muted(isDark: state.isDark)
+                    )
                     .lineLimit(1)
             }
-            Spacer(minLength: 4)
-            Image(systemName: "chevron.right")
-                .font(.caption2.weight(.bold))
-                .foregroundColor(NativeMilestonePalette.muted(isDark: isDark).opacity(0.75))
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 11)
-        .frame(maxWidth: .infinity, minHeight: 58)
-        .background(NativeMilestonePalette.card(isDark: isDark), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(NativeMilestonePalette.separator(isDark: isDark), lineWidth: 1)
-        }
-        .contentShape(Rectangle())
+        .accessibilityElement(children: .contain)
     }
 }
 
@@ -2727,41 +2752,6 @@ private struct NativeCircleCreatorSheet: View {
     }
 }
 
-private struct NativeCurrentUserCard: View {
-    let state: NativeMilestoneOneState
-
-    var body: some View {
-        HStack(spacing: 14) {
-            NativeBuddyAvatar(name: state.screenname ?? "Me", presence: state.currentPresence ?? .available, size: 52, avatarUrl: state.ownAvatarUrl)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(state.screenname ?? "H.I.M. member")
-                    .font(.headline)
-                    .foregroundColor(NativeMilestonePalette.text(isDark: state.isDark))
-                Text(state.currentPresenceDetail ?? "Available")
-                    .font(.subheadline)
-                    .foregroundColor(NativeMilestonePalette.muted(isDark: state.isDark))
-                    .lineLimit(2)
-            }
-            Spacer()
-            Text("ME")
-                .font(.caption2.weight(.black))
-                .foregroundColor(NativeMilestonePalette.gold)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 5)
-                .background(NativeMilestonePalette.gold.opacity(0.14), in: Capsule())
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold))
-                .foregroundColor(NativeMilestonePalette.muted(isDark: state.isDark))
-        }
-        .padding(16)
-        .background(NativeMilestonePalette.card(isDark: state.isDark), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(NativeMilestonePalette.gold.opacity(0.18), lineWidth: 1)
-        }
-    }
-}
-
 private struct NativePendingRequestRow: View {
     let request: NativeMilestoneOnePendingRequest
     let isDark: Bool
@@ -2915,7 +2905,7 @@ private struct NativeBuddyRow: View {
         HStack(spacing: 13) {
             Button(action: open) {
                 HStack(spacing: 13) {
-                    NativeBuddyAvatar(name: buddy.screenname, presence: buddy.presence, size: 44, avatarUrl: buddy.avatarUrl)
+                    NativeBuddyAvatar(name: buddy.screenname, presence: buddy.presence, size: 40, avatarUrl: buddy.avatarUrl)
                     VStack(alignment: .leading, spacing: 3) {
                         HStack(spacing: 6) {
                             screennameText
