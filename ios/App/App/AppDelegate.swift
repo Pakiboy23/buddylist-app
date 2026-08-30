@@ -3146,7 +3146,17 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
-    var window: UIWindow?
+    // Scenes own the real window; this app supports exactly one, so surface
+    // it here too since applicationDidEnterBackground/applicationWillTerminate
+    // below still read `window` directly.
+    var window: UIWindow? {
+        get {
+            UIApplication.shared.connectedScenes
+                .compactMap { ($0 as? UIWindowScene)?.keyWindow }
+                .first
+        }
+        set {}
+    }
 
     func application(
         _ application: UIApplication,
