@@ -515,12 +515,12 @@ class HiItsMeShellPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     @objc func isAvailable(_ call: CAPPluginCall) {
-        // Only report available when the native shell view controller is actually
-        // hosting the bridge. If it isn't the root (e.g. a stock Capacitor build or
-        // a packaging regression), the web layer must keep rendering its own chrome
-        // so the user is never left without navigation.
+        // The redesigned React app owns all visible chrome and content. Keep this
+        // plugin registered for native services such as the signed push environment,
+        // but report the custom presentation shell as unavailable so React renders
+        // its complete responsive interface instead of the legacy native duplicate.
         call.resolve([
-            "available": shellController != nil,
+            "available": false,
             "platform": "ios"
         ])
     }
@@ -619,18 +619,10 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         view.backgroundColor = .himBg
         bridgeViewController.shellController = self
 
-        headerGradientLayer.colors = [UIColor.himChiraag.cgColor, UIColor.himLavender.cgColor, UIColor.himGold.cgColor]
-        headerGradientLayer.startPoint = CGPoint(x: 0, y: 0.5)
-        headerGradientLayer.endPoint = CGPoint(x: 1, y: 0.5)
-        headerGradientView.layer.addSublayer(headerGradientLayer)
-
-        configureTitleView()
-        configureNavigationBar()
-        configureTabBar()
+        // Capacitor remains the native host, while the bundled React app owns the
+        // entire visible experience. Do not install the legacy native chrome or
+        // Milestone One SwiftUI overlay above the web view.
         embedBridgeViewController()
-        embedNativeMilestoneOneView()
-        applyChromeState(chromeState, animated: false, fromWeb: false)
-        scheduleStartupChromeFallback()
         registerForApplicationLifecycleNotifications()
     }
 
