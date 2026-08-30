@@ -1587,7 +1587,7 @@ private struct NativeRoomConversationView: View {
                 .padding(.vertical, 14)
             }
             .onAppear { scrollToBottom(proxy) }
-            .onChange(of: conversation.messages.count) {
+            .nativeMilestoneOnChange(of: conversation.messages.count) { _ in
                 scrollToBottom(proxy)
             }
         }
@@ -1885,7 +1885,7 @@ private struct NativeConversationView: View {
             .onAppear {
                 scrollToBottom(proxy)
             }
-            .onChange(of: conversation.messages.count) {
+            .nativeMilestoneOnChange(of: conversation.messages.count) { _ in
                 scrollToBottom(proxy)
             }
         }
@@ -2374,7 +2374,7 @@ private struct NativeConversationComposer: View {
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
                         .stroke(NativeMilestonePalette.separator(isDark: isDark), lineWidth: 1)
                 }
-                .onChange(of: draft) {
+                .nativeMilestoneOnChange(of: draft) { _ in
                     typing()
                 }
                 .submitLabel(.send)
@@ -2613,9 +2613,9 @@ private struct NativePresenceEditorSheet: View {
             }
             .navigationTitle("Presence")
             .navigationBarTitleDisplayMode(.inline)
-            .onChange(of: awayMessage) { _, newValue in
-                if newValue.count > 320 {
-                    awayMessage = String(newValue.prefix(320))
+            .nativeMilestoneOnChange(of: awayMessage) { nextValue in
+                if nextValue.count > 320 {
+                    awayMessage = String(nextValue.prefix(320))
                 }
             }
             .toolbar {
@@ -3230,6 +3230,18 @@ private enum NativeMilestoneFormatters {
 }
 
 private extension View {
+    // Xcode 26.6's SDK retired the one-parameter `.onChange(of:)` overload, so
+    // an unlabeled call now resolves to the iOS 17-only variant and fails the
+    // iOS 15 deployment target. This shim pins each SDK's supported overload.
+    @ViewBuilder
+    func nativeMilestoneOnChange<V: Equatable>(of value: V, perform: @escaping (V) -> Void) -> some View {
+        if #available(iOS 17.0, *) {
+            onChange(of: value) { _, newValue in perform(newValue) }
+        } else {
+            onChange(of: value, perform: perform)
+        }
+    }
+
     func nativeMilestoneFieldStyle() -> some View {
         self
             .padding(.horizontal, 14)

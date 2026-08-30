@@ -9,16 +9,15 @@ fileprivate struct HiItsMeLiquidGlassDockBackground: View {
 
     var body: some View {
         // Rectangle with explicit fill instead of Color.clear: gives SwiftUI a
-        // concrete geometry instead of a layout-flexible placeholder. .capsule
-        // matches the dock pill shape without needing a GeometryReader to
-        // resolve sizes (GeometryReader inside a UIHostingController.contentView
-        // can resolve to .zero on the first layout pass, locking SwiftUI).
+        // concrete geometry instead of a layout-flexible placeholder. The glass
+        // shape is .rect to match the flat, edge-to-edge header bar (the dock
+        // stopped being a floating pill when the buddy list went AIM-flat).
         let tint = Color(uiColor: isDark ? .himBg2 : .himLightBg2)
             .opacity(isDark ? 0.18 : 0.12)
 
         Rectangle()
             .fill(Color.clear)
-            .glassEffect(.regular.tint(tint), in: .capsule)
+            .glassEffect(.regular.tint(tint), in: .rect)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
     }
@@ -637,7 +636,9 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
-        topDockView.layer.cornerRadius = max(22, topDockView.bounds.height / 2)
+        // Flat, edge-to-edge header bar — the floating-pill treatment is gone
+        // so the chrome reads as one surface with the AIM-flat buddy list.
+        topDockView.layer.cornerRadius = 0
         headerGradientLayer.frame = headerGradientView.bounds
         updateBridgeSafeAreaInsets()
         // Liquid Glass install moved to applyChromeState, triggered by the
@@ -1440,10 +1441,10 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
             topChromeView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             topChromeView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
 
-            topDockView.topAnchor.constraint(equalTo: topChromeView.safeAreaLayoutGuide.topAnchor, constant: 8),
-            topDockView.leadingAnchor.constraint(equalTo: topChromeView.contentView.leadingAnchor, constant: 12),
-            topDockView.trailingAnchor.constraint(equalTo: topChromeView.contentView.trailingAnchor, constant: -12),
-            topDockView.bottomAnchor.constraint(equalTo: topChromeView.contentView.bottomAnchor, constant: -6),
+            topDockView.topAnchor.constraint(equalTo: topChromeView.safeAreaLayoutGuide.topAnchor),
+            topDockView.leadingAnchor.constraint(equalTo: topChromeView.contentView.leadingAnchor),
+            topDockView.trailingAnchor.constraint(equalTo: topChromeView.contentView.trailingAnchor),
+            topDockView.bottomAnchor.constraint(equalTo: topChromeView.contentView.bottomAnchor),
 
             headerGradientView.topAnchor.constraint(equalTo: topDockView.contentView.topAnchor),
             headerGradientView.leadingAnchor.constraint(equalTo: topDockView.contentView.leadingAnchor),
