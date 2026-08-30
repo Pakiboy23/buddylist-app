@@ -1181,12 +1181,6 @@ private struct NativeBuddyListView: View {
                 query: buddyQuery
             )
 
-            Section {
-                findABuddyField
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-            }
-
             if groups.isEmpty {
                 Section {
                     Text("No buddies match \u{201C}\(trimmedQuery)\u{201D}.")
@@ -1260,12 +1254,13 @@ private struct NativeBuddyListView: View {
                 )
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
-            }
 
-            if !model.state.suggestedBuddies.isEmpty {
-                Section {
+                // One continuous top block — rail and search live in the same
+                // section as the strip so plain-list header spacing never opens
+                // gaps between them.
+                if !model.state.suggestedBuddies.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 12) {
+                        HStack(spacing: 8) {
                             ForEach(model.state.suggestedBuddies) { suggestion in
                                 NativeSuggestedBuddyCard(
                                     suggestion: suggestion,
@@ -1277,13 +1272,17 @@ private struct NativeBuddyListView: View {
                             }
                         }
                         .padding(.horizontal, 2)
-                        .padding(.vertical, 4)
+                        .padding(.vertical, 2)
                     }
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
-                } header: {
-                    Text("Suggested Buddies")
-                        .font(.caption.weight(.bold))
+                    .accessibilityLabel("Suggested buddies")
+                }
+
+                if !model.state.buddies.isEmpty {
+                    findABuddyField
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                 }
             }
 
@@ -2477,8 +2476,11 @@ private struct NativeSelfStrip: View {
         }
     }
 
+    // Shown only when it says more than the capsule already does — a bare
+    // "Available" under an Available capsule is noise.
     private var statusLine: String {
-        (state.currentPresenceDetail ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let detail = (state.currentPresenceDetail ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return detail.caseInsensitiveCompare(statusLabel) == .orderedSame ? "" : detail
     }
 
     var body: some View {
@@ -2953,29 +2955,32 @@ private struct NativeBuddyRow: View {
                     .background(NativeMilestonePalette.gold, in: Capsule())
                     .accessibilityLabel("\(buddy.unreadCount) unread messages")
             }
+            // Compact icon actions, mirroring the web's ui-buddy-row-actions —
+            // the row itself is the main target, so the trailing controls stay
+            // glyph-sized instead of labeled pills.
             if buddy.presence == .away, buddy.awayMessage?.isEmpty == false {
-                Button("Reply", action: reply)
-                    .font(.caption.weight(.bold))
-                    .buttonStyle(.bordered)
-                    .tint(NativeMilestonePalette.gold)
-                    .accessibilityLabel("Reply to \(buddy.screenname)'s away message")
+                Button(action: reply) {
+                    Image(systemName: "arrowshape.turn.up.left.fill")
+                        .font(.subheadline)
+                        .frame(width: 30, height: 30)
+                }
+                .buttonStyle(.borderless)
+                .foregroundColor(NativeMilestonePalette.gold)
+                .accessibilityLabel("Reply to \(buddy.screenname)'s away message")
             }
             Button(action: knock) {
                 if isKnocking {
                     ProgressView()
                         .controlSize(.small)
+                        .frame(width: 30, height: 30)
                 } else {
-                    HStack(spacing: 4) {
-                        Image(systemName: didKnock ? "checkmark" : "hand.wave.fill")
-                        if buddy.presence != .away {
-                            Text(didKnock ? "Sent" : "Knock")
-                        }
-                    }
+                    Image(systemName: didKnock ? "checkmark" : "hand.wave.fill")
+                        .font(.subheadline)
+                        .frame(width: 30, height: 30)
                 }
             }
-            .font(.caption.weight(.bold))
-            .buttonStyle(.bordered)
-            .tint(NativeMilestonePalette.gold)
+            .buttonStyle(.borderless)
+            .foregroundColor(NativeMilestonePalette.gold)
             .disabled(isKnocking || didKnock)
             .accessibilityLabel(didKnock ? "Knock sent to \(buddy.screenname)" : "Knock \(buddy.screenname)")
         }
@@ -3024,35 +3029,39 @@ private struct NativeSuggestedBuddyCard: View {
     let add: () -> Void
 
     var body: some View {
-        VStack(spacing: 8) {
-            NativeBuddyAvatar(name: suggestion.screenname, presence: .offline, size: 44, avatarUrl: suggestion.avatarUrl)
-            Text(suggestion.screenname)
-                .font(.footnote.weight(.semibold))
-                .foregroundColor(NativeMilestonePalette.text(isDark: isDark))
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-            Text(contextLine)
-                .font(.caption2)
-                .foregroundColor(NativeMilestonePalette.muted(isDark: isDark))
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
+        HStack(spacing: 8) {
+            NativeBuddyAvatar(name: suggestion.screenname, presence: .offline, size: 30, avatarUrl: suggestion.avatarUrl)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(suggestion.screenname)
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(NativeMilestonePalette.text(isDark: isDark))
+                    .lineLimit(1)
+                Text(contextLine)
+                    .font(.caption2)
+                    .foregroundColor(NativeMilestonePalette.muted(isDark: isDark))
+                    .lineLimit(1)
+            }
             Button(action: add) {
                 if isProcessing {
                     ProgressView()
                         .controlSize(.small)
                 } else {
                     Text(isRequested ? "Sent" : "Add")
+                        .font(.caption2.weight(.bold))
                 }
             }
-            .font(.caption.weight(.bold))
-            .buttonStyle(.bordered)
-            .tint(NativeMilestonePalette.gold)
+            .buttonStyle(.borderless)
+            .foregroundColor(NativeMilestonePalette.gold)
             .disabled(isProcessing || isRequested)
             .accessibilityLabel(isRequested ? "Buddy request sent to \(suggestion.screenname)" : "Add \(suggestion.screenname) as a buddy")
         }
-        .padding(12)
-        .frame(width: 124)
-        .background(NativeMilestonePalette.card(isDark: isDark), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(NativeMilestonePalette.card(isDark: isDark), in: Capsule())
+        .overlay {
+            Capsule()
+                .stroke(NativeMilestonePalette.separator(isDark: isDark), lineWidth: 1)
+        }
     }
 
     private var contextLine: String {
