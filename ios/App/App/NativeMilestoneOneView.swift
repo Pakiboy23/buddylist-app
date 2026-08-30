@@ -1587,7 +1587,7 @@ private struct NativeRoomConversationView: View {
                 .padding(.vertical, 14)
             }
             .onAppear { scrollToBottom(proxy) }
-            .onChange(of: conversation.messages.count) { _ in
+            .onChange(of: conversation.messages.count) {
                 scrollToBottom(proxy)
             }
         }
@@ -1885,7 +1885,7 @@ private struct NativeConversationView: View {
             .onAppear {
                 scrollToBottom(proxy)
             }
-            .onChange(of: conversation.messages.count) { _ in
+            .onChange(of: conversation.messages.count) {
                 scrollToBottom(proxy)
             }
         }
@@ -2374,7 +2374,7 @@ private struct NativeConversationComposer: View {
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
                         .stroke(NativeMilestonePalette.separator(isDark: isDark), lineWidth: 1)
                 }
-                .onChange(of: draft) { _ in
+                .onChange(of: draft) {
                     typing()
                 }
                 .submitLabel(.send)
@@ -2613,9 +2613,9 @@ private struct NativePresenceEditorSheet: View {
             }
             .navigationTitle("Presence")
             .navigationBarTitleDisplayMode(.inline)
-            .onChange(of: awayMessage) { nextValue in
-                if nextValue.count > 320 {
-                    awayMessage = String(nextValue.prefix(320))
+            .onChange(of: awayMessage) { _, newValue in
+                if newValue.count > 320 {
+                    awayMessage = String(newValue.prefix(320))
                 }
             }
             .toolbar {
