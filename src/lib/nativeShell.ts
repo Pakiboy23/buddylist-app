@@ -250,6 +250,8 @@ export interface NativeMilestoneOneState {
   ownAvatarUrl?: string | null;
   /** Ranked global suggestions rail; empty/omitted hides the rail. */
   suggestedBuddies?: NativeMilestoneOneSuggestedBuddy[];
+  /** Saved away messages, offered as one-tap picks in the native status menu. */
+  awayPresets?: Array<{ id: string; label: string; message: string }>;
   onlineCount?: number;
   pendingRequestCount?: number;
   isRefreshing?: boolean;

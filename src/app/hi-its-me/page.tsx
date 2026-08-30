@@ -7299,6 +7299,11 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         sharedRoomCount: suggestion.sharedRoomCount,
       })),
       circles: nativeMilestoneOneCircles,
+      awayPresets: awayPresets.map((preset) => ({
+        id: preset.id,
+        label: preset.label,
+        message: preset.message,
+      })),
       pendingRequests: pendingRequests.map((request) => ({
         id: request.senderId,
         screenname: request.screenname,
@@ -7319,6 +7324,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   }, [
     bodyShellSection,
     awayMessage,
+    awayPresets,
     currentUserPresenceDetail,
     currentUserPresenceState,
     isAppLocked,
