@@ -3161,7 +3161,28 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
-        true
+        clearWebViewCacheIfBuildChanged()
+        return true
+    }
+
+    // WKWebView's site data — HTTP disk cache, and critically any Service
+    // Worker registration and its Cache Storage — survives an in-place
+    // reinstall (Xcode "Run" over a prior build, or an App Store update). A
+    // previously-registered service worker keeps intercepting fetches and
+    // serving from its own cache indefinitely, regardless of what's in the
+    // freshly bundled web assets. Clearing once per build number avoids
+    // paying this cost on every launch.
+    private func clearWebViewCacheIfBuildChanged() {
+        let defaults = UserDefaults.standard
+        let key = "lastLaunchedCFBundleVersion"
+        let currentBuild = Bundle.main.infoDictionary?["CFBundleVersion"] as? String
+        guard currentBuild != defaults.string(forKey: key) else { return }
+        defaults.set(currentBuild, forKey: key)
+        WKWebsiteDataStore.default().removeData(
+            ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(),
+            modifiedSince: .distantPast,
+            completionHandler: {}
+        )
     }
 
     func applicationWillResignActive(_ application: UIApplication) {
