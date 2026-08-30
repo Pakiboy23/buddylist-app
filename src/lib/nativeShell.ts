@@ -183,11 +183,14 @@ export async function getNativePushEnvironment(): Promise<NativePushEnvironment 
   if (!pendingPushEnvironmentLookup) {
     pendingPushEnvironmentLookup = (async () => {
       try {
-        const availability = await HiItsMeShell.isAvailable();
-        if (!availability.available) {
-          return null;
-        }
-
+        // No `isAvailable()` gate here. That call reports whether the native
+        // *presentation* shell is hosting the view, which is deliberately false
+        // since f6fbad5 — the React app draws every pixel. The signed push
+        // environment is a native service that is unrelated to who renders the
+        // UI, and the guards above (native iOS + plugin registered) are its real
+        // preconditions. Gating on availability made this always return null, so
+        // every iOS token persisted push_environment: null and APNs delivery fell
+        // back to trying both hosts.
         const result = await HiItsMeShell.getPushEnvironment();
         return result.environment === 'sandbox' || result.environment === 'production'
           ? result.environment
