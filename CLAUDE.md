@@ -73,6 +73,28 @@ The rooms model was rewritten in migration `20260509184623_rooms_v2_launch_schem
 
 Membership flows go through `join_room_by_id` / `leave_room_by_id` SECURITY DEFINER RPCs (migration 20260510050322) to bypass an RLS recursion bug on direct INSERT.
 
+### Native iOS shell ("Milestone One") — read before any iOS-visible UI work
+On iOS, the signed-in screens the user actually sees are **not the web page**.
+`ios/App/App/NativeMilestoneOneView.swift` (~3,300 lines of SwiftUI) renders the
+buddy list, rooms list, and DM/room conversations natively, as a full-screen
+overlay above the WKWebView. The React app keeps running underneath as the
+data/logic layer: `src/app/hi-its-me/page.tsx` publishes state through the
+`HiItsMeShell` Capacitor plugin (`src/lib/nativeShell.ts`,
+`publishNativeMilestoneOneState`), and the native side calls back into
+`window.__hiItsMeNativeMilestoneOne.*` for every action. UIKit chrome (tab bar,
+nav bar) lives in `AppDelegate.swift`.
+
+Consequences:
+- A web-only change to the buddy list, rooms, or DM screens is **invisible on
+  iOS**. If it must reach the phone, port it into the SwiftUI view — shipping a
+  new `ios/App/App/public` bundle alone changes nothing the user sees there.
+- Buddy grouping exists twice and must stay in sync: `buddyListGroups`
+  (page.tsx) ↔ `nativeBuddyGroups` (NativeMilestoneOneView.swift).
+- The web controls overlay visibility via the published `phase`
+  (`'hidden'` reveals the web UI; sign-in and web-owned tabs use this).
+- Web `hiitsme.app` has no overlay — it always shows the React UI, which is why
+  web and iOS can look different while running the same bundle.
+
 ### Realtime Channels
 - Room presence: `active_chat_room:${roomId}`
 - Global notifications: `global_notifications_messages`, `global_notifications_room_messages`

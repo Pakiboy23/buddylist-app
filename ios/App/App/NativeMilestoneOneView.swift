@@ -965,10 +965,129 @@ private struct NativeMilestoneFieldLabel: View {
     }
 }
 
+// Mirrors the web buddy list's grouping (`buddyListGroups` in
+// src/app/hi-its-me/page.tsx) — keep the two in sync. The list is organized by
+// named group first and presence second: a buddy who signs off leaves their
+// named group for a single Offline group at the bottom, while the named group's
+// total still counts them — that is what makes a header like "Buddies (3/6)"
+// mean anything. Presence-hidden circles are the exception: their members never
+// move to Offline (the move itself would leak what the setting hides), and
+// their header shows the total alone instead of a false 0/6.
+private struct NativeBuddyGroup: Identifiable {
+    static let buddiesID = "__ungrouped__"
+    static let offlineID = "__offline__"
+
+    let id: String
+    let name: String
+    /// nil when presence is hidden for the group — the header shows total alone.
+    let onlineCount: Int?
+    let totalCount: Int
+    let rows: [NativeMilestoneOneBuddy]
+    /// Present only for real circles; the default and Offline groups omit it.
+    let circle: NativeMilestoneOneCircle?
+    let isOffline: Bool
+}
+
+private func nativeBuddyGroups(
+    buddies: [NativeMilestoneOneBuddy],
+    circles: [NativeMilestoneOneCircle],
+    query: String
+) -> [NativeBuddyGroup] {
+    let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    func matchesQuery(_ buddy: NativeMilestoneOneBuddy) -> Bool {
+        guard !trimmedQuery.isEmpty else { return true }
+        return buddy.screenname.range(
+            of: trimmedQuery,
+            options: [.caseInsensitive, .diacriticInsensitive]
+        ) != nil
+    }
+
+    func isSignedOn(_ buddy: NativeMilestoneOneBuddy) -> Bool {
+        buddy.presence != .offline
+    }
+
+    // A circleId pointing at a circle that no longer exists must not orphan the
+    // buddy — they fall back to the default group, same as the web.
+    let knownCircleIDs = Set(circles.map(\.id))
+    func membershipID(_ buddy: NativeMilestoneOneBuddy) -> String {
+        guard let circleID = buddy.circleId, knownCircleIDs.contains(circleID) else {
+            return NativeBuddyGroup.buddiesID
+        }
+        return circleID
+    }
+
+    let hiddenCircleIDs = Set(circles.filter { !$0.showPresence }.map(\.id))
+    func staysInNamedGroup(_ buddy: NativeMilestoneOneBuddy) -> Bool {
+        hiddenCircleIDs.contains(membershipID(buddy)) || isSignedOn(buddy)
+    }
+
+    // Circles first, the default group last — same order as the web.
+    var named: [(circle: NativeMilestoneOneCircle?, id: String, name: String)] =
+        circles.map { ($0, $0.id, $0.name) }
+    named.append((nil, NativeBuddyGroup.buddiesID, "Buddies"))
+
+    var groups: [NativeBuddyGroup] = []
+    for entry in named {
+        let members = buddies.filter { membershipID($0) == entry.id }
+        let presenceHidden = entry.circle.map { !$0.showPresence } ?? false
+        // Empty groups are dropped, circles included — same as the web.
+        guard !members.isEmpty else { continue }
+        groups.append(
+            NativeBuddyGroup(
+                id: entry.id,
+                name: entry.name,
+                onlineCount: presenceHidden ? nil : members.filter(isSignedOn).count,
+                totalCount: members.count,
+                rows: members.filter { staysInNamedGroup($0) && matchesQuery($0) },
+                circle: entry.circle,
+                isOffline: false
+            )
+        )
+    }
+
+    // Source-array order (pinned first, then alphabetical) carries into Offline.
+    let offline = buddies.filter { !staysInNamedGroup($0) }
+    if !offline.isEmpty {
+        groups.append(
+            NativeBuddyGroup(
+                id: NativeBuddyGroup.offlineID,
+                name: "Offline",
+                onlineCount: nil,
+                totalCount: offline.count,
+                rows: offline.filter(matchesQuery),
+                circle: nil,
+                isOffline: true
+            )
+        )
+    }
+
+    // While a query is live, a header with nothing under it is just noise.
+    if !trimmedQuery.isEmpty {
+        return groups.filter { !$0.rows.isEmpty }
+    }
+    return groups
+}
+
 private struct NativeBuddyListView: View {
     @ObservedObject var model: NativeMilestoneOneViewModel
     @State private var presenceEditor: NativePresenceEditorDestination?
     @State private var circleCreator: NativeCircleCreatorDestination?
+    @State private var buddyQuery = ""
+    // Comma-joined group ids (UUIDs plus the two sentinels — comma-safe).
+    @AppStorage("him.milestoneCollapsedBuddyGroups") private var collapsedGroupsStorage = ""
+
+    private var collapsedGroupIDs: Set<String> {
+        Set(collapsedGroupsStorage.split(separator: ",").map(String.init))
+    }
+
+    private func toggleCollapsed(_ groupID: String) {
+        var ids = collapsedGroupIDs
+        if !ids.insert(groupID).inserted {
+            ids.remove(groupID)
+        }
+        collapsedGroupsStorage = ids.sorted().joined(separator: ",")
+    }
 
     var body: some View {
         configuredList
@@ -982,10 +1101,11 @@ private struct NativeBuddyListView: View {
             }
     }
 
-    private func buddyRow(_ buddy: NativeMilestoneOneBuddy) -> some View {
+    private func buddyRow(_ buddy: NativeMilestoneOneBuddy, signedOff: Bool = false) -> some View {
         NativeBuddyRow(
             buddy: buddy,
             isDark: model.state.isDark,
+            signedOff: signedOff,
             isKnocking: model.processingKnockBuddyID == buddy.id,
             didKnock: model.recentlyKnockedBuddyID == buddy.id,
             circles: model.state.circles,
@@ -1000,8 +1120,40 @@ private struct NativeBuddyListView: View {
         .listRowSeparatorTint(NativeMilestonePalette.separator(isDark: model.state.isDark))
     }
 
-    // Circles take over the buddy list when the owner has any; otherwise a single
-    // flat "Buddies" section, matching the prior behavior.
+    @ViewBuilder
+    private var findABuddyField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.subheadline)
+                .foregroundColor(NativeMilestonePalette.muted(isDark: model.state.isDark))
+            TextField("Find a Buddy", text: $buddyQuery)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .font(.subheadline)
+                .foregroundColor(NativeMilestonePalette.text(isDark: model.state.isDark))
+            if !buddyQuery.isEmpty {
+                Button {
+                    buddyQuery = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(NativeMilestonePalette.muted(isDark: model.state.isDark))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear buddy search")
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .background(
+            NativeMilestonePalette.card(isDark: model.state.isDark),
+            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(NativeMilestonePalette.separator(isDark: model.state.isDark), lineWidth: 1)
+        }
+    }
+
     @ViewBuilder
     private var buddySections: some View {
         if model.state.buddies.isEmpty {
@@ -1010,52 +1162,58 @@ private struct NativeBuddyListView: View {
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
             }
-        } else if model.state.circles.isEmpty {
-            Section {
-                ForEach(model.state.buddies) { buddy in
-                    buddyRow(buddy)
-                }
-            } header: {
-                HStack {
-                    Text("Buddies")
-                    Spacer()
-                    Text("\(model.state.onlineCount) online")
-                        .foregroundColor(NativeMilestonePalette.green)
-                }
-                .font(.caption.weight(.bold))
-            }
         } else {
-            ForEach(model.state.circles) { circle in
-                let members = model.state.buddies.filter { $0.circleId == circle.id }
+            let trimmedQuery = buddyQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+            let searching = !trimmedQuery.isEmpty
+            let groups = nativeBuddyGroups(
+                buddies: model.state.buddies,
+                circles: model.state.circles,
+                query: buddyQuery
+            )
+
+            Section {
+                findABuddyField
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+            }
+
+            if groups.isEmpty {
                 Section {
-                    if members.isEmpty {
-                        Text("No buddies here yet — long-press a buddy to add them.")
-                            .font(.footnote)
-                            .foregroundColor(NativeMilestonePalette.muted(isDark: model.state.isDark))
-                            .listRowBackground(NativeMilestonePalette.card(isDark: model.state.isDark))
-                    } else {
-                        ForEach(members) { buddy in
-                            buddyRow(buddy)
+                    Text("No buddies match \u{201C}\(trimmedQuery)\u{201D}.")
+                        .font(.footnote)
+                        .foregroundColor(NativeMilestonePalette.muted(isDark: model.state.isDark))
+                        .listRowBackground(NativeMilestonePalette.card(isDark: model.state.isDark))
+                }
+            }
+
+            ForEach(groups) { group in
+                // Collapsing is suspended while a query decides what shows — a
+                // caret that toggles nothing visible while quietly rewriting
+                // persisted state is worse than no caret.
+                let collapsed = !searching && collapsedGroupIDs.contains(group.id)
+                Section {
+                    if !collapsed {
+                        if group.rows.isEmpty {
+                            // Everyone in this group is signed off and filed
+                            // under Offline — say so instead of a bare header.
+                            Text("Everyone here is signed off.")
+                                .font(.footnote)
+                                .foregroundColor(NativeMilestonePalette.muted(isDark: model.state.isDark))
+                                .listRowBackground(NativeMilestonePalette.card(isDark: model.state.isDark))
+                        } else {
+                            ForEach(group.rows) { buddy in
+                                buddyRow(buddy, signedOff: group.isOffline)
+                            }
                         }
                     }
                 } header: {
-                    NativeCircleSectionHeader(circle: circle, memberCount: members.count, isDark: model.state.isDark)
-                }
-            }
-            let ungrouped = model.state.buddies.filter { $0.circleId == nil }
-            if !ungrouped.isEmpty {
-                Section {
-                    ForEach(ungrouped) { buddy in
-                        buddyRow(buddy)
-                    }
-                } header: {
-                    HStack {
-                        Text("Ungrouped")
-                        Spacer()
-                        Text("\(ungrouped.count)")
-                            .foregroundColor(NativeMilestonePalette.muted(isDark: model.state.isDark))
-                    }
-                    .font(.caption.weight(.bold))
+                    NativeBuddyGroupHeader(
+                        group: group,
+                        collapsed: collapsed,
+                        collapsible: !searching,
+                        isDark: model.state.isDark,
+                        toggle: { toggleCollapsed(group.id) }
+                    )
                 }
             }
         }
@@ -2658,33 +2816,81 @@ private struct NativePendingRequestRow: View {
     }
 }
 
-private struct NativeCircleSectionHeader: View {
-    let circle: NativeMilestoneOneCircle
-    let memberCount: Int
+private struct NativeBuddyGroupHeader: View {
+    let group: NativeBuddyGroup
+    let collapsed: Bool
+    let collapsible: Bool
     let isDark: Bool
+    let toggle: () -> Void
+
+    private var countLabel: String {
+        if let online = group.onlineCount {
+            return "(\(online)/\(group.totalCount))"
+        }
+        return "(\(group.totalCount))"
+    }
+
+    // The caret, count and glyphs are decorative; everything they mean has to
+    // reach the accessible name, or a screen-reader user loses them entirely.
+    private var accessibilitySummary: String {
+        var parts: [String] = [group.name]
+        if let online = group.onlineCount {
+            parts.append("\(online) of \(group.totalCount) online")
+        } else {
+            parts.append("\(group.totalCount) \(group.totalCount == 1 ? "buddy" : "buddies")")
+        }
+        if let circle = group.circle {
+            if !circle.showPresence { parts.append("presence hidden") }
+            if circle.muted { parts.append("alerts muted") }
+        }
+        return parts.joined(separator: ", ")
+    }
 
     var body: some View {
-        HStack(spacing: 6) {
-            Text(circle.name)
-            if !circle.showPresence {
-                Image(systemName: "eye.slash")
-                    .accessibilityLabel("Presence hidden")
+        Button(action: toggle) {
+            HStack(spacing: 6) {
+                if collapsible {
+                    Image(systemName: "chevron.right")
+                        .font(.caption2.weight(.bold))
+                        .rotationEffect(.degrees(collapsed ? 0 : 90))
+                }
+                Text(group.name)
+                Text(countLabel)
+                    .foregroundColor(
+                        group.isOffline
+                            ? NativeMilestonePalette.muted(isDark: isDark)
+                            : NativeMilestonePalette.gold
+                    )
+                if let circle = group.circle {
+                    if !circle.showPresence {
+                        Image(systemName: "eye.slash")
+                    }
+                    if circle.muted {
+                        Image(systemName: "bell.slash")
+                    }
+                }
+                Spacer()
             }
-            if circle.muted {
-                Image(systemName: "bell.slash")
-                    .accessibilityLabel("Muted")
-            }
-            Spacer()
-            Text("\(memberCount)")
-                .foregroundColor(NativeMilestonePalette.gold)
+            .font(.caption.weight(.bold))
+            .foregroundColor(
+                group.isOffline
+                    ? NativeMilestonePalette.muted(isDark: isDark)
+                    : nil
+            )
+            .contentShape(Rectangle())
         }
-        .font(.caption.weight(.bold))
+        .buttonStyle(.plain)
+        .disabled(!collapsible)
+        .accessibilityLabel(accessibilitySummary)
+        .accessibilityValue(collapsible ? (collapsed ? "collapsed" : "expanded") : "")
     }
 }
 
 private struct NativeBuddyRow: View {
     let buddy: NativeMilestoneOneBuddy
     let isDark: Bool
+    // True for rows in the Offline group — the classic signed-off treatment.
+    let signedOff: Bool
     let isKnocking: Bool
     let didKnock: Bool
     let circles: [NativeMilestoneOneCircle]
@@ -2695,6 +2901,16 @@ private struct NativeBuddyRow: View {
     let setCircle: (String?) -> Void
     let newCircle: () -> Void
 
+    // Text-level styling (italic) has to be applied on Text, not View, so the
+    // signed-off variant is built here rather than with modifiers in `body`.
+    private var screennameText: Text {
+        let base = Text(buddy.screenname)
+        if signedOff {
+            return base.font(.body.weight(.medium)).italic()
+        }
+        return base.font(.body.weight(.semibold))
+    }
+
     var body: some View {
         HStack(spacing: 13) {
             Button(action: open) {
@@ -2702,9 +2918,12 @@ private struct NativeBuddyRow: View {
                     NativeBuddyAvatar(name: buddy.screenname, presence: buddy.presence, size: 44, avatarUrl: buddy.avatarUrl)
                     VStack(alignment: .leading, spacing: 3) {
                         HStack(spacing: 6) {
-                            Text(buddy.screenname)
-                                .font(.body.weight(.semibold))
-                                .foregroundColor(NativeMilestonePalette.text(isDark: isDark))
+                            screennameText
+                                .foregroundColor(
+                                    signedOff
+                                        ? NativeMilestonePalette.muted(isDark: isDark)
+                                        : NativeMilestonePalette.text(isDark: isDark)
+                                )
                             if buddy.isPinned {
                                 Image(systemName: "pin.fill")
                                     .font(.caption2)
