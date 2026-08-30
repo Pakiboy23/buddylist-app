@@ -4,14 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-H.I.M. — a retro AIM-style messaging app. Cross-platform (web, iOS, Android) with DMs, chat rooms (regional + vibe), offline message queueing, push notifications, and biometric auth.
+H.I.M. — a retro AIM-style messaging app. Web + iOS, with DMs, chat rooms (regional + vibe), offline message queueing, push notifications, and biometric auth. Android support was dropped in #147 — the `android/` directory is gone.
 
 ## Tech Stack
 
 - Vite 6 + React Router v7, React 19, TypeScript
 - Tailwind CSS v4 + PostCSS 4
 - Supabase (Postgres 17, Auth, Realtime, Storage, Edge Functions)
-- Capacitor 8 (iOS/Android native wrappers)
+- Capacitor 8 (iOS native wrapper)
 - Vitest (unit), Playwright (E2E)
 - Vercel for web hosting; Vercel Functions in `api/` for serverless endpoints
 
@@ -49,9 +49,10 @@ npm run ios:sync               # Build native web + sync iOS (bundled, release-s
 npm run ios:sync:hosted        # Sync iOS in hosted/debug mode
 npm run ios:open               # Open Xcode
 npm run ios:preflight          # Full validation: lint, test, build, sync, assets
-npm run android:sync           # Build native web + sync Android
-npm run android:bundle:release # Gradle bundleRelease (.aab for Play Store)
 ```
+
+The `android:*` scripts are still in `package.json` but the `android/` directory
+they operate on was removed in #147 — they will fail. Don't reach for them.
 
 ## Architecture
 
@@ -73,27 +74,34 @@ The rooms model was rewritten in migration `20260509184623_rooms_v2_launch_schem
 
 Membership flows go through `join_room_by_id` / `leave_room_by_id` SECURITY DEFINER RPCs (migration 20260510050322) to bypass an RLS recursion bug on direct INSERT.
 
-### Native iOS shell ("Milestone One") — read before any iOS-visible UI work
-On iOS, the signed-in screens the user actually sees are **not the web page**.
-`ios/App/App/NativeMilestoneOneView.swift` (~3,300 lines of SwiftUI) renders the
-buddy list, rooms list, and DM/room conversations natively, as a full-screen
-overlay above the WKWebView. The React app keeps running underneath as the
-data/logic layer: `src/app/hi-its-me/page.tsx` publishes state through the
-`HiItsMeShell` Capacitor plugin (`src/lib/nativeShell.ts`,
-`publishNativeMilestoneOneState`), and the native side calls back into
-`window.__hiItsMeNativeMilestoneOne.*` for every action. UIKit chrome (tab bar,
-nav bar) lives in `AppDelegate.swift`.
+### iOS renders the React app — there is no native UI layer
+On iOS the React app owns every pixel. `ios/App/App/AppDelegate.swift` is a thin
+Capacitor host: `HiItsMeShellViewController` embeds the bridge edge-to-edge and
+does nothing else, and the `HiItsMeShell` plugin exists only to report the
+signed push environment. Its `isAvailable` returns `false` on purpose, which is
+what tells the web to render its own chrome (`nativeShellActive === false`).
 
-Consequences:
-- A web-only change to the buddy list, rooms, or DM screens is **invisible on
-  iOS**. If it must reach the phone, port it into the SwiftUI view — shipping a
-  new `ios/App/App/public` bundle alone changes nothing the user sees there.
-- Buddy grouping exists twice and must stay in sync: `buddyListGroups`
-  (page.tsx) ↔ `nativeBuddyGroups` (NativeMilestoneOneView.swift).
-- The web controls overlay visibility via the published `phase`
-  (`'hidden'` reveals the web UI; sign-in and web-owned tabs use this).
-- Web `hiitsme.app` has no overlay — it always shows the React UI, which is why
-  web and iOS can look different while running the same bundle.
+**A change to the web UI reaches iOS by rebuilding the bundle — nothing else.**
+`npm run build && npm run ios:sync`, then commit `dist/` and
+`ios/App/App/public`. What the phone shows is what `hiitsme.app` shows, because
+the two ship the identical entry chunk.
+
+History, so nobody rebuilds it by accident: through Aug 2026 a ~3,300-line
+SwiftUI overlay (`NativeMilestoneOneView.swift`) reimplemented the buddy list,
+rooms and conversations natively above the WKWebView, fed by a
+`publishNativeMilestoneOneState` bridge. Keeping a hand-written native copy in
+step with the React screens proved impossible — the native list was always a
+redesign behind — so `f6fbad5` switched iOS to the React UI and the overlay,
+its UIKit chrome (nav bar, tab bar, dock), and the whole milestone-one bridge
+were deleted. Native duplicates of privacy settings, admin reset and account
+deletion went with them; the web equivalents at `/account`, `/account/delete`
+and in `hi-its-me/page.tsx` are the only implementations now.
+
+Vestigial but harmless: `nativeShellActive` / `nativeShellMode` conditionals and
+the chrome-state publish path still exist in `page.tsx` and
+`src/lib/nativeShell.ts`. With `isAvailable` false they always take the web
+branch. Removing them is a separate cleanup — it touches layout across several
+components and wants device verification.
 
 ### Realtime Channels
 - Room presence: `active_chat_room:${roomId}`
@@ -144,8 +152,8 @@ E2E tests need: `PLAYWRIGHT_USER_A_SCREENNAME`, `PLAYWRIGHT_USER_A_PASSWORD`, `P
 ## Native Deployment Notes
 
 - iOS: Archive via Xcode after `npm run ios:preflight`. Xcode Cloud CI in `ci_scripts/`.
-- Android: Keystore config in `android/keystore.properties` (not committed). Env var alternative: `ANDROID_KEYSTORE_PATH`, etc.
-- Both platforms default to bundled mode. Keep `ios/App/App/public` and `native-web/` in sync with web builds.
+- iOS defaults to bundled mode. Keep `ios/App/App/public` and `native-web/` in sync with web builds — on iOS this bundle *is* the UI.
+- Xcode Cloud (as of 30 Aug 2026): `Release (HIM) — main` archives `main` and auto-distributes to internal TestFlight; `PR compile check v2 (HIM)` builds `claude/*` branches without archiving. A run is green exactly when the archive succeeds.
 
 ## App Store / Play Store readiness
 
