@@ -864,7 +864,7 @@ html.dark body {
 }
 
 .dark .ui-tabbar {
-  border-color: rgba(255, 255, 255, 0.08);
+  border-color: var(--ui-shell-border-subtle);
   box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.2), inset 0 0.5px 0 rgba(255, 255, 255, 0.06);
 }
 
@@ -1855,7 +1855,7 @@ button:not(:disabled):active,
 @supports not (backdrop-filter: blur(1px)) {
   .ui-window-panel  { background: rgba(248, 250, 252, 0.92) !important; }
   .ui-panel-card    { background: rgba(255, 255, 255, 0.94) !important; }
-  .ui-tabbar        { background: rgba(255, 255, 255, 0.92) !important; }
+  .ui-tabbar        { background: var(--ui-shell-glass) !important; }
   .ui-sheet-surface { background: rgba(255, 255, 255, 0.92) !important; }
   .ui-window-header { background: rgba(255, 255, 255, 0.90) !important; }
   .ui-modal-frame   { background: rgba(255, 255, 255, 0.92) !important; }
@@ -1868,7 +1868,7 @@ button:not(:disabled):active,
 
   .dark .ui-window-panel  { background: rgba(15, 23, 42, 0.94)  !important; }
   .dark .ui-panel-card    { background: rgba(15, 23, 42, 0.95)  !important; }
-  .dark .ui-tabbar        { background: var(--bg)               !important; }
+  .dark .ui-tabbar        { background: var(--ui-shell-glass) !important; }
   .dark .ui-sheet-surface { background: rgba(15, 23, 42, 0.94)  !important; }
   .dark .ui-window-header { background: rgba(15, 23, 42, 0.92)  !important; }
   .dark .ui-modal-frame   { background: rgba(15, 23, 42, 0.94)  !important; }
@@ -2122,6 +2122,12 @@ body.privacy-shield-active::after {
   border-color: var(--ui-shell-border) !important;
   background: var(--ui-shell-glass) !important;
   color: var(--text);
+}
+
+.ui-tabbar,
+.dark .ui-tabbar {
+  border-color: var(--ui-shell-border-subtle) !important;
+  background: var(--ui-shell-glass) !important;
 }
 
 .ui-compose-surface,
