@@ -235,17 +235,34 @@ is read accordingly below.
 
 | Objective | Target (wk 4) | Actual | wk1 → wk2 → wk3 → wk4 | Note |
 |---|---|---|---|---|
-| O2 signups | 10–18 | **5** | 29 → 19 → 8 → 5 | Fourth consecutive decline; now ~1/6 of week 1 |
+| O2 signups | 12–20 | **5** | 29 → 19 → 8 → 5 | Fourth consecutive decline; now ~1/6 of week 1 |
 | O3 WAU (trailing 7d) | hold/grow | **8** | 37 → 17 → 10 → 8 | Decline is flattening but has not stopped |
 | O4 activation ≤72h (room post) | ≥35% | **0.0%** (0/5) | 0 → 0 → 0 → 0 | Four weeks, zero |
-| O5 organic room msgs | ≥450 | **0** · 5 engine prompts posted | 0 → 0 → 0 → 0 | **The headline result.** See reading |
+| O5 organic room msgs | ≥500 | **0** · 5 engine prompts posted | 0 → 0 → 0 → 0 | **The headline result.** See reading |
 | Cohort room joins | — | **0** | 0 → 0 → 0 → 0 | Nobody has entered a room since the flight began |
 | **Conversation (DMs)** | — | **5 organic** | 3 → 4 → 0 → **5** | **Off zero.** First inbound to the founder since the engine started Aug 16 |
-| O6 accepted pairs (snapshot) | 7–10 new | **34 total (+4 vs 30 last Monday)** | — | All four new accepts are founder-involved |
+| O6 accepted pairs (snapshot) | 8–12 new | **34 total (+4 vs 30 last Monday)** | — | All four new accepts are founder-involved |
 | Member-created buddy rows | — | **11 rows from 4 distinct requesters** | 14 → 6 → 2 → **4 requesters** | **First increase in member-initiated requests since week 1** |
 | Pending backlog | — | **164 unique pairs** | 67 → 86 → 134 → 164 | Still dominated by the founder's own GH-01 sends |
-| O7 iOS push opt-in (cohort) | ≥40% | **0%** (0/5) | 0 → 0 → 0 → 0 | 5 of 141 all accounts, unchanged since Aug 2 |
-| O8 / O9 | — | *founder screenshots pending* | — | Unfilled for four straight weeks |
+| O7 iOS push opt-in (cohort) | **≥60%**¹ | **0%** (0/5) | 0 → 0 → 0 → 0 | 5 of 141 all accounts, unchanged since Aug 2 |
+| O8 / O9 | ~1,200 pageviews / funnel | *founder screenshots pending* | — | Unfilled for four straight weeks |
+
+¹ **Target-source correction (review finding, fixed same day).** The week-4 row first
+carried week-3 targets (O2 10–18, O5 ≥450, O6 7–10); the authoritative week-4 row in
+`strategy/measurement-plan.md` §2 is O2 12–20, O5 ≥500, O6 8–12, O8 ~1,200. Corrected
+above — the misses are larger against plan than first written. Separately, **O7 has been
+graded against ≥40% in every entry since week 1, but the plan states ≥60%**; week 4 uses
+the plan figure. Weeks 1–3 are left as recorded rather than silently restated; the result
+(0% every week) is unaffected either way.
+
+**Denominator reconciliation (why the flight total is 61, not 62).** Cohort counts read
+from `auth.users` shrink retroactively, because deleting an account removes the row. Week 1
+was recorded as n=30 on Aug 10 and measures **29** today — one member of that cohort has
+since deleted. Weekly figures as-recorded sum to 62; measured today they sum to 61, which
+matches the flight query. Both are correct at their capture time. This also means **the O12
+denominator is degraded by the very event it counts** — each deletion both raises the
+numerator and lowers the denominator, inflating the rate twice. That compounds the
+minimum-denominator problem described below.
 
 **GH-01 founder buddy request:** **75 sent, 5 accepted = 6.7%** (was 1/48 = 2.1% last
 Monday). Small absolute numbers, but the acceptance rate roughly tripled and it is the
