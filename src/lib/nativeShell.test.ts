@@ -6,12 +6,14 @@ const {
   isPluginAvailable,
   shellIsAvailable,
   shellGetPushEnvironment,
+  shellSetChromeState,
 } = vi.hoisted(() => ({
   isNativePlatform: vi.fn(() => false),
   getPlatform: vi.fn(() => 'web'),
   isPluginAvailable: vi.fn(() => true),
   shellIsAvailable: vi.fn(async () => ({ available: true, platform: 'ios' })),
   shellGetPushEnvironment: vi.fn(async () => ({ environment: null as string | null })),
+  shellSetChromeState: vi.fn(async () => undefined),
 }));
 
 vi.mock('@capacitor/core', () => ({
@@ -22,7 +24,7 @@ vi.mock('@capacitor/core', () => ({
   },
   registerPlugin: () => ({
     isAvailable: shellIsAvailable,
-    setChromeState: vi.fn(async () => undefined),
+    setChromeState: shellSetChromeState,
     getPushEnvironment: shellGetPushEnvironment,
   }),
 }));
@@ -30,6 +32,7 @@ vi.mock('@capacitor/core', () => ({
 import {
   confirmNativeShellAvailable,
   routeOwnsNativeShellChrome,
+  type NativeShellChromeState,
 } from '@/lib/nativeShell';
 
 describe('routeOwnsNativeShellChrome', () => {
@@ -186,5 +189,170 @@ describe('getNativePushEnvironment', () => {
     await expect(getNativePushEnvironment()).resolves.toBe('production');
     await expect(getNativePushEnvironment()).resolves.toBe('production');
     expect(shellGetPushEnvironment).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('publishNativeShellChromeState', () => {
+  const originalWindow = globalThis.window;
+  const baseState: NativeShellChromeState = {
+    title: 'H.I.M.',
+    subtitle: null,
+    mode: 'sheet',
+    activeTab: 'im',
+    tabBarVisibility: 'hidden',
+    leadingAction: null,
+    trailingActions: [],
+    accentTone: 'amber',
+    canGoBack: false,
+    showsTopChrome: false,
+    showsBottomChrome: false,
+  };
+
+  beforeEach(() => {
+    vi.resetModules();
+    vi.useRealTimers();
+    Object.defineProperty(globalThis, 'window', {
+      value: { setTimeout: globalThis.setTimeout },
+      configurable: true,
+      writable: true,
+    });
+    isNativePlatform.mockReset();
+    getPlatform.mockReset();
+    shellIsAvailable.mockReset();
+    shellSetChromeState.mockReset();
+    isNativePlatform.mockReturnValue(true);
+    getPlatform.mockReturnValue('ios');
+    shellIsAvailable.mockResolvedValue({ available: true, platform: 'ios' });
+    shellSetChromeState.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    if (typeof originalWindow === 'undefined') {
+      // @ts-expect-error restoring absent window for the node test environment
+      delete globalThis.window;
+      return;
+    }
+
+    Object.defineProperty(globalThis, 'window', {
+      value: originalWindow,
+      configurable: true,
+      writable: true,
+    });
+  });
+
+  it('attaches a monotonic sequence and drops an older availability result after a newer publish starts', async () => {
+    const availabilityResolvers: Array<(value: { available: boolean; platform: string }) => void> = [];
+    shellIsAvailable.mockImplementation(
+      () => new Promise((resolve) => availabilityResolvers.push(resolve)),
+    );
+
+    const { publishNativeShellChromeState } = await import('@/lib/nativeShell');
+
+    const olderPublish = publishNativeShellChromeState({ ...baseState, title: 'Older route' });
+    await Promise.resolve();
+    const newerPublish = publishNativeShellChromeState({ ...baseState, title: 'Current route' });
+    await Promise.resolve();
+
+    expect(shellIsAvailable).toHaveBeenCalledTimes(2);
+
+    availabilityResolvers[1]?.({ available: true, platform: 'ios' });
+    await newerPublish;
+
+    availabilityResolvers[0]?.({ available: true, platform: 'ios' });
+    await olderPublish;
+
+    expect(shellSetChromeState).toHaveBeenCalledTimes(1);
+    expect(shellSetChromeState).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Current route', sequence: 2 }),
+    );
+  });
+
+  it('stops retrying a failed older publish once a newer state is published', async () => {
+    vi.useFakeTimers();
+    Object.defineProperty(globalThis, 'window', {
+      value: { setTimeout: globalThis.setTimeout },
+      configurable: true,
+      writable: true,
+    });
+    shellSetChromeState.mockRejectedValueOnce(new Error('bridge busy'));
+
+    const { publishNativeShellChromeState } = await import('@/lib/nativeShell');
+
+    const olderPublish = publishNativeShellChromeState({ ...baseState, title: 'Retrying route' });
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(shellSetChromeState).toHaveBeenCalledTimes(1);
+    expect(shellSetChromeState).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ title: 'Retrying route', sequence: 1 }),
+    );
+
+    const newerPublish = publishNativeShellChromeState({ ...baseState, title: 'Replacement route' });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(shellSetChromeState).toHaveBeenCalledTimes(2);
+    expect(shellSetChromeState).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ title: 'Replacement route', sequence: 2 }),
+    );
+
+    await vi.advanceTimersByTimeAsync(120);
+    await Promise.all([olderPublish, newerPublish]);
+
+    expect(shellSetChromeState).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries bridge failures for the current publish and keeps the same sequence', async () => {
+    vi.useFakeTimers();
+    Object.defineProperty(globalThis, 'window', {
+      value: { setTimeout: globalThis.setTimeout },
+      configurable: true,
+      writable: true,
+    });
+    shellSetChromeState.mockRejectedValueOnce(new Error('bridge warming'));
+
+    const { publishNativeShellChromeState } = await import('@/lib/nativeShell');
+
+    const publish = publishNativeShellChromeState({ ...baseState, title: 'Current route' });
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(shellSetChromeState).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(120);
+    await publish;
+
+    expect(shellSetChromeState).toHaveBeenCalledTimes(2);
+    expect(shellSetChromeState).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ title: 'Current route', sequence: 1 }),
+    );
+  });
+
+  it('does not touch the bridge off native iOS', async () => {
+    getPlatform.mockReturnValue('android');
+
+    const { publishNativeShellChromeState } = await import('@/lib/nativeShell');
+
+    await publishNativeShellChromeState(baseState);
+
+    expect(shellIsAvailable).not.toHaveBeenCalled();
+    expect(shellSetChromeState).not.toHaveBeenCalled();
+  });
+
+  it('does not call setChromeState when the native presentation shell is unavailable', async () => {
+    shellIsAvailable.mockResolvedValue({ available: false, platform: 'ios' });
+
+    const { publishNativeShellChromeState } = await import('@/lib/nativeShell');
+
+    await publishNativeShellChromeState(baseState);
+
+    expect(shellIsAvailable).toHaveBeenCalledTimes(1);
+    expect(shellSetChromeState).not.toHaveBeenCalled();
   });
 });

@@ -1162,19 +1162,22 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   const { isDark, toggleDark } = useTheme();
   const router = useAppRouter();
   const [searchParams] = useSearchParams();
-  // Optimistically assume the native shell on iOS so a healthy build never flashes
-  // the web chrome, but downgrade to the web header + tab bar if the bridge can't
-  // confirm the shell is actually hosting the view. Without this fallback a native
-  // build that lacks the custom shell root renders no navigation at all.
-  const [nativeShellActive, setNativeShellActive] = useState(() => isNativeIosShell());
+  // React owns the visible H.I.M. chrome by default. Native-shell behavior is
+  // opt-in only after the latest live bridge round-trip confirms that the host can
+  // render chrome, so an iOS launch can never start by hiding the React header or
+  // tab bar while the thin Capacitor container reports presentation unavailable.
+  const [nativeShellActive, setNativeShellActive] = useState(false);
+  const nativeShellAvailabilitySequenceRef = useRef(0);
   useEffect(() => {
     if (!isNativeIosShell()) {
+      setNativeShellActive(false);
       return;
     }
 
+    const availabilitySequence = ++nativeShellAvailabilitySequenceRef.current;
     let cancelled = false;
     void confirmNativeShellAvailable().then((available) => {
-      if (!cancelled) {
+      if (!cancelled && nativeShellAvailabilitySequenceRef.current === availabilitySequence) {
         setNativeShellActive(available);
       }
     });

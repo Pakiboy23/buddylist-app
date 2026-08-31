@@ -13,8 +13,7 @@ import { supabase } from '@/lib/supabase';
 import { upsertOwnProfileWithRepair } from '@/lib/profileRepair';
 import { captureAcquisitionSource, readAcquisitionSource } from '@/lib/acquisitionSource';
 import { logSecurityEvent } from '@/lib/securityEvent';
-import {
-} from '@/lib/nativeShell';
+import { confirmNativeShellAvailable, isNativeIosShell, publishNativeShellChromeState } from '@/lib/nativeShell';
 
 const SIGN_ON_SOUND = '/sounds/aol-welcome.mp3';
 const SIGN_ON_FALLBACK_SOUND = '/sounds/aim.mp3';
@@ -85,6 +84,41 @@ export default function Home() {
   // or toggle the form. No-ops on native and on every render after the first.
   useEffect(() => {
     captureAcquisitionSource();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!isNativeIosShell()) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    void (async () => {
+      const available = await confirmNativeShellAvailable();
+      if (!available || cancelled) {
+        return;
+      }
+
+      await publishNativeShellChromeState({
+        title: 'H.I.M.',
+        subtitle: null,
+        mode: 'sheet',
+        activeTab: 'im',
+        tabBarVisibility: 'hidden',
+        leadingAction: null,
+        trailingActions: [],
+        accentTone: 'amber',
+        canGoBack: false,
+        showsTopChrome: false,
+        showsBottomChrome: false,
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {

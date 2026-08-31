@@ -35,6 +35,7 @@ export interface NativeShellChromeState {
   unreadDirectCount?: number;
   showsTopChrome?: boolean;
   showsBottomChrome?: boolean;
+  sequence?: number;
 }
 
 export interface NativeShellPrivacySettings {
@@ -123,7 +124,7 @@ const HiItsMeShell = registerPlugin<HiItsMeShellPlugin>('HiItsMeShell');
 const NATIVE_SHELL_COMMAND_EVENT = 'hiitsme:native-shell-command';
 let cachedPushEnvironment: NativePushEnvironment | null | undefined;
 let pendingPushEnvironmentLookup: Promise<NativePushEnvironment | null> | null = null;
-let chromeStateGeneration = 0;
+let chromeStateSequence = 0;
 
 declare global {
   interface Window {
@@ -219,25 +220,27 @@ export async function publishNativeShellChromeState(state: NativeShellChromeStat
   // than `Capacitor.isPluginAvailable`, which reports stale plugin headers and can
   // miss the manually-registered shell plugin on otherwise-healthy builds.
 
-  const generation = ++chromeStateGeneration;
+  const sequence = ++chromeStateSequence;
+  const payload: NativeShellChromeState = { ...state, sequence };
+  const isStale = () => chromeStateSequence !== sequence;
   let lastError: unknown = null;
 
   for (let attempt = 0; attempt < 4; attempt += 1) {
-    if (chromeStateGeneration !== generation) {
+    if (isStale()) {
       return;
     }
 
     try {
       const availability = await HiItsMeShell.isAvailable();
-      if (!availability.available || chromeStateGeneration !== generation) {
+      if (!availability.available || isStale()) {
         return;
       }
 
-      await HiItsMeShell.setChromeState(state);
+      await HiItsMeShell.setChromeState(payload);
       return;
     } catch (error) {
       lastError = error;
-      if (attempt === 3) {
+      if (attempt === 3 || isStale()) {
         break;
       }
 
@@ -245,7 +248,7 @@ export async function publishNativeShellChromeState(state: NativeShellChromeStat
     }
   }
 
-  if (lastError && chromeStateGeneration === generation) {
+  if (lastError && !isStale()) {
     console.warn('Native shell state update failed:', lastError);
   }
 }
