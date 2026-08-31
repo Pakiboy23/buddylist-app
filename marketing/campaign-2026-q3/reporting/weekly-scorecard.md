@@ -241,7 +241,7 @@ is read accordingly below.
 | O5 organic room msgs | ≥500 | **0** · 5 engine prompts posted | 0 → 0 → 0 → 0 | **The headline result.** See reading |
 | Cohort room joins | — | **0** | 0 → 0 → 0 → 0 | Nobody has entered a room since the flight began |
 | **Conversation (DMs)** | — | **5 organic** | 3 → 4 → 0 → **5** | **Off zero.** First inbound to the founder since the engine started Aug 16 |
-| O6 accepted pairs (snapshot) | 8–12 new | **34 total (+4 vs 30 last Monday)** | — | All four new accepts are founder-involved |
+| O6 new accepted pairs, **non-founder** | 8–12 new | **0** (9 non-founder pairs, unchanged from 9 last Monday) | 5 → 0 → 0 → **0** | **MISS, third straight zero.** All-pairs snapshot moved 30 → 34, but every one of the four new accepts is founder-involved and so does not count toward O6 — that movement is reported in the GH-01 row below, not here |
 | Member-created buddy rows | — | **11 rows from 4 distinct requesters** | 14 → 6 → 2 → **4 requesters** | **First increase in member-initiated requests since week 1** |
 | Pending backlog | — | **164 unique pairs** | 67 → 86 → 134 → 164 | Still dominated by the founder's own GH-01 sends |
 | O7 iOS push opt-in (cohort) | **≥60%**¹ | **0%** (0/5) | 0 → 0 → 0 → 0 | 5 of 141 all accounts, unchanged since Aug 2 |
@@ -311,7 +311,10 @@ elsewhere. **Room entry did not move: zero organic messages, zero joins, four we
 running, under a prompt that asks for one word.** Meanwhile everything that does not
 require entering a room moved for the first time in a month — 5 organic DMs (from 0),
 4 member-initiated buddy requesters (from 2), 11 member-created rows, GH-01 acceptance
-tripling to 6.7%, the first new Knock in three weeks.
+tripling to 6.7%, the first new Knock in three weeks. **Note what did not move: O6
+member-to-member accepted pairs stayed at 0 for the third straight week** — every
+acceptance this week was of a founder request. Members are acting toward the founder and
+toward DMs, not yet toward each other.
 
 That contrast is the finding. Members are willing to act; they are not willing, or not
 able, to enter a room. Copy has now been eliminated as the explanation — three different
