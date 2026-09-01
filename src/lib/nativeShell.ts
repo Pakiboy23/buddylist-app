@@ -386,13 +386,13 @@ export async function getNativePushEnvironment(): Promise<NativePushEnvironment 
   }
 
   if (!pendingPushEnvironmentLookup) {
+    // Deliberately doesn't gate on HiItsMeShell.isAvailable() first: the signed push
+    // environment is read from Info.plist (CAPACITOR_DEBUG), not from anything the
+    // shell-hosting view controller owns, so it's available even when the presentation
+    // shell isn't the root VC. Gating on shell availability would make APNs
+    // registration report no environment in that case for no reason.
     pendingPushEnvironmentLookup = (async () => {
       try {
-        const availability = await HiItsMeShell.isAvailable();
-        if (!availability.available) {
-          return null;
-        }
-
         const result = await HiItsMeShell.getPushEnvironment();
         return result.environment === 'sandbox' || result.environment === 'production'
           ? result.environment
