@@ -14,6 +14,26 @@ interface PushTokenRow {
   push_environment?: string | null;
 }
 
+// One entry per token we tried and failed to deliver to. Never contains the
+// token itself — this is written to a table an operator reads, not a debug dump.
+interface PushDispatchFailure {
+  platform: PushPlatform;
+  env: ApnsEnvironment | null;
+  status: number | null;
+  reason: string;
+}
+
+interface DispatchResult {
+  delivered: number;
+  attempted: number;
+  tokens: number;
+  pruned: number;
+  failures: PushDispatchFailure[];
+}
+
+const MAX_LOGGED_FAILURES = 20;
+const MAX_FAILURE_REASON_LENGTH = 200;
+
 const APNS_PRODUCTION_HOST = 'https://api.push.apple.com';
 const APNS_SANDBOX_HOST = 'https://api.sandbox.push.apple.com';
 const MAX_PREVIEW_LENGTH = 140;
@@ -91,6 +111,30 @@ function readApnsFailureReason(body: string): string {
 
 function shouldPruneToken(reason: string): boolean {
   return ['BadDeviceToken', 'Unregistered', 'DeviceTokenNotForTopic'].includes(reason);
+}
+
+// Failure text reaches push_dispatch_log, which promises to hold no device
+// tokens — so it is redacted before it is stored, not merely trimmed.
+//
+// The device token is a path segment of the APNs request URL
+// (`/3/device/<token>`), and a transport-level fetch error quotes the URL it
+// failed on, so an APNs outage would otherwise persist every token it touched.
+// FCM error bodies echo the registration token the same way. Both are covered:
+// the APNs device path explicitly, and then any remaining long unbroken
+// token-shaped run (APNs tokens are 64 hex characters, FCM's are longer still).
+//
+// Mirrored in src/lib/pushFailureRedaction.ts, which carries the tests — keep
+// both in sync.
+function redactPushTokens(raw: string): string {
+  return raw
+    .replace(/(\/3\/device\/)[A-Za-z0-9_-]+/g, '$1[redacted]')
+    .replace(/[A-Za-z0-9_:-]{40,}/g, '[redacted]');
+}
+
+function clampFailureReason(raw: string): string {
+  const n = redactPushTokens((raw ?? '').replace(/\s+/g, ' ').trim());
+  if (!n) return 'unknown';
+  return n.length <= MAX_FAILURE_REASON_LENGTH ? n : `${n.slice(0, MAX_FAILURE_REASON_LENGTH - 1)}\u2026`;
 }
 
 // ── APNs JWT cache (one JWT per request, reused across all tokens) ────────────
@@ -330,7 +374,7 @@ Deno.serve(async (req: Request) => {
     user = { id: authedUser.id };
   }
 
-  let body: { kind?: string; messageId?: number | string; roomMessageId?: string; buddyId?: string };
+  let body: { kind?: string; messageId?: number | string; roomMessageId?: string; buddyId?: string; actorId?: string };
   try { body = await req.json(); }
   catch { return Response.json({ error: 'Invalid request body.' }, { status: 400, headers: CORS_HEADERS }); }
 
@@ -372,14 +416,51 @@ Deno.serve(async (req: Request) => {
     return (resp.data ?? []) as PushTokenRow[];
   }
 
+  // Until this existed, a dispatch that reached nobody was indistinguishable
+  // from one that reached everybody: the function returned 200 either way and
+  // nothing recorded what APNs/FCM actually said. Four weeks of automated sends
+  // went out to a user base with almost no registered tokens without any signal.
+  // `recipients > 0 && tokens = 0` is the row that would have caught it.
+  // Failures here are swallowed on purpose — observability must never be able to
+  // break delivery.
+  async function logDispatch(entry: {
+    variant: string;
+    kind: string;
+    actorId: string | null;
+    subjectId: string | null;
+    recipients: number;
+    result: DispatchResult;
+  }) {
+    try {
+      const { error } = await admin.from('push_dispatch_log').insert({
+        variant: entry.variant,
+        kind: entry.kind,
+        automation: isAutomation,
+        actor_id: entry.actorId,
+        subject_id: entry.subjectId,
+        recipients: entry.recipients,
+        tokens: entry.result.tokens,
+        attempted: entry.result.attempted,
+        delivered: entry.result.delivered,
+        pruned: entry.result.pruned,
+        failures: entry.result.failures,
+      });
+      if (error) console.error('push_dispatch_log insert failed:', error.message);
+    } catch (e) {
+      console.error('push_dispatch_log insert failed:', e);
+    }
+  }
+
   async function dispatchToRecipients(input: {
     recipientIds: string[];
     senderName: string;
     previewText: string;
     targetPath: string;
     variant: string;
-  }) {
-    if (!input.recipientIds.length) return { delivered: 0, attempted: 0 };
+  }): Promise<DispatchResult> {
+    if (!input.recipientIds.length) {
+      return { delivered: 0, attempted: 0, tokens: 0, pruned: 0, failures: [] };
+    }
 
     const [tokens, previewModes] = await Promise.all([
       getPushTokens(input.recipientIds),
@@ -417,7 +498,14 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    let attempted = 0, delivered = 0;
+    let attempted = 0, delivered = 0, pruned = 0;
+    const failures: PushDispatchFailure[] = [];
+    const tokenCount = tokens.length;
+    function recordFailure(f: PushDispatchFailure) {
+      if (failures.length >= MAX_LOGGED_FAILURES) return;
+      failures.push({ ...f, reason: clampFailureReason(f.reason) });
+    }
+
     for (const recipientId of input.recipientIds) {
       const userTokens = tokensByUser.get(recipientId) ?? [];
       if (!userTokens.length) continue;
@@ -465,10 +553,19 @@ Deno.serve(async (req: Request) => {
               delivered++;
             } else if (shouldPruneFcmToken(res.status, res.body)) {
               await admin.from('user_push_tokens').delete().eq('token', entry.token);
+              pruned++;
+              recordFailure({ platform: 'android', env: null, status: res.status, reason: 'pruned: dead token' });
             } else {
+              recordFailure({ platform: 'android', env: null, status: res.status, reason: res.body });
               console.error('FCM delivery failed:', res.status, res.body);
             }
           } catch (e) {
+            recordFailure({
+              platform: 'android',
+              env: null,
+              status: null,
+              reason: e instanceof Error ? e.message : 'network error',
+            });
             console.error('FCM delivery failed:', e);
           }
           continue;
@@ -478,26 +575,42 @@ Deno.serve(async (req: Request) => {
         attempted++;
         const hosts = resolveApnsHosts(entry.env);
         let deliveredThis = false, sawResponse = false, allPrunable = true;
+        let lastStatus: number | null = null;
+        let lastReason = '';
 
         for (const host of hosts) {
           try {
             const res = await sendApnsNotification(host, entry.token, payload);
             sawResponse = true;
             if (res.status >= 200 && res.status < 300) { delivered++; deliveredThis = true; break; }
+            lastStatus = res.status;
+            lastReason = readApnsFailureReason(res.body) || res.body;
             if (!shouldPruneToken(readApnsFailureReason(res.body))) allPrunable = false;
           } catch (e) {
             allPrunable = false;
+            lastReason = e instanceof Error ? e.message : 'network error';
             console.error('APNs delivery failed:', e);
           }
         }
 
-        if (!deliveredThis && sawResponse && allPrunable) {
+        const willPrune = !deliveredThis && sawResponse && allPrunable;
+        if (!deliveredThis) {
+          recordFailure({
+            platform: 'ios',
+            env: entry.env,
+            status: lastStatus,
+            reason: willPrune ? `pruned: ${lastReason}` : lastReason,
+          });
+        }
+
+        if (willPrune) {
           await admin.from('user_push_tokens').delete().eq('token', entry.token);
+          pruned++;
         }
       }
     }
 
-    return { delivered, attempted };
+    return { delivered, attempted, tokens: tokenCount, pruned, failures };
   }
 
   // ── dispatch by kind ──
@@ -531,7 +644,15 @@ Deno.serve(async (req: Request) => {
         targetPath: `/hi-its-me?dm=${encodeURIComponent(senderId)}`,
         variant: 'dm',
       });
-      return Response.json({ ok: true, ...result }, { headers: CORS_HEADERS });
+      await logDispatch({
+        variant: 'dm',
+        kind: body.kind ?? 'dm',
+        actorId: senderId,
+        subjectId: messageId,
+        recipients: 1,
+        result,
+      });
+      return Response.json({ ok: true, delivered: result.delivered, attempted: result.attempted }, { headers: CORS_HEADERS });
     }
 
     // Room push
@@ -572,26 +693,86 @@ Deno.serve(async (req: Request) => {
         targetPath: `/hi-its-me?tab=chat&room=${encodeURIComponent(r.slug)}`,
         variant: 'room',
       });
-      return Response.json({ ok: true, ...result }, { headers: CORS_HEADERS });
+      await logDispatch({
+        variant: 'room',
+        kind: 'room',
+        actorId: roomSenderId,
+        subjectId: roomMessageId,
+        recipients: recipientIds.length,
+        result,
+      });
+      return Response.json({ ok: true, delivered: result.delivered, attempted: result.attempted }, { headers: CORS_HEADERS });
     }
 
     // Buddy push
     if (body.kind === 'buddy_request' || body.kind === 'buddy_accept') {
       const buddyId = typeof body.buddyId === 'string' ? body.buddyId.trim() : '';
       if (!buddyId) return Response.json({ error: 'buddyId is required.' }, { status: 400, headers: CORS_HEADERS });
-      // Buddy pushes name the acting user, so they require a real caller.
+
+      // Who the notification names. In client mode that is the caller; in
+      // automation mode there is no caller — a buddies row was written straight
+      // to Postgres (the founder engine's requests) and the trigger is
+      // announcing it — so the actor arrives in the body.
+      let actorId: string;
       if (isAutomation) {
-        return Response.json({ error: 'Buddy pushes require a user token.' }, { status: 400, headers: CORS_HEADERS });
+        if (body.kind !== 'buddy_request') {
+          return Response.json({ error: 'Only buddy_request may be announced server-side.' }, { status: 400, headers: CORS_HEADERS });
+        }
+        const claimedActor = typeof body.actorId === 'string' ? body.actorId.trim() : '';
+        if (!claimedActor) {
+          return Response.json({ error: 'actorId is required for automation.' }, { status: 400, headers: CORS_HEADERS });
+        }
+        actorId = claimedActor;
+      } else {
+        actorId = user!.id;
       }
 
-      const senderName = await resolveSenderName(user!.id);
+      // Both modes prove the relationship before announcing it, the way the dm
+      // and room paths read their row first.
+      //
+      // Being signed in is not evidence that a buddy request happened: without
+      // this an authenticated caller could POST any buddyId and put
+      // "<name> sent you a buddy request" on a stranger's lock screen without
+      // ever writing a buddies row — and unlimited, because the rate limit is a
+      // trigger on the insert this path never performs. In automation mode the
+      // same check keeps the fanout secret from attributing a request to an
+      // account that never made one.
+      //
+      // Checking the status, not just the pair, also stops a server-side
+      // announcement racing the recipient: if the request was already accepted
+      // by the time the trigger's call lands, there is no longer a request to
+      // announce. `buddies` is asymmetric — a pending request is the single row
+      // requester -> target, and accepting writes both directions as accepted —
+      // so (actor -> recipient) with the matching status is the exact row each
+      // notification claims.
+      const requiredStatus = body.kind === 'buddy_request' ? 'pending' : 'accepted';
+      const { data: pair } = await admin
+        .from('buddies')
+        .select('user_id,buddy_id,status')
+        .eq('user_id', actorId)
+        .eq('buddy_id', buddyId)
+        .eq('status', requiredStatus)
+        .maybeSingle();
+      if (!pair) {
+        return Response.json({ error: 'Buddy relationship not found.' }, { status: 404, headers: CORS_HEADERS });
+      }
+
+      const senderName = await resolveSenderName(actorId);
       const previewText = body.kind === 'buddy_request' ? 'sent you a buddy request.' : 'accepted your buddy request.';
       const targetPath =
         body.kind === 'buddy_request'
           ? '/hi-its-me?tab=im'
-          : `/hi-its-me?tab=im&dm=${encodeURIComponent(user!.id)}`;
+          : `/hi-its-me?tab=im&dm=${encodeURIComponent(actorId)}`;
       const result = await dispatchToRecipients({ recipientIds: [buddyId], senderName, previewText, targetPath, variant: 'buddy' });
-      return Response.json({ ok: true, ...result }, { headers: CORS_HEADERS });
+      await logDispatch({
+        variant: 'buddy',
+        kind: body.kind,
+        actorId,
+        subjectId: buddyId,
+        recipients: 1,
+        result,
+      });
+      return Response.json({ ok: true, delivered: result.delivered, attempted: result.attempted }, { headers: CORS_HEADERS });
     }
 
     return Response.json({ error: 'Unknown kind.' }, { status: 400, headers: CORS_HEADERS });
