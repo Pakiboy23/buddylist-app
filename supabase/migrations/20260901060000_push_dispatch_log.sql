@@ -37,10 +37,22 @@ create table if not exists public.push_dispatch_log (
 create index if not exists push_dispatch_log_created_idx
   on public.push_dispatch_log (created_at desc);
 
--- The operational query: sends that reached nobody.
-create index if not exists push_dispatch_log_unreached_idx
+-- The two operational alerts. A partial index only serves a query whose own
+-- predicate implies the index predicate, and Postgres cannot infer `delivered = 0`
+-- from `tokens = 0`, so each alert gets a predicate matching its query exactly.
+
+-- "Dispatched to real people and reached no device at all" — nobody on the
+-- receiving end has push registered. The signal that would have surfaced this
+-- on day one.
+create index if not exists push_dispatch_log_no_tokens_idx
   on public.push_dispatch_log (created_at desc)
-  where delivered = 0 and recipients > 0;
+  where recipients > 0 and tokens = 0;
+
+-- "Reached nobody, for any reason" — the broader alert, which also catches
+-- recipients whose tokens are registered but dead.
+create index if not exists push_dispatch_log_undelivered_idx
+  on public.push_dispatch_log (created_at desc)
+  where recipients > 0 and delivered = 0;
 
 alter table public.push_dispatch_log enable row level security;
 

@@ -709,12 +709,10 @@ Deno.serve(async (req: Request) => {
       const buddyId = typeof body.buddyId === 'string' ? body.buddyId.trim() : '';
       if (!buddyId) return Response.json({ error: 'buddyId is required.' }, { status: 400, headers: CORS_HEADERS });
 
-      // Buddy pushes name the acting user. In client mode that is the caller.
-      // In automation mode there is no caller — a buddies row was written
-      // straight to Postgres (the founder engine's requests) and the trigger is
-      // announcing it — so the actor arrives in the body and is verified against
-      // the row it claims to announce. Without that check the fanout secret
-      // would be enough to attribute a push to any account.
+      // Who the notification names. In client mode that is the caller; in
+      // automation mode there is no caller — a buddies row was written straight
+      // to Postgres (the founder engine's requests) and the trigger is
+      // announcing it — so the actor arrives in the body.
       let actorId: string;
       if (isAutomation) {
         if (body.kind !== 'buddy_request') {
@@ -724,16 +722,39 @@ Deno.serve(async (req: Request) => {
         if (!claimedActor) {
           return Response.json({ error: 'actorId is required for automation.' }, { status: 400, headers: CORS_HEADERS });
         }
-        const { data: pair } = await admin
-          .from('buddies')
-          .select('user_id,buddy_id')
-          .eq('user_id', claimedActor)
-          .eq('buddy_id', buddyId)
-          .maybeSingle();
-        if (!pair) return Response.json({ error: 'Buddy request not found.' }, { status: 404, headers: CORS_HEADERS });
         actorId = claimedActor;
       } else {
         actorId = user!.id;
+      }
+
+      // Both modes prove the relationship before announcing it, the way the dm
+      // and room paths read their row first.
+      //
+      // Being signed in is not evidence that a buddy request happened: without
+      // this an authenticated caller could POST any buddyId and put
+      // "<name> sent you a buddy request" on a stranger's lock screen without
+      // ever writing a buddies row — and unlimited, because the rate limit is a
+      // trigger on the insert this path never performs. In automation mode the
+      // same check keeps the fanout secret from attributing a request to an
+      // account that never made one.
+      //
+      // Checking the status, not just the pair, also stops a server-side
+      // announcement racing the recipient: if the request was already accepted
+      // by the time the trigger's call lands, there is no longer a request to
+      // announce. `buddies` is asymmetric — a pending request is the single row
+      // requester -> target, and accepting writes both directions as accepted —
+      // so (actor -> recipient) with the matching status is the exact row each
+      // notification claims.
+      const requiredStatus = body.kind === 'buddy_request' ? 'pending' : 'accepted';
+      const { data: pair } = await admin
+        .from('buddies')
+        .select('user_id,buddy_id,status')
+        .eq('user_id', actorId)
+        .eq('buddy_id', buddyId)
+        .eq('status', requiredStatus)
+        .maybeSingle();
+      if (!pair) {
+        return Response.json({ error: 'Buddy relationship not found.' }, { status: 404, headers: CORS_HEADERS });
       }
 
       const senderName = await resolveSenderName(actorId);
