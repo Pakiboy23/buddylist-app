@@ -214,3 +214,122 @@ than writing more prompts.
    across three weeks.
 3. A decision on the O12 root-cause cut: is the engine's cold DM plausibly driving deletions?
    That question needs answering before the engine's volume is increased.
+
+---
+
+## Week 4 scorecard — Aug 24–30 (recorded Mon Aug 31) · THE ASK-SIZE TEST
+
+**Window discipline:** closed Aug 24–30 cohort (n=5), unique unordered pairs, in-window
+deletions. This week existed to answer one question: the weekday room prompts were
+rewritten to one-word asks effective Aug 24, against a week-3 baseline of exactly zero
+organic room messages. Did shrinking the ask move room entry?
+
+**Answer: no. Room entry stayed at exactly zero. Ask-size is not the constraint.**
+
+**Test integrity caveat, stated up front:** only **3 of 5** weekday city prompts posted
+(Mon NYC, Thu ATL, Fri EE). The Tue LA and Wed CHI prompts were lost to an automation gap
+and were deliberately not back-posted — posting Tuesday's prompt on Thursday would have
+been worse than skipping it. Five room prompts posted in total (3 weekday + Late Night +
+Sunday Reset). A 3-day test is weaker evidence than the 5 days planned; the zero result
+is read accordingly below.
+
+| Objective | Target (wk 4) | Actual | wk1 → wk2 → wk3 → wk4 | Note |
+|---|---|---|---|---|
+| O2 signups | 12–20 | **5** | 29 → 19 → 8 → 5 | Fourth consecutive decline; now ~1/6 of week 1 |
+| O3 WAU (trailing 7d) | hold/grow | **8** | 37 → 17 → 10 → 8 | Decline is flattening but has not stopped |
+| O4 activation ≤72h (room post) | ≥35% | **0.0%** (0/5) | 0 → 0 → 0 → 0 | Four weeks, zero |
+| O5 organic room msgs | ≥500 | **0** · 5 engine prompts posted | 0 → 0 → 0 → 0 | **The headline result.** See reading |
+| Cohort room joins | — | **0** | 0 → 0 → 0 → 0 | Nobody has entered a room since the flight began |
+| **Conversation (DMs)** | — | **5 organic** | 3 → 4 → 0 → **5** | **Off zero.** First inbound to the founder since the engine started Aug 16 |
+| O6 new accepted pairs, **non-founder** | 8–12 new | **0** (9 non-founder pairs, unchanged from 9 last Monday) | 5 → 0 → 0 → **0** | **MISS, third straight zero.** All-pairs snapshot moved 30 → 34, but every one of the four new accepts is founder-involved and so does not count toward O6 — that movement is reported in the GH-01 row below, not here |
+| Member-created buddy rows | — | **11 rows from 4 distinct requesters** | 14 → 6 → 2 → **4 requesters** | **First increase in member-initiated requests since week 1** |
+| Pending backlog | — | **164 unique pairs** | 67 → 86 → 134 → 164 | Still dominated by the founder's own GH-01 sends |
+| O7 iOS push opt-in (cohort) | **≥60%**¹ | **0%** (0/5) | 0 → 0 → 0 → 0 | 5 of 141 all accounts, unchanged since Aug 2 |
+| O8 / O9 | ~1,200 pageviews / funnel | *founder screenshots pending* | — | Unfilled for four straight weeks |
+
+¹ **Target-source correction (review finding, fixed same day).** The week-4 row first
+carried week-3 targets (O2 10–18, O5 ≥450, O6 7–10); the authoritative week-4 row in
+`strategy/measurement-plan.md` §2 is O2 12–20, O5 ≥500, O6 8–12, O8 ~1,200. Corrected
+above — the misses are larger against plan than first written. Separately, **O7 has been
+graded against ≥40% in every entry since week 1, but the plan states ≥60%**; week 4 uses
+the plan figure. Weeks 1–3 are left as recorded rather than silently restated; the result
+(0% every week) is unaffected either way.
+
+**Denominator reconciliation (why the flight total is 61, not 62).** Cohort counts read
+from `auth.users` shrink retroactively, because deleting an account removes the row. Week 1
+was recorded as n=30 on Aug 10 and measures **29** today — one member of that cohort has
+since deleted. Weekly figures as-recorded sum to 62; measured today they sum to 61, which
+matches the flight query. Both are correct at their capture time. This also means **the O12
+denominator is degraded by the very event it counts** — each deletion both raises the
+numerator and lowers the denominator, inflating the rate twice. That compounds the
+minimum-denominator problem described below.
+
+**GH-01 founder buddy request:** **75 sent, 5 accepted = 6.7%** (was 1/48 = 2.1% last
+Monday). Small absolute numbers, but the acceptance rate roughly tripled and it is the
+mechanism producing most of this week's movement.
+
+**Store (ASC API, HTTP 200, Aug 31):** **2.3 is now live** (READY_FOR_SALE) — it shipped
+during the week; the promotionalText patched on Aug 24 carried through, so the listing's
+promo slot never blanked. **Promo v3 rotated today** on 2.3's en-US localization, verified
+by readback (158 chars). **0 customer reviews** after 27 days live.
+
+### O12 root cause — the guardrail is a denominator artifact
+
+Owed since week 3. The answer changes the reading completely.
+
+Deletions per week across the whole flight: **2, 2, 2, 2.** Exactly two people per week
+for four consecutive weeks (Aug 7+8, Aug 10+11, Aug 18+22, Aug 27+30). The absolute number
+of people leaving has not changed at all. The *rate* exploded — 6.7% → 10.5% → 25% → 40% —
+purely because the denominator collapsed from 29 signups to 5.
+
+Flight-cumulative is **8/61 = 13.1%**, up from 10.7%. That is a real number and it is above
+the guardrail, but it describes shrinking acquisition, not accelerating churn. **The
+guardrail as written measures the wrong thing at this scale**; at n=5 a single deletion
+moves it 20 points. It should be restated as an absolute count with a rate secondary, or
+given a minimum denominator.
+
+**The engine-DM question cannot be answered retroactively.** `delete-account` wipes the
+auth row and every message, so for a deleted user there is no signup date and no record of
+what they received — verified: 0 of 8 flight deletions retain either. One case is traceable
+from the operating log: an account welcomed at Aug 25 06:25Z deleted at Aug 27 01:06Z,
+~43 hours later. That is one data point out of eight and proves nothing on its own.
+**Recommended fix (small):** add `signed_up_at` and a `received_engine_dm` boolean to
+`account_deletion_log` at deletion time, so the question is answerable from next week
+rather than never. Until then, no evidence supports pausing the welcome sweep, and none
+rules it out.
+
+**Safety block (O11):** reports **0** · blocks **0** · DM flags **0** · room flags **0**.
+
+**Adoption (all accounts, 136 → 141):** away message **17** (unchanged) · icons 21→**22** ·
+Circles still **0** · Knock 8→**9** (first new Knock in three weeks) · Buzz **0** ·
+reactions **2** · saved **3** · push **5**.
+
+### Week-4 reading
+
+The test returned a clean negative on its own question and an unexpected positive
+elsewhere. **Room entry did not move: zero organic messages, zero joins, four weeks
+running, under a prompt that asks for one word.** Meanwhile everything that does not
+require entering a room moved for the first time in a month — 5 organic DMs (from 0),
+4 member-initiated buddy requesters (from 2), 11 member-created rows, GH-01 acceptance
+tripling to 6.7%, the first new Knock in three weeks. **Note what did not move: O6
+member-to-member accepted pairs stayed at 0 for the third straight week** — every
+acceptance this week was of a founder request. Members are acting toward the founder and
+toward DMs, not yet toward each other.
+
+That contrast is the finding. Members are willing to act; they are not willing, or not
+able, to enter a room. Copy has now been eliminated as the explanation — three different
+prompt styles across four weeks all returned exactly zero, and the same people were
+simultaneously accepting buddy requests and sending DMs. **The constraint is the room
+surface itself: discovery, entry, or the empty state a first visitor sees.** No further
+prompt rewrite should be proposed; the remaining flight time is better spent instrumenting
+whether anyone reaches a room screen at all.
+
+Acquisition is now the second problem: 5 signups is the lowest week of the flight and the
+listing alone is no longer carrying it.
+
+### Founder inputs still needed
+
+1. Activation definition sign-off — open since Aug 10, now four weeks.
+2. ASC Analytics + Vercel screenshots (O8/O9) — four weeks unfilled.
+3. A decision on restating the O12 guardrail with a minimum denominator, and on adding the
+   two deletion-log fields so the engine-DM question becomes answerable.
