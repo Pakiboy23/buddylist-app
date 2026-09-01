@@ -113,8 +113,26 @@ function shouldPruneToken(reason: string): boolean {
   return ['BadDeviceToken', 'Unregistered', 'DeviceTokenNotForTopic'].includes(reason);
 }
 
+// Failure text reaches push_dispatch_log, which promises to hold no device
+// tokens — so it is redacted before it is stored, not merely trimmed.
+//
+// The device token is a path segment of the APNs request URL
+// (`/3/device/<token>`), and a transport-level fetch error quotes the URL it
+// failed on, so an APNs outage would otherwise persist every token it touched.
+// FCM error bodies echo the registration token the same way. Both are covered:
+// the APNs device path explicitly, and then any remaining long unbroken
+// token-shaped run (APNs tokens are 64 hex characters, FCM's are longer still).
+//
+// Mirrored in src/lib/pushFailureRedaction.ts, which carries the tests — keep
+// both in sync.
+function redactPushTokens(raw: string): string {
+  return raw
+    .replace(/(\/3\/device\/)[A-Za-z0-9_-]+/g, '$1[redacted]')
+    .replace(/[A-Za-z0-9_:-]{40,}/g, '[redacted]');
+}
+
 function clampFailureReason(raw: string): string {
-  const n = (raw ?? '').replace(/\s+/g, ' ').trim();
+  const n = redactPushTokens((raw ?? '').replace(/\s+/g, ' ').trim());
   if (!n) return 'unknown';
   return n.length <= MAX_FAILURE_REASON_LENGTH ? n : `${n.slice(0, MAX_FAILURE_REASON_LENGTH - 1)}\u2026`;
 }

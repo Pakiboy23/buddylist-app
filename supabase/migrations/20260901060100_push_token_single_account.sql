@@ -20,6 +20,13 @@ security definer
 set search_path = public
 as $$
 begin
+  -- Serialize claims on this token. Without it two devices registering the
+  -- same token concurrently each delete rows the other has not committed yet,
+  -- both inserts succeed, and the duplicate ownership this migration exists to
+  -- remove comes straight back. The lock is transaction-scoped, so the second
+  -- claim waits, then sees and clears the first.
+  perform pg_advisory_xact_lock(hashtextextended(new.token, 0));
+
   -- SECURITY DEFINER because the RLS delete policy only lets a caller remove
   -- their own rows, and the row being cleared here belongs to someone else.
   delete from public.user_push_tokens
@@ -45,6 +52,15 @@ delete from public.user_push_tokens t
  where t.token = newer.token
    and t.user_id <> newer.user_id
    and (newer.last_registered_at, newer.user_id) > (t.last_registered_at, t.user_id);
+
+-- 3. The backstop. The lock above orders concurrent claims; this makes a second
+--    owner impossible to store at all, whatever writes it. Created after the
+--    cleanup, which is what makes the column unique in the first place.
+create unique index if not exists user_push_tokens_token_key
+  on public.user_push_tokens (token);
+
+comment on index public.user_push_tokens_token_key is
+  'One device token, one account. Paired with claim_push_token_for_user(), which clears the previous owner before insert.';
 
 comment on function public.claim_push_token_for_user() is
   'Makes a device token exclusive to the account registering it, so a push is never delivered to an account that no longer owns the device.';
