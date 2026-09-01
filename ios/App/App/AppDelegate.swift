@@ -326,6 +326,10 @@ fileprivate func resolveSignedPushEnvironment() -> String? {
     return "production"
 }
 
+fileprivate extension Notification.Name {
+    static let hiItsMeWebViewCacheReady = Notification.Name("HiItsMeWebViewCacheReady")
+}
+
 @objc(HiItsMeBridgeViewController)
 class HiItsMeBridgeViewController: CAPBridgeViewController {
     weak var shellController: HiItsMeShellViewController?
@@ -569,7 +573,11 @@ class HiItsMeShellPlugin: CAPPlugin, CAPBridgedPlugin {
 
 @objc(HiItsMeShellViewController)
 class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
-    private let bridgeViewController = HiItsMeBridgeViewController()
+    private lazy var bridgeViewController: HiItsMeBridgeViewController = {
+        let controller = HiItsMeBridgeViewController()
+        controller.shellController = self
+        return controller
+    }()
     private let nativeMilestoneOneModel = NativeMilestoneOneViewModel()
     private let topChromeView = UIVisualEffectView(effect: nil)
     private let topDockView = UIVisualEffectView(effect: nil)
@@ -608,6 +616,7 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
     )
     private var chromeState = HiItsMeShellChromeState(showsTopChrome: false, showsBottomChrome: false)
     private var hasPreparedBridgeForShutdown = false
+    private var isBridgeEmbedded = false
     private var hasReceivedWebChromeState = false
     private var startupChromeFallbackWorkItem: DispatchWorkItem?
     private var liquidGlassDockHostingController: UIViewController?
@@ -618,7 +627,6 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .himBg
-        bridgeViewController.shellController = self
 
         headerGradientLayer.colors = [UIColor.himChiraag.cgColor, UIColor.himLavender.cgColor, UIColor.himGold.cgColor]
         headerGradientLayer.startPoint = CGPoint(x: 0, y: 0.5)
@@ -628,7 +636,7 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         configureTitleView()
         configureNavigationBar()
         configureTabBar()
-        embedBridgeViewController()
+        embedBridgeViewControllerWhenCacheIsReady()
         embedNativeMilestoneOneView()
         applyChromeState(chromeState, animated: false, fromWeb: false)
         scheduleStartupChromeFallback()
@@ -781,7 +789,7 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
     private func isUnauthenticatedRoute() -> Bool {
         // Default to "unauthenticated" if the WebView hasn't reported a URL yet,
         // so taps during the cold-launch loading window are also inert.
-        guard let path = bridgeViewController.webView?.url?.path else {
+        guard isBridgeEmbedded, let path = bridgeViewController.webView?.url?.path else {
             return true
         }
         let trimmed = path.hasSuffix("/") && path.count > 1 ? String(path.dropLast()) : path
@@ -1365,7 +1373,7 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
                 )))
                 return
             }
-            guard let webView = self.bridgeViewController.webView else {
+            guard self.isBridgeEmbedded, let webView = self.bridgeViewController.webView else {
                 completion(.failure(makeShellError("H.I.M. is still loading.")))
                 return
             }
@@ -1575,7 +1583,11 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         hostingController.view.backgroundColor = .clear
 
         addChild(hostingController)
-        view.insertSubview(hostingController.view, aboveSubview: bridgeViewController.view)
+        if isBridgeEmbedded {
+            view.insertSubview(hostingController.view, aboveSubview: bridgeViewController.view)
+        } else {
+            view.insertSubview(hostingController.view, at: 0)
+        }
         NSLayoutConstraint.activate([
             hostingController.view.topAnchor.constraint(equalTo: view.topAnchor),
             hostingController.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -1586,7 +1598,30 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         nativeMilestoneOneHostingController = hostingController
     }
 
+    private func embedBridgeViewControllerWhenCacheIsReady() {
+        if AppDelegate.isWebViewCacheReady {
+            embedBridgeViewController()
+            return
+        }
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleWebViewCacheReady),
+            name: .hiItsMeWebViewCacheReady,
+            object: nil
+        )
+    }
+
+    @objc private func handleWebViewCacheReady() {
+        NotificationCenter.default.removeObserver(self, name: .hiItsMeWebViewCacheReady, object: nil)
+        embedBridgeViewController()
+    }
+
     private func embedBridgeViewController() {
+        guard !isBridgeEmbedded else {
+            return
+        }
+
         addChild(bridgeViewController)
         bridgeViewController.view.translatesAutoresizingMaskIntoConstraints = false
         view.insertSubview(bridgeViewController.view, at: 0)
@@ -1609,6 +1644,8 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         updateBridgeChromeConstraints()
 
         bridgeViewController.didMove(toParent: self)
+        isBridgeEmbedded = true
+        updateBridgeSafeAreaInsets()
     }
 
     private func updateChromeLayout(animated: Bool) {
@@ -1644,19 +1681,23 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         let bottomInset = chromeState.resolvedShowsBottomChrome
             ? max(tabBar.frame.height - deviceSafeArea.bottom, 0)
             : 0
-        bridgeViewController.additionalSafeAreaInsets = UIEdgeInsets(
-            top: topInset,
-            left: 0,
-            bottom: bottomInset,
-            right: 0
-        )
+        if isBridgeEmbedded {
+            bridgeViewController.additionalSafeAreaInsets = UIEdgeInsets(
+                top: topInset,
+                left: 0,
+                bottom: bottomInset,
+                right: 0
+            )
+        }
         nativeMilestoneOneHostingController?.additionalSafeAreaInsets = UIEdgeInsets(
             top: topInset,
             left: 0,
             bottom: bottomInset,
             right: 0
         )
-        publishShellInsetsToWeb(deviceSafeArea: deviceSafeArea)
+        if isBridgeEmbedded {
+            publishShellInsetsToWeb(deviceSafeArea: deviceSafeArea)
+        }
     }
 
     private func publishShellInsetsToWeb(deviceSafeArea: UIEdgeInsets) {
@@ -2021,7 +2062,7 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
     }
 
     private func dispatchCommand(type: String, valueKey: String, value: String) {
-        guard let webView = bridgeViewController.webView else {
+        guard isBridgeEmbedded, let webView = bridgeViewController.webView else {
             return
         }
 
@@ -2091,10 +2132,12 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
     }
 
     @objc private func handleApplicationWillResignActive() {
+        guard isBridgeEmbedded else { return }
         bridgeViewController.prepareForMediaShutdown()
     }
 
     @objc private func handleApplicationDidEnterBackground() {
+        guard isBridgeEmbedded else { return }
         bridgeViewController.prepareForMediaShutdown()
     }
 
@@ -2102,16 +2145,18 @@ class HiItsMeShellViewController: UIViewController, UITabBarDelegate {
         prepareBridgeForShutdown()
     }
 
-    fileprivate func prepareBridgeForShutdown() {
+    func prepareBridgeForShutdown() {
         guard !hasPreparedBridgeForShutdown else {
             return
         }
 
         hasPreparedBridgeForShutdown = true
+        guard isBridgeEmbedded else { return }
         bridgeViewController.tearDownWebView()
     }
 
-    fileprivate func prepareMediaForBackground() {
+    func prepareMediaForBackground() {
+        guard isBridgeEmbedded else { return }
         bridgeViewController.prepareForMediaShutdown()
     }
 }
@@ -3145,6 +3190,8 @@ fileprivate final class AdminResetSheetViewController: UIViewController, UITextF
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
+    fileprivate static var isWebViewCacheReady = false
+
     // Scenes own the real window; this app supports exactly one, so surface
     // it here too since applicationDidEnterBackground/applicationWillTerminate
     // below still read `window` directly.
@@ -3176,13 +3223,25 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         let defaults = UserDefaults.standard
         let key = "lastLaunchedCFBundleVersion"
         let currentBuild = Bundle.main.infoDictionary?["CFBundleVersion"] as? String
-        guard currentBuild != defaults.string(forKey: key) else { return }
-        defaults.set(currentBuild, forKey: key)
+        guard currentBuild != defaults.string(forKey: key) else {
+            markWebViewCacheReady()
+            return
+        }
         WKWebsiteDataStore.default().removeData(
             ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(),
             modifiedSince: .distantPast,
-            completionHandler: {}
+            completionHandler: {
+                defaults.set(currentBuild, forKey: key)
+                self.markWebViewCacheReady()
+            }
         )
+    }
+
+    private func markWebViewCacheReady() {
+        DispatchQueue.main.async {
+            Self.isWebViewCacheReady = true
+            NotificationCenter.default.post(name: .hiItsMeWebViewCacheReady, object: nil)
+        }
     }
 
     func applicationWillResignActive(_ application: UIApplication) {
