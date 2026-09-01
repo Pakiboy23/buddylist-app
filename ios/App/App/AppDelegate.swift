@@ -30,6 +30,10 @@ fileprivate func resolveSignedPushEnvironment() -> String? {
     return "production"
 }
 
+fileprivate extension Notification.Name {
+    static let hiItsMeWebViewCacheReady = Notification.Name("HiItsMeWebViewCacheReady")
+}
+
 @objc(HiItsMeBridgeViewController)
 class HiItsMeBridgeViewController: CAPBridgeViewController {
     private var hasInstalledMediaTrackingScript = false
@@ -238,11 +242,12 @@ class HiItsMeShellPlugin: CAPPlugin, CAPBridgedPlugin {
 class HiItsMeShellViewController: UIViewController {
     private let bridgeViewController = HiItsMeBridgeViewController()
     private var hasPreparedBridgeForShutdown = false
+    private var isBridgeEmbedded = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .himBg
-        embedBridgeViewController()
+        embedBridgeViewControllerWhenCacheIsReady()
         registerForApplicationLifecycleNotifications()
     }
 
@@ -258,7 +263,31 @@ class HiItsMeShellViewController: UIViewController {
         prepareBridgeForShutdown()
     }
 
+    private func embedBridgeViewControllerWhenCacheIsReady() {
+        if AppDelegate.isWebViewCacheReady {
+            embedBridgeViewController()
+            return
+        }
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleWebViewCacheReady),
+            name: .hiItsMeWebViewCacheReady,
+            object: nil
+        )
+    }
+
+    @objc private func handleWebViewCacheReady() {
+        NotificationCenter.default.removeObserver(self, name: .hiItsMeWebViewCacheReady, object: nil)
+        embedBridgeViewController()
+    }
+
     private func embedBridgeViewController() {
+        guard !isBridgeEmbedded else {
+            return
+        }
+        isBridgeEmbedded = true
+
         addChild(bridgeViewController)
         bridgeViewController.view.translatesAutoresizingMaskIntoConstraints = false
         view.insertSubview(bridgeViewController.view, at: 0)
@@ -306,7 +335,7 @@ class HiItsMeShellViewController: UIViewController {
         prepareBridgeForShutdown()
     }
 
-    fileprivate func prepareBridgeForShutdown() {
+    func prepareBridgeForShutdown() {
         guard !hasPreparedBridgeForShutdown else {
             return
         }
@@ -315,13 +344,15 @@ class HiItsMeShellViewController: UIViewController {
         bridgeViewController.tearDownWebView()
     }
 
-    fileprivate func prepareMediaForBackground() {
+    func prepareMediaForBackground() {
         bridgeViewController.prepareForMediaShutdown()
     }
 }
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
+    fileprivate static var isWebViewCacheReady = false
+
     // Scenes own the real window; this app supports exactly one, so surface
     // it here too since applicationDidEnterBackground/applicationWillTerminate
     // below still read `window` directly.
@@ -338,7 +369,40 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
-        true
+        clearWebViewCacheIfBuildChanged()
+        return true
+    }
+
+    // WKWebView's site data — HTTP disk cache, and critically any Service
+    // Worker registration and its Cache Storage — survives an in-place
+    // reinstall (Xcode "Run" over a prior build, or an App Store update). A
+    // previously-registered service worker keeps intercepting fetches and
+    // serving from its own cache indefinitely, regardless of what's in the
+    // freshly bundled web assets. Clearing once per build number avoids
+    // paying this cost on every launch.
+    private func clearWebViewCacheIfBuildChanged() {
+        let defaults = UserDefaults.standard
+        let key = "lastLaunchedCFBundleVersion"
+        let currentBuild = Bundle.main.infoDictionary?["CFBundleVersion"] as? String
+        guard currentBuild != defaults.string(forKey: key) else {
+            markWebViewCacheReady()
+            return
+        }
+        WKWebsiteDataStore.default().removeData(
+            ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(),
+            modifiedSince: .distantPast,
+            completionHandler: {
+                defaults.set(currentBuild, forKey: key)
+                self.markWebViewCacheReady()
+            }
+        )
+    }
+
+    private func markWebViewCacheReady() {
+        DispatchQueue.main.async {
+            Self.isWebViewCacheReady = true
+            NotificationCenter.default.post(name: .hiItsMeWebViewCacheReady, object: nil)
+        }
     }
 
     func applicationWillResignActive(_ application: UIApplication) {
