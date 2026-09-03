@@ -66,9 +66,33 @@ describe('push permission cold-launch guard', () => {
 
   it('the contextual prompt only fires when the system state is still prompt', () => {
     const source = readFileSync(CONTEXTUAL_PROMPT_FILE, 'utf-8');
-    // Never re-ask a denial, and never ask twice per install.
+    // Never re-ask a denial: 'granted' and 'denied' both bail out.
     expect(source).toMatch(/state !== 'prompt'/);
-    expect(source).toMatch(/hasAlreadyAsked\(\)/);
+    // Still throttled, so a completed friendship action cannot nag on repeat.
+    expect(source).toMatch(/askedWithinCooldown\(\)/);
+  });
+
+  it('the contextual prompt asks the OS before consulting stored state', () => {
+    // The OS is the only thing that knows whether THIS install was asked; the
+    // stored timestamp survives reinstalls and used to veto the prompt forever
+    // on installs iOS had never asked. Reversing this order reintroduces that.
+    const source = readFileSync(CONTEXTUAL_PROMPT_FILE, 'utf-8');
+    // Compare call sites inside the exported function, not the helper's own
+    // definition further up the file.
+    const bodyStart = source.indexOf('export async function maybePromptForPushAfterFriendshipAction');
+    expect(bodyStart).toBeGreaterThan(-1);
+    const body = source.slice(bodyStart);
+
+    const osCheck = body.indexOf('await checkPushPermission()');
+    const storageCheck = body.indexOf('askedWithinCooldown()');
+    expect(osCheck).toBeGreaterThan(-1);
+    expect(storageCheck).toBeGreaterThan(-1);
+    expect(osCheck).toBeLessThan(storageCheck);
+  });
+
+  it('the stored ask is a bounded cooldown, not a permanent veto', () => {
+    const source = readFileSync(CONTEXTUAL_PROMPT_FILE, 'utf-8');
+    expect(source).toMatch(/REASK_COOLDOWN_MS/);
   });
 
   it('cold-launch surfaces never import the contextual prompt', () => {
