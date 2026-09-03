@@ -72,7 +72,7 @@ The rooms model was rewritten in migration `20260509184623_rooms_v2_launch_schem
 - `public.room_memberships` — presence + join tracking
 - `public.room_messages` — fresh shape (`body` text, not `content`)
 
-Membership flows go through `join_room_by_id` / `leave_room_by_id` SECURITY DEFINER RPCs (migration 20260510050322) to bypass an RLS recursion bug on direct INSERT.
+The main buddy-list path (`ChatContext`) upserts/deletes `room_memberships` directly. Invite/preview flows go through `join_room_by_id` / `leave_room_by_id` SECURITY DEFINER RPCs (migration 20260510050322) to bypass an RLS recursion bug on direct INSERT.
 
 ### iOS renders the React app — there is no native UI layer
 On iOS the React app owns every pixel. `ios/App/App/AppDelegate.swift` is a thin
@@ -97,6 +97,10 @@ were deleted. Native duplicates of privacy settings, admin reset and account
 deletion went with them; the web equivalents at `/account`, `/account/delete`
 and in `hi-its-me/page.tsx` are the only implementations now.
 
+On each new `CFBundleVersion`, `AppDelegate` clears WKWebView site data
+(HTTP cache + service-worker Cache Storage) so a reinstall cannot keep serving
+the previous bundle. See [IOS_APP_STORE_RELEASE.md](./IOS_APP_STORE_RELEASE.md).
+
 Vestigial but harmless: `nativeShellActive` / `nativeShellMode` conditionals and
 the chrome-state publish path still exist in `page.tsx` and
 `src/lib/nativeShell.ts`. With `isAvailable` false they always take the web
@@ -107,6 +111,20 @@ components and wants device verification.
 - Room presence: `active_chat_room:${roomId}`
 - Global notifications: `global_notifications_messages`, `global_notifications_room_messages`
 - State persisted in `room_memberships` (rooms v2) and `user_dm_state` (DMs)
+
+### Push
+Client sends after a user action (`src/lib/pushDispatch.ts` → Edge Function
+`push-dispatch`). Server-side inserts (founder engine DMs, room prompts,
+buddy requests with `auth.uid() IS NULL`) are announced by the
+`dispatch_push_for_inserted_row` trigger via `pg_net` + a Vault fanout secret.
+
+Device tokens are exclusive to one account (`claim_push_token_for_user` + unique
+index on `user_push_tokens.token`). Delivery outcomes land in
+`push_dispatch_log` (service-role only; no device tokens). Permission is never
+requested on cold launch — only `/account` and the contextual prompt
+(`buddy_accepted`, `first_dm_sent`).
+
+Operational runbook: [docs/push-dispatch.md](./docs/push-dispatch.md).
 
 ### Content moderation
 - DB trigger `BEFORE INSERT` on `messages` and `room_messages` (migration `20260515021650_content_moderation.sql`) stamps `flagged_at` when content matches an alternation of ~700 normalized profanity terms.
@@ -122,7 +140,7 @@ components and wants device verification.
 - `src/lib/` — Business logic (auth, crypto, outbox, media, presence, push, content moderation, account deletion, trust & safety, etc.)
 - `src/lib/profanityTerms.generated.ts` — **Auto-generated** wordlist. Don't hand-edit; re-run the generator.
 - `supabase/migrations/` — Ordered Postgres migrations (28 as of May 2026).
-- `supabase/functions/` — Deno Edge Functions: `admin-me`, `delete-account`, `push-dispatch`, `rooms-invite`.
+- `supabase/functions/` — Deno Edge Functions: `admin-me`, `delete-account`, `export-account`, `push-dispatch`, `rooms-invite`.
 - `supabase/queries/` — Admin/operational queries (not migrations).
 - `api/` — Vercel Functions for serverless endpoints.
 
@@ -132,7 +150,8 @@ components and wants device verification.
 
 ### Supabase Edge Functions
 - `delete-account` — Self-service account erasure (Apple Guideline 5.1.1(v)). Wipes ~14 user tables in dependency order, then `auth.admin.deleteUser` last.
-- `push-dispatch` — APNs/FCM push fan-out, called from client after each send.
+- `export-account` — JSON download of the caller's data (`/account` Export).
+- `push-dispatch` — APNs (and leftover FCM) fan-out. Client JWT after a send, or Vault secret for server-side inserts. Runbook: `docs/push-dispatch.md`.
 - `admin-me` — Check whether the caller is in `admin_users`.
 - `rooms-invite` — Room invite link generator + accept.
 
@@ -153,12 +172,14 @@ E2E tests need: `PLAYWRIGHT_USER_A_SCREENNAME`, `PLAYWRIGHT_USER_A_PASSWORD`, `P
 
 - iOS: Archive via Xcode after `npm run ios:preflight`. Xcode Cloud CI in `ci_scripts/`.
 - iOS defaults to bundled mode. Keep `ios/App/App/public` and `native-web/` in sync with web builds — on iOS this bundle *is* the UI.
-- Xcode Cloud (as of 30 Aug 2026): `Release (HIM) — main` archives `main` and auto-distributes to internal TestFlight; `PR compile check v2 (HIM)` builds `claude/*` branches without archiving. A run is green exactly when the archive succeeds.
+- On each new `CFBundleVersion`, `AppDelegate` clears WKWebView site data so a reinstall cannot keep a stale service worker. Same-number reinstalls will not clear the cache.
+- Xcode Cloud (as of 30 Aug 2026): `Release (HIM) — main` archives `main` and auto-distributes to internal TestFlight; `PR compile check v2 (HIM)` builds `claude/*` branches without archiving. `ci_pre_xcodebuild.sh` refuses archives that are not `main` or a tag.
 
-## App Store / Play Store readiness
+## App Store readiness
 
-Trust + safety surface, current state (May 2026):
+Trust + safety surface, current state:
 - **Account deletion:** `/account/delete` page, two-step confirmation, hits `delete-account` Edge Function.
 - **Block + Report:** visible on every UGC surface; DM message Report via long-press, room message Report + Block-sender via long-press, profile sheet always exposes Block + Report.
 - **Content filter:** server-side trigger + render-time placeholder for recipients.
-- **Pending Phase 4:** Legal section (Privacy / Terms / Contact rows on `/account`) and push permission audit (no `requestPermission` on cold launch).
+- **Legal:** Privacy / Terms / Contact rows on `/account` (`hiitsme.app/privacy`, `/terms`, `mailto:support@hiitsme.app`).
+- **Push permission:** never requested on cold launch. Contextual first-run prompt after `buddy_accepted` or `first_dm_sent`; manual enable remains on `/account`.
