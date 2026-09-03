@@ -1,7 +1,7 @@
 # H.I.M. Personal Data Inventory
 
 **App:** H.I.M. (hiitsme)  
-**Last updated:** 2026-05-25  
+**Last updated:** 2026-09-03  
 **Prepared by:** Engineering (Claude Code session)  
 **Status:** Draft — requires legal review before publication
 
@@ -99,8 +99,8 @@
 
 | Field | Source | Collected from | Purpose | Lawful basis (GDPR) | Sensitive PI (CCPA) | Special category (GDPR Art. 9) | Retention | Sub-processors |
 |-------|--------|----------------|---------|---------------------|---------------------|-------------------------------|-----------|----------------|
-| Device push token | `public.user_push_tokens.token` | iOS device (APNs registration) | Push notification delivery | Consent 6(1)(a) | No | No | Until token invalidated (auto-pruned on BadDeviceToken) or account deletion | Supabase, Apple APNs |
-| Platform | `public.user_push_tokens.platform` (ios/android/web) | System | Push routing | Consent 6(1)(a) | No | No | Same as token | Supabase, Apple APNs |
+| Device push token | `public.user_push_tokens.token` | iOS device (APNs registration). Unique across accounts (`user_push_tokens_token_key` + `claim_push_token_for_user`). | Push notification delivery | Consent 6(1)(a) | No | No | Until token invalidated (auto-pruned on BadDeviceToken) or account deletion | Supabase, Apple APNs |
+| Platform | `public.user_push_tokens.platform` (ios/android). Android client removed in #147; leftover rows may still exist. | System | Push routing | Consent 6(1)(a) | No | No | Same as token | Supabase, Apple APNs |
 | Push environment | `public.user_push_tokens.push_environment` (sandbox/production) | System | APNs endpoint selection | Consent 6(1)(a) | No | No | Same as token | Supabase, Apple APNs |
 | Token timestamps | `public.user_push_tokens.created_at`, `updated_at` | System-generated | Stale token detection | Consent 6(1)(a) | No | No | Same as token | Supabase |
 
@@ -138,7 +138,15 @@
 | Sender screenname | `users.screenname` → APNs payload `senderName` | System | Push notification display | Consent 6(1)(a) | No | Art. 9 — orientation-revealing by context | In-flight only; not persisted by app | Apple APNs |
 | Message preview | `messages.content` or `room_messages.body` (up to 140 chars) → `messagePreview` | System | Push notification display (gated by `notification_preview_mode`) | Consent 6(1)(a) | Yes — contents of communications | Art. 9 — orientation-revealing by context | In-flight only | Apple APNs |
 | Target path (deep link) | Constructed from DM/room IDs | System | Deep-link navigation on tap | Consent 6(1)(a) | No | No | In-flight only | Apple APNs |
-| Variant (dm/room) | System | System | Push routing | Consent 6(1)(a) | No | No | In-flight only | Apple APNs |
+| Variant (dm/room/buddy) | System | System | Push routing | Consent 6(1)(a) | No | No | In-flight only | Apple APNs |
+
+### 1.13a Push dispatch log (`public.push_dispatch_log`)
+
+Ops table written by the `push-dispatch` Edge Function under the service role. RLS on with no policies. Failure reasons are redacted before insert — the table is specified to hold no device tokens.
+
+| Field | Source | Collected from | Purpose | Lawful basis (GDPR) | Sensitive PI (CCPA) | Special category (GDPR Art. 9) | Retention | Sub-processors |
+|-------|--------|----------------|---------|---------------------|---------------------|-------------------------------|-----------|----------------|
+| Dispatch outcome | `public.push_dispatch_log.*` (`recipients`, `tokens`, `delivered`, redacted `failures`) | System (Edge Function) | Delivery observability | Legitimate interest 6(1)(f) | No | No | No automated purge yet. `actor_id` SET NULL on user delete. | Supabase |
 
 ### 1.14 Vercel Analytics
 
@@ -157,7 +165,7 @@
 | **Supabase, Inc.** | Postgres database, Auth, Realtime, Storage, Edge Functions | All user data, messages, files, tokens, logs | US (AWS us-east-1 by default) | Supabase DPA + SOC 2 Type II |
 | **Vercel, Inc.** | Web hosting, Vercel Functions (push-dispatch, api/ routes), Vercel Analytics | IP addresses, user-agent (web), push payloads in transit via Vercel Functions | US | Vercel DPA + SOC 2 Type II |
 | **Apple Inc. — APNs** | iOS push notification delivery | Device push token, notification payload (senderName, messagePreview gated by privacy setting, deep-link path) | Apple infrastructure | Apple DPLA; no DPA available |
-| **Google — FCM** | Android push notification delivery (**not yet implemented** in code — platform enum includes android but no FCM send path exists) | Would be: device token, notification payload | Google infrastructure | Google DPA (when implemented) |
+| **Google — FCM** | Leftover Android push path inside `push-dispatch`. The Android client was removed in #147; new FCM registrations should not appear. Skip Android tokens when `FCM_SERVICE_ACCOUNT_JSON` is unset. | Device token + notification payload, only if an `android` token row still exists and FCM is configured | Google infrastructure | Google DPA (if FCM secret is still set) |
 | **Capacitor / Ionic** (`@capacitor/*`) | Native iOS/Android bridge | No data transmitted externally; local bridge only | N/A — on-device | Open source, no DPA |
 | **`@aparajita/capacitor-biometric-auth`** | Biometric authentication | No data transmitted; uses device Secure Enclave / Keystore locally | N/A — on-device | Open source, no DPA |
 | **`jose` (npm)** | JWT encoding/decoding | No data transmitted; cryptographic library | N/A — local computation | Open source, no DPA |
@@ -170,7 +178,7 @@
 
 1. **Vercel Analytics consent gate** — `@vercel/analytics` is included in `package.json` and presumably active on the web deployment. GDPR requires consent (or a documented legitimate-interest balancing test) before behavioral analytics on EU users. No consent banner or opt-out mechanism is implemented. Confirm: (a) is analytics active? (b) does it use cookies or fingerprinting that triggers ePrivacy? (c) implement consent gate or document LI balancing test.
 
-2. **FCM / Android push** — The `user_push_tokens.platform` enum includes `android`, and FCM is implied, but no FCM send path exists in `push-dispatch` or `api/push/dispatch.ts`. If/when Android push ships, Google must be added as a sub-processor with a signed DPA, and consent must be re-collected for the new channel.
+2. **FCM / Android push (updated 2026-09-03)** — `push-dispatch` now has an FCM HTTP v1 send path. The Android client and `android/` tree were removed in #147, so this is a leftover-token path, not a shipping product. Confirm whether `FCM_SERVICE_ACCOUNT_JSON` is still set and whether Google remains a named sub-processor. New Android consent collection is not required unless the client is restored.
 
 3. **Supabase managed log retention** — Supabase retains Postgres logs, Auth logs (including IP addresses at sign-in), and Edge Function logs on managed infrastructure. Exact retention periods depend on the Supabase plan tier. Confirm current plan and log retention duration; add to privacy notice.
 
@@ -182,7 +190,7 @@
 
 7. **Art. 9 special-category processing** — Flagging most data as orientation-revealing by context requires explicit consent or another Art. 9(2) basis. The app currently relies on Art. 6 bases (contract, legitimate interest). Legal must confirm which Art. 9(2) exemption applies — most likely (a) explicit consent or (e) manifestly made public by the data subject. A corresponding entry in the privacy notice and a consent record are required.
 
-8. **`notification_preview_mode = full` as default** — The push payload includes message content (up to 140 chars) by default. Under GDPR and ePrivacy, transmitting message content through a third-party infrastructure (APNs) may require an explicit consent option, especially given Art. 9 sensitivity. Confirm whether the privacy-setting UI is surfaced clearly enough to constitute informed consent.
+8. **Notification preview default is `name_only`** — Recipients without a `user_privacy_settings` row get sender name + `"New message"`, not full body (`push-dispatch` fallback). `full` still sends up to 140 chars of content through APNs when the user opts in. Confirm whether that opt-in UI is surfaced clearly enough to constitute informed consent.
 
 9. **Biometric data** — `@aparajita/capacitor-biometric-auth` interfaces with device biometrics. The biometric data itself never leaves the device (Secure Enclave / Android Keystore), but `appLock.ts` stores `biometricsEnabled: boolean` in localStorage. GDPR Art. 9 defines biometric data processed for the purpose of uniquely identifying a natural person as special-category. Legal should confirm whether enabling the flag alone (without processing biometric templates) triggers Art. 9 obligations.
 

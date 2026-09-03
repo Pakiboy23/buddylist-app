@@ -1,6 +1,6 @@
 # H.I.M. Data Retention Windows
 
-**Last updated:** 2026-05-25  
+**Last updated:** 2026-09-03  
 **Prepared by:** Engineering (Claude Code session)  
 **Status:** Draft — requires legal review before publication
 
@@ -25,7 +25,8 @@ Migration: `supabase/migrations/20260525000004_retention_cleanup_cron.sql`
 | **Abuse reports — open / actioned** | `public.abuse_reports` (status = `open` or `actioned`) | Indefinite / legal hold | Not automated — retained for safety & legal obligation | Legal obligation (GDPR Art. 6(1)(c); EU DSA Art. 17 record-keeping). Active investigations and actioned records must not be purged automatically. Legal to confirm specific hold period under applicable law. |
 | **Abuse reports — closed** | `public.abuse_reports` (status = `reviewed` or `dismissed`) | 24 months from creation | `run_retention_cleanup()` — daily | Legitimate interest in retrospective moderation context, balanced against minimisation (Art. 5(1)(e)). Closed reports are no longer under active investigation. |
 | **Blocks** | `public.blocked_users` | Until user unblocks or account deletion | `delete-account` Edge Function | Legitimate interest — block records must persist to enforce the safety feature. |
-| **Push tokens** | `public.user_push_tokens` | 90 days from `last_registered_at` | `run_retention_cleanup()` — daily | Token validity: APNs/FCM invalidate stale tokens. Retaining them beyond 90 days of inactivity provides no service benefit and constitutes unnecessary personal data retention. |
+| **Push tokens** | `public.user_push_tokens` | 90 days from `last_registered_at` | `run_retention_cleanup()` — daily | Token validity: APNs/FCM invalidate stale tokens. Retaining them beyond 90 days of inactivity provides no service benefit and constitutes unnecessary personal data retention. One token is exclusive to one account (`claim_push_token_for_user`). |
+| **Push dispatch log** | `public.push_dispatch_log` | No automated window yet | None — service-role writes only | Delivery observability. Holds no device tokens (reasons redacted). `actor_id` SET NULL on user delete. Add a purge once legal sets a window. |
 | **Account deletion tombstones** | `public.account_deletion_log` | 30 days from `deleted_at` | `run_retention_cleanup()` — daily | Covers residual data that may persist in external systems (e.g., Storage CDN caches, APNs queued notifications) during the legal-hold/audit window. Deleted after 30 days. |
 | **Blocks** | `public.blocked_users` | Until user unblocks or account deletion | `delete-account` Edge Function | Safety feature — block must persist as long as both accounts exist. |
 | **Social graph** | `public.buddies`, `public.user_connections` | Until removed or account deletion | `delete-account` Edge Function | Contract performance. |
