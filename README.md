@@ -1,6 +1,6 @@
 # H.I.M. App
 
-A retro AIM-style messaging app built with Vite + React Router + Supabase, mobile-first, with persistent room sessions, unread tracking, global realtime notifications, and Capacitor iOS/Android wrappers.
+A retro AIM-style messaging app built with Vite + React Router + Supabase, mobile-first, with persistent room sessions, unread tracking, global realtime notifications, and a Capacitor iOS wrapper. Android support was removed in #147.
 
 ## Current Status
 
@@ -55,7 +55,7 @@ This is a product decision, not an unfinished parity backlog. If a room feature 
 - React 19
 - TypeScript
 - Tailwind CSS v4
-- Capacitor 8 (`@capacitor/core`, `@capacitor/ios`, `@capacitor/android`)
+- Capacitor 8 (`@capacitor/core`, `@capacitor/ios`) — iOS only; `android/` was removed in #147
 - Supabase:
   - Auth
   - Postgres 17
@@ -68,9 +68,15 @@ This is a product decision, not an unfinished parity backlog. If a room feature 
 
 ## Core App Routes
 
-- `/` - Sign-on + account creation + password recovery/ticket redemption
-- `/hi-its-me` - Main app view, buddies, DM windows, room windows, settings, admin reset tooling
-- Note: room chat is rendered via components from H.I.M. (not a standalone `/chat-rooms` route in this codebase).
+- `/` — logged-out web porch; native `/` is still Sign in. `?signin=1` and `/signin` keep LoginPage.
+- `/signin` — password sign-on + account creation
+- `/reset-password` — recovery-code / admin-ticket redemption
+- `/hi-its-me` — main app: buddies, DM windows, room windows, settings
+- `/hi-its-me/rooms`, `/hi-its-me/rooms/new`, `/hi-its-me/rooms/:roomId/preview` — room list / create / invite preview
+- `/join/:inviteCode` — room invite accept
+- `/account` — email, password, push permission, notification preview, data export, legal links
+- `/account/delete` — two-step account erasure
+- Static legal: `hiitsme.app/privacy`, `/terms`, `/support` (`public/{privacy,terms,support}.html`)
 - API routes:
   - `/api/auth/recovery/setup`
   - `/api/auth/recovery/reset`
@@ -116,8 +122,9 @@ Notes:
 
 ## Mobile Platforms
 
-- Android release notes: [ANDROID_PLAY_RELEASE.md](./ANDROID_PLAY_RELEASE.md)
 - iOS release notes: [IOS_APP_STORE_RELEASE.md](./IOS_APP_STORE_RELEASE.md)
+- Push operations: [docs/push-dispatch.md](./docs/push-dispatch.md)
+- Android was dropped in #147. [ANDROID_PLAY_RELEASE.md](./ANDROID_PLAY_RELEASE.md) is historical.
 
 ## Local Setup
 
@@ -128,55 +135,12 @@ Notes:
 pnpm install
 ```
 
-2. Apply Supabase SQL migrations in this order:
+2. Apply Supabase migrations from `supabase/migrations/` (canonical CLI-managed history; the readable snapshots in `supabase/*.sql` are not the live schema). Rooms v2, push fan-out, exclusive device tokens, and `push_dispatch_log` all live later in that directory than the early 2026 numbered files.
 
-```text
-supabase/migrations/20260320000001_gtm_plan.sql
-supabase/migrations/20260320000002_chat_rooms.sql
-supabase/migrations/20260320000003_password_recovery_admin.sql
-supabase/migrations/20260320000004_persistent_chat_state.sql
-supabase/migrations/20260320000005_room_participants.sql
-supabase/migrations/20260320000006_room_unread_fanout.sql
-supabase/migrations/20260320000007_message_idempotency.sql
-supabase/migrations/20260320000008_dm_state.sql
-supabase/migrations/20260320000009_message_enhancements.sql
-supabase/migrations/20260320000010_chat_media.sql
-supabase/migrations/20260320000011_presence_profiles.sql
-supabase/migrations/20260328000012_user_push_tokens.sql
-supabase/migrations/20260328000013_private_chat_foundation.sql
-supabase/migrations/20260328000014_trust_safety_slice.sql
-supabase/migrations/20260328000015_send_push_trigger.sql
-supabase/migrations/20260405034615_room_key_foreign_keys.sql
-supabase/migrations/20260405220000_push_token_environments.sql
-```
-
-The legacy readable SQL snapshots still live in `supabase/*.sql`, but `supabase/migrations/` is the canonical CLI-managed history.
-
-If the remote project already has these schema changes and you are adopting Supabase CLI after the fact:
+If the remote project already has these schema changes and you are adopting Supabase CLI after the fact, mark already-applied versions with `supabase migration repair --status applied <version>` rather than replaying them. Then:
 
 ```bash
 supabase login
-
-supabase migration repair --status applied 20260320000001
-supabase migration repair --status applied 20260320000002
-supabase migration repair --status applied 20260320000003
-supabase migration repair --status applied 20260320000004
-supabase migration repair --status applied 20260320000005
-supabase migration repair --status applied 20260320000006
-supabase migration repair --status applied 20260320000007
-supabase migration repair --status applied 20260320000008
-supabase migration repair --status applied 20260320000009
-supabase migration repair --status applied 20260320000010
-supabase migration repair --status applied 20260320000011
-supabase migration repair --status applied 20260328000012
-supabase migration repair --status applied 20260328000013
-supabase migration repair --status applied 20260328000014
-supabase migration repair --status applied 20260328000015
-```
-
-Then create/apply any new migrations normally and confirm the history:
-
-```bash
 supabase migration list
 ```
 
@@ -198,44 +162,41 @@ npm run dev
 
 ## Mobile Wrapper (Capacitor)
 
-Capacitor has already been initialized and platform projects are committed:
+Capacitor has already been initialized. The committed native project is iOS only:
 
 - `ios/`
-- `android/`
 - `capacitor.config.ts`
+
+The `android/` tree was deleted in #147. `android:*` scripts remain in `package.json` but have nothing to operate on.
 
 Current config defaults to bundled native web assets:
 - `webDir = native-web`
 - hosted mode is opt-in only via `CAPACITOR_HOSTED=1`
 - optional hosted URL override: `CAPACITOR_SERVER_URL=https://your-domain`
 
+On iOS the React app owns every pixel. A web UI change reaches the phone only after `npm run build && npm run ios:sync` and a commit of `dist/` + `ios/App/App/public`. Never `npx cap copy ios` — it drops `HiItsMeShellPlugin`. Details: [IOS_APP_STORE_RELEASE.md](./IOS_APP_STORE_RELEASE.md).
+
 Useful commands:
 
 ```bash
-# sync bundled native assets + native projects
+# sync bundled native assets + iOS project
 npm run ios:sync
-npm run android:sync
 
 # optional hosted-mode sync for debugging only
 npm run ios:sync:hosted
-npm run android:sync:hosted
 
-# open native projects
-npx cap open ios
-npx cap open android
+# open Xcode
+npm run ios:open
 ```
 
-Android Play release docs:
-
-- See [ANDROID_PLAY_RELEASE.md](./ANDROID_PLAY_RELEASE.md)
-
-Current native-shell behavior:
+Current native-host behavior:
+- thin Capacitor WKWebView; no SwiftUI overlay
+- WKWebView site data cleared once per `CFBundleVersion` so a reinstall cannot keep a stale service worker
 - no pull-to-refresh bounce (`overscroll-behavior-y: none`)
 - no viewport zoom (`maximum-scale=1`, `user-scalable=0`)
 - no long-press text callout (`-webkit-touch-callout: none`)
-- safe-area aware glossy header
 - status bar configured in `capacitor.config.ts`
-- push roadmap stays Supabase-first (DB/edge/webhook), avoiding Xcode-native push setup.
+- push is Supabase-first (token table + `push-dispatch` Edge Function). See [docs/push-dispatch.md](./docs/push-dispatch.md).
 
 ## Auth Model
 
@@ -267,19 +228,14 @@ Recovery model:
 - Banner click behavior:
   - DM banner routes to `?dm=<senderId>`
   - Room banner routes to `?room=<roomName>`
-- Push direction for this app is Supabase-first (DB/webhook/edge integration), not Xcode-native push wiring.
+- Push is Supabase-first: the client calls `push-dispatch` after a send; server-side inserts (engine DMs, room prompts, buddy requests) are announced by a Postgres trigger. Outcomes land in `push_dispatch_log`. See [docs/push-dispatch.md](./docs/push-dispatch.md).
 
 ### Room Persistence
 
-- `user_active_rooms` is canonical state for:
-  - active rooms
-  - unread room counters
-- Client hydrates from localStorage cache first, then syncs from DB.
-- Context actions call RPCs:
-  - `join_active_room`
-  - `leave_active_room`
-  - `clear_room_unread`
-  - `bump_room_unread`
+- Canonical state is rooms v2: `public.rooms` + `public.room_memberships` (unread via `last_seen_at`). The rooms-v1 table `user_active_rooms` is archived (`_archive_user_active_rooms`).
+- Client hydrates from localStorage cache first, then syncs `room_memberships`.
+- Main app join/leave (`ChatContext`) upserts/deletes `room_memberships` directly.
+- Invite/preview flows use SECURITY DEFINER RPCs `join_room_by_id` / `leave_room_by_id`.
 
 ## Files to Know
 
@@ -295,7 +251,9 @@ Recovery model:
 - `src/lib/chatMedia.ts` - attachment validation + Supabase Storage upload helpers
 - `src/lib/outbox.ts` - offline outbox queue schema + retry metadata
 - `src/lib/roomName.ts` - shared room normalization helpers
-- `capacitor.config.ts` - iOS/Android wrapper configuration
+- `capacitor.config.ts` - iOS wrapper configuration
+- `src/lib/pushDispatch.ts` - client fan-out into the `push-dispatch` Edge Function
+- `supabase/functions/push-dispatch/index.ts` - APNs delivery + `push_dispatch_log`
 - `src/app/api/admin/password-reset-audit/route.ts` - admin-only recovery audit feed
 
 ## Build & Quality Checks
@@ -310,25 +268,34 @@ npm run ios:preflight
 
 ## Troubleshooting
 
-### `Unable to acquire lock at .next/dev/lock`
-
-A previous `next dev` instance is still running.
-
-```bash
-pkill -f "next dev"
-rm -f .next/dev/lock
-npm run dev
-```
-
 ### `Can't resolve 'tailwindcss' in '/Users/...`
 
 Usually means `npm run dev` was started from the wrong directory. Run from repo root:
 
 ```bash
-cd /path/to/hiitsme-app
+cd /path/to/buddylist-app
 pnpm install
 pnpm run dev
 ```
+
+### iOS still shows an old layout after a web change
+
+The phone does not load `hiitsme.app` in bundled mode. Rebuild and sync:
+
+```bash
+npm run build
+npm run ios:sync
+```
+
+Then commit `dist/` and `ios/App/App/public`. If a reinstall still looks stale, confirm `CFBundleVersion` changed — `AppDelegate` only clears WKWebView site data when the build number changes.
+
+### Push returned 200 but nobody got a notification
+
+That is expected when the function finds recipients but no device tokens. Query `push_dispatch_log` for `recipients > 0 AND tokens = 0`. Full runbook: [docs/push-dispatch.md](./docs/push-dispatch.md).
+
+### `npx cap copy ios` dropped HiItsMeShellPlugin
+
+Use `npm run ios:sync` (or `pnpm run ios:sync`). Never hand-edit `CapApp-SPM/Package.swift`.
 
 ## Deployment Notes (Vercel)
 
