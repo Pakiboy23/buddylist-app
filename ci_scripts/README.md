@@ -50,7 +50,7 @@ not something the repo can enforce.
 
 Also set this on the Archive workflow in App Store Connect (Start Condition, Files and Folders), include:
 
-- `src/`, `ios/`, `android/`, `supabase/`, `api/`, `public/`
+- `src/`, `ios/`, `supabase/`, `api/`, `public/`
 - `capacitor.config.ts`, `package.json`, `native-web/`, `dist/`
 
 Exclude `*.md`, `.agents/`, `.claude/`, `marketing/`, `docs/`, `MEMORY.md`. Build (non-archive) can still run on every PR.

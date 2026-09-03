@@ -1,10 +1,15 @@
 # Android Play Release
 
-End-to-end guide to ship H.I.M. (`com.hiitsme.app`) to Google Play. The repo can
-build a signed Play bundle (`.aab`) with Gradle and serve Android push via FCM.
+> **Historical.** Android support was removed in #147 (`48f918d`). The `android/`
+> directory is gone. `android:*` scripts in `package.json` will fail. Do not
+> follow this guide to ship a Play build from this repo.
+>
+> The `push-dispatch` Edge Function still has an FCM path for leftover
+> `platform = 'android'` token rows. New Android registrations should not
+> appear. See [docs/push-dispatch.md](./docs/push-dispatch.md).
 
-> **Status:** iOS is live in the App Store. This guide covers bringing the Android
-> build to parity and getting it live on Google Play.
+End-to-end guide that *used to* ship H.I.M. (`com.hiitsme.app`) to Google Play.
+Kept so older release notes and Play Console history still have a home.
 
 ---
 
