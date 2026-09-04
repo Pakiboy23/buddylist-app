@@ -79,7 +79,7 @@ Hosted mode still exists, but it is now an explicit debug-only escape hatch. The
 
 Never run `npx cap copy ios` — it regenerates `capacitor.config.json` and drops `HiItsMeShellPlugin`. Always `npm run ios:sync` / `pnpm run ios:sync`.
 
-Push permission is never requested on cold launch. See [docs/push-dispatch.md](./docs/push-dispatch.md). Xcode Cloud archive rules: [ci_scripts/README.md](./ci_scripts/README.md).
+Push permission is never requested on cold launch. The contextual prompt asks only while iOS reports `prompt`; the stored flag is a 7-day cooldown, not a once-per-install veto. See [docs/push-dispatch.md](./docs/push-dispatch.md). Xcode Cloud archive rules: [ci_scripts/README.md](./ci_scripts/README.md).
 
 ## Native permissions already wired
 

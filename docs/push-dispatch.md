@@ -65,7 +65,34 @@ Per-recipient mode comes from `user_privacy_settings.notification_preview_mode`.
 Never request on cold launch (`pushColdLaunchGuard.test.ts` enforces this). The only callers of `requestAndRegisterPush()` are:
 
 - `/account` (user-initiated Enable)
-- `maybePromptForPushAfterFriendshipAction` after `buddy_accepted` or `first_dm_sent`, at most once per install, and only while the system state is still `prompt`
+- `maybePromptForPushAfterFriendshipAction` after a completed `buddy_accepted` or `first_dm_sent`
+
+Friendship-action callers: `src/lib/buddyRequest.ts` (both Accept buttons go through `acceptIncomingBuddyRequest`) and `src/lib/messageIdempotency.ts` (every successful DM insert; the moment name is `first_dm_sent`). First room message is **not** wired.
+
+### How the ask is gated (#154)
+
+iOS permission state is the source of truth for whether *this install* has been asked. The stored flag (`him.pushPrompt.askedAt` in WKWebView localStorage) only throttles repeats:
+
+| `checkPushPermission()` | What happens |
+|---|---|
+| `granted` / `denied` / `not-native` | return. A denial is never nagged |
+| `prompt`, last ask younger than 7 days | return. Cooldown |
+| `prompt`, no recent ask | `markAsked()`, then `requestAndRegisterPush()` |
+
+Order matters: the OS is consulted **before** storage. The previous guard read localStorage first and returned if the flag was set, which permanently suppressed the prompt on installs iOS had never asked.
+
+The two states desync because they live in different places:
+
+- the flag sits in WKWebView localStorage and survives app updates and reinstalls
+- authorization is per-install and resets on delete-and-reinstall, or when swapping an Xcode debug build for TestFlight
+
+After that the flag said "asked" while iOS said "never asked", and the only remaining route to push was the `/account` row.
+
+Do **not** key the ask on "does this user have a push token". Tokens outlive the install that created them, so a `user_push_tokens` row is no evidence the current install was asked.
+
+Private mode / storage unavailable is treated as no record (ask), not as "already asked". That is safe because the ask is only reached when iOS reports `prompt`, and iOS shows the sheet only while undetermined.
+
+The 7-day window is `REASK_COOLDOWN_MS` in `src/lib/pushPromptMoments.ts`. `pushColdLaunchGuard.test.ts` asserts OS-before-storage, that the throttle is a cooldown rather than a permanent veto, and that no cold-launch surface imports the prompt.
 
 ## Auth and secrets
 
@@ -128,6 +155,7 @@ There is no automated purge of this table yet. It holds no device tokens; `actor
 ## Constraints and pitfalls
 
 - **HTTP 200 is not delivery.** Read `delivered` / `tokens` on the log row, not the status code.
+- **Delivered is not seen.** APNs can accept a token from a previous install while the current one has never requested authorization. iOS then drops the notification. Diagnostic: H.I.M. is absent from Settings → Notifications (iOS only lists an app once it has requested authorization). `user_push_tokens` will still show rows. The #154 prompt fix exists because of this; do not "fix" it by skipping the ask when tokens exist.
 - **Client dispatch needs a session.** `pushDispatch.ts` no-ops if `getAccessTokenOrNull()` is empty. Server-side writes must rely on the trigger — do not also try to call the function without a JWT or the fanout secret.
 - **Do not invent a `buddy_accept` automation call.** The function rejects it.
 - **Do not POST a `buddyId` you did not write.** The relationship check returns 404 and is the rate-limit/abuse backstop.

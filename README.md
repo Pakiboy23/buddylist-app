@@ -253,6 +253,7 @@ Recovery model:
 - `src/lib/roomName.ts` - shared room normalization helpers
 - `capacitor.config.ts` - iOS wrapper configuration
 - `src/lib/pushDispatch.ts` - client fan-out into the `push-dispatch` Edge Function
+- `src/lib/pushPromptMoments.ts` - contextual iOS permission prompt after friendship actions
 - `supabase/functions/push-dispatch/index.ts` - APNs delivery + `push_dispatch_log`
 - `src/app/api/admin/password-reset-audit/route.ts` - admin-only recovery audit feed
 
@@ -291,7 +292,12 @@ Then commit `dist/` and `ios/App/App/public`. If a reinstall still looks stale, 
 
 ### Push returned 200 but nobody got a notification
 
-That is expected when the function finds recipients but no device tokens. Query `push_dispatch_log` for `recipients > 0 AND tokens = 0`. Full runbook: [docs/push-dispatch.md](./docs/push-dispatch.md).
+Two different failures look the same from the sender's side:
+
+- **No tokens.** `push_dispatch_log` shows `recipients > 0 AND tokens = 0`. Nobody on that account ever registered.
+- **Dead-install tokens.** The log shows tokens found and APNs accepted them, but the current install never requested permission. H.I.M. is missing from Settings → Notifications. Token rows from earlier installs are not evidence this one was asked.
+
+Full runbook: [docs/push-dispatch.md](./docs/push-dispatch.md).
 
 ### `npx cap copy ios` dropped HiItsMeShellPlugin
 

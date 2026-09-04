@@ -122,7 +122,10 @@ Device tokens are exclusive to one account (`claim_push_token_for_user` + unique
 index on `user_push_tokens.token`). Delivery outcomes land in
 `push_dispatch_log` (service-role only; no device tokens). Permission is never
 requested on cold launch — only `/account` and the contextual prompt
-(`buddy_accepted`, `first_dm_sent`).
+(`buddy_accepted`, `first_dm_sent`). iOS permission state is the source of
+truth for whether this install has been asked; `him.pushPrompt.askedAt` is a
+7-day cooldown, not a permanent veto. Do not skip the ask because token rows
+exist — they outlive the install.
 
 Operational runbook: [docs/push-dispatch.md](./docs/push-dispatch.md).
 
@@ -183,4 +186,4 @@ Trust + safety surface, current state:
 - **Block + Report:** visible on every UGC surface; DM message Report via long-press, room message Report + Block-sender via long-press, profile sheet always exposes Block + Report.
 - **Content filter:** server-side trigger + render-time placeholder for recipients.
 - **Legal:** Privacy / Terms / Contact rows on `/account` (`hiitsme.app/privacy`, `/terms`, `mailto:support@hiitsme.app`). Static copies also live in `public/{privacy,terms,support}.html`.
-- **Push permission:** never requested on cold launch. Contextual first-run prompt after `buddy_accepted` or `first_dm_sent`; manual enable remains on `/account`.
+- **Push permission:** never requested on cold launch. Contextual prompt after `buddy_accepted` or `first_dm_sent`, only while iOS reports `prompt`; stored flag is a 7-day cooldown. Manual enable remains on `/account`.
