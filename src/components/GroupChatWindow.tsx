@@ -233,6 +233,8 @@ export default function GroupChatWindow({
   const [rosterMembers, setRosterMembers] = useState<RosterMember[]>([]);
   const [memberLastSeenById, setMemberLastSeenById] = useState<Record<string, string>>({});
   const [isRosterInitialLoading, setIsRosterInitialLoading] = useState(true);
+  const [isRosterMembershipReady, setIsRosterMembershipReady] = useState(false);
+  const [rosterMembershipError, setRosterMembershipError] = useState<string | null>(null);
   const rosterLoadedOnceRef = useRef(false);
   const [rosterProfileId, setRosterProfileId] = useState<string | null>(null);
   const [rosterProfile, setRosterProfile] = useState<RosterProfile | null>(null);
@@ -252,13 +254,13 @@ export default function GroupChatWindow({
         buddies,
         memberIds: Object.keys(memberLastSeenById),
         blockedUserIds,
-        membershipReady: !isRosterInitialLoading,
+        membershipReady: isRosterMembershipReady,
       }),
-    [blockedUserIds, buddies, isRosterInitialLoading, memberLastSeenById],
+    [blockedUserIds, buddies, isRosterMembershipReady, memberLastSeenById],
   );
 
   const handleInviteConfirm = useCallback(async () => {
-    if (selectedInviteIds.size === 0 || isInviting || isRosterInitialLoading) return;
+    if (selectedInviteIds.size === 0 || isInviting || !isRosterMembershipReady) return;
     setIsInviting(true);
     setInviteError(null);
     try {
@@ -299,7 +301,7 @@ export default function GroupChatWindow({
     } finally {
       setIsInviting(false);
     }
-  }, [buddies, isInviting, isRosterInitialLoading, roomId, selectedInviteIds]);
+  }, [buddies, isInviting, isRosterMembershipReady, roomId, selectedInviteIds]);
 
   const swipeBack = useSwipeBack({ onSwipeBack: handleBack });
   const lastOwnMessage = useMemo(() => {
@@ -502,12 +504,23 @@ export default function GroupChatWindow({
     // Full membership (no cutoff): rosterMembers keeps the 5-minute "active"
     // window, while the complete last_seen_at map powers "Seen by" counts on
     // own messages.
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('room_memberships')
       .select('user_id, last_seen_at')
       .eq('room_id', roomId)
       .order('last_seen_at', { ascending: false });
+    if (error) {
+      console.error('Failed to load room memberships:', error.message);
+      setRosterMembershipError(error.message);
+      if (!rosterLoadedOnceRef.current) {
+        rosterLoadedOnceRef.current = true;
+        setIsRosterInitialLoading(false);
+      }
+      return;
+    }
     const allRows = (data ?? []) as RosterMember[];
+    setRosterMembershipError(null);
+    setIsRosterMembershipReady(true);
     setMemberLastSeenById(
       Object.fromEntries(allRows.map((row) => [row.user_id, row.last_seen_at])),
     );
@@ -1379,9 +1392,11 @@ export default function GroupChatWindow({
                   </button>
                 </div>
 
-                {isRosterInitialLoading ? (
+                {!isRosterMembershipReady ? (
                   <p className="mt-4 text-center text-[13px] text-slate-400">
-                    Checking who is already in this room…
+                    {rosterMembershipError
+                      ? 'Could not check who is already in this room.'
+                      : 'Checking who is already in this room…'}
                   </p>
                 ) : buddies.length === 0 ? (
                   <p className="mt-4 text-center text-[13px] text-slate-400">
