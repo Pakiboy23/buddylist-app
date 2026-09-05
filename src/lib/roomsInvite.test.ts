@@ -36,8 +36,19 @@ describe('selectInvitableBuddies', () => {
       selectInvitableBuddies({
         buddies,
         memberIds: [],
+        membershipReady: true,
       }).map((buddy) => buddy.id),
     ).toEqual(['accepted-1', 'accepted-2', 'accepted-3']);
+  });
+
+  it('returns no candidates until the membership map has loaded', () => {
+    expect(
+      selectInvitableBuddies({
+        buddies,
+        memberIds: [],
+        membershipReady: false,
+      }),
+    ).toEqual([]);
   });
 });
 

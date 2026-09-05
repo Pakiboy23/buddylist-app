@@ -252,12 +252,13 @@ export default function GroupChatWindow({
         buddies,
         memberIds: Object.keys(memberLastSeenById),
         blockedUserIds,
+        membershipReady: !isRosterInitialLoading,
       }),
-    [blockedUserIds, buddies, memberLastSeenById],
+    [blockedUserIds, buddies, isRosterInitialLoading, memberLastSeenById],
   );
 
   const handleInviteConfirm = useCallback(async () => {
-    if (selectedInviteIds.size === 0 || isInviting) return;
+    if (selectedInviteIds.size === 0 || isInviting || isRosterInitialLoading) return;
     setIsInviting(true);
     setInviteError(null);
     try {
@@ -298,7 +299,7 @@ export default function GroupChatWindow({
     } finally {
       setIsInviting(false);
     }
-  }, [buddies, isInviting, roomId, selectedInviteIds]);
+  }, [buddies, isInviting, isRosterInitialLoading, roomId, selectedInviteIds]);
 
   const swipeBack = useSwipeBack({ onSwipeBack: handleBack });
   const lastOwnMessage = useMemo(() => {
@@ -1378,7 +1379,11 @@ export default function GroupChatWindow({
                   </button>
                 </div>
 
-                {buddies.length === 0 ? (
+                {isRosterInitialLoading ? (
+                  <p className="mt-4 text-center text-[13px] text-slate-400">
+                    Checking who is already in this room…
+                  </p>
+                ) : buddies.length === 0 ? (
                   <p className="mt-4 text-center text-[13px] text-slate-400">
                     You can invite people who are already on your buddy list.
                   </p>

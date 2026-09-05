@@ -4,7 +4,14 @@ export function selectInvitableBuddies<T extends { id: string }>(input: {
   buddies: T[];
   memberIds: Iterable<string>;
   blockedUserIds?: Iterable<string>;
+  /** False until the full membership map has loaded. An empty map is otherwise
+   * indistinguishable from "nobody has joined yet," which would list every
+   * buddy as invitable and turn a duplicate invite into a fake success. */
+  membershipReady?: boolean;
 }): T[] {
+  if (input.membershipReady === false) {
+    return [];
+  }
   const excluded = new Set<string>([
     ...input.memberIds,
     ...(input.blockedUserIds ?? []),
