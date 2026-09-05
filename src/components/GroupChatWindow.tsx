@@ -48,6 +48,7 @@ import {
   loadMutualContext,
   type MutualContext,
 } from '@/lib/mutualContext';
+import { inviteAcceptedBuddiesToRoom, selectInvitableBuddies } from '@/lib/roomsInvite';
 import {
   LEGACY_ROOM_MESSAGE_SELECT_FIELDS,
   ROOM_MESSAGE_SELECT_FIELDS,
@@ -245,10 +246,15 @@ export default function GroupChatWindow({
     setTimeout(() => onBack(), 190);
   }, [onBack]);
 
-  const invitableBuddies = useMemo(() => {
-    const memberIds = new Set(participants.map((p) => p.userId));
-    return buddies.filter((b) => !memberIds.has(b.id));
-  }, [buddies, participants]);
+  const invitableBuddies = useMemo(
+    () =>
+      selectInvitableBuddies({
+        buddies,
+        memberIds: Object.keys(memberLastSeenById),
+        blockedUserIds,
+      }),
+    [blockedUserIds, buddies, memberLastSeenById],
+  );
 
   const handleInviteConfirm = useCallback(async () => {
     if (selectedInviteIds.size === 0 || isInviting) return;
@@ -256,23 +262,28 @@ export default function GroupChatWindow({
     setInviteError(null);
     try {
       const { getAccessTokenOrNull } = await import('@/lib/authClient');
-      const { getEdgeFunctionUrl } = await import('@/lib/appApi');
       const token = await getAccessTokenOrNull();
-      const response = await fetch(getEdgeFunctionUrl('rooms-invite'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ roomId, buddyIds: Array.from(selectedInviteIds) }),
+      const result = await inviteAcceptedBuddiesToRoom({
+        roomId,
+        buddyIds: Array.from(selectedInviteIds),
+        accessToken: token,
       });
-      const result = (await response.json()) as { invited?: string[]; error?: string };
-      if (!response.ok || result.error) {
-        setInviteError(result.error ?? 'Invite failed.');
+      if (!result.ok) {
+        setInviteError(result.error);
         return;
       }
-      const invitedIds = result.invited ?? [];
+      const invitedIds = result.invited;
       const invitedBuddies = buddies.filter((b) => invitedIds.includes(b.id));
+      setMemberLastSeenById((previous) => {
+        const next = { ...previous };
+        const joinedAt = new Date().toISOString();
+        for (const buddy of invitedBuddies) {
+          if (!next[buddy.id]) {
+            next[buddy.id] = joinedAt;
+          }
+        }
+        return next;
+      });
       setParticipants((prev) => {
         const existingIds = new Set(prev.map((p) => p.userId));
         const additions = invitedBuddies
@@ -1222,20 +1233,18 @@ export default function GroupChatWindow({
 
                 <div className="mt-3 space-y-3">
                   {/* Invite */}
-                  {invitableBuddies.length > 0 ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowInviteSheet(true);
-                        setSelectedInviteIds(new Set());
-                        setInviteError(null);
-                      }}
-                      className="ui-focus-ring ui-button-secondary ui-button-compact flex w-full items-center gap-2"
-                    >
-                      <AppIcon kind="add" className="h-3.5 w-3.5 shrink-0 text-[var(--rose)]" />
-                      <span className="font-mono text-[11px] uppercase tracking-[0.1em]">Invite a buddy</span>
-                    </button>
-                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowInviteSheet(true);
+                      setSelectedInviteIds(new Set());
+                      setInviteError(null);
+                    }}
+                    className="ui-focus-ring ui-button-secondary ui-button-compact flex w-full items-center gap-2"
+                  >
+                    <AppIcon kind="add" className="h-3.5 w-3.5 shrink-0 text-[var(--rose)]" />
+                    <span className="font-mono text-[11px] uppercase tracking-[0.1em]">Invite a buddy</span>
+                  </button>
 
                   {/* Members — roster driven by last_seen_at (5-min window) */}
                   <div className="rounded-[1rem] border border-white/60 bg-white/70 px-3 py-2 dark:border-slate-700 dark:bg-[#0F1424]/55">
@@ -1369,7 +1378,11 @@ export default function GroupChatWindow({
                   </button>
                 </div>
 
-                {invitableBuddies.length === 0 ? (
+                {buddies.length === 0 ? (
+                  <p className="mt-4 text-center text-[13px] text-slate-400">
+                    You can invite people who are already on your buddy list.
+                  </p>
+                ) : invitableBuddies.length === 0 ? (
                   <p className="mt-4 text-center text-[13px] text-slate-400">
                     All your buddies are already in this room.
                   </p>
