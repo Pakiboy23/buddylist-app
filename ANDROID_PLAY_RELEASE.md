@@ -1,7 +1,7 @@
 # Android Play Release
 
 > **Historical.** Android support was removed in #147 (`48f918d`). The `android/`
-> directory is gone. `android:*` scripts in `package.json` will fail. Do not
+> directory is gone and the `android:*` npm scripts were removed with it. Do not
 > follow this guide to ship a Play build from this repo.
 >
 > The `push-dispatch` Edge Function still has an FCM path for leftover

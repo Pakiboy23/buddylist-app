@@ -55,7 +55,7 @@ describe('maybePromptForPushAfterFriendshipAction', () => {
   it('records the ask so the very next action does not repeat it', async () => {
     checkPushPermission.mockResolvedValue('prompt');
     await maybePromptForPushAfterFriendshipAction('buddy_accepted');
-    await maybePromptForPushAfterFriendshipAction('first_dm_sent');
+    await maybePromptForPushAfterFriendshipAction('first_room_message');
     expect(requestAndRegisterPush).toHaveBeenCalledTimes(1);
   });
 

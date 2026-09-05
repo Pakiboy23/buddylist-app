@@ -40,7 +40,7 @@ import { checkPushPermission, requestAndRegisterPush } from '@/lib/nativePush';
  * current install was ever asked — that is precisely the case above.
  */
 
-export type PushPromptMoment = 'buddy_accepted' | 'first_dm_sent';
+export type PushPromptMoment = 'buddy_accepted' | 'first_dm_sent' | 'first_room_message';
 
 const ASKED_STORAGE_KEY = 'him.pushPrompt.askedAt';
 

@@ -219,6 +219,9 @@ export async function sendRoomMessageWithClientMessageId(input: {
 
   if (!error && data?.id) {
     dispatchRoomMessagePush(data.id);
+    // A first room message is a friendship action — ask about notifications now.
+    // Lost-ack retries return earlier on 23505 and must not re-prompt.
+    void maybePromptForPushAfterFriendshipAction('first_room_message');
   }
 
   return {
