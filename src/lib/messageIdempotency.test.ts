@@ -30,7 +30,13 @@ vi.mock('@/lib/pushDispatch', () => ({
   dispatchRoomMessagePush: vi.fn(),
 }));
 
+vi.mock('@/lib/pushPromptMoments', () => ({
+  maybePromptForPushAfterFriendshipAction: vi.fn(),
+}));
+
 import { sendRoomMessageWithClientMessageId } from '@/lib/messageIdempotency';
+import { dispatchRoomMessagePush } from '@/lib/pushDispatch';
+import { maybePromptForPushAfterFriendshipAction } from '@/lib/pushPromptMoments';
 
 const INPUT = { roomId: 'room-1', userId: 'user-1', body: 'hi', clientMessageId: 'cmid-1' };
 
@@ -39,6 +45,8 @@ describe('sendRoomMessageWithClientMessageId', () => {
     state.insert = { data: null, error: null };
     state.lookup = { data: null, error: null };
     state.inserts = [];
+    vi.mocked(dispatchRoomMessagePush).mockClear();
+    vi.mocked(maybePromptForPushAfterFriendshipAction).mockClear();
   });
 
   it('inserts with the client_msg_id dedup key on the happy path', async () => {
@@ -50,6 +58,8 @@ describe('sendRoomMessageWithClientMessageId', () => {
     expect(result.reconciled).toBe(false);
     expect(result.data?.id).toBe('m1');
     expect(result.error).toBeNull();
+    expect(dispatchRoomMessagePush).toHaveBeenCalledWith('m1');
+    expect(maybePromptForPushAfterFriendshipAction).toHaveBeenCalledWith('first_room_message');
   });
 
   it('reconciles to the existing row on a 23505 conflict instead of duplicating', async () => {
@@ -64,6 +74,9 @@ describe('sendRoomMessageWithClientMessageId', () => {
     expect(result.error).toBeNull();
     // Exactly one insert attempt — no duplicate row created.
     expect(state.inserts).toHaveLength(1);
+    // A retry is not a new message. Do not re-dispatch or re-prompt.
+    expect(dispatchRoomMessagePush).not.toHaveBeenCalled();
+    expect(maybePromptForPushAfterFriendshipAction).not.toHaveBeenCalled();
   });
 
   it('falls back to a plain insert when the client_msg_id column is not applied yet', async () => {
@@ -91,5 +104,7 @@ describe('sendRoomMessageWithClientMessageId', () => {
     expect(state.inserts[1]).not.toHaveProperty('client_msg_id');
     expect(result.data?.id).toBe('legacy');
     expect(result.error).toBeNull();
+    expect(dispatchRoomMessagePush).toHaveBeenCalledWith('legacy');
+    expect(maybePromptForPushAfterFriendshipAction).toHaveBeenCalledWith('first_room_message');
   });
 });
