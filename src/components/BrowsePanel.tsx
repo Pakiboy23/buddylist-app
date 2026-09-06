@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AppIcon from '@/components/AppIcon';
 import DiscoveryProfileSheet from '@/components/DiscoveryProfileSheet';
 import {
@@ -7,6 +7,7 @@ import {
   describeBrowseCard,
   getBrowseMoodChip,
   matchesBrowseFilters,
+  shouldFillBrowseFilterPages,
   type BrowsePresenceFilter,
 } from '@/lib/browsePresence';
 import {
@@ -14,7 +15,7 @@ import {
   wasFirstSessionAwayNudgeShown,
 } from '@/lib/firstSessionAway';
 import { PRODUCT_EVENTS, trackProductEvent } from '@/lib/productEvents';
-import { applyDiscoverablePeopleGate } from '@/lib/discoverableSearch';
+import { applyBrowseAwayMessageRequired, applyDiscoverablePeopleGate } from '@/lib/discoverableSearch';
 import { supabase } from '@/lib/supabase';
 import type { AwayMoodId } from '@/lib/himArtDirection';
 
@@ -54,44 +55,72 @@ export default function BrowsePanel({
   const [presenceFilter, setPresenceFilter] = useState<BrowsePresenceFilter>('all');
   const [moodIds, setMoodIds] = useState<AwayMoodId[]>([]);
   const [activityIds, setActivityIds] = useState<string[]>([]);
+  const loadMoreInFlightRef = useRef(false);
 
   const fetchPage = useCallback(async (pageOffset: number, replace: boolean) => {
-    const { data: blockedRows } = await supabase
-      .from('blocked_users')
-      .select('blocked_id')
-      .eq('blocker_id', currentUserId);
-    const blockedIds = (blockedRows ?? []).map((row) => (row as { blocked_id: string }).blocked_id);
+    try {
+      const { data: blockedRows } = await supabase
+        .from('blocked_users')
+        .select('blocked_id')
+        .eq('blocker_id', currentUserId);
+      const blockedIds = (blockedRows ?? []).map((row) => (row as { blocked_id: string }).blocked_id);
 
-    let query = applyDiscoverablePeopleGate(
-      supabase
-        .from('users')
-        .select('id,screenname,away_message,last_active_at,status'),
-    )
-      .not('away_message', 'is', null)
-      .neq('away_message', '')
-      .neq('id', currentUserId)
-      .order('last_active_at', { ascending: false, nullsFirst: false })
-      .range(pageOffset, pageOffset + PAGE_SIZE - 1);
+      let query = applyBrowseAwayMessageRequired(
+        applyDiscoverablePeopleGate(
+          supabase
+            .from('users')
+            .select('id,screenname,away_message,last_active_at,status'),
+        ),
+      )
+        .neq('id', currentUserId)
+        .order('last_active_at', { ascending: false, nullsFirst: false })
+        .range(pageOffset, pageOffset + PAGE_SIZE - 1);
 
-    if (blockedIds.length > 0) {
-      query = query.not('id', 'in', `(${blockedIds.join(',')})`);
+      if (blockedIds.length > 0) {
+        query = query.not('id', 'in', `(${blockedIds.join(',')})`);
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        setHasMore(false);
+        if (replace) {
+          setUsers([]);
+          setOffset(0);
+        }
+        return;
+      }
+
+      const rows = (data ?? []) as BrowseUser[];
+
+      if (replace) {
+        setUsers(rows);
+        setOffset(0);
+      } else {
+        setUsers((prev) => [...prev, ...rows]);
+      }
+
+      setHasMore(rows.length === PAGE_SIZE);
+    } catch {
+      setHasMore(false);
+      if (replace) {
+        setUsers([]);
+        setOffset(0);
+      }
+    } finally {
+      if (replace) {
+        setIsLoading(false);
+      } else {
+        setIsLoadingMore(false);
+        loadMoreInFlightRef.current = false;
+      }
     }
-
-    const { data } = await query;
-    const rows = (data ?? []) as BrowseUser[];
-
-    if (replace) {
-      setUsers(rows);
-      setIsLoading(false);
-    } else {
-      setUsers((prev) => [...prev, ...rows]);
-      setIsLoadingMore(false);
-    }
-
-    setHasMore(rows.length === PAGE_SIZE);
   }, [currentUserId]);
 
   useEffect(() => {
+    setIsLoading(true);
+    setUsers([]);
+    setOffset(0);
+    setHasMore(false);
     const timeoutId = window.setTimeout(() => {
       void fetchPage(0, true);
     }, 0);
@@ -99,13 +128,13 @@ export default function BrowsePanel({
   }, [fetchPage]);
 
   useEffect(() => {
-    if (!isFirstSession || hasAwayMessage || wasFirstSessionAwayNudgeShown()) {
+    if (!isFirstSession || hasAwayMessage || wasFirstSessionAwayNudgeShown(currentUserId)) {
       return;
     }
-    if (markFirstSessionAwayNudgeShown()) {
+    if (markFirstSessionAwayNudgeShown(currentUserId)) {
       trackProductEvent(PRODUCT_EVENTS.firstSessionAwayNudgeShown);
     }
-  }, [hasAwayMessage, isFirstSession]);
+  }, [currentUserId, hasAwayMessage, isFirstSession]);
 
   const cards = useMemo(
     () =>
@@ -132,15 +161,32 @@ export default function BrowsePanel({
     [activityIds, cards, moodIds, presenceFilter],
   );
 
-  const handleLoadMore = () => {
+  const handleLoadMore = useCallback(() => {
+    if (loadMoreInFlightRef.current || !hasMore || isLoading || isLoadingMore) {
+      return;
+    }
+    loadMoreInFlightRef.current = true;
     const nextOffset = offset + PAGE_SIZE;
     setOffset(nextOffset);
     setIsLoadingMore(true);
     void fetchPage(nextOffset, false);
-  };
+  }, [fetchPage, hasMore, isLoading, isLoadingMore, offset]);
 
   const showAwayNudge = !hasAwayMessage;
   const filtersActive = presenceFilter !== 'all' || moodIds.length > 0 || activityIds.length > 0;
+  const busy = isLoading || isLoadingMore;
+
+  useEffect(() => {
+    if (!shouldFillBrowseFilterPages({
+      filtersActive,
+      visibleCount: visibleCards.length,
+      hasMore,
+      busy,
+    })) {
+      return;
+    }
+    handleLoadMore();
+  }, [busy, filtersActive, handleLoadMore, hasMore, visibleCards.length]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -255,8 +301,24 @@ export default function BrowsePanel({
         </div>
       ) : visibleCards.length === 0 ? (
         <div className="ui-empty-state py-10 ui-fade-in">
-          <p className="text-[13px] font-semibold text-slate-500">No one matches these filters</p>
-          <p className="text-[12px] text-slate-400">Presence only — no nearby, no age slider.</p>
+          <p className="text-[13px] font-semibold text-slate-500">
+            {isLoadingMore ? 'Looking further…' : 'No one matches these filters'}
+          </p>
+          <p className="text-[12px] text-slate-400">
+            {isLoadingMore
+              ? 'Filters apply to the whole board, not just this page.'
+              : 'Presence only — no nearby, no age slider.'}
+          </p>
+          {hasMore ? (
+            <button
+              type="button"
+              onClick={handleLoadMore}
+              disabled={isLoadingMore}
+              className="ui-focus-ring ui-button-secondary ui-button-compact mt-1 disabled:opacity-50"
+            >
+              {isLoadingMore ? 'Loading…' : 'Load more'}
+            </button>
+          ) : null}
           {filtersActive ? (
             <button
               type="button"

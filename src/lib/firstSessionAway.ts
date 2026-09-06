@@ -17,31 +17,42 @@ export function isFirstSession(createdAt: string | null | undefined, now = Date.
   return now - timestamp < FIRST_SESSION_MS;
 }
 
-function readFlag(key: string): boolean {
+function flagKey(base: string, userId: string | null | undefined): string | null {
+  const id = typeof userId === 'string' ? userId.trim() : '';
+  if (!id) {
+    return null;
+  }
+  return `${base}:${id}`;
+}
+
+function readFlag(key: string | null): boolean {
+  if (!key) {
+    return false;
+  }
   return getRaw(key) === '1';
 }
 
-function writeFlag(key: string): boolean {
-  if (readFlag(key)) {
+function writeFlag(key: string | null): boolean {
+  if (!key || readFlag(key)) {
     return false;
   }
   return setRaw(key, '1');
 }
 
-export function wasFirstSessionAwayNudgeShown(): boolean {
-  return readFlag(NUDGE_SHOWN_KEY);
+export function wasFirstSessionAwayNudgeShown(userId: string | null | undefined): boolean {
+  return readFlag(flagKey(NUDGE_SHOWN_KEY, userId));
 }
 
-/** Returns true the first time this install records the nudge. */
-export function markFirstSessionAwayNudgeShown(): boolean {
-  return writeFlag(NUDGE_SHOWN_KEY);
+/** Returns true the first time this account records the nudge on this install. */
+export function markFirstSessionAwayNudgeShown(userId: string | null | undefined): boolean {
+  return writeFlag(flagKey(NUDGE_SHOWN_KEY, userId));
 }
 
-export function wasFirstSessionAwaySetLogged(): boolean {
-  return readFlag(AWAY_SET_LOGGED_KEY);
+export function wasFirstSessionAwaySetLogged(userId: string | null | undefined): boolean {
+  return readFlag(flagKey(AWAY_SET_LOGGED_KEY, userId));
 }
 
-/** Returns true the first time this install records an away-message set. */
-export function markFirstSessionAwaySetLogged(): boolean {
-  return writeFlag(AWAY_SET_LOGGED_KEY);
+/** Returns true the first time this account records an away-message set on this install. */
+export function markFirstSessionAwaySetLogged(userId: string | null | undefined): boolean {
+  return writeFlag(flagKey(AWAY_SET_LOGGED_KEY, userId));
 }

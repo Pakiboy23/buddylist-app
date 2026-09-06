@@ -25,20 +25,41 @@ describe('isFirstSession', () => {
 });
 
 describe('first-session away flags', () => {
+  const userA = 'user-a';
+  const userB = 'user-b';
+
   beforeEach(() => {
-    removeValue('him.firstSession.awayNudgeShown');
-    removeValue('him.firstSession.awaySetLogged');
+    removeValue(`him.firstSession.awayNudgeShown:${userA}`);
+    removeValue(`him.firstSession.awayNudgeShown:${userB}`);
+    removeValue(`him.firstSession.awaySetLogged:${userA}`);
+    removeValue(`him.firstSession.awaySetLogged:${userB}`);
   });
 
-  it('records the nudge and the conversion once each', () => {
-    expect(wasFirstSessionAwayNudgeShown()).toBe(false);
-    expect(markFirstSessionAwayNudgeShown()).toBe(true);
-    expect(markFirstSessionAwayNudgeShown()).toBe(false);
-    expect(wasFirstSessionAwayNudgeShown()).toBe(true);
+  it('records the nudge and the conversion once per account', () => {
+    expect(wasFirstSessionAwayNudgeShown(userA)).toBe(false);
+    expect(markFirstSessionAwayNudgeShown(userA)).toBe(true);
+    expect(markFirstSessionAwayNudgeShown(userA)).toBe(false);
+    expect(wasFirstSessionAwayNudgeShown(userA)).toBe(true);
 
-    expect(wasFirstSessionAwaySetLogged()).toBe(false);
-    expect(markFirstSessionAwaySetLogged()).toBe(true);
-    expect(markFirstSessionAwaySetLogged()).toBe(false);
-    expect(wasFirstSessionAwaySetLogged()).toBe(true);
+    expect(wasFirstSessionAwaySetLogged(userA)).toBe(false);
+    expect(markFirstSessionAwaySetLogged(userA)).toBe(true);
+    expect(markFirstSessionAwaySetLogged(userA)).toBe(false);
+    expect(wasFirstSessionAwaySetLogged(userA)).toBe(true);
+  });
+
+  it('keeps first-session flags isolated across accounts on the same install', () => {
+    expect(markFirstSessionAwayNudgeShown(userA)).toBe(true);
+    expect(markFirstSessionAwaySetLogged(userA)).toBe(true);
+
+    expect(wasFirstSessionAwayNudgeShown(userB)).toBe(false);
+    expect(wasFirstSessionAwaySetLogged(userB)).toBe(false);
+    expect(markFirstSessionAwayNudgeShown(userB)).toBe(true);
+    expect(markFirstSessionAwaySetLogged(userB)).toBe(true);
+  });
+
+  it('does not write a shared install-wide flag when userId is missing', () => {
+    expect(wasFirstSessionAwayNudgeShown(null)).toBe(false);
+    expect(markFirstSessionAwayNudgeShown(undefined)).toBe(false);
+    expect(wasFirstSessionAwayNudgeShown('')).toBe(false);
   });
 });

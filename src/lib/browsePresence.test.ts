@@ -6,6 +6,7 @@ import {
   inferBrowseMood,
   matchBrowseActivity,
   matchesBrowseFilters,
+  shouldFillBrowseFilterPages,
 } from '@/lib/browsePresence';
 
 describe('formatBrowseRelativeTime', () => {
@@ -71,5 +72,43 @@ describe('matchesBrowseFilters', () => {
     expect(matchesBrowseFilters(awayGym, { presence: 'all', moodIds: ['cozy'], activityIds: [] })).toBe(false);
     expect(matchesBrowseFilters(awayGym, { presence: 'all', moodIds: [], activityIds: ['gym-regret'] })).toBe(true);
     expect(matchesBrowseFilters(awayGym, { presence: 'all', moodIds: [], activityIds: ['snacks'] })).toBe(false);
+  });
+});
+
+describe('shouldFillBrowseFilterPages', () => {
+  it('keeps loading later pages when filters hide the current page', () => {
+    expect(shouldFillBrowseFilterPages({
+      filtersActive: true,
+      visibleCount: 0,
+      hasMore: true,
+      busy: false,
+    })).toBe(true);
+  });
+
+  it('stops when a page already matches, paging is done, or a fetch is in flight', () => {
+    expect(shouldFillBrowseFilterPages({
+      filtersActive: true,
+      visibleCount: 2,
+      hasMore: true,
+      busy: false,
+    })).toBe(false);
+    expect(shouldFillBrowseFilterPages({
+      filtersActive: true,
+      visibleCount: 0,
+      hasMore: false,
+      busy: false,
+    })).toBe(false);
+    expect(shouldFillBrowseFilterPages({
+      filtersActive: true,
+      visibleCount: 0,
+      hasMore: true,
+      busy: true,
+    })).toBe(false);
+    expect(shouldFillBrowseFilterPages({
+      filtersActive: false,
+      visibleCount: 0,
+      hasMore: true,
+      busy: false,
+    })).toBe(false);
   });
 });

@@ -4473,7 +4473,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
 
     const firstSession = isFirstSession(accountCreatedAtRef.current);
     if (firstSession) {
-      if (markFirstSessionAwaySetLogged()) {
+      if (markFirstSessionAwaySetLogged(userId)) {
         trackProductEvent(PRODUCT_EVENTS.awayMessageSet, { first_session: true });
       }
       return;
@@ -4482,7 +4482,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     if (!awayMessageRef.current.trim()) {
       trackProductEvent(PRODUCT_EVENTS.awayMessageSet, { first_session: false });
     }
-  }, []);
+  }, [userId]);
 
   const updateStatus = useCallback(
     async (

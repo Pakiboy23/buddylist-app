@@ -147,6 +147,16 @@ export function matchesBrowseFilters(
   return true;
 }
 
+/** Client filters only see loaded pages — keep paging while the current page is empty. */
+export function shouldFillBrowseFilterPages(input: {
+  filtersActive: boolean;
+  visibleCount: number;
+  hasMore: boolean;
+  busy: boolean;
+}): boolean {
+  return input.filtersActive && input.visibleCount === 0 && input.hasMore && !input.busy;
+}
+
 export const BROWSE_MOOD_FILTERS = AWAY_MOOD_OPTIONS.map((option) => ({
   id: option.id,
   label: option.label,
