@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import AppIcon from '@/components/AppIcon';
 import DiscoveryProfileSheet from '@/components/DiscoveryProfileSheet';
+import { applyDiscoverablePeopleGate } from '@/lib/discoverableSearch';
 import { supabase } from '@/lib/supabase';
 
 interface SearchUser {
@@ -32,10 +33,11 @@ export default function SearchPanel({ currentUserId }: SearchPanelProps) {
       .select('blocked_id')
       .eq('blocker_id', currentUserId);
     const blockedIds = (blockedRows ?? []).map((row) => (row as { blocked_id: string }).blocked_id);
-    let q = supabase
-      .from('users')
-      .select('id,screenname,away_message')
-      .eq('discoverable', true)
+    let q = applyDiscoverablePeopleGate(
+      supabase
+        .from('users')
+        .select('id,screenname,away_message'),
+    )
       .neq('id', currentUserId)
       .ilike('screenname', `${query.trim()}%`)
       .order('screenname', { ascending: true })
@@ -157,6 +159,7 @@ export default function SearchPanel({ currentUserId }: SearchPanelProps) {
         <DiscoveryProfileSheet
           userId={selectedUserId}
           currentUserId={currentUserId}
+          source="search"
           onClose={() => setSelectedUserId(null)}
         />
       ) : null}
