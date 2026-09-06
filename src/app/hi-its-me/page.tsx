@@ -164,6 +164,7 @@ import {
   markFirstSessionAwaySetLogged,
 } from '@/lib/firstSessionAway';
 import { PRODUCT_EVENTS, trackProductEvent } from '@/lib/productEvents';
+import { applyDiscoverablePeopleGate } from '@/lib/discoverableSearch';
 import {
   ABUSE_REPORT_CATEGORY_OPTIONS,
   getMessageExpiresAt,
@@ -5227,7 +5228,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
 
     const { data, error } = await loadManyUserProfiles({
       applyFilters: (queryBuilder) =>
-        queryBuilder
+        applyDiscoverablePeopleGate(queryBuilder)
           .ilike('screenname', `%${query}%`)
           .neq('id', userId)
           .order('screenname', { ascending: true })

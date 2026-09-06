@@ -14,6 +14,7 @@ import {
   wasFirstSessionAwayNudgeShown,
 } from '@/lib/firstSessionAway';
 import { PRODUCT_EVENTS, trackProductEvent } from '@/lib/productEvents';
+import { applyDiscoverablePeopleGate } from '@/lib/discoverableSearch';
 import { supabase } from '@/lib/supabase';
 import type { AwayMoodId } from '@/lib/himArtDirection';
 
@@ -61,10 +62,11 @@ export default function BrowsePanel({
       .eq('blocker_id', currentUserId);
     const blockedIds = (blockedRows ?? []).map((row) => (row as { blocked_id: string }).blocked_id);
 
-    let query = supabase
-      .from('users')
-      .select('id,screenname,away_message,last_active_at,status')
-      .eq('discoverable', true)
+    let query = applyDiscoverablePeopleGate(
+      supabase
+        .from('users')
+        .select('id,screenname,away_message,last_active_at,status'),
+    )
       .not('away_message', 'is', null)
       .neq('away_message', '')
       .neq('id', currentUserId)
