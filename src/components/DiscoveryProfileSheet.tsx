@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import AppIcon from '@/components/AppIcon';
+import MutualContextCard from '@/components/MutualContextCard';
+import { useMutualContext } from '@/hooks/useMutualContext';
+import {
+  browseAddRateLimitCopy,
+  evaluateBrowseAddRate,
+  recordBrowseAdd,
+} from '@/lib/browseAddRateLimit';
 import { sendOrAcceptBuddyRequest, type BuddyRequestStatus } from '@/lib/buddyRequest';
+import { humanizeDbError } from '@/lib/friendlyError';
+import { PRODUCT_EVENTS, trackProductEvent } from '@/lib/productEvents';
 import { supabase } from '@/lib/supabase';
 
 interface DiscoveryProfile {
@@ -13,6 +22,7 @@ interface DiscoveryProfile {
 interface DiscoveryProfileSheetProps {
   userId: string;
   currentUserId: string;
+  source: 'browse' | 'search';
   onClose: () => void;
 }
 
@@ -23,12 +33,14 @@ const REPORT_REASONS = [
   { value: 'other', label: 'Other' },
 ] as const;
 
-export default function DiscoveryProfileSheet({ userId, currentUserId, onClose }: DiscoveryProfileSheetProps) {
+export default function DiscoveryProfileSheet({ userId, currentUserId, source, onClose }: DiscoveryProfileSheetProps) {
   const [profile, setProfile] = useState<DiscoveryProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const mutualContextState = useMutualContext(userId);
 
   // Buddy request
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [feedbackTone, setFeedbackTone] = useState<'ok' | 'warn'>('ok');
   const [status, setStatus] = useState<BuddyRequestStatus | null>(null);
   const [isAdding, setIsAdding] = useState(false);
 
@@ -79,18 +91,34 @@ export default function DiscoveryProfileSheet({ userId, currentUserId, onClose }
 
   const handleAdd = useCallback(async () => {
     if (isAdding || status !== null) return;
+
+    if (source === 'browse') {
+      const limit = evaluateBrowseAddRate();
+      if (!limit.ok) {
+        setFeedbackTone('warn');
+        setFeedback(browseAddRateLimitCopy(limit));
+        trackProductEvent(PRODUCT_EVENTS.browseAddRateLimited, { reason: limit.reason });
+        return;
+      }
+    }
+
     setIsAdding(true);
     try {
       const result = await sendOrAcceptBuddyRequest(currentUserId, userId);
-      setFeedback(result.feedback);
+      setFeedbackTone(result.ok ? 'ok' : 'warn');
+      setFeedback(result.ok ? result.feedback : humanizeDbError(result.feedback));
       setStatus(result.status);
+      if (result.ok && result.status === 'sent' && source === 'browse') {
+        recordBrowseAdd();
+      }
     } catch {
+      setFeedbackTone('warn');
       setFeedback('Could not send buddy request right now.');
       setStatus('error');
     } finally {
       setIsAdding(false);
     }
-  }, [currentUserId, userId, isAdding, status]);
+  }, [currentUserId, userId, isAdding, source, status]);
 
   const handleBlock = useCallback(async () => {
     if (isBlocking) return;
@@ -157,17 +185,31 @@ export default function DiscoveryProfileSheet({ userId, currentUserId, onClose }
         ) : profile ? (
           <div className="space-y-4">
             <div>
-              <p className="text-[22px] font-bold text-slate-100">{profile.screenname}</p>
+              <p className="ui-screenname text-[22px] font-bold">{profile.screenname}</p>
               {profile.awayMessage ? (
-                <p className="mt-1 text-[13px] text-slate-400">&ldquo;{profile.awayMessage}&rdquo;</p>
+                <p className="mt-1 line-clamp-2 text-[13px] text-slate-400">&ldquo;{profile.awayMessage}&rdquo;</p>
               ) : null}
               {profile.bio ? (
                 <p className="mt-2 text-[13px] leading-relaxed text-slate-300">{profile.bio}</p>
               ) : null}
             </div>
 
+            <MutualContextCard
+              compact
+              context={mutualContextState.context}
+              isLoading={mutualContextState.isLoading}
+              errorMessage={mutualContextState.error}
+            />
+
+            <p className="text-[11px] leading-relaxed text-slate-500">
+              You&rsquo;re seeing this because they chose to appear in Browse. Hide yours anytime in Privacy —
+              Appear in Browse &amp; Search. Block stops them from finding you back.
+            </p>
+
             {feedback ? (
-              <p className="text-[12px] font-semibold text-[var(--green)]">{feedback}</p>
+              <p className={`text-[12px] font-semibold ${feedbackTone === 'ok' ? 'text-[var(--green)]' : 'text-[var(--gold)]'}`}>
+                {feedback}
+              </p>
             ) : null}
 
             <button

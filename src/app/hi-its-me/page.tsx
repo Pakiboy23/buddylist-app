@@ -160,6 +160,11 @@ import BrowsePanel from '@/components/BrowsePanel';
 import SearchPanel from '@/components/SearchPanel';
 import { useChatContext } from '@/context/ChatContext';
 import {
+  isFirstSession,
+  markFirstSessionAwaySetLogged,
+} from '@/lib/firstSessionAway';
+import { PRODUCT_EVENTS, trackProductEvent } from '@/lib/productEvents';
+import {
   ABUSE_REPORT_CATEGORY_OPTIONS,
   getMessageExpiresAt,
   isTrustSafetySchemaMissingError,
@@ -1064,7 +1069,8 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   const [isBlockingBuddyId, setIsBlockingBuddyId] = useState<string | null>(null);
   const [isReportingBuddyId, setIsReportingBuddyId] = useState<string | null>(null);
   const [bodyShellSection, setBodyShellSection] = useState<ShellSection>('im');
-  const [chatSubSection, setChatSubSection] = useState<'rooms' | 'browse' | 'search'>('rooms');
+  const [findSubSection, setFindSubSection] = useState<'browse' | 'search' | 'requests'>('browse');
+  const [accountCreatedAt, setAccountCreatedAt] = useState<string | null>(null);
   const [isDiscoverable, setIsDiscoverable] = useState(true);
   const [isSavingDiscoverable, setIsSavingDiscoverable] = useState(false);
   const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(false);
@@ -1132,6 +1138,8 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   const userStatusRef = useRef(userStatus);
   const statusMsgRef = useRef(statusMsg);
   const awayMessageRef = useRef(awayMessage);
+  const accountCreatedAtRef = useRef<string | null>(null);
+  const didApplyFirstSessionFindRef = useRef(false);
   const screennameRef = useRef(screenname);
   const profileBioRef = useRef(profileBio);
   const buddyIconPathRef = useRef<string | null>(buddyIconPath);
@@ -1371,6 +1379,10 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   useEffect(() => {
     awayMessageRef.current = awayMessage;
   }, [awayMessage]);
+
+  useEffect(() => {
+    accountCreatedAtRef.current = accountCreatedAt;
+  }, [accountCreatedAt]);
 
   useEffect(() => {
     screennameRef.current = screenname;
@@ -3184,6 +3196,9 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       }
 
       setUserId(session.user.id);
+      const createdAt = typeof session.user.created_at === 'string' ? session.user.created_at : null;
+      setAccountCreatedAt(createdAt);
+      accountCreatedAtRef.current = createdAt;
       setScreenname(resolvedScreenname);
       setStatusMsg(resolvedStatusState.statusMessage);
       setUserStatus(resolvedStatusState.status);
@@ -4450,6 +4465,24 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     }
   }, [playSound, resetChatState, router, setInitialUnreadForActiveChat, setInitialUnreadForActiveRoom, userId]);
 
+  const recordAwayMessageSetEvent = useCallback((nextAwayMessage: string) => {
+    if (!nextAwayMessage.trim()) {
+      return;
+    }
+
+    const firstSession = isFirstSession(accountCreatedAtRef.current);
+    if (firstSession) {
+      if (markFirstSessionAwaySetLogged()) {
+        trackProductEvent(PRODUCT_EVENTS.awayMessageSet, { first_session: true });
+      }
+      return;
+    }
+
+    if (!awayMessageRef.current.trim()) {
+      trackProductEvent(PRODUCT_EVENTS.awayMessageSet, { first_session: false });
+    }
+  }, []);
+
   const updateStatus = useCallback(
     async (
       newStatus: string,
@@ -4524,6 +4557,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
           return false;
         }
 
+        recordAwayMessageSetEvent(nextAwayMessage);
         return true;
       }
 
@@ -4546,9 +4580,10 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       } else if (wasAway && normalizedStatus !== AWAY_STATUS) {
         playSound(BUDDY_SIGN_ON_SOUND);
       }
+      recordAwayMessageSetEvent(nextAwayMessage);
       return true;
     },
-    [markProfileSchemaUnavailable, playSound, userId],
+    [markProfileSchemaUnavailable, playSound, recordAwayMessageSetEvent, userId],
   );
 
   const persistIdleState = useCallback(
@@ -6105,6 +6140,36 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   }, [requestedShellSection]);
 
   useEffect(() => {
+    if (didApplyFirstSessionFindRef.current || !userId || isBootstrapping || isLoadingBuddies) {
+      return;
+    }
+    if (!isFirstSession(accountCreatedAt)) {
+      return;
+    }
+    if (searchParams.get(SHELL_SECTION_QUERY_KEY)) {
+      return;
+    }
+    if (requestedRoomName || requestedDirectMessageUserId) {
+      return;
+    }
+    if (acceptedBuddies.length > 0) {
+      return;
+    }
+
+    didApplyFirstSessionFindRef.current = true;
+    replaceAppPathInPlace(buildHiItsMePath({ section: 'buddy' }));
+  }, [
+    acceptedBuddies.length,
+    accountCreatedAt,
+    isBootstrapping,
+    isLoadingBuddies,
+    requestedDirectMessageUserId,
+    requestedRoomName,
+    searchParams,
+    userId,
+  ]);
+
+  useEffect(() => {
     if (!userId || !requestedRoomName) {
       return;
     }
@@ -6258,6 +6323,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
 
   const openAddWindow = useCallback(() => {
     setSearchError(null);
+    setFindSubSection('browse');
     focusMainShellSection('buddy');
   }, [focusMainShellSection]);
 
@@ -6413,7 +6479,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       : bodyShellSection === 'chat'
         ? 'Chat Rooms'
         : bodyShellSection === 'buddy'
-          ? 'Find Buddies'
+          ? 'Find'
           : 'Profile';
   const mainShellSubtitle =
     bodyShellSection === 'im'
@@ -6421,7 +6487,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       : bodyShellSection === 'chat'
       ? 'Find your people'
         : bodyShellSection === 'buddy'
-          ? 'Search people and handle buddy requests'
+          ? 'Away messages from people who want to be found'
           : 'Identity, status, and privacy';
   const nativeShellMode =
     activeChatBuddy || activeRoom
@@ -7034,96 +7100,116 @@ const [showAddWindow, setShowAddWindow] = useState(false);
               ) : null}
 
               {bodyShellSection === 'buddy' ? (
-                <section className="px-3 pb-2">
-                  <div className="ui-panel-card rounded-[1.45rem] px-4 py-4">
-                    <div className="min-w-0">
-                      <div className="flex items-center justify-between gap-3">
+                <div className="ui-page-stack pt-2">
+                  <section className="ui-list-panel overflow-hidden">
+                    <div className="px-4 pt-4">
+                      <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Find People</p>
-                          <p className="mt-1 text-[14px] font-semibold text-slate-800 dark:text-slate-100">Search and add buddies without leaving the page.</p>
+                          <p className="ui-section-kicker">
+                            {findSubSection === 'browse' ? 'Browse' : findSubSection === 'search' ? 'Search' : 'Requests'}
+                          </p>
+                          <p className="mt-1 text-[16px] font-semibold text-slate-800 dark:text-slate-100">
+                            {findSubSection === 'browse'
+                              ? 'People'
+                              : findSubSection === 'search'
+                                ? 'Known screennames'
+                                : 'Buddy requests'}
+                          </p>
+                          <p className="mt-1 text-[11px] text-slate-400">
+                            {findSubSection === 'browse'
+                              ? 'Conversation first — away messages, not nearby.'
+                              : findSubSection === 'search'
+                                ? 'Look someone up when you already know the name.'
+                                : 'People who asked to be on your list.'}
+                          </p>
                         </div>
-                        {pendingRequests.length > 0 ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setConversationFilter('requests');
-                              focusMainShellSection('im');
-                            }}
-                            className="ui-focus-ring ui-button-secondary ui-button-compact shrink-0"
-                          >
-                            {pendingRequests.length} request{pendingRequests.length === 1 ? '' : 's'}
-                          </button>
-                        ) : null}
                       </div>
-                      <form onSubmit={handleSearch} className="mt-3 flex gap-2">
-                        <label htmlFor="find-buddies-input" className="sr-only">Search screen names</label>
-                        <input
-                          id="find-buddies-input"
-                          type="search"
-                          value={searchTerm}
-                          onChange={(event) => setSearchTerm(event.target.value)}
-                          className={xpModalInputClass}
-                          placeholder="Search screen names..."
-                          autoComplete="off"
-                          autoCapitalize="none"
-                          autoCorrect="off"
+
+                      <div className="mt-3 flex gap-1.5">
+                        {([
+                          { id: 'browse', label: 'People' },
+                          { id: 'search', label: 'Search' },
+                          { id: 'requests', label: 'Requests' },
+                        ] as const).map((section) => (
+                          <button
+                            key={section.id}
+                            type="button"
+                            onClick={() => setFindSubSection(section.id)}
+                            className="ui-focus-ring ui-room-filter-chip"
+                            data-active={findSubSection === section.id ? 'true' : 'false'}
+                          >
+                            <span>{section.label}</span>
+                            {section.id === 'requests' && pendingRequests.length > 0 ? (
+                              <span className="ml-1">({pendingRequests.length})</span>
+                            ) : null}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {findSubSection === 'browse' ? (
+                      <div className="px-2 pb-2 pt-3">
+                        <BrowsePanel
+                          currentUserId={userId ?? ''}
+                          hasAwayMessage={Boolean(awayMessage.trim())}
+                          isFirstSession={isFirstSession(accountCreatedAt)}
+                          onSetAwayMessage={() => openAwayModal('away')}
                         />
-                        <button
-                          type="submit"
-                          className={`${xpModalPrimaryButtonClass} shrink-0`}
-                        >
-                          Search
-                        </button>
-                      </form>
+                      </div>
+                    ) : null}
 
-                      {searchError ? <p className="ui-note-error mt-2">{searchError}</p> : null}
+                    {findSubSection === 'search' ? (
+                      <div className="px-2 pb-2 pt-3">
+                        <SearchPanel currentUserId={userId ?? ''} />
+                      </div>
+                    ) : null}
 
-                      {(isSearching || searchTerm.trim() !== '' || searchResults.length > 0) ? (
-                        <div className="mt-3 max-h-56 overflow-y-auto rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-[inset_0_1px_1px_rgba(15,23,42,0.05)] dark:border-slate-700 dark:bg-[#0F1424]/50">
-                          {isSearching ? (
-                            <p className="p-2 text-sm text-slate-500">Searching screen names...</p>
-                          ) : null}
-                          {!isSearching && searchTerm.trim() !== '' && searchResults.length === 0 ? (
-                            <p className="p-2 text-sm text-slate-500">No screen names found.</p>
-                          ) : null}
-                          {!isSearching &&
-                            searchResults.map((profile) => {
-                              const resolvedProfileStatus = resolveStatusFields({
-                                status: profile.status,
-                                awayMessage: profile.away_message,
-                                statusMessage: profile.status_msg,
-                              });
-                              const isProfileAway = normalizeStatusLabel(resolvedProfileStatus.status) === AWAY_STATUS;
-
-                              return (
-                                <div
-                                  key={profile.id}
-                                  className="ui-panel-muted mb-2 flex items-center justify-between gap-2 rounded-2xl p-3 last:mb-0"
-                                >
-                                  <div className="min-w-0">
-                                    <p className="ui-screenname truncate font-bold">{profile.screenname || 'Unknown User'}</p>
-                                    <p className="truncate text-[11px] text-slate-500">
-                                      {isProfileAway
-                                        ? `Away: ${resolvedProfileStatus.awayMessage || 'Away'}`
-                                        : resolvedProfileStatus.statusMessage}
-                                    </p>
-                                  </div>
+                    {findSubSection === 'requests' ? (
+                      <div className="px-2 pb-3 pt-3">
+                        {pendingRequests.length === 0 ? (
+                          <div className="ui-empty-state px-6 py-10 ui-fade-in">
+                            <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[rgba(232,162,58,0.16)] bg-[rgba(232,162,58,0.12)]">
+                              <AppIcon kind="mail" className="h-8 w-8 text-[var(--gold)]" />
+                            </div>
+                            <div className="text-center">
+                              <p className="text-[14px] font-semibold text-slate-500">No buddy requests</p>
+                              <p className="mt-1 text-[12px] leading-relaxed text-slate-400">
+                                Incoming asks show up here as a badge — not as the front door.
+                              </p>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-2 px-2 pb-1">
+                            {pendingRequests.map((request) => (
+                              <div key={request.senderId} className="ui-list-row">
+                                <div className="min-w-0 flex-1">
+                                  <p className="ui-screenname truncate text-[13px] font-semibold">{request.screenname}</p>
+                                  <p className="text-[11px] text-slate-400 dark:text-slate-500">Wants to start a chat</p>
+                                </div>
+                                <div className="flex items-center gap-2">
                                   <button
                                     type="button"
-                                    onClick={() => handleAddBuddy(profile)}
-                                    disabled={isAddingBuddyId === profile.id}
-                                    className={xpModalPrimaryButtonClass}
+                                    onClick={() => handleAcceptPendingRequest(request.senderId)}
+                                    className="ui-focus-ring ui-button-primary ui-button-compact"
                                   >
-                                    {isAddingBuddyId === profile.id ? 'Adding...' : 'Add'}
+                                    Accept
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeclinePendingRequest(request.senderId)}
+                                    className="ui-focus-ring ui-button-secondary ui-button-compact"
+                                  >
+                                    Decline
                                   </button>
                                 </div>
-                              );
-                            })}
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                </section>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
+                  </section>
+                </div>
               ) : null}
 
               {bodyShellSection === 'im' ? (
@@ -7329,15 +7415,15 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                           <div className="text-center">
                             <p className="text-[14px] font-semibold text-slate-500">No buddies yet</p>
                             <p className="mt-1 text-[12px] leading-relaxed text-slate-400">
-                              Add your first buddy to start messaging.
+                              See who&rsquo;s around first — people who posted an away message.
                             </p>
                           </div>
                           <button
                             type="button"
                             onClick={openAddWindow}
-                            className="ui-focus-ring ui-button-secondary ui-button-compact mt-1"
+                            className="ui-focus-ring ui-button-primary ui-button-compact mt-1"
                           >
-                            Add buddy
+                            See who&rsquo;s around
                           </button>
                         </div>
                       ) : null}
@@ -7573,44 +7659,15 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                     <div className="px-4 pt-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="ui-section-kicker">
-                            {chatSubSection === 'rooms' ? 'Rooms' : chatSubSection === 'browse' ? 'Browse' : 'Search'}
-                          </p>
+                          <p className="ui-section-kicker">Rooms</p>
                           <p className="mt-1 text-[16px] font-semibold text-slate-800 dark:text-slate-100">
-                            {chatSubSection === 'rooms' ? 'Chat Rooms' : chatSubSection === 'browse' ? 'People' : 'Find People'}
+                            Chat Rooms
                           </p>
                         </div>
-                        {chatSubSection === 'rooms' ? <span className="ui-section-count">{joinedRooms.length}</span> : null}
-                      </div>
-
-                      {/* Sub-nav: Rooms | Browse | Search */}
-                      <div className="mt-3 flex gap-1.5">
-                        {(['rooms', 'browse', 'search'] as const).map((section) => (
-                          <button
-                            key={section}
-                            type="button"
-                            onClick={() => setChatSubSection(section)}
-                            className="ui-focus-ring ui-room-filter-chip capitalize"
-                            data-active={chatSubSection === section ? 'true' : 'false'}
-                          >
-                            {section === 'rooms' ? 'Rooms' : section === 'browse' ? 'Browse' : 'Search'}
-                          </button>
-                        ))}
+                        <span className="ui-section-count">{joinedRooms.length}</span>
                       </div>
                     </div>
 
-                    {chatSubSection === 'browse' ? (
-                      <div className="px-2 pb-2 pt-3">
-                        <BrowsePanel currentUserId={userId ?? ''} />
-                      </div>
-                    ) : chatSubSection === 'search' ? (
-                      <div className="px-2 pb-2 pt-3">
-                        <SearchPanel currentUserId={userId ?? ''} />
-                      </div>
-                    ) : null}
-
-                    {chatSubSection === 'rooms' ? (
-                    <>
                     <div className="px-4 pt-3">
                       <button
                         type="button"
@@ -7725,7 +7782,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                         })
                       )}
                     </div>
-                    </>) : null}
                   </section>
                 </div>
               ) : null}
@@ -7774,8 +7830,13 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                     data-active={activeTab === 'buddy' ? 'true' : 'false'}
                     aria-current={activeTab === 'buddy' ? 'page' : undefined}
                   >
-                    <span className="ui-tabbar-icon">
+                    <span className="ui-tabbar-icon relative">
                       <HiItsMeTabIcon kind="buddy" className="h-5 w-5 text-current" />
+                      {pendingRequests.length > 0 ? (
+                        <span className="ui-unread-badge absolute -right-2.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold leading-none shadow-sm">
+                          {pendingRequests.length > 99 ? '99+' : pendingRequests.length}
+                        </span>
+                      ) : null}
                     </span>
                     <span className="ui-tabbar-label">Find</span>
                   </button>
@@ -8459,7 +8520,9 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Appear in Browse &amp; Search</p>
-                    <p className="text-[11px] text-slate-400">Let others find your profile in the Browse and Search surfaces. Your away message is shown publicly.</p>
+                    <p className="text-[11px] text-slate-400">
+                      Opt in to be found by your screenname and away message. Turn this off anytime — you disappear from Browse and Search. Your away line is public while this is on.
+                    </p>
                   </div>
                   <button
                     type="button"

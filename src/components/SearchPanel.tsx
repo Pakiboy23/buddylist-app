@@ -157,6 +157,7 @@ export default function SearchPanel({ currentUserId }: SearchPanelProps) {
         <DiscoveryProfileSheet
           userId={selectedUserId}
           currentUserId={currentUserId}
+          source="search"
           onClose={() => setSelectedUserId(null)}
         />
       ) : null}
