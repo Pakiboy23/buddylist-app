@@ -3,7 +3,10 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   // apikey + x-client-info: supabase-js and the invite client send them.
-  // Omitting them fails CORS preflight the same way delete-account used to.
+  // Production was still on an older deploy that only allowed
+  // "authorization, content-type". The web client sends `apikey`, so Safari
+  // completed OPTIONS 204, refused the POST (Access-Control-Allow-Headers
+  // mismatch), and surfaced TypeError "Load failed" in the invite sheet.
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
@@ -43,24 +46,32 @@ Deno.serve(async (req: Request) => {
   const invitedIds = buddyIds as string[];
   const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
 
-  // Verify accepted buddy relationships
-  const { data: relationships, error: relError } = await admin
-    .from('buddies')
-    .select('buddy_id, user_id')
-    .eq('status', 'accepted')
-    .or(
-      invitedIds
-        .map((id) => `and(user_id.eq.${user.id},buddy_id.eq.${id}),and(user_id.eq.${id},buddy_id.eq.${user.id})`)
-        .join(','),
-    );
+  // Two `.in()` lookups instead of one nested `.or(and(...),and(...))` filter.
+  // Inviting ~26 buddies made that OR clause a multi-KB query string; `.in()`
+  // stays short and still requires an accepted row in either direction.
+  const [asInviter, asInvitee] = await Promise.all([
+    admin
+      .from('buddies')
+      .select('buddy_id, user_id')
+      .eq('status', 'accepted')
+      .eq('user_id', user.id)
+      .in('buddy_id', invitedIds),
+    admin
+      .from('buddies')
+      .select('buddy_id, user_id')
+      .eq('status', 'accepted')
+      .eq('buddy_id', user.id)
+      .in('user_id', invitedIds),
+  ]);
 
-  if (relError) {
+  if (asInviter.error || asInvitee.error) {
     return Response.json({ error: 'Failed to verify buddy relationships.' }, { status: 500, headers: CORS_HEADERS });
   }
 
   const confirmedIds = new Set(
-    (relationships ?? []).map((row: { user_id: string; buddy_id: string }) =>
-      row.user_id === user.id ? row.buddy_id : row.user_id,
+    [...(asInviter.data ?? []), ...(asInvitee.data ?? [])].map(
+      (row: { user_id: string; buddy_id: string }) =>
+        row.user_id === user.id ? row.buddy_id : row.user_id,
     ),
   );
   const validIds = invitedIds.filter((id) => confirmedIds.has(id));

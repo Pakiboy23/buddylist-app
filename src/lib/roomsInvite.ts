@@ -40,6 +40,22 @@ export type RoomsInviteResult =
   | { ok: true; invited: string[] }
   | { ok: false; error: string };
 
+/** CORS / transport failures never include a JSON body. WebKit reports them as
+ * "Load failed"; Chromium as "Failed to fetch". */
+export function formatInviteClientError(error: unknown): string {
+  const message = error instanceof Error ? error.message.trim() : '';
+  if (
+    !message ||
+    /^load failed$/i.test(message) ||
+    /failed to fetch/i.test(message) ||
+    /networkerror/i.test(message) ||
+    /network request failed/i.test(message)
+  ) {
+    return 'Could not reach the invite service. Try again in a moment.';
+  }
+  return message;
+}
+
 export async function inviteAcceptedBuddiesToRoom(input: {
   roomId: string;
   buddyIds: string[];
@@ -68,7 +84,7 @@ export async function inviteAcceptedBuddiesToRoom(input: {
   } catch (error) {
     return {
       ok: false,
-      error: error instanceof Error ? error.message : 'Invite failed.',
+      error: formatInviteClientError(error),
     };
   }
 

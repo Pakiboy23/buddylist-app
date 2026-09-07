@@ -1,9 +1,23 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   confirmedAcceptedBuddyIds,
+  formatInviteClientError,
   inviteAcceptedBuddiesToRoom,
   selectInvitableBuddies,
 } from '@/lib/roomsInvite';
+
+const ROOMS_INVITE_FUNCTION = path.resolve(
+  __dirname,
+  '..',
+  '..',
+  'supabase',
+  'functions',
+  'rooms-invite',
+  'index.ts',
+);
+const GROUP_CHAT_WINDOW = path.resolve(__dirname, '..', 'components', 'GroupChatWindow.tsx');
 
 describe('selectInvitableBuddies', () => {
   const buddies = [
@@ -129,5 +143,77 @@ describe('inviteAcceptedBuddiesToRoom', () => {
       ok: false,
       error: 'None of the specified users are your buddies.',
     });
+  });
+
+  it('maps WebKit CORS transport errors instead of showing "Load failed"', async () => {
+    vi.stubEnv('VITE_SUPABASE_URL', 'https://example.supabase.co');
+    const fetchImpl = vi.fn(async () => {
+      throw new TypeError('Load failed');
+    });
+
+    const result = await inviteAcceptedBuddiesToRoom({
+      roomId: 'room-1',
+      buddyIds: ['buddy-1'],
+      accessToken: 'user-jwt',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'Could not reach the invite service. Try again in a moment.',
+    });
+  });
+});
+
+describe('formatInviteClientError', () => {
+  it('rewrites WebKit and Chromium fetch failures', () => {
+    expect(formatInviteClientError(new TypeError('Load failed'))).toBe(
+      'Could not reach the invite service. Try again in a moment.',
+    );
+    expect(formatInviteClientError(new TypeError('Failed to fetch'))).toBe(
+      'Could not reach the invite service. Try again in a moment.',
+    );
+  });
+
+  it('keeps a real function error message', () => {
+    expect(formatInviteClientError(new Error('You are not a member of this room.'))).toBe(
+      'You are not a member of this room.',
+    );
+  });
+});
+
+describe('rooms-invite edge function contract', () => {
+  const source = readFileSync(ROOMS_INVITE_FUNCTION, 'utf-8');
+  const inviteSheet = readFileSync(GROUP_CHAT_WINDOW, 'utf-8');
+
+  it('allows the apikey header the web client sends on CORS preflight', () => {
+    expect(source).toMatch(
+      /Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'/,
+    );
+  });
+
+  it('verifies accepted buddies with .in() lookups instead of a nested .or() filter', () => {
+    expect(source).toMatch(/\.in\('buddy_id', invitedIds\)/);
+    expect(source).toMatch(/\.in\('user_id', invitedIds\)/);
+    expect(source).not.toMatch(/invitedIds\s*\.map\(\(id\) => `and\(/);
+  });
+
+  it('still requires an accepted buddy row and caller membership', () => {
+    expect(source).toMatch(/\.eq\('status', 'accepted'\)/);
+    expect(source).toMatch(/None of the specified users are your buddies/);
+    expect(source).toMatch(/You are not a member of this room/);
+  });
+
+  it('does not treat a failed roster query as ready for invites', () => {
+    expect(inviteSheet).toMatch(/membershipReady: isRosterMembershipReady/);
+    expect(inviteSheet).toMatch(/Failed to load room memberships:/);
+    expect(inviteSheet).toMatch(/setRosterMembershipError\(error\.message\)/);
+    expect(inviteSheet).toMatch(/setIsRosterMembershipReady\(true\)/);
+    expect(inviteSheet).not.toMatch(/membershipReady: !isRosterInitialLoading/);
+  });
+
+  it('loads the session token with a static import so Safari cannot show Load failed from a missing chunk', () => {
+    expect(inviteSheet).toMatch(/import \{ getAccessTokenOrNull \} from '@\/lib\/authClient'/);
+    expect(inviteSheet).not.toMatch(/await import\('@\/lib\/authClient'\)/);
   });
 });
