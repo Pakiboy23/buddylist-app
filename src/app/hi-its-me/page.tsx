@@ -2066,13 +2066,17 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   const toggleShowOnlineStatus = useCallback(async () => {
     if (!userId || isSavingShowOnlineStatus) return;
     const next = !showOnlineStatus;
-    setShowOnlineStatus(next);
     setIsSavingShowOnlineStatus(true);
+    // Persist first. Untrack (via the showOnlineStatus effect) only after
+    // other clients have a chance to observe show_online_status=false; a
+    // presence leave before that row update looks like a normal sign-off.
     const { error } = await supabase.from('users').update({ show_online_status: next }).eq('id', userId);
     if (error) {
       console.error('Failed to update show_online_status:', error.message);
-      setShowOnlineStatus(!next);
+      setIsSavingShowOnlineStatus(false);
+      return;
     }
+    setShowOnlineStatus(next);
     setIsSavingShowOnlineStatus(false);
   }, [isSavingShowOnlineStatus, showOnlineStatus, userId]);
 
@@ -3254,16 +3258,33 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       setAwayMessage(resolvedStatusState.awayMessage);
       setProfileBio(existingProfile?.profile_bio?.trim() || '');
       setBuddyIconPath(existingProfile?.buddy_icon_path ?? null);
-      void supabase
-        .from('users')
-        .select('discoverable,show_online_status')
-        .eq('id', session.user.id)
-        .maybeSingle()
-        .then(({ data }) => {
-          const row = data as { discoverable?: boolean | null; show_online_status?: boolean | null } | null;
-          setIsDiscoverable(row?.discoverable ?? true);
-          setShowOnlineStatus(row?.show_online_status !== false);
-        });
+      void (async () => {
+        const privacySelect = 'discoverable,show_online_status';
+        let { data, error } = await supabase
+          .from('users')
+          .select(privacySelect)
+          .eq('id', session.user.id)
+          .maybeSingle();
+
+        if (isShowOnlineStatusColumnMissingError(error)) {
+          ({ data, error } = await supabase
+            .from('users')
+            .select(stripShowOnlineStatusSelect(privacySelect))
+            .eq('id', session.user.id)
+            .maybeSingle());
+        }
+
+        if (error || !data) {
+          if (error) {
+            console.warn('Failed to load discoverable/show_online_status:', error.message);
+          }
+          return;
+        }
+
+        const row = data as { discoverable?: boolean | null; show_online_status?: boolean | null };
+        setIsDiscoverable(row.discoverable ?? true);
+        setShowOnlineStatus(row.show_online_status !== false);
+      })();
       setIdleSinceAt(null);
       setLastActiveAt(existingProfile?.last_active_at ?? new Date().toISOString());
       lastActivityAtRef.current = Date.now();
@@ -3644,31 +3665,65 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         return;
       }
 
-      // We just watched this buddy go offline, so "last seen" is right now.
-      // Their stored last_active_at is stale by design (heartbeat-only writes
-      // are dropped by the users-UPDATE handler to avoid re-rendering the
-      // whole list every minute), so stamp the row at the moment it matters —
-      // the offline row is what displays "Last active".
-      const leftAtIso = new Date().toISOString();
-      setBuddyRows((previous) => {
-        if (!previous.some((buddy) => buddy.id === leftUserId)) {
-          return previous;
+      void (async () => {
+        const localBuddy = buddyRowsRef.current.find((buddy) => buddy.id === leftUserId);
+        let activityVisible = localBuddy?.show_online_status !== false;
+
+        // Hide-then-untrack can emit leave before this client sees the
+        // show_online_status=false row update. Confirm visibility before
+        // stamping last-active or playing a signed-off sound/toast.
+        if (activityVisible) {
+          const { data, error } = await supabase
+            .from('users')
+            .select('show_online_status')
+            .eq('id', leftUserId)
+            .maybeSingle();
+          if (!isShowOnlineStatusColumnMissingError(error) && data) {
+            const row = data as { show_online_status?: boolean | null };
+            activityVisible = row.show_online_status !== false;
+            if (!activityVisible) {
+              setBuddyRows((previous) => {
+                if (!previous.some((buddy) => buddy.id === leftUserId && buddy.show_online_status !== false)) {
+                  return previous;
+                }
+                return previous.map((buddy) =>
+                  buddy.id === leftUserId ? { ...buddy, show_online_status: false } : buddy,
+                );
+              });
+            }
+          }
         }
-        return previous.map((buddy) =>
-          buddy.id === leftUserId ? { ...buddy, last_active_at: leftAtIso } : buddy,
-        );
-      });
 
-      if (!acceptedBuddyIdsRef.current.has(leftUserId)) {
-        return;
-      }
+        if (!activityVisible) {
+          return;
+        }
 
-      playSound(BUDDY_SIGN_OFF_SOUND);
-      const leftBuddyName =
-        buddyRowsRef.current.find((buddy) => buddy.id === leftUserId)?.screenname ||
-        temporaryChatProfilesRef.current[leftUserId]?.screenname ||
-        'Buddy';
-      pushBuddyActivity(leftUserId, 'offline', `${leftBuddyName} signed off`);
+        // We just watched this buddy go offline, so "last seen" is right now.
+        // Their stored last_active_at is stale by design (heartbeat-only writes
+        // are dropped by the users-UPDATE handler to avoid re-rendering the
+        // whole list every minute), so stamp the row at the moment it matters —
+        // the offline row is what displays "Last active".
+        const leftAtIso = new Date().toISOString();
+        setBuddyRows((previous) => {
+          if (!previous.some((buddy) => buddy.id === leftUserId)) {
+            return previous;
+          }
+          return previous.map((buddy) =>
+            buddy.id === leftUserId ? { ...buddy, last_active_at: leftAtIso } : buddy,
+          );
+        });
+
+        if (!acceptedBuddyIdsRef.current.has(leftUserId)) {
+          return;
+        }
+
+        playSound(BUDDY_SIGN_OFF_SOUND);
+        const leftBuddyName =
+          buddyRowsRef.current.find((buddy) => buddy.id === leftUserId)?.screenname ||
+          temporaryChatProfilesRef.current[leftUserId]?.screenname ||
+          'Buddy';
+        pushBuddyActivity(leftUserId, 'offline', `${leftBuddyName} signed off`);
+      })();
     });
 
     presenceChannel.on('presence', { event: 'sync' }, () => {
@@ -9025,7 +9080,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                         ? isProfileAway
                           ? `Away: ${resolvedProfileStatus.awayMessage || 'Away'}`
                           : resolvedProfileStatus.statusMessage
-                        : resolvedProfileStatus.awayMessage || resolvedProfileStatus.statusMessage;
+                        : resolvedProfileStatus.awayMessage;
 
                       return (
                         <div
