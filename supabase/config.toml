@@ -368,6 +368,12 @@ authorization_url_path = "/oauth/consent"
 # Allow dynamic client registration
 allow_dynamic_registration = false
 
+# Custom JWT check inside the function (getUser on the Bearer token). Platform
+# verify_jwt must stay off — a gateway 401 has no CORS headers, which Safari
+# reports as TypeError "Load failed" and never reaches the function body.
+[functions.rooms-invite]
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.

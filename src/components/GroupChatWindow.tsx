@@ -48,7 +48,12 @@ import {
   loadMutualContext,
   type MutualContext,
 } from '@/lib/mutualContext';
-import { inviteAcceptedBuddiesToRoom, selectInvitableBuddies } from '@/lib/roomsInvite';
+import { getAccessTokenOrNull } from '@/lib/authClient';
+import {
+  formatInviteClientError,
+  inviteAcceptedBuddiesToRoom,
+  selectInvitableBuddies,
+} from '@/lib/roomsInvite';
 import {
   LEGACY_ROOM_MESSAGE_SELECT_FIELDS,
   ROOM_MESSAGE_SELECT_FIELDS,
@@ -264,7 +269,6 @@ export default function GroupChatWindow({
     setIsInviting(true);
     setInviteError(null);
     try {
-      const { getAccessTokenOrNull } = await import('@/lib/authClient');
       const token = await getAccessTokenOrNull();
       const result = await inviteAcceptedBuddiesToRoom({
         roomId,
@@ -297,7 +301,7 @@ export default function GroupChatWindow({
       setShowInviteSheet(false);
       setSelectedInviteIds(new Set());
     } catch (err) {
-      setInviteError(err instanceof Error ? err.message : 'Invite failed.');
+      setInviteError(formatInviteClientError(err));
     } finally {
       setIsInviting(false);
     }
