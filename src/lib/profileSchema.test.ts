@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   getProfileSchemaMigrationMessage,
   isProfileSchemaMissingError,
+  isShowOnlineStatusColumnMissingError,
+  stripShowOnlineStatusSelect,
   withProfileSchemaDefaults,
 } from '@/lib/profileSchema';
 
@@ -25,6 +27,23 @@ describe('isProfileSchemaMissingError', () => {
   });
 });
 
+describe('show_online_status column helpers', () => {
+  it('detects a missing activity-visibility column without treating it as the old profile schema', () => {
+    const error = {
+      code: 'PGRST204',
+      message: "Could not find the 'show_online_status' column of 'users' in the schema cache",
+    };
+    expect(isShowOnlineStatusColumnMissingError(error)).toBe(true);
+    expect(isProfileSchemaMissingError(error)).toBe(false);
+  });
+
+  it('strips only the activity-visibility column from a select list', () => {
+    expect(stripShowOnlineStatusSelect('id,screenname,show_online_status,last_active_at')).toBe(
+      'id,screenname,last_active_at',
+    );
+  });
+});
+
 describe('getProfileSchemaMigrationMessage', () => {
   it('references the migration file', () => {
     expect(getProfileSchemaMigrationMessage()).toContain('supabase/migrations/20260320000011_presence_profiles.sql');
@@ -45,6 +64,19 @@ describe('withProfileSchemaDefaults', () => {
       buddy_icon_path: null,
       idle_since: null,
       last_active_at: null,
+      show_online_status: true,
+    });
+  });
+
+  it('keeps an explicit activity hide', () => {
+    expect(
+      withProfileSchemaDefaults({
+        id: 'user-2',
+        screenname: 'appreviewer2026',
+        show_online_status: false,
+      }),
+    ).toMatchObject({
+      show_online_status: false,
     });
   });
 });

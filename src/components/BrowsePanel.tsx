@@ -6,6 +6,7 @@ import {
   BROWSE_MOOD_FILTERS,
   describeBrowseCard,
   getBrowseMoodChip,
+  getBrowsePresenceChip,
   matchesBrowseFilters,
   shouldFillBrowseFilterPages,
   type BrowsePresenceFilter,
@@ -25,9 +26,17 @@ interface BrowseUser {
   away_message: string | null;
   last_active_at: string | null;
   status: string | null;
+  show_online_status?: boolean | null;
 }
 
 const PAGE_SIZE = 50;
+const BROWSE_SELECT_WITH_PRIVACY = 'id,screenname,away_message,last_active_at,status,show_online_status';
+const BROWSE_SELECT_LEGACY = 'id,screenname,away_message,last_active_at,status';
+
+function isShowOnlineStatusColumnMissing(error: { message?: string | null; code?: string | null } | null) {
+  const combined = `${error?.code ?? ''} ${error?.message ?? ''}`.toLowerCase();
+  return combined.includes('show_online_status');
+}
 
 interface BrowsePanelProps {
   currentUserId: string;
@@ -65,22 +74,29 @@ export default function BrowsePanel({
         .eq('blocker_id', currentUserId);
       const blockedIds = (blockedRows ?? []).map((row) => (row as { blocked_id: string }).blocked_id);
 
-      let query = applyBrowseAwayMessageRequired(
-        applyDiscoverablePeopleGate(
-          supabase
-            .from('users')
-            .select('id,screenname,away_message,last_active_at,status'),
-        ),
-      )
-        .neq('id', currentUserId)
-        .order('last_active_at', { ascending: false, nullsFirst: false })
-        .range(pageOffset, pageOffset + PAGE_SIZE - 1);
+      const runBrowseQuery = (fields: string) => {
+        let query = applyBrowseAwayMessageRequired(
+          applyDiscoverablePeopleGate(
+            supabase
+              .from('users')
+              .select(fields),
+          ),
+        )
+          .neq('id', currentUserId)
+          .order('last_active_at', { ascending: false, nullsFirst: false })
+          .range(pageOffset, pageOffset + PAGE_SIZE - 1);
 
-      if (blockedIds.length > 0) {
-        query = query.not('id', 'in', `(${blockedIds.join(',')})`);
+        if (blockedIds.length > 0) {
+          query = query.not('id', 'in', `(${blockedIds.join(',')})`);
+        }
+
+        return query;
+      };
+
+      let { data, error } = await runBrowseQuery(BROWSE_SELECT_WITH_PRIVACY);
+      if (error && isShowOnlineStatusColumnMissing(error)) {
+        ({ data, error } = await runBrowseQuery(BROWSE_SELECT_LEGACY));
       }
-
-      const { data, error } = await query;
       if (error) {
         setHasMore(false);
         if (replace) {
@@ -90,7 +106,7 @@ export default function BrowsePanel({
         return;
       }
 
-      const rows = (data ?? []) as BrowseUser[];
+      const rows = (data ?? []) as unknown as BrowseUser[];
 
       if (replace) {
         setUsers(rows);
@@ -144,6 +160,7 @@ export default function BrowsePanel({
           status: user.status,
           awayMessage: user.away_message,
           lastActiveAt: user.last_active_at,
+          showOnlineStatus: user.show_online_status,
         }),
       })),
     [users],
@@ -339,6 +356,7 @@ export default function BrowsePanel({
             {visibleCards.map(({ user, card }) => {
               const mood = getBrowseMoodChip(card.moodId);
               const awayLine = (user.away_message ?? '').trim();
+              const presenceChip = getBrowsePresenceChip(card.presence);
 
               return (
                 <li key={user.id}>
@@ -360,9 +378,11 @@ export default function BrowsePanel({
                         </p>
                       ) : null}
                       <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                        <span className="ui-away-mood-pill" data-tone={card.presence === 'away' ? 'gold' : 'green'}>
-                          {card.presence === 'away' ? 'Away now' : 'Available'}
-                        </span>
+                        {presenceChip ? (
+                          <span className="ui-away-mood-pill" data-tone={presenceChip.tone}>
+                            {presenceChip.label}
+                          </span>
+                        ) : null}
                         {mood ? (
                           <span className="ui-away-mood-pill capitalize" data-tone={mood.tone}>
                             {mood.label}

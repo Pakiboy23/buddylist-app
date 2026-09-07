@@ -2918,6 +2918,12 @@ html:not(.dark) .ui-room-tag[data-tone='ghost'] {
   color: var(--green);
 }
 
+.ui-away-mood-pill[data-tone='muted'] {
+  border-color: rgba(156, 142, 130, 0.2);
+  background: rgba(156, 142, 130, 0.08);
+  color: var(--muted);
+}
+
 .ui-mood-button {
   display: flex;
   min-height: 4.25rem;

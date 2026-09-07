@@ -4,7 +4,11 @@ import {
   isAwayMoodId,
   type AwayMoodId,
 } from '@/lib/himArtDirection';
-import { isAwayStatus } from '@/lib/presence';
+import {
+  getPresenceLabel,
+  resolveVisiblePresence,
+  type ResolvedPresenceState,
+} from '@/lib/presence';
 
 export type BrowsePresenceFilter = 'all' | 'away' | 'available';
 
@@ -97,12 +101,43 @@ export function getBrowseMoodChip(moodId: AwayMoodId | null | undefined) {
   return getAwayMoodOption(moodId);
 }
 
-export function getBrowsePresenceFilter(status: string | null | undefined): Exclude<BrowsePresenceFilter, 'all'> {
-  return isAwayStatus(status) ? 'away' : 'available';
+export type BrowsePresenceChip = ResolvedPresenceState | 'hidden';
+
+/** Named Browse filters only advertise Available / Away now — idle, offline, and hidden stay on All. */
+export function getBrowsePresenceFilter(
+  presence: BrowsePresenceChip,
+): Exclude<BrowsePresenceFilter, 'all'> | null {
+  if (presence === 'away' || presence === 'available') {
+    return presence;
+  }
+  return null;
+}
+
+export function getBrowsePresenceChip(presence: BrowsePresenceChip): {
+  label: string;
+  tone: 'green' | 'gold' | 'lavender' | 'muted';
+} | null {
+  switch (presence) {
+    case 'hidden':
+      return null;
+    case 'away':
+      return { label: 'Away now', tone: 'gold' };
+    case 'idle':
+      return { label: 'Idle', tone: 'lavender' };
+    case 'offline':
+      return { label: 'Offline', tone: 'muted' };
+    case 'available':
+      return { label: 'Available', tone: 'green' };
+    default: {
+      const _exhaustive: never = presence;
+      throw new Error(`Unhandled browse presence: ${String(_exhaustive)}`);
+    }
+  }
 }
 
 export interface BrowseCardFields {
-  presence: Exclude<BrowsePresenceFilter, 'all'>;
+  presence: BrowsePresenceChip;
+  presenceLabel: string | null;
   moodId: AwayMoodId | null;
   activity: BrowseActivityPreset;
   relativeTime: string;
@@ -112,13 +147,29 @@ export function describeBrowseCard(input: {
   status?: string | null;
   awayMessage?: string | null;
   lastActiveAt?: string | null;
+  idleSince?: string | null;
+  showOnlineStatus?: boolean | null;
+  isSelf?: boolean;
   now?: number;
 }): BrowseCardFields {
+  const visible = resolveVisiblePresence({
+    status: input.status,
+    idleSince: input.idleSince,
+    lastActiveAt: input.lastActiveAt,
+    showOnlineStatus: input.showOnlineStatus,
+    isSelf: input.isSelf,
+    now: input.now,
+  });
+  const presence: BrowsePresenceChip = visible.activityVisible ? visible.state : 'hidden';
+
   return {
-    presence: getBrowsePresenceFilter(input.status),
+    presence,
+    presenceLabel: presence === 'hidden' ? null : getPresenceLabel(visible.state),
     moodId: inferBrowseMood(input.awayMessage),
     activity: matchBrowseActivity(input.awayMessage),
-    relativeTime: formatBrowseRelativeTime(input.lastActiveAt, input.now),
+    relativeTime: visible.activityVisible
+      ? formatBrowseRelativeTime(visible.lastActiveAt, input.now)
+      : '',
   };
 }
 

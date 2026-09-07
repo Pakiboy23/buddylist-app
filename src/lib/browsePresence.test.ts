@@ -3,6 +3,7 @@ import {
   BROWSE_ACTIVITY_PRESETS,
   describeBrowseCard,
   formatBrowseRelativeTime,
+  getBrowsePresenceChip,
   inferBrowseMood,
   matchBrowseActivity,
   matchesBrowseFilters,
@@ -53,18 +54,99 @@ describe('inferBrowseMood', () => {
   });
 });
 
+describe('describeBrowseCard', () => {
+  const now = Date.parse('2026-09-07T12:00:00.000Z');
+
+  it('does not show Available next to a multi-day-old last_active_at', () => {
+    const stale = describeBrowseCard({
+      status: 'Available',
+      awayMessage: 'away from keyboard, brb',
+      lastActiveAt: '2026-08-26T12:00:00.000Z',
+      now,
+    });
+    expect(stale.presence).toBe('offline');
+    expect(stale.presenceLabel).toBe('Offline');
+    expect(stale.relativeTime).toBe('12d ago');
+  });
+
+  it('keeps Away now only while last_active_at is still inside the window', () => {
+    const awayNow = describeBrowseCard({
+      status: 'Away',
+      awayMessage: 'at the gym, probably regretting this decision',
+      lastActiveAt: '2026-09-07T11:50:00.000Z',
+      now,
+    });
+    expect(awayNow.presence).toBe('away');
+    expect(awayNow.relativeTime).toBe('10m ago');
+  });
+
+  it('hides chips and relative time when the subject turned activity off', () => {
+    const hidden = describeBrowseCard({
+      status: 'Available',
+      awayMessage: 'window seat at the cafe',
+      lastActiveAt: '2026-09-07T11:55:00.000Z',
+      showOnlineStatus: false,
+      now,
+    });
+    expect(hidden.presence).toBe('hidden');
+    expect(hidden.presenceLabel).toBeNull();
+    expect(hidden.relativeTime).toBe('');
+    expect(hidden.activity.label).toBe('Custom');
+  });
+
+  it('still shows the owner the truth when their own toggle is off', () => {
+    const own = describeBrowseCard({
+      status: 'Available',
+      lastActiveAt: '2026-09-07T11:55:00.000Z',
+      showOnlineStatus: false,
+      isSelf: true,
+      now,
+    });
+    expect(own.presence).toBe('available');
+    expect(own.relativeTime).toBe('5m ago');
+  });
+
+  it('maps derived presence to the same chip labels the filters use', () => {
+    expect(getBrowsePresenceChip('available')).toEqual({ label: 'Available', tone: 'green' });
+    expect(getBrowsePresenceChip('away')).toEqual({ label: 'Away now', tone: 'gold' });
+    expect(getBrowsePresenceChip('idle')).toEqual({ label: 'Idle', tone: 'lavender' });
+    expect(getBrowsePresenceChip('offline')).toEqual({ label: 'Offline', tone: 'muted' });
+    expect(getBrowsePresenceChip('hidden')).toBeNull();
+  });
+});
+
 describe('matchesBrowseFilters', () => {
+  const now = Date.parse('2026-09-07T12:00:00.000Z');
   const awayGym = describeBrowseCard({
     status: 'Away',
     awayMessage: 'at the gym, probably regretting this decision',
-    lastActiveAt: '2026-09-06T19:50:00.000Z',
-    now: Date.parse('2026-09-06T20:00:00.000Z'),
+    lastActiveAt: '2026-09-07T11:50:00.000Z',
+    now,
   });
 
-  it('keeps All / Away now / Available as presence-only', () => {
+  it('keeps All / Away now / Available on the same derived presence', () => {
     expect(matchesBrowseFilters(awayGym, { presence: 'all', moodIds: [], activityIds: [] })).toBe(true);
     expect(matchesBrowseFilters(awayGym, { presence: 'away', moodIds: [], activityIds: [] })).toBe(true);
     expect(matchesBrowseFilters(awayGym, { presence: 'available', moodIds: [], activityIds: [] })).toBe(false);
+  });
+
+  it('keeps stale Available and hidden activity off the named filters', () => {
+    const staleAvailable = describeBrowseCard({
+      status: 'Available',
+      lastActiveAt: '2026-08-26T12:00:00.000Z',
+      now,
+    });
+    const hidden = describeBrowseCard({
+      status: 'Away',
+      lastActiveAt: '2026-09-07T11:50:00.000Z',
+      showOnlineStatus: false,
+      now,
+    });
+    expect(matchesBrowseFilters(staleAvailable, { presence: 'available', moodIds: [], activityIds: [] })).toBe(false);
+    expect(matchesBrowseFilters(staleAvailable, { presence: 'all', moodIds: [], activityIds: [] })).toBe(true);
+    expect(matchesBrowseFilters(hidden, { presence: 'away', moodIds: [], activityIds: [] })).toBe(false);
+    expect(matchesBrowseFilters(hidden, { presence: 'available', moodIds: [], activityIds: [] })).toBe(false);
+    expect(matchesBrowseFilters(hidden, { presence: 'all', moodIds: [], activityIds: [] })).toBe(true);
   });
 
   it('applies mood and activity as multi-selects', () => {

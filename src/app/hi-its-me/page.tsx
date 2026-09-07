@@ -101,8 +101,10 @@ import {
   EXTENDED_USER_PROFILE_WITH_EMAIL_SELECT_FIELDS,
   getProfileSchemaMigrationMessage,
   isProfileSchemaMissingError,
+  isShowOnlineStatusColumnMissingError,
   LEGACY_USER_PROFILE_SELECT_FIELDS,
   LEGACY_USER_PROFILE_WITH_EMAIL_SELECT_FIELDS,
+  stripShowOnlineStatusSelect,
   withProfileSchemaDefaults,
   withProfileSchemaDefaultsList,
 } from '@/lib/profileSchema';
@@ -134,6 +136,7 @@ import {
   getPresenceLabel,
   getStatusNote,
   resolvePresenceState,
+  resolveVisiblePresence,
 } from '@/lib/presence';
 import {
   applyDmStateEvent,
@@ -187,6 +190,7 @@ interface UserProfile {
   buddy_icon_path: string | null;
   idle_since: string | null;
   last_active_at: string | null;
+  show_online_status: boolean;
 }
 
 interface Buddy {
@@ -199,6 +203,7 @@ interface Buddy {
   buddy_icon_path: string | null;
   idle_since: string | null;
   last_active_at: string | null;
+  show_online_status: boolean;
   relationshipStatus: 'pending' | 'accepted';
 }
 
@@ -218,6 +223,7 @@ export interface TemporaryChatProfile {
   buddy_icon_path: string | null;
   idle_since: string | null;
   last_active_at: string | null;
+  show_online_status: boolean;
 }
 
 interface ChatRoom {
@@ -301,6 +307,7 @@ function normalizeUserProfile(profile: Partial<UserProfile> | null | undefined):
     buddy_icon_path: normalized.buddy_icon_path,
     idle_since: normalized.idle_since,
     last_active_at: normalized.last_active_at,
+    show_online_status: normalized.show_online_status !== false,
   };
 }
 
@@ -755,6 +762,7 @@ function areDirectMessageRowPropsEqual(prev: DirectMessageRowProps, next: Direct
     pb.status_msg === nb.status_msg &&
     pb.idle_since === nb.idle_since &&
     pb.last_active_at === nb.last_active_at &&
+    pb.show_online_status === nb.show_online_status &&
     pb.buddy_icon_path === nb.buddy_icon_path &&
     prev.currentUserScreenname === next.currentUserScreenname &&
     prev.unreadCount === next.unreadCount &&
@@ -796,27 +804,36 @@ const DirectMessageRow = memo(function DirectMessageRow({
   const awayLine = resolvedStatus.awayMessage
     ? resolveAwayTemplate(resolvedStatus.awayMessage, buddy.screenname, currentUserScreenname)
     : '';
+  const visiblePresence = resolveVisiblePresence({
+    isOnline: buddy.isOnline,
+    status: resolvedStatus.status,
+    idleSince: buddy.idle_since,
+    lastActiveAt: buddy.last_active_at,
+    showOnlineStatus: buddy.show_online_status,
+  });
+  const activityHidden = !visiblePresence.activityVisible;
   // A presence-hidden circle collapses the buddy to a neutral offline row — the
   // owner opted out of seeing this circle's live presence (never reveals it to the buddy).
-  const presenceState = presenceHidden
-    ? 'offline'
-    : resolvePresenceState({
-        isOnline: buddy.isOnline,
-        status: resolvedStatus.status,
-        idleSince: buddy.idle_since,
-      });
-  const presenceLabel = presenceHidden ? 'Presence hidden' : getPresenceLabel(presenceState);
-  const presenceDetail = presenceHidden
+  // A subject who hid activity looks signed off, without last-active leakage.
+  const presenceState = presenceHidden || activityHidden ? 'offline' : visiblePresence.state;
+  const presenceLabel = presenceHidden
+    ? 'Presence hidden'
+    : activityHidden
+      ? ''
+      : getPresenceLabel(presenceState);
+  const presenceDetail = presenceHidden || activityHidden
     ? ''
     : getPresenceDetail({
         state: presenceState,
         awayMessage: awayLine,
         statusMessage: resolvedStatus.statusMessage,
-        idleSince: buddy.idle_since,
-        lastActiveAt: buddy.last_active_at,
+        idleSince: visiblePresence.idleSince,
+        lastActiveAt: visiblePresence.lastActiveAt,
       });
   // The buddy's own words get a line of their own, whatever their presence —
   // an away message shouldn't vanish the moment its author signs off.
+  // Circle hide is the owner's choice; a subject's activity toggle still
+  // leaves their authored away line readable.
   const statusNote = presenceHidden
     ? null
     : getStatusNote({
@@ -1074,6 +1091,8 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   const [accountCreatedAt, setAccountCreatedAt] = useState<string | null>(null);
   const [isDiscoverable, setIsDiscoverable] = useState(true);
   const [isSavingDiscoverable, setIsSavingDiscoverable] = useState(false);
+  const [showOnlineStatus, setShowOnlineStatus] = useState(true);
+  const [isSavingShowOnlineStatus, setIsSavingShowOnlineStatus] = useState(false);
   const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(false);
   const [profileSheetBuddyId, setProfileSheetBuddyId] = useState<string | null>(null);
   const [profileSheetError, setProfileSheetError] = useState<string | null>(null);
@@ -1137,6 +1156,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   const temporaryChatProfilesRef = useRef<Record<string, TemporaryChatProfile>>({});
   const mainShellScrollRef = useRef<HTMLDivElement | null>(null);
   const userStatusRef = useRef(userStatus);
+  const showOnlineStatusRef = useRef(showOnlineStatus);
   const statusMsgRef = useRef(statusMsg);
   const awayMessageRef = useRef(awayMessage);
   const accountCreatedAtRef = useRef<string | null>(null);
@@ -1376,6 +1396,10 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   useEffect(() => {
     statusMsgRef.current = statusMsg;
   }, [statusMsg]);
+
+  useEffect(() => {
+    showOnlineStatusRef.current = showOnlineStatus;
+  }, [showOnlineStatus]);
 
   useEffect(() => {
     awayMessageRef.current = awayMessage;
@@ -2038,6 +2062,19 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     }
     setIsSavingDiscoverable(false);
   }, [isDiscoverable, isSavingDiscoverable, userId]);
+
+  const toggleShowOnlineStatus = useCallback(async () => {
+    if (!userId || isSavingShowOnlineStatus) return;
+    const next = !showOnlineStatus;
+    setShowOnlineStatus(next);
+    setIsSavingShowOnlineStatus(true);
+    const { error } = await supabase.from('users').update({ show_online_status: next }).eq('id', userId);
+    if (error) {
+      console.error('Failed to update show_online_status:', error.message);
+      setShowOnlineStatus(!next);
+    }
+    setIsSavingShowOnlineStatus(false);
+  }, [isSavingShowOnlineStatus, showOnlineStatus, userId]);
 
   const openAppLockSetup = useCallback(() => {
     setAppLockMode('setup');
@@ -2897,9 +2934,14 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         };
       };
 
-      let result = await runQuery(
-        includeEmail ? EXTENDED_USER_PROFILE_WITH_EMAIL_SELECT_FIELDS : EXTENDED_USER_PROFILE_SELECT_FIELDS,
-      );
+      const extendedFields = includeEmail
+        ? EXTENDED_USER_PROFILE_WITH_EMAIL_SELECT_FIELDS
+        : EXTENDED_USER_PROFILE_SELECT_FIELDS;
+      let result = await runQuery(extendedFields);
+
+      if (isShowOnlineStatusColumnMissingError(result.error)) {
+        result = await runQuery(stripShowOnlineStatusSelect(extendedFields));
+      }
 
       if (isProfileSchemaMissingError(result.error)) {
         markProfileSchemaUnavailable(result.error);
@@ -2929,9 +2971,14 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         };
       };
 
-      let result = await runQuery(
-        includeEmail ? EXTENDED_USER_PROFILE_WITH_EMAIL_SELECT_FIELDS : EXTENDED_USER_PROFILE_SELECT_FIELDS,
-      );
+      const extendedFields = includeEmail
+        ? EXTENDED_USER_PROFILE_WITH_EMAIL_SELECT_FIELDS
+        : EXTENDED_USER_PROFILE_SELECT_FIELDS;
+      let result = await runQuery(extendedFields);
+
+      if (isShowOnlineStatusColumnMissingError(result.error)) {
+        result = await runQuery(stripShowOnlineStatusSelect(extendedFields));
+      }
 
       if (isProfileSchemaMissingError(result.error)) {
         markProfileSchemaUnavailable(result.error);
@@ -3032,6 +3079,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         buddy_icon_path: profile?.buddy_icon_path ?? null,
         idle_since: profile?.idle_since ?? null,
         last_active_at: profile?.last_active_at ?? null,
+        show_online_status: profile?.show_online_status !== false,
         relationshipStatus: relationship.relationshipStatus,
       } as Buddy;
     });
@@ -3208,11 +3256,13 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       setBuddyIconPath(existingProfile?.buddy_icon_path ?? null);
       void supabase
         .from('users')
-        .select('discoverable')
+        .select('discoverable,show_online_status')
         .eq('id', session.user.id)
         .maybeSingle()
         .then(({ data }) => {
-          setIsDiscoverable((data as { discoverable?: boolean | null } | null)?.discoverable ?? true);
+          const row = data as { discoverable?: boolean | null; show_online_status?: boolean | null } | null;
+          setIsDiscoverable(row?.discoverable ?? true);
+          setShowOnlineStatus(row?.show_online_status !== false);
         });
       setIdleSinceAt(null);
       setLastActiveAt(existingProfile?.last_active_at ?? new Date().toISOString());
@@ -3458,13 +3508,17 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                 : updated.last_active_at === null
                   ? null
                   : matched.last_active_at,
+            show_online_status:
+              typeof updated.show_online_status === 'boolean'
+                ? updated.show_online_status
+                : matched.show_online_status,
           };
 
           // Field-level equality guard: bail if nothing visible actually changed.
           // Excludes last_active_at (heartbeat) — parent never creates new array for heartbeat-only writes.
           const UI_FIELDS: Array<keyof typeof candidate> = [
             'screenname', 'status', 'away_message', 'status_msg',
-            'profile_bio', 'buddy_icon_path', 'idle_since',
+            'profile_bio', 'buddy_icon_path', 'idle_since', 'show_online_status',
           ];
           if (UI_FIELDS.every((key) => Object.is(candidate[key], matched[key]))) {
             return previous;
@@ -3474,10 +3528,13 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         });
 
         if (updated.id !== userId && acceptedBuddyIdsRef.current.has(updated.id)) {
-          if (buddyWentAway) {
+          const activityVisible = typeof updated.show_online_status === 'boolean'
+            ? updated.show_online_status
+            : buddyRowsRef.current.find((buddy) => buddy.id === updated.id)?.show_online_status !== false;
+          if (activityVisible && buddyWentAway) {
             playSound(BUDDY_GOING_AWAY_SOUND);
             pushBuddyActivity(updated.id, 'away', `${updatedBuddyScreenname || 'Buddy'} went away`);
-          } else if (buddyCameBack) {
+          } else if (activityVisible && buddyCameBack) {
             playSound(BUDDY_SIGN_ON_SOUND);
             pushBuddyActivity(updated.id, 'back', `${updatedBuddyScreenname || 'Buddy'} came back`);
           }
@@ -3549,6 +3606,11 @@ const [showAddWindow, setShowAddWindow] = useState(false);
 
       const joinedUserId = typeof payload.key === 'string' ? payload.key : '';
       if (!joinedUserId || joinedUserId === userId || !acceptedBuddyIdsRef.current.has(joinedUserId)) {
+        return;
+      }
+
+      const joinedBuddy = buddyRowsRef.current.find((buddy) => buddy.id === joinedUserId);
+      if (joinedBuddy?.show_online_status === false) {
         return;
       }
 
@@ -3633,10 +3695,14 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         if (session?.access_token) {
           await supabase.realtime.setAuth(session.access_token);
         }
-        void presenceChannel.track({
-          user_id: userId,
-          online_at: new Date().toISOString(),
-        });
+        if (showOnlineStatusRef.current) {
+          void presenceChannel.track({
+            user_id: userId,
+            online_at: new Date().toISOString(),
+          });
+        } else {
+          void presenceChannel.untrack();
+        }
       } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
         // Reset sync flag so reconnect join floods don't trigger toasts/sounds.
         // Join events after a reconnect are not real sign-ons.
@@ -3653,11 +3719,26 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     };
   }, [playSound, pushBuddyActivity, userId]);
 
+  useEffect(() => {
+    const channel = presenceChannelRef.current;
+    if (!channel || !userId) {
+      return;
+    }
+    if (showOnlineStatus) {
+      void channel.track({
+        user_id: userId,
+        online_at: new Date().toISOString(),
+      });
+      return;
+    }
+    void channel.untrack();
+  }, [showOnlineStatus, userId]);
+
   const buddies = useMemo(
     () =>
       buddyRows.map((buddy) => ({
         ...buddy,
-        isOnline: onlineUserIds.has(buddy.id),
+        isOnline: onlineUserIds.has(buddy.id) && buddy.show_online_status !== false,
       })),
     [buddyRows, onlineUserIds],
   );
@@ -3797,6 +3878,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         buddy_icon_path: temporaryProfile.buddy_icon_path,
         idle_since: temporaryProfile.idle_since,
         last_active_at: temporaryProfile.last_active_at,
+        show_online_status: temporaryProfile.show_online_status,
         isOnline: true,
       };
     }
@@ -3817,6 +3899,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       buddy_icon_path: null,
       idle_since: null,
       last_active_at: null,
+      show_online_status: true,
       isOnline: true,
     };
   }, [activeChatBuddyId, buddies, pendingRequests, temporaryChatProfiles]);
@@ -3829,6 +3912,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       status_msg: string | null;
       idle_since: string | null;
       last_active_at: string | null;
+      show_online_status?: boolean;
       screenname: string;
     }) => {
       const resolvedStatus = resolveStatusFields({
@@ -3839,24 +3923,30 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       const awayLine = resolvedStatus.awayMessage
         ? resolveAwayTemplate(resolvedStatus.awayMessage, buddy.screenname, screenname)
         : '';
-      const presenceState = resolvePresenceState({
+      const visiblePresence = resolveVisiblePresence({
         isOnline: buddy.isOnline,
         status: resolvedStatus.status,
         idleSince: buddy.idle_since,
+        lastActiveAt: buddy.last_active_at,
+        showOnlineStatus: buddy.show_online_status,
       });
+      const presenceState = visiblePresence.activityVisible ? visiblePresence.state : 'offline';
 
       return {
         resolvedStatus,
         awayLine,
+        activityVisible: visiblePresence.activityVisible,
         presenceState,
-        presenceLabel: getPresenceLabel(presenceState),
-        presenceDetail: getPresenceDetail({
-          state: presenceState,
-          awayMessage: awayLine,
-          statusMessage: resolvedStatus.statusMessage,
-          idleSince: buddy.idle_since,
-          lastActiveAt: buddy.last_active_at,
-        }),
+        presenceLabel: visiblePresence.activityVisible ? getPresenceLabel(presenceState) : '',
+        presenceDetail: visiblePresence.activityVisible
+          ? getPresenceDetail({
+              state: presenceState,
+              awayMessage: awayLine,
+              statusMessage: resolvedStatus.statusMessage,
+              idleSince: visiblePresence.idleSince,
+              lastActiveAt: visiblePresence.lastActiveAt,
+            })
+          : '',
         statusNote: getStatusNote({
           state: presenceState,
           awayMessage: awayLine,
@@ -3997,8 +4087,13 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       relationshipStatus: selectedProfileBuddy.relationshipStatus,
       presenceState: summary.presenceState,
       presenceDetail: summary.presenceDetail,
+      activityVisible: summary.activityVisible,
       statusLine: summary.resolvedStatus.statusMessage,
-      awayMessage: summary.presenceState === 'away' ? summary.awayLine : null,
+      awayMessage: !summary.activityVisible
+        ? summary.awayLine || null
+        : summary.presenceState === 'away'
+          ? summary.awayLine
+          : null,
       bio: selectedProfileBuddy.profile_bio,
       buddyIconPath: selectedProfileBuddy.buddy_icon_path,
     };
@@ -4329,6 +4424,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                 buddy_icon_path: profile?.buddy_icon_path ?? null,
                 idle_since: profile?.idle_since ?? null,
                 last_active_at: profile?.last_active_at ?? null,
+                show_online_status: profile?.show_online_status !== false,
               },
             }));
             setPendingRequestError(null);
@@ -6247,6 +6343,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
             buddy_icon_path: profile.buddy_icon_path ?? null,
             idle_since: profile.idle_since ?? null,
             last_active_at: profile.last_active_at ?? null,
+            show_online_status: profile.show_online_status !== false,
           },
         }));
       }
@@ -8540,6 +8637,26 @@ const [showAddWindow, setShowAddWindow] = useState(false);
               <div className="ui-panel-card rounded-2xl px-4 py-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
+                    <p className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Show my online status</p>
+                    <p className="text-[11px] text-slate-400">
+                      Let people see when you&rsquo;re around or last active. Turn this off and they still see your away message in Browse — not Available, Away now, or how long ago you were here.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void toggleShowOnlineStatus()}
+                    disabled={isSavingShowOnlineStatus}
+                    className={`ios-toggle ${showOnlineStatus ? 'on' : ''} disabled:opacity-50`}
+                    role="switch"
+                    aria-checked={showOnlineStatus}
+                    aria-label="Show my online status"
+                  />
+                </div>
+              </div>
+
+              <div className="ui-panel-card rounded-2xl px-4 py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
                     <p className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Share read receipts</p>
                     <p className="text-[11px] text-slate-400">Let buddies see when you&rsquo;ve read their messages. When off, you also won&rsquo;t see when buddies read yours.</p>
                   </div>
@@ -8897,7 +9014,18 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                         awayMessage: profile.away_message,
                         statusMessage: profile.status_msg,
                       });
-                      const isProfileAway = normalizeStatusLabel(resolvedProfileStatus.status) === AWAY_STATUS;
+                      const visiblePresence = resolveVisiblePresence({
+                        status: resolvedProfileStatus.status,
+                        idleSince: profile.idle_since,
+                        lastActiveAt: profile.last_active_at,
+                        showOnlineStatus: profile.show_online_status,
+                      });
+                      const isProfileAway = visiblePresence.activityVisible && visiblePresence.state === 'away';
+                      const searchSubtitle = visiblePresence.activityVisible
+                        ? isProfileAway
+                          ? `Away: ${resolvedProfileStatus.awayMessage || 'Away'}`
+                          : resolvedProfileStatus.statusMessage
+                        : resolvedProfileStatus.awayMessage || resolvedProfileStatus.statusMessage;
 
                       return (
                         <div
@@ -8907,9 +9035,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                           <div className="min-w-0">
                             <p className="ui-screenname truncate font-bold">{profile.screenname || 'Unknown User'}</p>
                             <p className="truncate text-[11px] text-slate-500">
-                              {isProfileAway
-                                ? `Away: ${resolvedProfileStatus.awayMessage || 'Away'}`
-                                : resolvedProfileStatus.statusMessage}
+                              {searchSubtitle}
                             </p>
                           </div>
                           <button
@@ -9122,11 +9248,20 @@ const [showAddWindow, setShowAddWindow] = useState(false);
             buddyScreenname={activeChatBuddy.screenname}
             buddyStatusMessage={
               activeChatBuddyPresenceSummary?.presenceState === 'away'
+              || activeChatBuddyPresenceSummary?.activityVisible === false
                 ? activeChatBuddyPresenceSummary.awayLine
                 : null
             }
-            buddyPresenceState={activeChatBuddyPresenceSummary?.presenceState ?? 'available'}
-            buddyPresenceDetail={activeChatBuddyPresenceSummary?.presenceLabel ?? 'Available'}
+            buddyPresenceState={
+              activeChatBuddyPresenceSummary?.activityVisible === false
+                ? 'offline'
+                : activeChatBuddyPresenceSummary?.presenceState ?? 'available'
+            }
+            buddyPresenceDetail={
+              activeChatBuddyPresenceSummary?.activityVisible === false
+                ? ''
+                : activeChatBuddyPresenceSummary?.presenceLabel ?? 'Available'
+            }
             buddyStatusLine={activeChatBuddyPresenceSummary?.resolvedStatus.statusMessage ?? null}
             buddyBio={activeChatBuddy.profile_bio}
             buddyIconPath={activeChatBuddy.buddy_icon_path}

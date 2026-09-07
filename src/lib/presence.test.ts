@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
+  canViewerSeeActivity,
+  derivePresenceState,
   getPresenceDetail,
   getPresenceLabel,
   getStatusNote,
   isAwayStatus,
+  isRecentlyActive,
+  maskPresenceSignals,
   resolvePresenceState,
+  resolveVisiblePresence,
 } from '@/lib/presence';
 
 describe('isAwayStatus', () => {
@@ -55,6 +60,137 @@ describe('resolvePresenceState', () => {
         idleSince: null,
       }),
     ).toBe('available');
+  });
+});
+
+describe('isRecentlyActive', () => {
+  const now = Date.parse('2026-09-07T12:00:00.000Z');
+
+  it('treats a missing or invalid stamp as not recently active', () => {
+    expect(isRecentlyActive(null, now)).toBe(false);
+    expect(isRecentlyActive('not-a-date', now)).toBe(false);
+  });
+
+  it('is true inside the 24h window and false at or beyond it', () => {
+    expect(isRecentlyActive('2026-09-07T11:00:00.000Z', now)).toBe(true);
+    expect(isRecentlyActive('2026-09-06T12:00:00.001Z', now)).toBe(true);
+    expect(isRecentlyActive('2026-09-06T12:00:00.000Z', now)).toBe(false);
+    expect(isRecentlyActive('2026-08-26T12:00:00.000Z', now)).toBe(false);
+  });
+});
+
+describe('derivePresenceState', () => {
+  const now = Date.parse('2026-09-07T12:00:00.000Z');
+
+  it('prefers an explicit realtime isOnline over last_active_at', () => {
+    expect(
+      derivePresenceState({
+        isOnline: false,
+        status: 'Available',
+        lastActiveAt: '2026-09-07T11:55:00.000Z',
+        now,
+      }),
+    ).toBe('offline');
+    expect(
+      derivePresenceState({
+        isOnline: true,
+        status: 'Away',
+        lastActiveAt: '2026-08-01T12:00:00.000Z',
+        now,
+      }),
+    ).toBe('away');
+  });
+
+  it('infers offline from a stale last_active_at when realtime is absent', () => {
+    expect(
+      derivePresenceState({
+        status: 'Available',
+        lastActiveAt: '2026-08-26T12:00:00.000Z',
+        now,
+      }),
+    ).toBe('offline');
+  });
+
+  it('keeps away when last_active_at is still inside the window', () => {
+    expect(
+      derivePresenceState({
+        status: 'Away',
+        lastActiveAt: '2026-09-07T11:50:00.000Z',
+        now,
+      }),
+    ).toBe('away');
+  });
+
+  it('marks idle when signed on and idle_since is set', () => {
+    expect(
+      derivePresenceState({
+        status: 'Available',
+        idleSince: '2026-09-07T11:40:00.000Z',
+        lastActiveAt: '2026-09-07T11:40:00.000Z',
+        now,
+      }),
+    ).toBe('idle');
+  });
+});
+
+describe('presence privacy gating', () => {
+  const now = Date.parse('2026-09-07T12:00:00.000Z');
+
+  it('lets a person always see their own activity', () => {
+    expect(canViewerSeeActivity(false, { isSelf: true })).toBe(true);
+    expect(canViewerSeeActivity(true, { isSelf: true })).toBe(true);
+  });
+
+  it('defaults missing rows to visible and honors an explicit off', () => {
+    expect(canViewerSeeActivity(undefined)).toBe(true);
+    expect(canViewerSeeActivity(null)).toBe(true);
+    expect(canViewerSeeActivity(true)).toBe(true);
+    expect(canViewerSeeActivity(false)).toBe(false);
+  });
+
+  it('nulls live signals for other viewers when the toggle is off', () => {
+    expect(
+      maskPresenceSignals({
+        showOnlineStatus: false,
+        isOnline: true,
+        status: 'Away',
+        idleSince: '2026-09-07T11:00:00.000Z',
+        lastActiveAt: '2026-09-07T11:55:00.000Z',
+      }),
+    ).toEqual({
+      isOnline: false,
+      status: null,
+      idleSince: null,
+      lastActiveAt: null,
+    });
+  });
+
+  it('keeps the truth for the owner even when the toggle is off', () => {
+    const visible = resolveVisiblePresence({
+      isSelf: true,
+      showOnlineStatus: false,
+      isOnline: true,
+      status: 'Available',
+      lastActiveAt: '2026-09-07T11:55:00.000Z',
+      now,
+    });
+    expect(visible.activityVisible).toBe(true);
+    expect(visible.state).toBe('available');
+    expect(visible.lastActiveAt).toBe('2026-09-07T11:55:00.000Z');
+  });
+
+  it('hides chips and last-active from others when the toggle is off', () => {
+    const hidden = resolveVisiblePresence({
+      showOnlineStatus: false,
+      isOnline: true,
+      status: 'Available',
+      lastActiveAt: '2026-09-07T11:55:00.000Z',
+      now,
+    });
+    expect(hidden.activityVisible).toBe(false);
+    expect(hidden.state).toBe('offline');
+    expect(hidden.lastActiveAt).toBeNull();
+    expect(hidden.status).toBeNull();
   });
 });
 

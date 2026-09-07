@@ -55,7 +55,7 @@ Deno.serve(async (req: Request) => {
   // Rate-limit check: one export per 24 hours.
   const { data: profileRow, error: profileErr } = await admin
     .from('users')
-    .select('screenname, profile_bio, status_msg, discoverable, created_at, updated_at, age_confirmed_at, art9_consent_at, last_exported_at')
+    .select('screenname, profile_bio, status_msg, discoverable, show_online_status, created_at, updated_at, age_confirmed_at, art9_consent_at, last_exported_at')
     .eq('id', userId)
     .single();
 
@@ -151,6 +151,7 @@ Deno.serve(async (req: Request) => {
         bio: profileRow.profile_bio,
         status_msg: profileRow.status_msg,
         discoverable: profileRow.discoverable,
+        show_online_status: profileRow.show_online_status !== false,
         account_created_at: profileRow.created_at,
         profile_updated_at: profileRow.updated_at,
         age_confirmed_at: profileRow.age_confirmed_at,
