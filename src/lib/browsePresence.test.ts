@@ -106,6 +106,19 @@ describe('describeBrowseCard', () => {
     expect(own.relativeTime).toBe('5m ago');
   });
 
+  it('keeps a recently active Available row with idle_since out of Available', () => {
+    const idle = describeBrowseCard({
+      status: 'Available',
+      lastActiveAt: '2026-09-07T11:55:00.000Z',
+      idleSince: '2026-09-07T11:50:00.000Z',
+      now,
+    });
+    expect(idle.presence).toBe('idle');
+    expect(idle.presenceLabel).toBe('Idle');
+    expect(matchesBrowseFilters(idle, { presence: 'available', moodIds: [], activityIds: [] })).toBe(false);
+    expect(matchesBrowseFilters(idle, { presence: 'all', moodIds: [], activityIds: [] })).toBe(true);
+  });
+
   it('maps derived presence to the same chip labels the filters use', () => {
     expect(getBrowsePresenceChip('available')).toEqual({ label: 'Available', tone: 'green' });
     expect(getBrowsePresenceChip('away')).toEqual({ label: 'Away now', tone: 'gold' });

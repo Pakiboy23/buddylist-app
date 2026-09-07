@@ -25,13 +25,14 @@ interface BrowseUser {
   screenname: string;
   away_message: string | null;
   last_active_at: string | null;
+  idle_since: string | null;
   status: string | null;
   show_online_status?: boolean | null;
 }
 
 const PAGE_SIZE = 50;
-const BROWSE_SELECT_WITH_PRIVACY = 'id,screenname,away_message,last_active_at,status,show_online_status';
-const BROWSE_SELECT_LEGACY = 'id,screenname,away_message,last_active_at,status';
+const BROWSE_SELECT_WITH_PRIVACY = 'id,screenname,away_message,last_active_at,idle_since,status,show_online_status';
+const BROWSE_SELECT_LEGACY = 'id,screenname,away_message,last_active_at,idle_since,status';
 
 function isShowOnlineStatusColumnMissing(error: { message?: string | null; code?: string | null } | null) {
   const combined = `${error?.code ?? ''} ${error?.message ?? ''}`.toLowerCase();
@@ -160,6 +161,7 @@ export default function BrowsePanel({
           status: user.status,
           awayMessage: user.away_message,
           lastActiveAt: user.last_active_at,
+          idleSince: user.idle_since,
           showOnlineStatus: user.show_online_status,
         }),
       })),

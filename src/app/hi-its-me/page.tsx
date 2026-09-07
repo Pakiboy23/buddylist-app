@@ -3248,6 +3248,12 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         setProfileSyncError(null);
       }
 
+      // Presence subscribe runs when userId is set and reads showOnlineStatusRef.
+      // Seed the saved hide preference from the profile we already loaded so a
+      // returning user with the toggle off cannot publish a track() first.
+      const loadedShowOnlineStatus = existingProfile?.show_online_status !== false;
+      showOnlineStatusRef.current = loadedShowOnlineStatus;
+      setShowOnlineStatus(loadedShowOnlineStatus);
       setUserId(session.user.id);
       const createdAt = typeof session.user.created_at === 'string' ? session.user.created_at : null;
       setAccountCreatedAt(createdAt);
@@ -9080,7 +9086,9 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                         ? isProfileAway
                           ? `Away: ${resolvedProfileStatus.awayMessage || 'Away'}`
                           : resolvedProfileStatus.statusMessage
-                        : resolvedProfileStatus.awayMessage;
+                        : resolvedProfileStatus.awayMessage
+                          || resolvedProfileStatus.authoredStatusMessage
+                          || '';
 
                       return (
                         <div
