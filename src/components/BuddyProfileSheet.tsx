@@ -23,6 +23,7 @@ interface BuddyProfileSheetData {
   relationshipStatus: 'pending' | 'accepted';
   presenceState: ResolvedPresenceState;
   presenceDetail: string;
+  activityVisible?: boolean;
   statusLine: string | null;
   awayMessage: string | null;
   bio: string | null;
@@ -109,6 +110,7 @@ export default function BuddyProfileSheet({
   const effectiveStatus = currentUserId ? connectionState.status : 'mutual';
   const showPresence =
     effectiveStatus !== 'none' && effectiveStatus !== 'loading' && effectiveStatus !== 'blocked';
+  const showActivity = showPresence && buddy?.activityVisible !== false;
   const showAwayMessage = showPresence;
   // Status line and bio are "extended info" — only for pending/mutual.
   const showExtended = effectiveStatus === 'pending' || effectiveStatus === 'mutual';
@@ -191,7 +193,7 @@ export default function BuddyProfileSheet({
 
         <p id={descriptionId} className="sr-only">
           {buddy.screenname} profile.{' '}
-          {showPresence ? `${getPresenceLabel(buddy.presenceState)}. ${buddy.presenceDetail}` : ''}
+          {showActivity ? `${getPresenceLabel(buddy.presenceState)}. ${buddy.presenceDetail}` : ''}
         </p>
 
         <div className="ui-sheet-header">
@@ -215,15 +217,15 @@ export default function BuddyProfileSheet({
               <ProfileAvatar
                 screenname={buddy.screenname}
                 buddyIconPath={buddy.buddyIconPath}
-                presenceState={showPresence ? buddy.presenceState : 'offline'}
+                presenceState={showActivity ? buddy.presenceState : 'offline'}
                 size="lg"
-                showStatusDot={showPresence}
+                showStatusDot={showActivity}
               />
               <div className="min-w-0 flex-1">
                 <p className="ui-screenname truncate text-[length:var(--ui-text-xl)] font-semibold text-slate-800 dark:text-slate-100">
                   {buddy.screenname}
                 </p>
-                {showPresence ? (
+                {showActivity ? (
                   <>
                     <p className="text-[length:var(--ui-text-sm)] font-semibold text-[var(--rose)]">
                       {getPresenceLabel(buddy.presenceState)}
