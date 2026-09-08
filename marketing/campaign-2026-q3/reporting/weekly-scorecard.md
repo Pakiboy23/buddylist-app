@@ -333,3 +333,182 @@ listing alone is no longer carrying it.
 2. ASC Analytics + Vercel screenshots (O8/O9) — four weeks unfilled.
 3. A decision on restating the O12 guardrail with a minimum denominator, and on adding the
    two deletion-log fields so the engine-DM question becomes answerable.
+
+---
+
+## Week 5 scorecard — Aug 31–Sep 6 (recorded Mon Sep 7) · THE WEEK THE NUMBERS MOVED
+
+**Window discipline:** closed Aug 31–Sep 6 cohort (n=21), unique unordered pairs, in-window
+deletions. Second-to-last scorecard; the flight ends Sep 13 and the wrap is due Sep 14.
+
+**Two caveats stated up front, before the good numbers.**
+
+1. **Two of the 21 signups are almost certainly founder test accounts** — `uxreview260906`
+   and `uxreview260906b`, created 9 minutes apart on Sep 6, zero actions between them.
+   Signups read **19** without them. Every rate below is computed on the full 21; subtract
+   two from the numerator and denominator if the founder confirms they are his.
+2. **92 of this week's 110 organic DMs are a single two-way conversation** between `Roji`
+   and `sandeep2430`, two accounts created 4 minutes 26 seconds apart that then exchanged
+   52 and 40 messages inside one 24-minute window. It is a genuine two-way exchange, not a
+   blast — but it is one relationship, and it may be one person on two devices. The DM
+   number is reported both ways below.
+
+| Objective | Target (wk 5) | Actual | wk1 → wk2 → wk3 → wk4 → wk5 | Note |
+|---|---|---|---|---|
+| O2 signups | 12–20 | **21** | 29 → 19 → 8 → 5 → **21** | **HIT — first of the flight**, and above the top of the range. 19 excluding the two test accounts, still a hit |
+| O3 WAU (trailing 7d) | hold/grow | **26** | 37 → 17 → 10 → 8 → **26** | Highest since week 1; reverses four weeks of decline |
+| O4 activation ≤72h (room post) | ≥35% | **0.0%** (0/21) | 0 → 0 → 0 → 0 → **0** | Five weeks, zero. See the two alternative definitions below |
+| O5 organic room msgs | ≥600 | **0** · 8 engine prompts posted | 0 → 0 → 0 → 0 → **0** | **Fifth consecutive zero.** Nothing has ever been posted in a room by a member |
+| Cohort room joins | — | **0** | 0 → 0 → 0 → 0 → **0** | No member of any cohort has joined a room since the flight began |
+| **Conversation (DMs)** | — | **110 organic** from 5 senders (**18** excluding the Roji/sandeep pair) | 3 → 4 → 0 → 5 → **110 / 18** | Either reading is the highest of the flight |
+| O6 new accepted pairs, **non-founder** | 8–12 new | **+8** (9 → **17**) | 5 → 0 → 0 → 0 → **+8** | **HIT, at the bottom of the range. First non-zero since week 1**, after three straight zeroes |
+| Member-created buddy rows | — | **68 rows from 10 distinct requesters** | 14 → 6 → 2 → 4 → **10 requesters** | Requesters more than doubled again; row count up 6× |
+| Pending backlog | — | **228 unique pairs** | 67 → 86 → 134 → 164 → **228** | 141 of the 228 are member-to-member and involve the founder not at all |
+| O7 iOS push opt-in (cohort) | ≥60% | **9.5%** (2/21) | 0 → 0 → 0 → 0 → **2/21** | **First non-zero of the flight.** Neither is attributable to the Sep 3 fix — see below. 5 of 163 all accounts |
+| O8 / O9 | ~1,100 pageviews / funnel | *founder screenshots pending* | — | Unfilled for five straight weeks |
+
+### The headline: everything moved except rooms
+
+Four objectives that had been flat or falling for a month all moved in the same week, and
+two of them hit target for the first time in the flight. Signups 5 → 21. WAU 8 → 26. O6 off
+zero at +8 new member-only accepted pairs. Member-initiated buddy requesters 4 → 10.
+
+**Room entry did not move, for the fifth week running.** Zero organic room messages, zero
+room joins, zero cohort members who have ever posted in a room — against 8 engine prompts
+posted this week. This is now the single most stable measurement in the flight: five weeks,
+three prompt styles, two ask sizes, and a cohort that in the same week demonstrably *would*
+act everywhere else. Per the standing decision, no further prompt rewrite is proposed.
+
+**The week-4 reading was wrong on one point and is corrected here.** Week 4 concluded that
+"members are acting toward the founder and toward DMs, not yet toward each other." That
+held for one week and does not hold now: **141 of the 228 pending requests are
+member-to-member**, and the 8 new accepted pairs are all member-only. Members act toward
+each other at volume. O6 could not see it in weeks 2–4 because O6 counts *accepted* pairs,
+and acceptance requires the recipient to find out — which is the push finding below.
+
+### Push: the instrumentation landed, and it is the constraint
+
+`push_dispatch_log` went live Sep 1 18:54 UTC (PR #152). It is the first time the flight
+has been able to see what happens after a notification is dispatched, rather than only that
+the function returned 200. Six days of data, every row with at least one intended recipient:
+
+- **261 dispatches. 172 of them — 65.9% — reached zero devices.**
+- By kind: DMs 159 dispatched / 87 to nobody · buddy requests 97 / 80 to nobody ·
+  **room prompts 5 / 5 to nobody — every room prompt this week notified no one.**
+
+Two-thirds of everything the app tried to tell somebody this week was delivered to an empty
+token set. This is not an APNs failure — the 89 dispatches that had a token to aim at
+delivered. It is that almost nobody has a token.
+
+That in turn was a bug, not a preference: the contextual permission prompt was permanently
+suppressed on any install where a stale `localStorage` flag survived a reinstall, so members
+were never asked. Fixed and merged Sep 3 at 16:54 UTC (PR #154).
+
+**Two members registered tokens this week — `Roji` (Sep 3, 09:58 UTC) and `Ivan.QRO`
+(Sep 6, 21:18 UTC) — the first non-founder push registrations since Aug 2.** That is the
+first movement on O7 in the entire flight, and it is the mechanism by which the 141 pending
+member-to-member requests could start being seen.
+
+**Neither can be credited to the fix, and the entry should not claim otherwise.** Roji's
+token predates the merge by about seven hours. And the live App Store build is 2.3, created
+Aug 23 — on iOS the React bundle ships inside the binary, so #154 is not in the build the
+public is running and will not be until the next release. It reaches members today only
+through TestFlight (build 440 uploaded Sep 3 16:59 UTC, five minutes after the merge, then
+442–446 through Sep 6) or through the web. **The fix's actual effect on opt-in is still
+unmeasured**; the two registrations above are evidence that members will grant permission
+when asked, not evidence that the fix is what asked them.
+
+### Activation — three definitions, still unsigned
+
+The definition has been awaiting founder sign-off since Aug 10. Measured all three ways on
+the same n=21 cohort:
+
+- **Room post within 72h** (the definition the O4 row uses): **0/21 = 0.0%**
+- **Any member-initiated action within 72h** (DM sent, buddy request created, or room post):
+  **10/21 = 47.6%**
+- **Member-to-member action within 72h** (DM to someone other than the founder, or an
+  accepted pair): **8/21 = 38.1%**
+
+Under the plan's ≥35% bar, the same cohort is a total miss, a comfortable pass, and a
+narrow pass, depending only on which definition is signed. That spread is the argument for
+signing one.
+
+### O12 deletions — the absolute count changed for the first time
+
+Reported absolute-first, per the week-4 finding.
+
+**Absolute deletions this week: 1** (`geraldsbee`, Sep 4). The count had been **exactly 2
+for four consecutive weeks**; this is the first week it has changed, and it changed
+downward, in the week with the largest cohort. Rate **1/21 = 4.8%** — the lowest of the
+flight, against 40% last week, and the fall is driven by both terms moving the right way.
+
+Flight-cumulative: **8 deletions / 83 flight signups = 9.6%**, down from the 13.1% recorded
+last Monday — back under the guardrail, again mostly a denominator effect, now running in
+the favourable direction. The guardrail restatement (absolute count primary, rate secondary,
+minimum denominator) is still the right fix and is still unactioned.
+
+**One reconciliation failure, flagged not resolved.** Week 4 recorded eight flight deletions
+through Aug 30 and listed them as "Aug 7+8, Aug 10+11, Aug 18+22, Aug 27+30".
+`account_deletion_log` today holds **seven** rows through Aug 30 — Aug 8, 10, 11, 18, 22,
+27, 30 — plus Sep 4, for eight total. There is no Aug 7 row. The table has no foreign key
+and no cascade, so nothing should have removed one. Either last week's count was one high,
+or a row was deleted by hand. **The flight-cumulative figure of 8 is unaffected** (it is
+eight either way); the weekly history for week 1 may be 1, not 2. Not reconstructable from
+the log — recorded here so the wrap does not silently inherit it.
+
+**Safety block (O11):** reports **0** · blocks **0** · DM flags **0** · room flags **0**.
+Five weeks, every cell zero, now across 110 organic DMs in a single week.
+
+**Adoption (all accounts, 141 → 163):** away message 17→**20** · icons 22→**27** ·
+bio **21** · Circles still **0** · Knock **19 total, 14 member-sent, 8 of those this week**
+(the flight's first real Knock usage; note this metric was recorded as "9" last week under a
+different definition and is restated here as raw member-sent knock messages) ·
+Buzz **0** · reactions **2** (unchanged) · saved **3** (unchanged) · push **5 users**, two
+of them new this week.
+
+**Store (ASC API, HTTP 200, Sep 7):** **2.3 remains live** (READY_FOR_SALE); no version in
+preparation, so there is no non-live localization to check. **Promo v3 is intact** on 2.3's
+en-US localization, verified by readback at **158 characters** — unchanged since the Aug 31
+rotation. **0 customer reviews** after 34 days live.
+
+### Week-5 reading
+
+The engine's premise is now evidenced. Given a larger cohort, members signed up, came back,
+sent each other messages, and accepted each other's buddy requests — 8 new member-only
+pairs after three weeks of zero, and 141 member-to-member requests waiting. The product's
+core loop works when enough people are in it.
+
+Two things gate it, and neither is copy.
+
+**First, nobody is being told.** Two-thirds of all notifications this week reached zero
+devices, because a permission-prompt bug meant members were never asked. The bug is fixed in
+`main`, but not in the build the public is running — shipping a release that contains it is
+the highest-value action available before the flight ends. Two member tokens did appear this
+week, the first since Aug 2, and neither is attributable to the fix. The 141 pending
+member-to-member requests are the size of the backlog waiting on it.
+
+**Second, rooms are inert.** Five weeks, zero joins, zero posts, from cohorts that in the
+same period sent 110 DMs and accepted buddy requests. The constraint is the room surface —
+discovery, entry, or the empty state — not the invitation. With one week of flight left,
+instrumenting whether anyone ever reaches a room screen is worth more than any further
+prompt work.
+
+**Acquisition is no longer the second problem.** 21 signups is the flight's second-best week
+and its first target hit; whatever drove it is worth identifying before the wrap.
+
+### Founder inputs still needed
+
+All four are now five weeks open.
+
+1. Activation definition sign-off — open since Aug 10. Three measured values above; the
+   grade depends entirely on which is signed.
+2. ASC Analytics + Vercel screenshots (O8/O9) — five weeks unfilled, and the one thing that
+   would explain the signup jump.
+3. O12 guardrail restatement with a minimum denominator.
+4. `signed_up_at` and `received_engine_dm` on `account_deletion_log` — with one week of
+   flight left, adding them now still answers the question for the wrap's final week.
+
+Newly closed this week: the recurring member-facing hold (members who requested the founder
+before the engine reached them) needed no copy variant in the end — the founder answered
+`dannyprclark01`, `Hazixx`, `Ivan.QRO`, `Roji`, `Alessandro` and `JoeyJP112263` personally
+between Sep 1 and Sep 6.
