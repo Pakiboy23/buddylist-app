@@ -72,7 +72,7 @@ The rooms model was rewritten in migration `20260509184623_rooms_v2_launch_schem
 - `public.room_memberships` — presence + join tracking
 - `public.room_messages` — fresh shape (`body` text, not `content`)
 
-The main buddy-list path (`ChatContext`) upserts/deletes `room_memberships` directly. Invite/preview flows go through `join_room_by_id` / `leave_room_by_id` SECURITY DEFINER RPCs (migration 20260510050322) to bypass an RLS recursion bug on direct INSERT.
+The main buddy-list path (`ChatContext`) upserts/deletes `room_memberships` directly. Room preview join/leave go through `join_room_by_id` / `leave_room_by_id` SECURITY DEFINER RPCs (migration 20260510050322) to bypass an RLS recursion bug on direct INSERT. Buddy-pull invites go through the `rooms-invite` Edge Function (`POST {roomId, buddyIds}`); they are not shareable links. See [docs/rooms-invite.md](./docs/rooms-invite.md).
 
 ### iOS renders the React app — there is no native UI layer
 On iOS the React app owns every pixel. `ios/App/App/AppDelegate.swift` is a thin
@@ -111,6 +111,11 @@ components and wants device verification.
 - Room presence: `active_chat_room:${roomId}`
 - Global notifications: `global_notifications_messages`, `global_notifications_room_messages`
 - State persisted in `room_memberships` (rooms v2) and `user_dm_state` (DMs)
+
+### Presence + Find
+Buddy-list chips use realtime `isOnline`. Browse infers signed-on from `last_active_at` newer than 24h — never from leftover `users.status` alone. `users.show_online_status` (default true) hides chips and last-active from other viewers; away-message text can stay. Independent of `users.discoverable`. RLS is row-level, so directory reads must use `user_presence_directory` or the app-layer mask in `src/lib/presence.ts`.
+
+Find is People (Browse, away-message required) then Search (away-optional). Every global people lookup goes through `applyDiscoverablePeopleGate`. Runbook: [docs/presence.md](./docs/presence.md).
 
 ### Push
 Client sends after a user action (`src/lib/pushDispatch.ts` → Edge Function
@@ -156,7 +161,7 @@ Operational runbook: [docs/push-dispatch.md](./docs/push-dispatch.md).
 - `export-account` — JSON download of the caller's data (`/account` Export).
 - `push-dispatch` — APNs (and leftover FCM) fan-out. Client JWT after a send, or Vault secret for server-side inserts.
 - `admin-me` — Check whether the caller is in `admin_users`.
-- `rooms-invite` — Room invite link generator + accept.
+- `rooms-invite` — In-app pull of accepted buddies into a room (`POST {roomId, buddyIds}`). No shareable links. CORS must allow `apikey`. Runbook: [docs/rooms-invite.md](./docs/rooms-invite.md).
 
 ## Environment
 
@@ -187,3 +192,4 @@ Trust + safety surface, current state:
 - **Content filter:** server-side trigger + render-time placeholder for recipients.
 - **Legal:** Privacy / Terms / Contact rows on `/account` (`hiitsme.app/privacy`, `/terms`, `mailto:support@hiitsme.app`). Static copies also live in `public/{privacy,terms,support}.html`.
 - **Push permission:** never requested on cold launch. Contextual prompt after `buddy_accepted`, `first_dm_sent`, or `first_room_message`, only while iOS reports `prompt`; stored flag is a 7-day cooldown. Manual enable remains on `/account`.
+- **Presence privacy:** Settings → Privacy → Show my online status. Independent of Appear in Browse & Search. See [docs/presence.md](./docs/presence.md).

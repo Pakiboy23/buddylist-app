@@ -269,7 +269,7 @@ H.I.M. has an in-app user discovery/search feature, but search queries are ephem
 | Purposes | App Functionality, Analytics |
 
 **What we collect:**
-- Presence timestamps: `public.users.idle_since`, `public.users.last_active_at` — used to display online/idle/away status to buddies.
+- Presence timestamps: `public.users.idle_since`, `public.users.last_active_at` — used to display online/idle/away status. Other viewers lose chips and last-active times when the subject turns off Settings → Privacy → Show my online status (`users.show_online_status`, default on). Away-message text can stay.
 - Message delivery and read receipts: `public.messages.delivered_at`, `public.messages.read_at` — used to show delivery/read status to sender (can be disabled in privacy settings).
 - Room last-seen: `public.room_memberships.last_seen_at` — used to compute unread message counts.
 - Vercel Analytics page-view events (web platform only): anonymised page-view telemetry via `@vercel/analytics`. ⚠️ Legal review: confirm whether Vercel Analytics meets Apple's definition of "analytics" in this context and whether a consent gate is required for EU users.
@@ -380,7 +380,7 @@ All data collected by H.I.M. is covered by the categories above.
 
 **If Apple asks:** "Product Interaction is linked to the user — is this used for profiling?"
 
-> Product interaction data consists of read receipts (`read_at` timestamps on messages) and presence indicators (`last_active_at`, `idle_since`). These are social features that users have explicit control over: read receipts can be disabled in Settings → Privacy → Share Read Receipts, and presence display is part of the core AIM-style social experience. They are not used for advertising, profiling, or any purpose beyond the in-app features visible to the user's conversation partners. Vercel Analytics on the web platform collects anonymised page-view data with no cross-site linking; no user identifier is sent to Vercel Analytics.
+> Product interaction data consists of read receipts (`read_at` timestamps on messages) and presence indicators (`last_active_at`, `idle_since`). These are social features that users have explicit control over: read receipts can be disabled in Settings → Privacy → Share Read Receipts, and presence chips / last-active times can be hidden with Settings → Privacy → Show my online status. They are not used for advertising, profiling, or any purpose beyond the in-app features visible to the user's conversation partners. Vercel Analytics on the web platform collects anonymised page-view data with no cross-site linking; no user identifier is sent to Vercel Analytics.
 
 ---
 
