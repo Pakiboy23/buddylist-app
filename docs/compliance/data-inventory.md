@@ -1,7 +1,7 @@
 # H.I.M. Personal Data Inventory
 
 **App:** H.I.M. (hiitsme)  
-**Last updated:** 2026-09-03  
+**Last updated:** 2026-09-11  
 **Prepared by:** Engineering (Claude Code session)  
 **Status:** Draft — requires legal review before publication
 
@@ -27,11 +27,13 @@
 | Field | Source | Collected from | Purpose | Lawful basis (GDPR) | Sensitive PI (CCPA) | Special category (GDPR Art. 9) | Retention | Sub-processors |
 |-------|--------|----------------|---------|---------------------|---------------------|-------------------------------|-----------|----------------|
 | Screenname | `public.users.screenname` | Registration | Visible identity; used in push payloads and synthetic email | Contract 6(1)(b) | No | Art. 9 — orientation-revealing by context | Until account deletion | Supabase, APNs (in push payload) |
-| Status message | `public.users.status_msg` | User-entered (AIM-style away message) | Social expression / presence | Contract 6(1)(b) | No | Art. 9 — orientation-revealing by context | Until changed or account deletion | Supabase |
+| Status message | `public.users.status_msg` | User-entered status line | Social expression / presence | Contract 6(1)(b) | No | Art. 9 — orientation-revealing by context | Until changed or account deletion | Supabase |
+| Away message | `public.users.away_message` | User-entered | Browse presence board and buddy-list note; remains visible when online-status is hidden | Contract 6(1)(b) | No | Art. 9 — orientation-revealing by context | Until changed or account deletion | Supabase |
 | Profile bio | `public.users.profile_bio` | User-entered | Social expression | Contract 6(1)(b) | No | Art. 9 — orientation-revealing by context | Until changed or account deletion | Supabase |
 | Buddy icon (avatar) | `public.users.buddy_icon_path` (path); file in `buddy-icons` storage bucket | User-uploaded | Visual identity | Contract 6(1)(b) | No | Art. 9 — orientation-revealing by context | Until changed or account deletion | Supabase Storage |
-| Idle/active timestamps | `public.users.idle_since`, `public.users.last_active_at` | System-generated on activity | Presence display | Contract 6(1)(b) | No | Art. 9 — orientation-revealing by context | Rolling; updated on activity | Supabase |
-| Discoverability flag | `public.users.discoverable` | User-set (default true) | Controls appearance in search/browse | Contract 6(1)(b) | No | Art. 9 — orientation-revealing by context | Until changed or account deletion | Supabase |
+| Idle/active timestamps | `public.users.idle_since`, `public.users.last_active_at` | System-generated on activity | Presence display. Hidden from other viewers when `show_online_status` is false (`user_presence_directory` + app-layer mask) | Contract 6(1)(b) | No | Art. 9 — orientation-revealing by context | Rolling; updated on activity | Supabase |
+| Discoverability flag | `public.users.discoverable` | User-set (default true) | Controls appearance in Browse and Search | Contract 6(1)(b) | No | Art. 9 — orientation-revealing by context | Until changed or account deletion | Supabase |
+| Show-online-status flag | `public.users.show_online_status` | User-set (default true) | Controls whether other viewers see chips, idle, and last-active times. Independent of `discoverable`. Own profile always sees the truth | Contract 6(1)(b) | No | Art. 9 — orientation-revealing by context | Until changed or account deletion | Supabase |
 | Screenname-change timestamp | `public.users.screenname_changed_at` | System-generated | Rate-limit screenname changes | Legitimate interest 6(1)(f) | No | Art. 9 — orientation-revealing by context | Until account deletion | Supabase |
 | Created / updated timestamps | `public.users.created_at`, `updated_at` | System-generated | Record integrity | Legitimate interest 6(1)(f) | No | Art. 9 — orientation-revealing by context | Until account deletion | Supabase |
 
@@ -69,6 +71,7 @@
 | Field | Source | Collected from | Purpose | Lawful basis (GDPR) | Sensitive PI (CCPA) | Special category (GDPR Art. 9) | Retention | Sub-processors |
 |-------|--------|----------------|---------|---------------------|---------------------|-------------------------------|-----------|----------------|
 | Room membership | `public.room_memberships.user_id`, `room_id`, `joined_at` | User action (join room) | Access control and presence | Contract 6(1)(b) | No | Art. 9 — special category: reveals which vibe/regional rooms user belongs to; orientation-revealing by context | Until leave or account deletion | Supabase |
+| Invite attribution | `public.room_memberships.invited_by` | Set only by `rooms-invite` Edge Function (service-role). Client inserts forced to NULL | Distinguishes invite-joins from self-joins (GH-14) | Contract 6(1)(b) | No | Art. 9 — orientation-revealing by context (social graph) | Until leave or account deletion | Supabase |
 | Last-seen in room | `public.room_memberships.last_seen_at` | System-generated | Unread count computation | Contract 6(1)(b) | No | Art. 9 — orientation-revealing by context | Until leave or account deletion | Supabase |
 | Room message body | `public.room_messages.body` | User input | Public/semi-public communication | Contract 6(1)(b) | Yes — contents of communications | Art. 9 — orientation-revealing by context | Until account deletion | Supabase |
 | Room message author | `public.room_messages.user_id`, `room_id` | System (auth) | Message attribution | Contract 6(1)(b) | No | Art. 9 — orientation-revealing by context (social graph) | Until account deletion | Supabase |

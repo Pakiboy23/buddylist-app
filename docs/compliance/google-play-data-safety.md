@@ -275,7 +275,7 @@ H.I.M. never requests device Contacts access. The buddy list and social graph ar
 | Purposes | App functionality, Analytics |
 
 **Data stored:**
-- Presence timestamps: `public.users.idle_since`, `public.users.last_active_at` — powers the online/idle/away indicator visible to buddies.
+- Presence timestamps: `public.users.idle_since`, `public.users.last_active_at` — powers the online/idle/away indicator. Hidden from other viewers when `users.show_online_status` is false (Settings → Privacy → Show my online status). Away-message text can stay.
 - Read and delivery receipts: `public.messages.delivered_at`, `public.messages.read_at` — powers the read receipt feature (can be disabled in privacy settings).
 - Room last-seen: `public.room_memberships.last_seen_at` — powers unread message count badges.
 

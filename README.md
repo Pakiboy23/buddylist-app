@@ -124,6 +124,8 @@ Notes:
 
 - iOS release notes: [IOS_APP_STORE_RELEASE.md](./IOS_APP_STORE_RELEASE.md)
 - Push operations: [docs/push-dispatch.md](./docs/push-dispatch.md)
+- Presence / Browse / privacy: [docs/presence.md](./docs/presence.md)
+- Room invites: [docs/rooms-invite.md](./docs/rooms-invite.md)
 - Android was dropped in #147. [ANDROID_PLAY_RELEASE.md](./ANDROID_PLAY_RELEASE.md) is historical.
 
 ## Local Setup
@@ -212,11 +214,16 @@ Recovery model:
 
 ## Realtime + Notification Model
 
+### Buddy / Browse Presence
+
+Chips come from `resolvePresenceState` / `derivePresenceState` (`src/lib/presence.ts`), not leftover `users.status` alone. Buddy list uses realtime `isOnline`; Browse infers signed-on from `last_active_at` inside 24h. Settings → Privacy has two independent toggles: Appear in Browse & Search (`discoverable`) and Show my online status (`show_online_status`). Away-message text can stay visible when chips are hidden. Details: [docs/presence.md](./docs/presence.md).
+
 ### Room Presence
 
 - Room participant presence is tracked via shared channel:
   - `active_chat_room:${roomId}`
 - Participants list in room header updates via Supabase Presence sync.
+- In-app buddy invites go through the `rooms-invite` Edge Function (`POST {roomId, buddyIds}`), not shareable links. [docs/rooms-invite.md](./docs/rooms-invite.md).
 
 ### Global Notifications
 
@@ -235,7 +242,8 @@ Recovery model:
 - Canonical state is rooms v2: `public.rooms` + `public.room_memberships` (unread via `last_seen_at`). The rooms-v1 table `user_active_rooms` is archived (`_archive_user_active_rooms`).
 - Client hydrates from localStorage cache first, then syncs `room_memberships`.
 - Main app join/leave (`ChatContext`) upserts/deletes `room_memberships` directly.
-- Invite/preview flows use SECURITY DEFINER RPCs `join_room_by_id` / `leave_room_by_id`.
+- Room preview join/leave uses SECURITY DEFINER RPCs `join_room_by_id` / `leave_room_by_id`.
+- Buddy-pull invites use the `rooms-invite` Edge Function (not those RPCs, and not a shareable link).
 
 ## Files to Know
 
@@ -254,7 +262,11 @@ Recovery model:
 - `capacitor.config.ts` - iOS wrapper configuration
 - `src/lib/pushDispatch.ts` - client fan-out into the `push-dispatch` Edge Function
 - `src/lib/pushPromptMoments.ts` - contextual iOS permission prompt after friendship actions
+- `src/lib/presence.ts` - Available / Idle / Away / Offline derivation + privacy mask
+- `src/lib/discoverableSearch.ts` - Browse & Search `discoverable` / away-message gates
+- `src/lib/roomsInvite.ts` - in-app accepted-buddy room invites
 - `supabase/functions/push-dispatch/index.ts` - APNs delivery + `push_dispatch_log`
+- `supabase/functions/rooms-invite/index.ts` - room invite upsert + `invited_by` stamp
 - `src/app/api/admin/password-reset-audit/route.ts` - admin-only recovery audit feed
 
 ## Build & Quality Checks
@@ -298,6 +310,20 @@ Two different failures look the same from the sender's side:
 - **Dead-install tokens.** The log shows tokens found and APNs accepted them, but the current install never requested permission. H.I.M. is missing from Settings → Notifications. Token rows from earlier installs are not evidence this one was asked.
 
 Full runbook: [docs/push-dispatch.md](./docs/push-dispatch.md).
+
+### Room invite sheet says "Load failed" or "Could not reach the invite service"
+
+Safari reports a CORS miss as TypeError `"Load failed"`. The client sends `apikey`; the deployed `rooms-invite` function must allow that header on OPTIONS. Changing `index.ts` on `main` is not enough — redeploy:
+
+```bash
+supabase functions deploy rooms-invite
+```
+
+If the roster query failed, the sheet will refuse to list buddies rather than invite people who are already in the room. Full runbook: [docs/rooms-invite.md](./docs/rooms-invite.md).
+
+### Browse shows Available next to someone who has not been around in days
+
+Do not read `users.status` alone. Chips go through `derivePresenceState` (24h `last_active_at` cutoff on Browse). If a new surface skips that helper, leftover Available will lie again. [docs/presence.md](./docs/presence.md).
 
 ### `npx cap copy ios` dropped HiItsMeShellPlugin
 
