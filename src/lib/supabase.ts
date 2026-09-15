@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { createHimAuthStorage } from '@/lib/himAuthStorage';
 
 const fallbackUrl = 'https://placeholder.supabase.co';
 const fallbackAnonKey = 'placeholder-anon-key';
@@ -21,6 +22,10 @@ export const supabase = createClient(
     auth: {
       detectSessionInUrl: false, // Capacitor doesn't use URL-based auth callbacks
       persistSession: true,
+      autoRefreshToken: true,
+      // Native: UserDefaults via HiItsMeShell (survives WKWebView wipes).
+      // Web: localStorage. See himAuthStorage.ts.
+      storage: createHimAuthStorage(),
     },
   }
 );

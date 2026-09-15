@@ -214,8 +214,13 @@ class HiItsMeShellPlugin: CAPPlugin, CAPBridgedPlugin {
     public let jsName = "HiItsMeShell"
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "isAvailable", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "getPushEnvironment", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "getPushEnvironment", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getPersistentItem", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setPersistentItem", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "removePersistentItem", returnType: CAPPluginReturnPromise)
     ]
+
+    private static let persistentStoragePrefix = "him.persist."
 
     @objc func isAvailable(_ call: CAPPluginCall) {
         // The React app owns the entire visible experience on iOS. This plugin
@@ -232,6 +237,39 @@ class HiItsMeShellPlugin: CAPPlugin, CAPBridgedPlugin {
         var payload: JSObject = [:]
         payload["environment"] = resolveSignedPushEnvironment() ?? NSNull()
         call.resolve(payload)
+    }
+
+    @objc func getPersistentItem(_ call: CAPPluginCall) {
+        guard let key = call.getString("key")?.trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty else {
+            call.reject("key required")
+            return
+        }
+        let value = UserDefaults.standard.string(forKey: Self.persistentStoragePrefix + key)
+        var payload: JSObject = [:]
+        payload["value"] = value ?? NSNull()
+        call.resolve(payload)
+    }
+
+    @objc func setPersistentItem(_ call: CAPPluginCall) {
+        guard let key = call.getString("key")?.trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty else {
+            call.reject("key required")
+            return
+        }
+        guard let value = call.getString("value") else {
+            call.reject("value required")
+            return
+        }
+        UserDefaults.standard.set(value, forKey: Self.persistentStoragePrefix + key)
+        call.resolve()
+    }
+
+    @objc func removePersistentItem(_ call: CAPPluginCall) {
+        guard let key = call.getString("key")?.trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty else {
+            call.reject("key required")
+            return
+        }
+        UserDefaults.standard.removeObject(forKey: Self.persistentStoragePrefix + key)
+        call.resolve()
     }
 }
 
@@ -373,13 +411,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         return true
     }
 
-    // WKWebView's site data — HTTP disk cache, and critically any Service
-    // Worker registration and its Cache Storage — survives an in-place
-    // reinstall (Xcode "Run" over a prior build, or an App Store update). A
-    // previously-registered service worker keeps intercepting fetches and
-    // serving from its own cache indefinitely, regardless of what's in the
-    // freshly bundled web assets. Clearing once per build number avoids
-    // paying this cost on every launch.
+    // WKWebView HTTP cache and Service Worker registrations survive an
+    // in-place reinstall. Clear those on a new CFBundleVersion so a stale SW
+    // cannot keep serving the previous bundle. Do NOT use allWebsiteDataTypes:
+    // that also deletes localStorage/cookies/IndexedDB. Auth now lives in
+    // UserDefaults via HiItsMeShell, but theme/app-lock still use localStorage
+    // and must survive a TestFlight build bump.
     private func clearWebViewCacheIfBuildChanged() {
         let defaults = UserDefaults.standard
         let key = "lastLaunchedCFBundleVersion"
@@ -389,13 +426,23 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             return
         }
         WKWebsiteDataStore.default().removeData(
-            ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(),
+            ofTypes: websiteDataTypesToClearOnBuildChange(),
             modifiedSince: .distantPast,
             completionHandler: {
                 defaults.set(currentBuild, forKey: key)
                 self.markWebViewCacheReady()
             }
         )
+    }
+
+    private func websiteDataTypesToClearOnBuildChange() -> Set<String> {
+        [
+            WKWebsiteDataTypeDiskCache,
+            WKWebsiteDataTypeMemoryCache,
+            WKWebsiteDataTypeFetchCache,
+            WKWebsiteDataTypeOfflineWebApplicationCache,
+            WKWebsiteDataTypeServiceWorkerRegistrations,
+        ]
     }
 
     private func markWebViewCacheReady() {
