@@ -70,7 +70,13 @@ export default function Home() {
     async (withSound: boolean) => {
       if (hasNavigatedRef.current) return;
       hasNavigatedRef.current = true;
-      if (withSound) await playSignOnSound();
+      // Never await the sign-on sting. On Capacitor iOS, HTMLAudioElement.play()
+      // can hang on capacitor:// media, and AppDelegate's media tracker can
+      // tear the element down mid-play. Blocking navigation here leaves the
+      // reviewer on the login form after "Success! Opening H.I.M...."
+      if (withSound) {
+        void playSignOnSound();
+      }
       navigateAppPath(router, '/hi-its-me');
     },
     [playSignOnSound, router],
