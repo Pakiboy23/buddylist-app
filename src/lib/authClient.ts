@@ -5,10 +5,13 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { logSecurityEvent } from '@/lib/securityEvent';
 
+export { shouldBounceToSignedOutRoute } from '@/lib/authSessionPolicy';
+
 const NATIVE_SESSION_RETRY_COUNT = 12;
 const NATIVE_SESSION_RETRY_DELAY_MS = 250;
 
 let pendingSessionLookup: Promise<Session | null> | null = null;
+let didSubscribeToAuthInvalidation = false;
 
 function isInvalidRefreshTokenError(message: string | undefined) {
   if (!message) {
@@ -19,13 +22,37 @@ function isInvalidRefreshTokenError(message: string | undefined) {
   return normalized.includes('invalid refresh token') || normalized.includes('refresh token not found');
 }
 
+function invalidatePendingSessionLookup() {
+  pendingSessionLookup = null;
+}
+
+function subscribeToAuthInvalidation() {
+  if (didSubscribeToAuthInvalidation) {
+    return;
+  }
+  didSubscribeToAuthInvalidation = true;
+  supabase.auth.onAuthStateChange((event) => {
+    if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+      invalidatePendingSessionLookup();
+    }
+  });
+}
+
+subscribeToAuthInvalidation();
+
 export async function getSessionOrNull(): Promise<Session | null> {
   const { data, error } = await supabase.auth.getSession();
 
   if (error) {
     if (isInvalidRefreshTokenError(error.message)) {
-      await supabase.auth.signOut({ scope: 'local' });
-      logSecurityEvent({ event_type: 'auth.session.forced_signout', outcome: 'failure', metadata: { reason: 'invalid_refresh_token' } });
+      // Do not call signOut here. A coalesced native lookup can still be
+      // retrying when the reviewer signs in; a local sign-out would wipe the
+      // fresh session and bounce them back to the login UI.
+      logSecurityEvent({
+        event_type: 'auth.session.forced_signout',
+        outcome: 'failure',
+        metadata: { reason: 'invalid_refresh_token', signed_out: false },
+      });
       return null;
     }
 
@@ -42,7 +69,7 @@ function isNativePlatform() {
 
 function wait(delayMs: number) {
   return new Promise((resolve) => {
-    window.setTimeout(resolve, delayMs);
+    setTimeout(resolve, delayMs);
   });
 }
 
@@ -65,9 +92,12 @@ async function resolveSessionOrNullWithRetries() {
 
 export async function waitForSessionOrNull() {
   if (!pendingSessionLookup) {
-    pendingSessionLookup = resolveSessionOrNullWithRetries().finally(() => {
-      pendingSessionLookup = null;
+    const lookup = resolveSessionOrNullWithRetries().finally(() => {
+      if (pendingSessionLookup === lookup) {
+        pendingSessionLookup = null;
+      }
     });
+    pendingSessionLookup = lookup;
   }
 
   return pendingSessionLookup;

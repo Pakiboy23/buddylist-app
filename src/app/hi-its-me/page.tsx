@@ -20,6 +20,7 @@ import {
   type AwayMoodId,
 } from '@/lib/himArtDirection';
 import { getAccessTokenOrNull, waitForSessionOrNull } from '@/lib/authClient';
+import { shouldBounceToSignedOutRoute } from '@/lib/authSessionPolicy';
 import { humanizeDbError } from '@/lib/friendlyError';
 import { getAppApiUrl, getEdgeFunctionUrl } from '@/lib/appApi';
 import { navigateAppPath, replaceAppPathInPlace, useAppRouter } from '@/lib/appNavigation';
@@ -3314,8 +3315,8 @@ const [showAddWindow, setShowAddWindow] = useState(false);
 
     void bootstrapUser();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      if (!nextSession) {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (shouldBounceToSignedOutRoute(event, nextSession)) {
         navigateAppPath(router, '/', { replace: true });
       }
     });
