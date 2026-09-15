@@ -100,6 +100,233 @@ const packages = [
           '        // Handle cold launch, as `willEnterForegroundNotification` is not fired on initial app launch\n' +
           '        self.implementation?.handleOnResume()\n',
       },
+      {
+        file: 'ios/Plugin/BadgePlugin.swift',
+        // Upstream wraps non-throwing completion handlers in do/catch. Swift 6
+        // warns; #145 dropped the dead wrappers. Re-apply after each vendor copy.
+        find:
+          '        do {\n' +
+          '            implementation?.requestPermissions(completion: { granted, error in\n' +
+          '                if let error = error {\n' +
+          '                    self.rejectCall(call, error)\n' +
+          '                    return\n' +
+          '                }\n' +
+          '                call.resolve(["display": granted ? "granted" : "denied"])\n' +
+          '            })\n' +
+          '        } catch {\n' +
+          '            rejectCall(call, error)\n' +
+          '        }\n',
+        replace:
+          '        implementation?.requestPermissions(completion: { granted, error in\n' +
+          '            if let error = error {\n' +
+          '                self.rejectCall(call, error)\n' +
+          '                return\n' +
+          '            }\n' +
+          '            call.resolve(["display": granted ? "granted" : "denied"])\n' +
+          '        })\n',
+      },
+      {
+        file: 'ios/Plugin/BadgePlugin.swift',
+        find:
+          '        do {\n' +
+          '            implementation?.checkPermissions(completion: { permission in\n' +
+          '                call.resolve([\n' +
+          '                    "display": permission\n' +
+          '                ])\n' +
+          '            })\n' +
+          '        } catch {\n' +
+          '            rejectCall(call, error)\n' +
+          '        }\n',
+        replace:
+          '        implementation?.checkPermissions(completion: { permission in\n' +
+          '            call.resolve([\n' +
+          '                "display": permission\n' +
+          '            ])\n' +
+          '        })\n',
+      },
+      {
+        file: 'ios/Plugin/BadgePlugin.swift',
+        find:
+          '        do {\n' +
+          '            let count = implementation?.get()\n' +
+          '            call.resolve([\n' +
+          '                "count": count ?? 0\n' +
+          '            ])\n' +
+          '        } catch {\n' +
+          '            rejectCall(call, error)\n' +
+          '        }\n',
+        replace:
+          '        let count = implementation?.get()\n' +
+          '        call.resolve([\n' +
+          '            "count": count ?? 0\n' +
+          '        ])\n',
+      },
+      {
+        file: 'ios/Plugin/BadgePlugin.swift',
+        find:
+          '        do {\n' +
+          '            implementation?.requestPermissions(completion: { [weak self] _, error in\n' +
+          '                guard let strongSelf = self else {\n' +
+          '                    return\n' +
+          '                }\n' +
+          '                if let error = error {\n' +
+          '                    strongSelf.rejectCall(call, error)\n' +
+          '                    return\n' +
+          '                }\n' +
+          '                let count = call.getInt("count") ?? 0\n' +
+          '                strongSelf.implementation?.set(count: count, completion: { error in\n' +
+          '                    if let error = error {\n' +
+          '                        strongSelf.rejectCall(call, error)\n' +
+          '                        return\n' +
+          '                    }\n' +
+          '                    call.resolve()\n' +
+          '                })\n' +
+          '            })\n' +
+          '        } catch {\n' +
+          '            rejectCall(call, error)\n' +
+          '        }\n',
+        replace:
+          '        implementation?.requestPermissions(completion: { [weak self] _, error in\n' +
+          '            guard let strongSelf = self else {\n' +
+          '                return\n' +
+          '            }\n' +
+          '            if let error = error {\n' +
+          '                strongSelf.rejectCall(call, error)\n' +
+          '                return\n' +
+          '            }\n' +
+          '            let count = call.getInt("count") ?? 0\n' +
+          '            strongSelf.implementation?.set(count: count, completion: { error in\n' +
+          '                if let error = error {\n' +
+          '                    strongSelf.rejectCall(call, error)\n' +
+          '                    return\n' +
+          '                }\n' +
+          '                call.resolve()\n' +
+          '            })\n' +
+          '        })\n',
+      },
+      {
+        file: 'ios/Plugin/BadgePlugin.swift',
+        find:
+          '        do {\n' +
+          '            implementation?.requestPermissions(completion: { [weak self] _, error in\n' +
+          '                guard let strongSelf = self else {\n' +
+          '                    return\n' +
+          '                }\n' +
+          '                if let error = error {\n' +
+          '                    strongSelf.rejectCall(call, error)\n' +
+          '                    return\n' +
+          '                }\n' +
+          '                strongSelf.implementation?.increase(completion: { error in\n' +
+          '                    if let error = error {\n' +
+          '                        strongSelf.rejectCall(call, error)\n' +
+          '                        return\n' +
+          '                    }\n' +
+          '                    call.resolve()\n' +
+          '                })\n' +
+          '            })\n' +
+          '        } catch {\n' +
+          '            rejectCall(call, error)\n' +
+          '        }\n',
+        replace:
+          '        implementation?.requestPermissions(completion: { [weak self] _, error in\n' +
+          '            guard let strongSelf = self else {\n' +
+          '                return\n' +
+          '            }\n' +
+          '            if let error = error {\n' +
+          '                strongSelf.rejectCall(call, error)\n' +
+          '                return\n' +
+          '            }\n' +
+          '            strongSelf.implementation?.increase(completion: { error in\n' +
+          '                if let error = error {\n' +
+          '                    strongSelf.rejectCall(call, error)\n' +
+          '                    return\n' +
+          '                }\n' +
+          '                call.resolve()\n' +
+          '            })\n' +
+          '        })\n',
+      },
+      {
+        file: 'ios/Plugin/BadgePlugin.swift',
+        find:
+          '        do {\n' +
+          '            implementation?.requestPermissions(completion: { [weak self] _, error in\n' +
+          '                guard let strongSelf = self else {\n' +
+          '                    return\n' +
+          '                }\n' +
+          '                if let error = error {\n' +
+          '                    strongSelf.rejectCall(call, error)\n' +
+          '                    return\n' +
+          '                }\n' +
+          '                strongSelf.implementation?.decrease(completion: { error in\n' +
+          '                    if let error = error {\n' +
+          '                        strongSelf.rejectCall(call, error)\n' +
+          '                        return\n' +
+          '                    }\n' +
+          '                    call.resolve()\n' +
+          '                })\n' +
+          '            })\n' +
+          '        } catch {\n' +
+          '            rejectCall(call, error)\n' +
+          '        }\n',
+        replace:
+          '        implementation?.requestPermissions(completion: { [weak self] _, error in\n' +
+          '            guard let strongSelf = self else {\n' +
+          '                return\n' +
+          '            }\n' +
+          '            if let error = error {\n' +
+          '                strongSelf.rejectCall(call, error)\n' +
+          '                return\n' +
+          '            }\n' +
+          '            strongSelf.implementation?.decrease(completion: { error in\n' +
+          '                if let error = error {\n' +
+          '                    strongSelf.rejectCall(call, error)\n' +
+          '                    return\n' +
+          '                }\n' +
+          '                call.resolve()\n' +
+          '            })\n' +
+          '        })\n',
+      },
+      {
+        file: 'ios/Plugin/BadgePlugin.swift',
+        find:
+          '        do {\n' +
+          '            implementation?.requestPermissions(completion: { [weak self] _, error in\n' +
+          '                guard let strongSelf = self else {\n' +
+          '                    return\n' +
+          '                }\n' +
+          '                if let error = error {\n' +
+          '                    strongSelf.rejectCall(call, error)\n' +
+          '                    return\n' +
+          '                }\n' +
+          '                strongSelf.implementation?.clear(completion: { error in\n' +
+          '                    if let error = error {\n' +
+          '                        strongSelf.rejectCall(call, error)\n' +
+          '                        return\n' +
+          '                    }\n' +
+          '                    call.resolve()\n' +
+          '                })\n' +
+          '            })\n' +
+          '        } catch {\n' +
+          '            rejectCall(call, error)\n' +
+          '        }\n',
+        replace:
+          '        implementation?.requestPermissions(completion: { [weak self] _, error in\n' +
+          '            guard let strongSelf = self else {\n' +
+          '                return\n' +
+          '            }\n' +
+          '            if let error = error {\n' +
+          '                strongSelf.rejectCall(call, error)\n' +
+          '                return\n' +
+          '            }\n' +
+          '            strongSelf.implementation?.clear(completion: { error in\n' +
+          '                if let error = error {\n' +
+          '                    strongSelf.rejectCall(call, error)\n' +
+          '                    return\n' +
+          '                }\n' +
+          '                call.resolve()\n' +
+          '            })\n' +
+          '        })\n',
+      },
     ],
   },
 ];
