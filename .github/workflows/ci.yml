@@ -76,6 +76,31 @@ jobs:
             exit 1
           fi
 
+      - name: Bundle integrity guard (hashed assets are immutable)
+        if: github.event_name == 'pull_request'
+        run: |
+          # Every file under dist/assets/ and ios/App/App/public/assets/ carries a
+          # Vite content hash in its name, so a given path must always hold the
+          # same bytes. A real build only ever ADDS and DELETES those files; a
+          # MODIFIED one means build output was patched by hand instead of
+          # rebuilt. That keeps the old URL on new content, and every cache keyed
+          # on the URL (browser, CDN, WKWebView) has no way to notice.
+          #
+          # This happened on #167: index-B1A6eQzL.css was edited in place to add
+          # the contrast + reduced-motion rules after a rebuild had baked the
+          # placeholder Supabase env into the JS. The hand-patch also missed two
+          # rules the real build emits. The answer to "the rebuild bricked the
+          # backend" is to rebuild WITH VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY
+          # set, never to edit the artifact.
+          base="${{ github.event.pull_request.base.sha }}"
+          modified=$(git diff --name-only --diff-filter=M "$base" HEAD -- dist/assets ios/App/App/public/assets)
+          if [ -n "$modified" ]; then
+            echo "::error::Content-hashed bundle files were edited in place (same name, different bytes). Regenerate with 'npm run build && npm run ios:sync' (with VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY set) and commit dist/ + ios/App/App/public."
+            echo "$modified" | sed 's/^/    /'
+            exit 1
+          fi
+          echo "No content-hashed bundle file was modified in place."
+
       - name: One lockfile only
         run: |
           # This repo installs with pnpm everywhere: both workflows, and Vercel
