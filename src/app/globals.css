@@ -356,9 +356,11 @@ html.dark body {
   }
 }
 
-.ui-unread-badge-pulse,
-.aim-unread-badge-pulse {
-  animation: ui-unread-pulse 1.45s ease-in-out infinite;
+@media (prefers-reduced-motion: no-preference) {
+  .ui-unread-badge-pulse,
+  .aim-unread-badge-pulse {
+    animation: ui-unread-pulse 1.45s ease-in-out infinite;
+  }
 }
 
 .ui-list-kind-chip,
@@ -645,7 +647,7 @@ html.dark body {
 .ui-button-primary {
   border: 1px solid rgba(232, 162, 58, 0.45);
   background: linear-gradient(180deg, var(--rose) 0%, var(--rose-dark) 100%);
-  color: #fff;
+  color: var(--on-accent, #0f1424);
   box-shadow: 0 12px 24px rgba(232, 162, 58, 0.28);
 }
 
@@ -1491,7 +1493,7 @@ p.ui-group-header-toggle:hover {
 .ui-filter-chip[data-active='true'] {
   border-color: rgba(232, 162, 58, 0.4);
   background: linear-gradient(180deg, var(--rose) 0%, var(--rose-dark) 100%);
-  color: #fff;
+  color: var(--on-accent, #0f1424);
   box-shadow: 0 10px 24px rgba(232, 162, 58, 0.22);
 }
 
@@ -1504,7 +1506,7 @@ p.ui-group-header-toggle:hover {
 .dark .ui-filter-chip[data-active='true'] {
   border-color: rgba(232, 162, 58, 0.4);
   background: linear-gradient(180deg, var(--rose) 0%, var(--rose-dark) 100%);
-  color: #fff;
+  color: var(--on-accent, #0f1424);
 }
 
 .ui-conversation-header {
@@ -1895,6 +1897,7 @@ button:not(:disabled):active,
   --chiraag: #E8A23A;             /* amber, primary brand */
   --chiraag-strong: #C8861F;
   --chiraag-glow: #F5C56A;
+  --on-accent: #0F1424;           /* ink on amber fills — WCAG AA */
   --anaar: #9C2E2E;               /* pomegranate, accent only */
   --akhrot: #734123;              /* walnut, borders/dividers */
   --indigo-night: #1A1F3A;
@@ -2356,14 +2359,14 @@ body.privacy-shield-active::after {
 .dark .ui-filter-chip[data-active='true'] {
   border-color: rgba(232, 162, 58, 0.4);
   background: linear-gradient(180deg, var(--rose) 0%, var(--rose-dark) 100%);
-  color: #fff;
+  color: var(--on-accent, #0f1424);
   box-shadow: 0 12px 24px rgba(232, 162, 58, 0.24);
 }
 
 .ui-button-primary {
   border-color: rgba(232, 162, 58, 0.45);
   background: linear-gradient(180deg, var(--rose) 0%, var(--rose-dark) 100%);
-  color: #fff;
+  color: var(--on-accent, #0f1424);
   box-shadow: 0 14px 28px rgba(232, 162, 58, 0.28);
 }
 
@@ -2458,7 +2461,7 @@ body.privacy-shield-active::after {
 .ui-unread-badge-pulse,
 .aim-unread-badge-pulse {
   background: var(--rose) !important;
-  color: #fff !important;
+  color: var(--on-accent, #0f1424) !important;
   box-shadow: 0 0 16px rgba(232, 162, 58, 0.34);
 }
 
@@ -2714,7 +2717,7 @@ html:not(.dark) .ui-my-status-chip[data-tone='ghost'] {
 }
 
 .ui-room-filter-chip[data-active='true'] {
-  color: #fff;
+  color: var(--on-accent, #0f1424);
   border-color: rgba(232, 162, 58, 0.42);
   background: linear-gradient(180deg, var(--rose) 0%, var(--rose-dark) 100%);
   box-shadow: 0 12px 20px rgba(232, 162, 58, 0.24);
@@ -3048,7 +3051,9 @@ html:not(.dark) .ui-room-tag[data-tone='ghost'] {
 @media (prefers-reduced-motion: reduce) {
   .ui-online-pip,
   .ui-room-live-dot,
-  .ui-buddy-arrival-wave span {
+  .ui-buddy-arrival-wave span,
+  .ui-unread-badge-pulse,
+  .aim-unread-badge-pulse {
     animation: none;
   }
 }
@@ -3191,7 +3196,7 @@ html:not(.dark) .ui-room-tag[data-tone='ghost'] {
 }
 
 .aim-mood-chip[data-active='true'] {
-  color: #fff;
+  color: var(--on-accent, #0f1424);
   border-color: rgba(232, 162, 58, 0.45);
   background: linear-gradient(180deg, var(--rose), var(--rose-dark));
 }
@@ -3239,7 +3244,7 @@ html:not(.dark) .ui-room-tag[data-tone='ghost'] {
 
 .ui-auth-mode[data-active='true'] {
   background: linear-gradient(180deg, var(--rose) 0%, var(--rose-dark) 100%);
-  color: #fff;
+  color: var(--on-accent, #0f1424);
   box-shadow: 0 12px 22px rgba(232, 162, 58, 0.24);
 }
 
@@ -3271,7 +3276,7 @@ html:not(.dark) .ui-room-tag[data-tone='ghost'] {
 .ui-auth-submit {
   border: 1px solid rgba(232, 162, 58, 0.45);
   background: linear-gradient(180deg, var(--rose) 0%, var(--rose-dark) 100%);
-  color: #fff;
+  color: var(--on-accent, #0f1424);
   box-shadow: 0 14px 28px rgba(232, 162, 58, 0.28);
 }
 
