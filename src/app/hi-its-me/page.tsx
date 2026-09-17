@@ -1,4 +1,4 @@
-import { FormEvent, Suspense, lazy, memo, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
+import { FormEvent, Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import AppIcon from '@/components/AppIcon';
 import AppLockSheet from '@/components/AppLockSheet';
@@ -145,20 +145,7 @@ import {
   type DmStateEventType,
   type UserDmStateRowLite,
 } from '@/lib/unread-dm';
-import {
-  confirmNativeShellAvailable,
-  isNativeIosShell,
-  publishNativeShellChromeState,
-  registerNativeShellBridge,
-  subscribeNativeShellCommands,
-  type NativeShellAdminAuditItem,
-  type NativeShellAdminAuditResult,
-  type NativeShellAdminIssueResult,
-  type NativeShellCommand,
-  type NativeShellPrivacyResult,
-  type NativeShellPrivacySettings,
-  type NativeShellPrivacyState,
-} from '@/lib/nativeShell';
+import { isNativeIosShell } from '@/lib/nativeShell';
 import RetroWindow from '@/components/RetroWindow';
 import BrowsePanel from '@/components/BrowsePanel';
 import SearchPanel from '@/components/SearchPanel';
@@ -231,19 +218,6 @@ interface ChatRoom {
   id: string;
   slug: string;
   name: string;
-}
-
-interface RoomLobbyPresenceMeta {
-  userId?: string;
-  screenname?: string;
-  roomId?: string;
-  roomName?: string;
-  onlineAt?: string;
-}
-
-interface RoomLobbyParticipant {
-  id: string;
-  screenname: string;
 }
 
 interface AdminMeResponse {
@@ -1107,10 +1081,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   const [roomJoinError, setRoomJoinError] = useState<string | null>(null);
   const [isJoiningRoom, setIsJoiningRoom] = useState(false);
   const [activeRoom, setActiveRoom] = useState<ChatRoom | null>(null);
-  const [nativeRoomDirectory, setNativeRoomDirectory] = useState<ChatRoom[]>([]);
-  const [, setIsLoadingNativeRoomDirectory] = useState(false);
-  const [, setNativeRoomDirectoryError] = useState<string | null>(null);
-  const [, setNativeRoomPresenceById] = useState<Record<string, RoomLobbyParticipant[]>>({});
   const [isAdminUser, setIsAdminUser] = useState(false);
   const [isAdminResetOpen, setIsAdminResetOpen] = useState(false);
   const [adminResetScreenname, setAdminResetScreenname] = useState('');
@@ -1192,30 +1162,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   const { isDark, toggleDark } = useTheme();
   const router = useAppRouter();
   const [searchParams] = useSearchParams();
-  // React owns the visible H.I.M. chrome by default. Native-shell behavior is
-  // opt-in only after the latest live bridge round-trip confirms that the host can
-  // render chrome, so an iOS launch can never start by hiding the React header or
-  // tab bar while the thin Capacitor container reports presentation unavailable.
-  const [nativeShellActive, setNativeShellActive] = useState(false);
-  const nativeShellAvailabilitySequenceRef = useRef(0);
-  useEffect(() => {
-    if (!isNativeIosShell()) {
-      setNativeShellActive(false);
-      return;
-    }
-
-    const availabilitySequence = ++nativeShellAvailabilitySequenceRef.current;
-    let cancelled = false;
-    void confirmNativeShellAvailable().then((available) => {
-      if (!cancelled && nativeShellAvailabilitySequenceRef.current === availabilitySequence) {
-        setNativeShellActive(available);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
   const {
     joinedRooms,
     unreadMessages,
@@ -1228,101 +1174,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     lastSyncedAt,
     lastSyncError,
   } = useChatContext();
-
-  const loadNativeRoomDirectory = useCallback(async () => {
-    setIsLoadingNativeRoomDirectory(true);
-    setNativeRoomDirectoryError(null);
-    const { data, error } = await supabase
-      .from('rooms')
-      .select('id,slug,name')
-      .eq('is_active', true)
-      .order('display_order', { ascending: true });
-
-    setIsLoadingNativeRoomDirectory(false);
-    if (error) {
-      setNativeRoomDirectoryError(error.message);
-      return false;
-    }
-
-    setNativeRoomDirectory((data ?? []) as ChatRoom[]);
-    return true;
-  }, []);
-
-  useEffect(() => {
-    if (!userId) {
-      setNativeRoomDirectory([]);
-      setNativeRoomDirectoryError(null);
-      return;
-    }
-    void loadNativeRoomDirectory();
-  }, [loadNativeRoomDirectory, userId]);
-
-  useEffect(() => {
-    if (!userId) {
-      setNativeRoomPresenceById({});
-      return;
-    }
-
-    const channel = supabase.channel('global_room_presence', {
-      config: {
-        presence: {
-          key: userId,
-        },
-      },
-    });
-
-    const updatePresenceDirectory = () => {
-      const presenceState = channel.presenceState() as Record<string, RoomLobbyPresenceMeta[]>;
-      const participantsByRoom = new Map<string, Map<string, RoomLobbyParticipant>>();
-
-      for (const metas of Object.values(presenceState)) {
-        for (const meta of metas) {
-          const participantId = typeof meta.userId === 'string' ? meta.userId : '';
-          const participantScreenname = typeof meta.screenname === 'string' ? meta.screenname.trim() : '';
-          const roomId = typeof meta.roomId === 'string' ? meta.roomId : '';
-          if (!participantId || !participantScreenname || !roomId) {
-            continue;
-          }
-
-          const roomParticipants = participantsByRoom.get(roomId) ?? new Map<string, RoomLobbyParticipant>();
-          roomParticipants.set(participantId, {
-            id: participantId,
-            screenname: participantScreenname,
-          });
-          participantsByRoom.set(roomId, roomParticipants);
-        }
-      }
-
-      setNativeRoomPresenceById(
-        Object.fromEntries(
-          Array.from(participantsByRoom.entries()).map(([roomId, participantsById]) => [
-            roomId,
-            Array.from(participantsById.values()).sort((left, right) =>
-              left.screenname.localeCompare(right.screenname, undefined, { sensitivity: 'base' }),
-            ),
-          ]),
-        ),
-      );
-    };
-
-    channel.on('presence', { event: 'sync' }, updatePresenceDirectory);
-    channel.subscribe((status) => {
-      if (status === 'SUBSCRIBED' && activeRoom) {
-        void channel.track({
-          userId,
-          screenname,
-          roomId: activeRoom.id,
-          roomName: activeRoom.name,
-          onlineAt: new Date().toISOString(),
-        });
-      }
-    });
-
-    return () => {
-      void channel.untrack();
-      channel.unsubscribe();
-    };
-  }, [activeRoom, screenname, userId]);
 
   useEffect(() => {
     activeChatBuddyIdRef.current = activeChatBuddyId;
@@ -5073,75 +4924,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     setShowPrivacySheet(true);
   }, []);
 
-  const buildNativePrivacyState = useCallback(
-    (settings: UserPrivacySettings = privacySettings): NativeShellPrivacyState => ({
-      settings: {
-        shareReadReceipts: settings.shareReadReceipts,
-        notificationPreviewMode: settings.notificationPreviewMode,
-        screenShieldEnabled: settings.screenShieldEnabled,
-      },
-      appLockEnabled: appLockSettings.enabled,
-      appLockTimeoutLabel: formatAppLockTimeoutLabel(appLockSettings.autoLockSeconds),
-      biometricsEnabled:
-        appLockSettings.enabled && appLockSettings.biometricsEnabled && biometricAvailability.isAvailable,
-      biometricLabel: biometricAvailability.isAvailable ? biometricAvailability.label : null,
-      blockedBuddyCount: blockedUserIds.length,
-    }),
-    [
-      appLockSettings.autoLockSeconds,
-      appLockSettings.biometricsEnabled,
-      appLockSettings.enabled,
-      biometricAvailability.isAvailable,
-      biometricAvailability.label,
-      blockedUserIds.length,
-      privacySettings,
-    ],
-  );
-
-  const loadNativePrivacyState = useCallback(async (): Promise<NativeShellPrivacyResult> => {
-    return {
-      ok: true,
-      state: buildNativePrivacyState(),
-    };
-  }, [buildNativePrivacyState]);
-
-  const updateNativePrivacySettings = useCallback(
-    async (patch: Partial<NativeShellPrivacySettings>): Promise<NativeShellPrivacyResult> => {
-      const nextPatch: Partial<UserPrivacySettings> = {};
-
-      if (typeof patch.shareReadReceipts === 'boolean') {
-        nextPatch.shareReadReceipts = patch.shareReadReceipts;
-      }
-
-      if (
-        patch.notificationPreviewMode === 'full' ||
-        patch.notificationPreviewMode === 'name_only' ||
-        patch.notificationPreviewMode === 'hidden'
-      ) {
-        nextPatch.notificationPreviewMode = patch.notificationPreviewMode;
-      }
-
-      if (typeof patch.screenShieldEnabled === 'boolean') {
-        nextPatch.screenShieldEnabled = patch.screenShieldEnabled;
-      }
-
-      if (Object.keys(nextPatch).length === 0) {
-        return {
-          ok: false,
-          error: 'No privacy changes were provided.',
-        };
-      }
-
-      const result = await updatePrivacyPreferences(nextPatch);
-      return {
-        ok: true,
-        state: buildNativePrivacyState(result.settings),
-        warning: result.ok ? null : result.error,
-      };
-    },
-    [buildNativePrivacyState, updatePrivacyPreferences],
-  );
-
   const issueAdminResetTicketData = useCallback(async (target: string) => {
     const accessToken = await getAccessToken();
     if (!accessToken) {
@@ -5219,73 +5001,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     setIsIssuingAdminReset(false);
     void fetchAdminAuditEntries();
   };
-
-  const loadNativeAdminResetAudit = useCallback(async (limit = 12): Promise<NativeShellAdminAuditResult> => {
-    const result = await loadAdminResetAuditData(limit);
-    if (!result.ok) {
-      return result;
-    }
-
-    const entries: NativeShellAdminAuditItem[] = result.entries.map((entry) => {
-      const actorLabel = formatAuditUserLabel(entry.actorScreenname, entry.actorUserId);
-      const targetLabel = formatAuditUserLabel(entry.targetScreenname, entry.targetUserId);
-      const reason =
-        typeof entry.metadata.reason === 'string' && entry.metadata.reason.trim()
-          ? entry.metadata.reason.trim()
-          : null;
-
-      return {
-        id: entry.id,
-        title: formatAdminAuditEvent(entry.eventType),
-        timestamp: new Date(entry.createdAt).toLocaleString(),
-        actorLabel,
-        targetLabel,
-        reason,
-      };
-    });
-
-    return {
-      ok: true,
-      entries,
-    };
-  }, [loadAdminResetAuditData]);
-
-  const issueNativeAdminResetTicket = useCallback(async (screennameToReset: string): Promise<NativeShellAdminIssueResult> => {
-    const target = screennameToReset.trim();
-    if (!target) {
-      return {
-        ok: false,
-        error: 'Enter a screen name.',
-      };
-    }
-
-    const result = await issueAdminResetTicketData(target);
-    if (!result.ok) {
-      return result;
-    }
-
-    return {
-      ok: true,
-      screenname: target,
-      ticket: result.ticket,
-      expiresAt: result.expiresAt,
-      handoff: buildAdminResetHandoff(target, result.ticket, result.expiresAt),
-      feedback: `Secure handoff ready for ${target}.`,
-    };
-  }, [issueAdminResetTicketData]);
-
-  useEffect(() => {
-    registerNativeShellBridge({
-      loadPrivacyState: loadNativePrivacyState,
-      updatePrivacySettings: updateNativePrivacySettings,
-      loadAdminResetAudit: loadNativeAdminResetAudit,
-      issueAdminResetTicket: issueNativeAdminResetTicket,
-    });
-
-    return () => {
-      registerNativeShellBridge(null);
-    };
-  }, [issueNativeAdminResetTicket, loadAdminResetAuditData, loadNativeAdminResetAudit, loadNativePrivacyState, updateNativePrivacySettings]);
 
   const handleCopyAdminResetValue = async (mode: 'ticket' | 'handoff') => {
     if (!issuedAdminTicket) {
@@ -6528,7 +6243,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   if (pendingRequests.length > 0) {
     headerSummaryParts.push(`${pendingRequests.length} request${pendingRequests.length === 1 ? '' : 's'}`);
   }
-  const headerRoomCount = nativeShellActive ? nativeRoomDirectory.length : joinedRooms.length;
+  const headerRoomCount = joinedRooms.length;
   if (headerRoomCount > 0) {
     headerSummaryParts.push(`${headerRoomCount} room${headerRoomCount === 1 ? '' : 's'}`);
   }
@@ -6588,71 +6303,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         : bodyShellSection === 'buddy'
           ? 'Away messages from people who want to be found'
           : 'Identity, status, and privacy';
-  const nativeShellMode =
-    activeChatBuddy || activeRoom
-      ? 'conversation'
-      : showSavedMessagesWindow ||
-          showPrivacySheet ||
-          showSystemStatusSheet ||
-          isAdminResetOpen ||
-          showAwayModal ||
-          showAddWindow ||
-          showRoomsWindow
-        ? 'sheet'
-        : 'standard';
-  const nativeShellTitle =
-    activeChatBuddy?.screenname ||
-    activeRoom?.name ||
-    (showSavedMessagesWindow
-      ? 'Saved Messages'
-      : showPrivacySheet
-        ? 'Privacy'
-        : showSystemStatusSheet
-          ? 'System Status'
-          : isAdminResetOpen
-            ? 'Reset Account Access'
-            : mainShellTitle);
-  const nativeShellSubtitle =
-    activeChatBuddy
-      ? activeChatBuddyPresenceSummary?.presenceLabel || 'Direct message'
-      : activeRoom
-        ? 'Room chat'
-        : showSavedMessagesWindow
-          ? 'Private notes'
-          : showPrivacySheet
-            ? 'Control what H.I.M. reveals'
-            : showSystemStatusSheet
-              ? chatSyncSummary
-              : isAdminResetOpen
-                ? 'Recovery concierge'
-                : mainShellSubtitle;
-  const nativeShellCanGoBack = Boolean(
-    activeChatBuddy ||
-      activeRoom ||
-      showSavedMessagesWindow ||
-      showPrivacySheet ||
-      showSystemStatusSheet ||
-      isAdminResetOpen ||
-      showAwayModal ||
-      isHeaderMenuOpen ||
-      bodyShellSection !== 'im',
-  );
-  const nativeShellShowsBottomChrome = !isConversationOverlayOpen;
-  const shellIsDark = isDark || (typeof document !== 'undefined' && document.documentElement.classList.contains('dark'));
-  const nativeShellTrailingActions = useMemo(
-    () =>
-      nativeShellMode === 'conversation'
-        ? ([] as const)
-        : nativeShellMode === 'sheet'
-          ? (['openMenu'] as const)
-          : bodyShellSection === 'im'
-            ? (['openSaved', 'toggleTheme', 'openMenu'] as const)
-            : bodyShellSection === 'profile'
-            ? (['toggleTheme', 'openMenu'] as const)
-            : (['toggleTheme', 'openMenu'] as const),
-    [bodyShellSection, nativeShellMode],
-  );
-  const nativeShellAccentTone = 'amber' as const;
   const headerActionButtonClass =
     'ui-focus-ring ui-window-header-button min-h-[40px] px-3 text-[11px] font-semibold';
 
@@ -6737,150 +6387,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     focusMainShellSection('profile');
   }, [focusMainShellSection]);
 
-  const handleNativeShellCommand = useEffectEvent((command: NativeShellCommand) => {
-    if (command.type === 'selectTab') {
-      switch (command.tab) {
-        case 'im':
-          handleOpenImFromActionBar();
-          return;
-        case 'chat':
-          openRoomsWindow();
-          return;
-        case 'buddy':
-          openAddWindow();
-          return;
-        case 'profile':
-          handleSetupAction();
-          return;
-        default:
-          return;
-      }
-    }
-
-    switch (command.action) {
-      case 'toggleTheme':
-        toggleDark();
-        return;
-      case 'openSaved':
-        setSavedMessageError(null);
-        setShowSavedMessagesWindow(true);
-        return;
-      case 'openAdd':
-        openAddWindow();
-        return;
-      case 'openMenu':
-        setIsHeaderMenuOpen((previous) => !previous);
-        return;
-      case 'openAccount':
-        navigateAppPath(router, '/account');
-        return;
-      case 'openPrivacy':
-        openPrivacyControls();
-        return;
-      case 'openAdminReset':
-        openAdminResetWindow();
-        return;
-      case 'signOff':
-        void handleSignOff();
-        return;
-      case 'goBack':
-        if (isHeaderMenuOpen) {
-          setIsHeaderMenuOpen(false);
-          return;
-        }
-        if (showSavedMessagesWindow) {
-          setShowSavedMessagesWindow(false);
-          return;
-        }
-        if (showSystemStatusSheet) {
-          setShowSystemStatusSheet(false);
-          return;
-        }
-        if (showPrivacySheet) {
-          setShowPrivacySheet(false);
-          return;
-        }
-        if (showAddWindow) {
-          setShowAddWindow(false);
-          return;
-        }
-        if (showRoomsWindow) {
-          setShowRoomsWindow(false);
-          return;
-        }
-        if (showAwayModal) {
-          setShowAwayModal(false);
-          return;
-        }
-        if (isAdminResetOpen) {
-          setIsAdminResetOpen(false);
-          return;
-        }
-        if (activeChatBuddy) {
-          closeChatWindow();
-          return;
-        }
-        if (activeRoom) {
-          handleBackFromRoom();
-          return;
-        }
-        if (bodyShellSection !== 'im') {
-          focusMainShellSection('im');
-        }
-        return;
-      default:
-        return;
-    }
-  });
-
-  useEffect(() => {
-    if (!nativeShellActive) {
-      return;
-    }
-
-    return subscribeNativeShellCommands(handleNativeShellCommand);
-  }, [nativeShellActive]);
-
-
-
-  useEffect(() => {
-    if (!nativeShellActive) {
-      return;
-    }
-
-    void publishNativeShellChromeState({
-      title: nativeShellTitle,
-      subtitle: nativeShellSubtitle,
-      mode: nativeShellMode,
-      activeTab,
-      tabBarVisibility: nativeShellShowsBottomChrome ? 'visible' : 'hidden',
-      leadingAction: nativeShellCanGoBack ? 'goBack' : null,
-      trailingActions: [...nativeShellTrailingActions],
-      accentTone: nativeShellAccentTone,
-      canGoBack: nativeShellCanGoBack,
-      isDark: shellIsDark,
-      isAdminUser,
-      unreadDirectCount: totalUnreadDirectCount,
-      showsTopChrome: true,
-      showsBottomChrome: nativeShellShowsBottomChrome,
-    });
-  }, [
-    activeTab,
-    hiItsMeHeaderSummary,
-    chatSyncSummary,
-    isAdminUser,
-    nativeShellActive,
-    nativeShellCanGoBack,
-    nativeShellAccentTone,
-    nativeShellMode,
-    nativeShellShowsBottomChrome,
-    shellIsDark,
-    nativeShellSubtitle,
-    nativeShellTrailingActions,
-    nativeShellTitle,
-    totalUnreadDirectCount,
-  ]);
-
   const selectedAwayPreset = awayPresets.find((preset) => preset.id === selectedAwayPresetId) ?? null;
   const awayPreview = resolveAwayTemplate(
     awayText || selectedAwayPreset?.message || "I'm away right now.",
@@ -6943,7 +6449,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       <RetroWindow
         title="H.I.M."
         variant="xp_shell"
-        hideHeader={nativeShellActive}
         xpTitleText={mainShellTitle}
         xpSubtitleText={mainShellSubtitle}
         headerActions={(
@@ -6982,14 +6487,12 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         onXpSignOff={() => setIsHeaderMenuOpen((previous) => !previous)}
       >
         <div
-          className={`relative flex h-full min-h-0 flex-col overflow-hidden text-[12px] text-slate-700 dark:text-slate-300 ${nativeShellActive ? 'bg-transparent' : 'ui-window-panel rounded-[1.6rem]'}`}
+          className="relative flex h-full min-h-0 flex-col overflow-hidden text-[12px] text-slate-700 dark:text-slate-300 ui-window-panel rounded-[1.6rem]"
         >
           {isHeaderMenuOpen ? (
             <div className="fixed inset-0 z-30" onClick={() => setIsHeaderMenuOpen(false)}>
               <div
-                className={`ui-popover-menu absolute right-2 w-56 rounded-2xl p-1.5 ${
-                  nativeShellActive ? 'top-[var(--hiitsme-shell-top-inset,env(safe-area-inset-top))]' : 'top-[calc(env(safe-area-inset-top)+3.2rem)]'
-                }`}
+                className="ui-popover-menu absolute right-2 top-[calc(env(safe-area-inset-top)+3.2rem)] w-56 rounded-2xl p-1.5"
                 onClick={(event) => event.stopPropagation()}
               >
                 <button
@@ -7887,7 +7390,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
           </div>
 
             {/* iOS-style tab bar */}
-            {nativeShellActive || isConversationOverlayOpen ? null : (
+            {isConversationOverlayOpen ? null : (
               <div
                 className="ui-tabbar shrink-0"
                 style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
@@ -9219,9 +8722,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       {buddyActivityToasts.length > 0 ? (
         <div
           aria-live="polite"
-          className={`pointer-events-none fixed right-3 z-40 flex w-[min(22rem,calc(100vw-1.5rem))] flex-col gap-2 ${
-            nativeShellActive ? 'top-[var(--hiitsme-shell-top-inset,env(safe-area-inset-top))]' : 'top-[calc(env(safe-area-inset-top)+4.25rem)]'
-          }`}
+          className="pointer-events-none fixed right-3 top-[calc(env(safe-area-inset-top)+4.25rem)] z-40 flex w-[min(22rem,calc(100vw-1.5rem))] flex-col gap-2"
         >
           {buddyActivityToasts.map((item) => (
             <div
