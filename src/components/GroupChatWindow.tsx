@@ -1,5 +1,3 @@
-'use client';
-
 import { FormEvent, KeyboardEvent, type CSSProperties, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import AppIcon from '@/components/AppIcon';
 import MutualContextCard from '@/components/MutualContextCard';
@@ -19,9 +17,6 @@ import {
   formatConversationMetaTime,
   getConversationClusterMeta,
 } from '@/lib/conversationPresentation';
-import {
-  isNativeIosShell,
-} from '@/lib/nativeShell';
 import { supabase } from '@/lib/supabase';
 import {
   DEFAULT_RICH_TEXT_FORMAT,
@@ -350,7 +345,6 @@ export default function GroupChatWindow({
   const lastTypingSentAtRef = useRef(0);
   const typingTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const { isKeyboardOpen, viewportHeight } = useKeyboardViewport();
-  const nativeShellActive = isNativeIosShell();
   const hasCustomFormatting = !isDefaultRichTextFormat(format);
   const composerTextStyle: CSSProperties = {
     maxHeight: '88px',
@@ -1158,33 +1152,30 @@ export default function GroupChatWindow({
         xpTitleText={`#${roomName}`}
         xpSubtitleText={`${rosterMembers.length} active`}
         headerActions={
-          nativeShellActive ? undefined : (
-            <>
-              <button
-                type="button"
-                onClick={handleBack}
-                className="ui-focus-ring ui-window-header-button px-2.5 text-[11px] font-semibold"
-                aria-label={`Close room ${roomName}`}
-                title="Close room"
-              >
-                Done
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowConversationMenu((previous) => !previous)}
-                className="ui-focus-ring ui-window-header-button px-2.5 text-[11px] font-semibold"
-                aria-expanded={showConversationMenu}
-                aria-label={`Open room controls for ${roomName}`}
-              >
-                <AppIcon kind="menu" className="h-4 w-4" />
-              </button>
-            </>
-          )
+          <>
+            <button
+              type="button"
+              onClick={handleBack}
+              className="ui-focus-ring ui-window-header-button px-2.5 text-[11px] font-semibold"
+              aria-label={`Close room ${roomName}`}
+              title="Close room"
+            >
+              Done
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowConversationMenu((previous) => !previous)}
+              className="ui-focus-ring ui-window-header-button px-2.5 text-[11px] font-semibold"
+              aria-expanded={showConversationMenu}
+              aria-label={`Open room controls for ${roomName}`}
+            >
+              <AppIcon kind="menu" className="h-4 w-4" />
+            </button>
+          </>
         }
         onXpClose={handleBack}
         onXpSignOff={onSignOff}
         style={chatShellStyle}
-        hideHeader={nativeShellActive}
       >
         <div className="ui-window-panel flex h-full min-h-0 flex-col rounded-[1.4rem] text-[length:var(--ui-text-md)]">
           <div className="mx-3 mt-3 space-y-2.5">

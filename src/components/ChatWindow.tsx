@@ -1,5 +1,3 @@
-'use client';
-
 import { FormEvent, KeyboardEvent, type CSSProperties, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import AppIcon from '@/components/AppIcon';
 import ChatMediaGallerySheet, { type ChatMediaGalleryItem } from '@/components/ChatMediaGallerySheet';
@@ -39,7 +37,6 @@ import {
   formatConversationMetaTime,
   getConversationClusterMeta,
 } from '@/lib/conversationPresentation';
-import { isNativeIosShell } from '@/lib/nativeShell';
 import type { ResolvedPresenceState } from '@/lib/presence';
 import { supabase } from '@/lib/supabase';
 import {
@@ -365,7 +362,6 @@ export default function ChatWindow({
   const composerInputId = useId();
   const composerHelpId = useId();
   const { isKeyboardOpen, viewportHeight } = useKeyboardViewport();
-  const nativeShellActive = isNativeIosShell();
   const hasCustomFormatting = !isDefaultRichTextFormat(format);
   const composerTextStyle: CSSProperties = {
     maxHeight: '88px',
@@ -1314,34 +1310,31 @@ export default function ChatWindow({
         xpTitleText={`Instant Message — ${buddyScreenname}`}
         xpSubtitleText={undefined}
         headerActions={
-          nativeShellActive ? undefined : (
-            <>
-              <button
-                type="button"
-                onClick={handleClose}
-                className="ui-focus-ring ui-window-header-button px-2.5 text-[11px] font-semibold"
-                aria-label={`Close chat with ${buddyScreenname}`}
-                title="Close chat"
-              >
-                Done
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowConversationMenu((previous) => !previous)}
-                className="ui-focus-ring ui-window-header-button px-2.5 text-[11px] font-semibold"
-                aria-expanded={showConversationMenu}
-                aria-label={`Open conversation controls for ${buddyScreenname}`}
-                title="Conversation controls"
-              >
-                <AppIcon kind="menu" className="h-4 w-4" />
-              </button>
-            </>
-          )
+          <>
+            <button
+              type="button"
+              onClick={handleClose}
+              className="ui-focus-ring ui-window-header-button px-2.5 text-[11px] font-semibold"
+              aria-label={`Close chat with ${buddyScreenname}`}
+              title="Close chat"
+            >
+              Done
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowConversationMenu((previous) => !previous)}
+              className="ui-focus-ring ui-window-header-button px-2.5 text-[11px] font-semibold"
+              aria-expanded={showConversationMenu}
+              aria-label={`Open conversation controls for ${buddyScreenname}`}
+              title="Conversation controls"
+            >
+              <AppIcon kind="menu" className="h-4 w-4" />
+            </button>
+          </>
         }
         onXpClose={handleClose}
         onXpSignOff={onSignOff}
         style={chatShellStyle}
-        hideHeader={nativeShellActive}
       >
         <div className="ui-window-panel flex h-full min-h-0 flex-col rounded-[1.4rem] text-[length:var(--ui-text-md)]">
           <div className="mx-3 mt-3 space-y-2.5">

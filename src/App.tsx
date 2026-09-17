@@ -4,7 +4,6 @@ import { Capacitor } from '@capacitor/core';
 import { Analytics } from '@vercel/analytics/react';
 import { ChatProvider } from '@/context/ChatContext';
 import PwaBootstrap from '@/components/PwaBootstrap';
-import NativeShellRouteSync from '@/components/NativeShellRouteSync';
 import GlobalNotificationListener from '@/components/GlobalNotificationListener';
 import DeepLinkHandler from '@/components/DeepLinkHandler';
 import StorageNotice from '@/components/StorageNotice';
@@ -105,7 +104,6 @@ export default function App() {
         </Suspense>
       </AppErrorBoundary>
       <PwaBootstrap />
-      <NativeShellRouteSync />
       <DeepLinkHandler />
       <GlobalNotificationListener />
       {!Capacitor.isNativePlatform() && <Analytics />}
