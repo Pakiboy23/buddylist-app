@@ -92,6 +92,15 @@ jobs:
           # rules the real build emits. The answer to "the rebuild bricked the
           # backend" is to rebuild WITH VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY
           # set, never to edit the artifact.
+          #
+          # Why a real build never trips this: Rollup derives each chunk name from
+          # its own content plus the content of every chunk it references, and
+          # __HIM_BUILD_STAMP__ (vite.config.ts) changes every build inside the
+          # entry chunk's closure, so every build renames every chunk. The one
+          # thing Vite writes after hashing, the preload dependency arrays that
+          # carry the CSS file name, lands only in chunks that import the entry.
+          # No resync commit in this repo's history has ever modified a hashed
+          # asset in place. If the build stamp is ever removed, revisit this.
           base="${{ github.event.pull_request.base.sha }}"
           modified=$(git diff --name-only --diff-filter=M "$base" HEAD -- dist/assets ios/App/App/public/assets)
           if [ -n "$modified" ]; then
