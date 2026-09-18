@@ -1,6 +1,6 @@
 # iOS Privacy Manifest Audit
 
-Audited: 2026-05-25  
+Audited: 2026-05-25; UserDefaults / CA92.1 true-up 2026-09-18  
 Xcode requirement: 15+ (required for App Store submission)  
 Apple reference: https://developer.apple.com/documentation/bundleresources/privacy_manifest_files
 
@@ -8,7 +8,7 @@ Apple reference: https://developer.apple.com/documentation/bundleresources/priva
 
 | File | Status | Required-reason APIs |
 |------|--------|----------------------|
-| `ios/App/App/PrivacyInfo.xcprivacy` | ✅ Created | none |
+| `ios/App/App/PrivacyInfo.xcprivacy` | ✅ Created | `NSPrivacyAccessedAPICategoryUserDefaults` → `CA92.1` |
 | `CapacitorVendor/AparajitaCapacitorBiometricAuth` | ✅ Created | none |
 | `CapacitorVendor/CapacitorApp` | ✅ Created | none |
 | `CapacitorVendor/CapacitorHaptics` | ✅ Created | none |
@@ -36,8 +36,9 @@ Vercel Analytics is web-only (no cookies, no cross-site tracking, no fingerprint
 | AudioData | true | false | AppFunctionality | voice note recordings |
 | ProductInteraction | true | false | AppFunctionality | message reads, room joins, presence |
 
-**NSPrivacyAccessedAPITypes:** empty  
-Audit of `ios/App/App/*.swift` and `ios/App/App/AppDelegate.swift` found no calls to UserDefaults, fileTimestamp, systemBootTime, or diskSpace APIs.
+**NSPrivacyAccessedAPITypes:** `NSPrivacyAccessedAPICategoryUserDefaults` → `CA92.1`
+
+`HiItsMeShellPlugin` stores the Supabase auth session under `him.persist.*`, and `clearWebViewCacheIfBuildChanged()` stamps `lastLaunchedCFBundleVersion`. Both are `UserDefaults.standard` reads/writes of data this app wrote (`CA92.1`). Contract: `src/lib/iosAuthPersistence.contract.test.ts`. Do not drop the reason code if those call sites remain.
 
 ## Plugin Audit
 

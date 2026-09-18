@@ -34,7 +34,7 @@ Migration: `supabase/migrations/20260525000004_retention_cleanup_cron.sql`
 | **Auth logs (IP addresses at sign-in)** | Supabase Auth managed infrastructure | Per Supabase plan tier | Supabase managed | Legitimate interest — fraud / abuse detection. Exact period depends on plan. Legal to confirm and document. |
 | **Vercel access logs (IP addresses)** | Vercel managed infrastructure | Per Vercel plan tier | Vercel managed | Legitimate interest — security monitoring. See Vercel DPA. |
 | **Vercel Analytics** | Vercel Analytics (web only) | Per Vercel Analytics policy (anonymised) | Vercel managed | See Vercel DPA. Consent mode should be verified — see data-inventory.md gap #1. |
-| **On-device storage (localStorage)** | User's device | Until app uninstall or account deletion | OS / user action | Device-local; not transmitted. |
+| **On-device storage (localStorage + iOS UserDefaults `him.persist.*`)** | User's device | Until app uninstall, sign-out (auth key), or account deletion | OS / user action / `createHimAuthStorage().removeItem` | Device-local; not transmitted. Auth JSON is dual-written on iOS so a cache clear cannot drop the session. |
 
 ### Not applicable
 
