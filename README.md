@@ -124,7 +124,7 @@ Notes:
 
 - iOS release notes: [IOS_APP_STORE_RELEASE.md](./IOS_APP_STORE_RELEASE.md)
 - Push operations: [docs/push-dispatch.md](./docs/push-dispatch.md)
-- Android was dropped in #147. [ANDROID_PLAY_RELEASE.md](./ANDROID_PLAY_RELEASE.md) is historical.
+- Android was dropped in #147. The Play runbook is archived at [docs/archive/ANDROID_PLAY_RELEASE.md](./docs/archive/ANDROID_PLAY_RELEASE.md).
 
 ## Local Setup
 

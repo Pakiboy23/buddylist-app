@@ -34,8 +34,7 @@ const eslintConfig = defineConfig([
     // Test artifacts
     "test-results/**",
     "playwright-report/**",
-    // Android / iOS native build outputs
-    "android/**",
+    // iOS native build outputs
     "ios/build/**",
     "ios/App/App/public/**",
     "ios/**/.build/**",
