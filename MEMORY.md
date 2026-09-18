@@ -87,7 +87,8 @@ Diagnosis on record: this is **one discovery-and-prompting problem across the wh
 | `scripts/asc/asc.mjs` | ASC API client — `ASC_KEY_ID=… ASC_ISSUER_ID=… ASC_KEY_PATH=fastlane/.keys/AuthKey_*.p8 node scripts/asc/asc.mjs …` |
 | `scripts/capture-app-store.mjs` | Playwright store screenshot capture |
 | `supabase/functions/` | `admin-me`, `delete-account`, `export-account`, `push-dispatch`, `rooms-invite` |
-| `src/lib/nativeShell.ts` | `NativeShellAction` union + JS↔Swift bridge |
+| `src/lib/nativeShell.ts` | Push-environment lookup + `confirmNativeShellAvailable` (always false). Not a JS↔Swift UI bridge. |
+| `src/lib/himAuthStorage.ts` | Native UserDefaults + localStorage auth adapter. Runbook: `docs/ios-auth-persistence.md`. |
 | `ios/App/App/AppDelegate.swift` | Thin Capacitor host — embeds the web view, reports push environment. No native UI (30 Aug) |
 | `src/context/ChatContext.tsx` | Persistent room state + unread logic |
 | `AGENTS.md` | Codex-facing twin of `CLAUDE.md` |

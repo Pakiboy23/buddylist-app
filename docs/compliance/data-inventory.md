@@ -121,7 +121,7 @@
 
 ### 1.12 localStorage (Client-Side, Device Only)
 
-> These keys are stored only on-device and are not transmitted to any server except where explicitly noted. They are deleted by the OS on app uninstall.
+> These keys are stored only on-device and are not transmitted to any server except where explicitly noted. They are deleted by the OS on app uninstall. On iOS the Supabase auth JSON is also mirrored to UserDefaults (`him.persist.sb-*-auth-token`) via `HiItsMeShellPlugin` so a WKWebView cache clear cannot drop the session. See `docs/ios-auth-persistence.md`.
 
 | Key | Source | Collected from | Purpose | Lawful basis (GDPR) | Sensitive PI (CCPA) | Special category (GDPR Art. 9) | Retention | Sub-processors |
 |-----|--------|----------------|---------|---------------------|---------------------|-------------------------------|-----------|----------------|
