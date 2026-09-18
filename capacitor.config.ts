@@ -23,15 +23,7 @@ const config: CapacitorConfig = {
   ios: {
     scheme: 'HIM',
   },
-  android: {
-    allowMixedContent: false,
-  },
   plugins: {
-    StatusBar: {
-      overlaysWebView: false,
-      style: 'LIGHT',
-      backgroundColor: '#1A1F3A',
-    },
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert'],
     },

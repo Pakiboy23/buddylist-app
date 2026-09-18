@@ -6,7 +6,7 @@
 >
 > The `push-dispatch` Edge Function still has an FCM path for leftover
 > `platform = 'android'` token rows. New Android registrations should not
-> appear. See [docs/push-dispatch.md](./docs/push-dispatch.md).
+> appear. See [docs/push-dispatch.md](../push-dispatch.md).
 
 End-to-end guide that *used to* ship H.I.M. (`com.hiitsme.app`) to Google Play.
 Kept so older release notes and Play Console history still have a home.
@@ -156,7 +156,7 @@ publish — `PLAY_SERVICE_ACCOUNT_JSON` (see §8b).
 
 Complete these in **Play Console → your app**, mostly under *App content* and *Store presence*:
 
-- [ ] **Data safety** — fill from [docs/compliance/google-play-data-safety.md](./docs/compliance/google-play-data-safety.md) (resolve the legal open items first).
+- [ ] **Data safety** — fill from [docs/compliance/google-play-data-safety.md](../compliance/google-play-data-safety.md) (resolve the legal open items first).
 - [ ] **Privacy policy** URL (App content → Privacy policy).
 - [ ] **App access** — provide test credentials if sign-in is required for review.
 - [ ] **Content rating** questionnaire (social/communication app; user-generated content → likely Mature 17+).
