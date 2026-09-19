@@ -23,14 +23,6 @@
       "destination": "/api/admin/me"
     },
     {
-      "source": "/api/push/dispatch",
-      "destination": "/api/push/dispatch"
-    },
-    {
-      "source": "/api/rooms/invite",
-      "destination": "/api/rooms/invite"
-    },
-    {
       "source": "/.well-known/(.*)",
       "destination": "/.well-known/$1"
     },

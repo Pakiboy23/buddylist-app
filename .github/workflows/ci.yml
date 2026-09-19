@@ -68,7 +68,15 @@ jobs:
         run: |
           base="${{ github.event.pull_request.base.sha }}"
           changed=$(git diff --name-only "$base" HEAD)
-          src_changed=$(echo "$changed" | grep -E '^(src/|public/|index\.html$)' | grep -vE '\.test\.(ts|tsx)$' || true)
+          # Vite never compiles these into the SPA. Deleting them must not force
+          # an ios public resync — a placeholder-env rebuild bricks the shipped
+          # bundle (see the sanity check below).
+          # - src/app/api/** App Router leftovers (Vercel serves api/, not these)
+          # - src/**/*.md notes
+          # - unused Next layout (ChatProvider + GNL live in App.tsx)
+          # - confirmed-zero-importer modules removed in the same cleanup
+          not_client_graph='\.test\.(ts|tsx)$|\.md$|^src/app/api/|^src/app/hi-its-me/layout\.tsx$|^src/lib/buddySuggestions\.ts$|^src/lib/roomSchema\.ts$'
+          src_changed=$(echo "$changed" | grep -E '^(src/|public/|index\.html$)' | grep -vE "$not_client_graph" || true)
           bundle_changed=$(echo "$changed" | grep -E '^(dist/|native-web/|ios/App/App/public/)' || true)
           if [ -n "$src_changed" ] && [ -z "$bundle_changed" ]; then
             echo "::error::Build-affecting source changed but the web bundle was not resynced. Run 'npm run build && npm run ios:sync' and commit dist/ + native-web/ + ios/App/App/public."
