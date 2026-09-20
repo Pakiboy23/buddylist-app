@@ -2024,7 +2024,6 @@ function HiItsMeContent() {
         delete next[buddyId];
         return next;
       });
-      setSearchResults((previous) => previous.filter((profile) => profile.id !== buddyId));
 
       if (activeChatBuddyIdRef.current === buddyId) {
         setActiveChatBuddyId(null);
