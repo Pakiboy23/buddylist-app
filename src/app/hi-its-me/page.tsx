@@ -1,4 +1,4 @@
-import { FormEvent, Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import AppIcon from '@/components/AppIcon';
 import AppLockSheet from '@/components/AppLockSheet';
@@ -19,10 +19,9 @@ import {
   isAwayMoodId,
   type AwayMoodId,
 } from '@/lib/himArtDirection';
-import { getAccessTokenOrNull, waitForSessionOrNull } from '@/lib/authClient';
+import { waitForSessionOrNull } from '@/lib/authClient';
 import { shouldBounceToSignedOutRoute } from '@/lib/authSessionPolicy';
 import { humanizeDbError } from '@/lib/friendlyError';
-import { getAppApiUrl, getEdgeFunctionUrl } from '@/lib/appApi';
 import { navigateAppPath, replaceAppPathInPlace, useAppRouter } from '@/lib/appNavigation';
 import {
   buildHiItsMePath,
@@ -145,7 +144,6 @@ import {
   type DmStateEventType,
   type UserDmStateRowLite,
 } from '@/lib/unread-dm';
-import { isNativeIosShell } from '@/lib/nativeShell';
 import RetroWindow from '@/components/RetroWindow';
 import BrowsePanel from '@/components/BrowsePanel';
 import SearchPanel from '@/components/SearchPanel';
@@ -155,7 +153,6 @@ import {
   markFirstSessionAwaySetLogged,
 } from '@/lib/firstSessionAway';
 import { PRODUCT_EVENTS, trackProductEvent } from '@/lib/productEvents';
-import { applyDiscoverablePeopleGate } from '@/lib/discoverableSearch';
 import {
   ABUSE_REPORT_CATEGORY_OPTIONS,
   getMessageExpiresAt,
@@ -218,31 +215,6 @@ interface ChatRoom {
   id: string;
   slug: string;
   name: string;
-}
-
-interface AdminMeResponse {
-  isAdmin: boolean;
-}
-
-interface AdminTicketResponse {
-  ok: boolean;
-  ticket: string;
-  expiresAt: string;
-}
-
-interface AdminAuditEntry {
-  id: number;
-  eventType: string;
-  actorUserId: string | null;
-  actorScreenname: string | null;
-  targetUserId: string | null;
-  targetScreenname: string | null;
-  metadata: Record<string, unknown>;
-  createdAt: string;
-}
-
-interface AdminAuditResponse {
-  entries: AdminAuditEntry[];
 }
 
 interface AwayPreset {
@@ -657,14 +629,6 @@ function getDmTypingChannelKey(leftUserId: string, rightUserId: string) {
   return [leftUserId, rightUserId].sort().join(':');
 }
 
-function formatAdminAuditEvent(eventType: string) {
-  return eventType
-    .split('_')
-    .filter(Boolean)
-    .map((token) => token.charAt(0).toUpperCase() + token.slice(1))
-    .join(' ');
-}
-
 function getSavedMessagePreviewText(content: string): string {
   const plain = htmlToPlainText(content).trim();
   if (!plain) {
@@ -679,27 +643,6 @@ function getSavedMessagePreviewText(content: string): string {
     // not a URL — fall through
   }
   return plain;
-}
-
-function formatAuditUserLabel(screenname: string | null, userId: string | null) {
-  if (screenname) {
-    return screenname;
-  }
-
-  if (userId) {
-    return `User ${userId.slice(0, 8)}`;
-  }
-
-  return 'System';
-}
-
-function buildAdminResetHandoff(screenname: string, ticket: string, expiresAt: string) {
-  return [
-    `H.I.M. secure reset for ${screenname}`,
-    `Ticket: ${ticket}`,
-    `Expires: ${new Date(expiresAt).toLocaleString()}`,
-    'Open H.I.M. and use this ticket to reset your password.',
-  ].join('\n');
 }
 
 // ── DirectMessageRow ────────────────────────────────────────────────────────
@@ -966,7 +909,6 @@ const DirectMessageRow = memo(function DirectMessageRow({
 // ── end DirectMessageRow ─────────────────────────────────────────────────────
 
 function HiItsMeContent() {
-  console.log('[build-marker] IM tab build', '2026-04-15-G');
   const [userId, setUserId] = useState<string | null>(null);
   const [screenname, setScreenname] = useState('Loading...');
   const [statusMsg, setStatusMsg] = useState(AVAILABLE_STATUS);
@@ -1052,11 +994,6 @@ function HiItsMeContent() {
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [reportSubmitError, setReportSubmitError] = useState<string | null>(null);
 
-const [showAddWindow, setShowAddWindow] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
-  const [searchError, setSearchError] = useState<string | null>(null);
-  const [isSearching, setIsSearching] = useState(false);
   const [isAddingBuddyId, setIsAddingBuddyId] = useState<string | null>(null);
   const [isRemovingBuddyId, setIsRemovingBuddyId] = useState<string | null>(null);
   const [isBlockingBuddyId, setIsBlockingBuddyId] = useState<string | null>(null);
@@ -1081,17 +1018,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   const [roomJoinError, setRoomJoinError] = useState<string | null>(null);
   const [isJoiningRoom, setIsJoiningRoom] = useState(false);
   const [activeRoom, setActiveRoom] = useState<ChatRoom | null>(null);
-  const [isAdminUser, setIsAdminUser] = useState(false);
-  const [isAdminResetOpen, setIsAdminResetOpen] = useState(false);
-  const [adminResetScreenname, setAdminResetScreenname] = useState('');
-  const [adminResetError, setAdminResetError] = useState<string | null>(null);
-  const [adminResetFeedback, setAdminResetFeedback] = useState<string | null>(null);
-  const [isIssuingAdminReset, setIsIssuingAdminReset] = useState(false);
-  const [issuedAdminTicket, setIssuedAdminTicket] = useState<{ ticket: string; expiresAt: string } | null>(null);
-  const [confirmAdminResetAction, setConfirmAdminResetAction] = useState(false);
-  const [adminAuditEntries, setAdminAuditEntries] = useState<AdminAuditEntry[]>([]);
-  const [isLoadingAdminAudit, setIsLoadingAdminAudit] = useState(false);
-  const [adminAuditError, setAdminAuditError] = useState<string | null>(null);
 
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
   const [pendingRequestError, setPendingRequestError] = useState<string | null>(null);
@@ -1157,7 +1083,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   const attemptedBiometricUnlockRef = useRef(false);
   const quickPhotoInputRef = useRef<HTMLInputElement | null>(null);
   const awayMessageFieldRef = useRef<HTMLTextAreaElement | null>(null);
-  const adminResetInputRef = useRef<HTMLInputElement | null>(null);
   const playSound = useSoundPlayer();
   const { isDark, toggleDark } = useTheme();
   const router = useAppRouter();
@@ -1214,24 +1139,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
 
     return () => window.cancelAnimationFrame(frameId);
   }, [awayModalMode, showAwayModal]);
-
-  useEffect(() => {
-    if (!isAdminResetOpen || typeof window === 'undefined') {
-      return;
-    }
-
-    const frameId = window.requestAnimationFrame(() => {
-      const field = adminResetInputRef.current;
-      if (!field) {
-        return;
-      }
-
-      field.scrollIntoView({ block: 'center' });
-      field.focus();
-    });
-
-    return () => window.cancelAnimationFrame(frameId);
-  }, [isAdminResetOpen]);
 
   useEffect(() => {
     temporaryChatAllowedIdsRef.current = new Set(temporaryChatAllowedIds);
@@ -1725,19 +1632,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         playFallbackTone();
       }
     });
-  }, []);
-
-  const getAccessToken = useCallback(async () => {
-    return getAccessTokenOrNull();
-  }, []);
-
-  const readApiError = useCallback(async (response: Response) => {
-    try {
-      const payload = (await response.json()) as { error?: string };
-      return payload.error ?? 'Request failed.';
-    } catch {
-      return 'Request failed.';
-    }
   }, []);
 
   const pushBuddyActivity = useCallback(
@@ -3121,44 +3015,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       lastActivityAtRef.current = Date.now();
       lastPresenceWriteAtRef.current = Date.now();
 
-      let adminFlag = false;
-      if (session.access_token && !isNativeIosShell()) {
-        try {
-          const adminResponse = await fetch(getEdgeFunctionUrl('admin-me'), {
-            method: 'GET',
-            cache: 'no-store',
-            headers: {
-              authorization: `Bearer ${session.access_token}`,
-            },
-          });
-
-          if (adminResponse.ok) {
-            const adminPayload = (await adminResponse.json()) as AdminMeResponse;
-            adminFlag = Boolean(adminPayload.isAdmin);
-          } else {
-            const adminError = await readApiError(adminResponse);
-            console.error(`Admin check via /api/admin/me failed (${adminResponse.status}):`, adminError);
-          }
-        } catch (error) {
-          console.error('Admin check via app API failed:', error);
-        }
-      }
-
-      if (!adminFlag) {
-        const { data: adminFallbackData, error: adminFallbackError } = await supabase
-          .from('admin_users')
-          .select('user_id')
-          .eq('user_id', session.user.id)
-          .maybeSingle();
-
-        if (adminFallbackError) {
-          console.error('Fallback admin_users check failed:', adminFallbackError.message);
-        } else {
-          adminFlag = Boolean(adminFallbackData);
-        }
-      }
-
-      setIsAdminUser(adminFlag);
       setIsBootstrapping(false);
       void loadBuddies(session.user.id);
       void syncUnreadDirectFromServer(session.user.id);
@@ -3175,7 +3031,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     return () => {
       subscription.unsubscribe();
     };
-  }, [loadBuddies, loadSingleUserProfile, markProfileSchemaUnavailable, readApiError, router, syncUnreadDirectFromServer]);
+  }, [loadBuddies, loadSingleUserProfile, markProfileSchemaUnavailable, router, syncUnreadDirectFromServer]);
 
   useEffect(() => {
     if (!userId) {
@@ -4852,210 +4708,10 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     };
   }, [autoAwayMinutes, autoReturnOnActivity, isAutoAwayEnabled, persistIdleState, userId]);
 
-  const loadAdminResetAuditData = useCallback(async (limit = 12) => {
-    const accessToken = await getAccessToken();
-    if (!accessToken) {
-      return {
-        ok: false as const,
-        error: 'Session expired. Please sign on again.',
-      };
-    }
-
-    let response: Response;
-    try {
-      response = await fetch(getAppApiUrl(`/api/admin/password-reset-audit?limit=${limit}`), {
-        headers: {
-          authorization: `Bearer ${accessToken}`,
-        },
-        cache: 'no-store',
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Load failed';
-      return {
-        ok: false as const,
-        error: message,
-      };
-    }
-
-    if (!response.ok) {
-      const errorMessage = await readApiError(response);
-      return {
-        ok: false as const,
-        error: errorMessage,
-      };
-    }
-
-    const payload = (await response.json()) as AdminAuditResponse;
-    return {
-      ok: true as const,
-      entries: Array.isArray(payload.entries) ? payload.entries : [],
-    };
-  }, [getAccessToken, readApiError]);
-
-  const fetchAdminAuditEntries = useCallback(async () => {
-    setIsLoadingAdminAudit(true);
-    setAdminAuditError(null);
-
-    const result = await loadAdminResetAuditData(12);
-    if (!result.ok) {
-      setAdminAuditError(result.error);
-      setIsLoadingAdminAudit(false);
-      return;
-    }
-
-    setAdminAuditEntries(result.entries);
-    setIsLoadingAdminAudit(false);
-  }, [loadAdminResetAuditData]);
-
-  const openAdminResetWindow = () => {
-    setAdminResetScreenname('');
-    setAdminResetError(null);
-    setAdminResetFeedback(null);
-    setIssuedAdminTicket(null);
-    setConfirmAdminResetAction(false);
-    setAdminAuditEntries([]);
-    setAdminAuditError(null);
-    setIsAdminResetOpen(true);
-    void fetchAdminAuditEntries();
-  };
-
   const openPrivacyControls = useCallback(() => {
     setIsHeaderMenuOpen(false);
     setShowPrivacySheet(true);
   }, []);
-
-  const issueAdminResetTicketData = useCallback(async (target: string) => {
-    const accessToken = await getAccessToken();
-    if (!accessToken) {
-      return {
-        ok: false as const,
-        error: 'Session expired. Please sign on again.',
-      };
-    }
-
-    let response: Response;
-    try {
-      response = await fetch(getAppApiUrl('/api/admin/password-reset-ticket'), {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ screenname: target }),
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Load failed';
-      return {
-        ok: false as const,
-        error: message,
-      };
-    }
-
-    if (!response.ok) {
-      const errorMessage = await readApiError(response);
-      return {
-        ok: false as const,
-        error: errorMessage,
-      };
-    }
-
-    const payload = (await response.json()) as AdminTicketResponse;
-    return {
-      ok: true as const,
-      ticket: payload.ticket,
-      expiresAt: payload.expiresAt,
-    };
-  }, [getAccessToken, readApiError]);
-
-  const handleIssueAdminResetTicket = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!confirmAdminResetAction) {
-      setAdminResetError('Confirm this admin action before issuing a reset ticket.');
-      setAdminResetFeedback(null);
-      return;
-    }
-    const target = adminResetScreenname.trim();
-    if (!target) {
-      setAdminResetError('Enter a screen name.');
-      setAdminResetFeedback(null);
-      return;
-    }
-
-    setIsIssuingAdminReset(true);
-    setAdminResetError(null);
-    setAdminResetFeedback(null);
-    setIssuedAdminTicket(null);
-
-    const result = await issueAdminResetTicketData(target);
-    if (!result.ok) {
-      setAdminResetError(result.error);
-      setIsIssuingAdminReset(false);
-      return;
-    }
-
-    setIssuedAdminTicket({
-      ticket: result.ticket,
-      expiresAt: result.expiresAt,
-    });
-    setAdminResetFeedback(`Secure handoff ready for ${target}.`);
-    setIsIssuingAdminReset(false);
-    void fetchAdminAuditEntries();
-  };
-
-  const handleCopyAdminResetValue = async (mode: 'ticket' | 'handoff') => {
-    if (!issuedAdminTicket) {
-      return;
-    }
-
-    const target = adminResetScreenname.trim() || 'this member';
-    const value =
-      mode === 'ticket'
-        ? issuedAdminTicket.ticket
-        : buildAdminResetHandoff(target, issuedAdminTicket.ticket, issuedAdminTicket.expiresAt);
-
-    try {
-      await navigator.clipboard.writeText(value);
-      setAdminResetError(null);
-      setAdminResetFeedback(mode === 'ticket' ? 'Reset ticket copied.' : 'Secure handoff instructions copied.');
-    } catch {
-      setAdminResetFeedback(null);
-      setAdminResetError('Could not copy automatically. Please copy it manually.');
-    }
-  };
-
-  const handleSearch = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!userId) {
-      return;
-    }
-
-    const query = searchTerm.trim();
-    if (!query) {
-      setSearchResults([]);
-      return;
-    }
-
-    setIsSearching(true);
-    setSearchError(null);
-
-    const { data, error } = await loadManyUserProfiles({
-      applyFilters: (queryBuilder) =>
-        applyDiscoverablePeopleGate(queryBuilder)
-          .ilike('screenname', `%${query}%`)
-          .neq('id', userId)
-          .order('screenname', { ascending: true })
-          .limit(15),
-    });
-
-    setIsSearching(false);
-
-    if (error) {
-      setSearchError(error.message);
-      return;
-    }
-
-    setSearchResults(data.filter((profile) => !blockedUserIdsRef.current.has(profile.id)));
-  };
 
   const getBuddyRelationshipSnapshot = useCallback(
     async (buddyId: string) => {
@@ -5110,7 +4766,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
 
       if (!result.ok) {
         const message = result.error ?? 'Could not accept that buddy request.';
-        setSearchError(message);
         setProfileSheetError(message);
         setPendingRequestError(message);
         return false;
@@ -5130,7 +4785,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     }
 
     setIsAddingBuddyId(buddyId);
-    setSearchError(null);
     setProfileSheetError(null);
 
     try {
@@ -5166,7 +4820,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       setIsAddingBuddyId(null);
 
       if (error) {
-        setSearchError(error.message);
         setProfileSheetError(error.message);
         return false;
       }
@@ -5177,23 +4830,11 @@ const [showAddWindow, setShowAddWindow] = useState(false);
       return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Could not update buddy request.';
-      setSearchError(message);
       setProfileSheetError(message);
       setIsAddingBuddyId(null);
       return false;
     }
   }, [acceptBuddyById, getBuddyRelationshipSnapshot, loadBuddies, userId]);
-
-  const handleAddBuddy = async (profile: UserProfile) => {
-    const added = await handleAddBuddyById(profile.id);
-    if (!added) {
-      return;
-    }
-
-    setShowAddWindow(false);
-    setSearchTerm('');
-    setSearchResults([]);
-  };
 
   const handleAcceptPendingRequest = useCallback(
     async (senderId: string, options?: { openChat?: boolean }) => {
@@ -5269,7 +4910,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     setIsRemovingBuddyId(null);
 
     if (error) {
-      setSearchError(error.message);
       setProfileSheetError(error.message);
       return false;
     }
@@ -6119,9 +5759,7 @@ const [showAddWindow, setShowAddWindow] = useState(false);
     setShowSystemStatusSheet(false);
     setShowPrivacySheet(false);
     setShowAwayModal(false);
-    setShowAddWindow(false);
     setShowRoomsWindow(false);
-    setIsAdminResetOpen(false);
 
     if (activeChatBuddyIdRef.current) {
       closeChatWindow();
@@ -6136,7 +5774,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
   }, [activeRoom, closeChatWindow, handleBackFromRoom, scrollMainShellToTop]);
 
   const openAddWindow = useCallback(() => {
-    setSearchError(null);
     setFindSubSection('browse');
     focusMainShellSection('buddy');
   }, [focusMainShellSection]);
@@ -6516,15 +6153,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                 >
                   Sign Off
                 </button>
-                {isAdminUser ? (
-                  <button
-                    type="button"
-                    onClick={openAdminResetWindow}
-                    className="ui-focus-ring ui-popover-item mt-0.5"
-                  >
-                    Reset Access
-                  </button>
-                ) : null}
               </div>
             </div>
           ) : null}
@@ -7461,165 +7089,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
         </div>
       </RetroWindow>
 
-      {isAdminResetOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-[1px]">
-          <div className="w-full max-w-md">
-            <div className={xpModalFrameClass}>
-              <div className={`${xpModalHeaderClass} mb-2`}>Reset Account Access</div>
-              <form onSubmit={handleIssueAdminResetTicket} className={xpModalBodyClass}>
-                <div className="ui-note-info">
-                  <div className="flex items-start gap-3">
-                    <span className="ui-brand-sparkle mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full">
-                      <AppIcon kind="shield" className="h-4 w-4" />
-                    </span>
-                    <div className="min-w-0">
-                      <p className="font-bold uppercase tracking-wide">Recovery Concierge</p>
-                      <p className="mt-1">
-                        Issue a one-time handoff ticket for members who missed recovery setup or need assisted access.
-                        Older unused tickets are revoked automatically.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <label htmlFor="admin-reset-screenname" className="mb-1 block text-[12px] font-semibold text-slate-700 dark:text-slate-300">
-                    Member screen name
-                  </label>
-                  <input
-                    ref={adminResetInputRef}
-                    id="admin-reset-screenname"
-                    value={adminResetScreenname}
-                    onChange={(event) => setAdminResetScreenname(event.target.value)}
-                    className={xpModalInputClass}
-                    placeholder="screenname"
-                    disabled={isIssuingAdminReset}
-                  />
-                </div>
-
-                <label className="ui-note-warning flex items-start gap-2">
-                  <input
-                    type="checkbox"
-                    checked={confirmAdminResetAction}
-                    onChange={(event) => setConfirmAdminResetAction(event.target.checked)}
-                    disabled={isIssuingAdminReset}
-                    className="mt-[1px] h-3.5 w-3.5 accent-amber-700"
-                  />
-                  <span>I verified this request and will deliver the reset handoff through a trusted channel.</span>
-                </label>
-
-                {adminResetFeedback && (
-                  <p className="ui-note-success">{adminResetFeedback}</p>
-                )}
-
-                {adminResetError && (
-                  <p className="ui-note-error">{adminResetError}</p>
-                )}
-
-                {issuedAdminTicket && (
-                  <div className="ui-note-success">
-                    <p className="font-bold">Secure reset ready</p>
-                    <p className="mt-1">
-                      Share this with <span className="font-semibold">{adminResetScreenname.trim() || 'the member'}</span>.
-                      They will choose a fresh password after redemption.
-                    </p>
-                    <p className="mt-1 break-all font-mono text-[13px] font-bold">{issuedAdminTicket.ticket}</p>
-                    <p className="mt-1 text-[11px]">
-                      Expires: {new Date(issuedAdminTicket.expiresAt).toLocaleString()}
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void handleCopyAdminResetValue('ticket')}
-                        className="ui-focus-ring ui-button-secondary ui-button-compact"
-                      >
-                        Copy Ticket
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleCopyAdminResetValue('handoff')}
-                        className="ui-focus-ring ui-button-secondary ui-button-compact"
-                      >
-                        Copy Secure Handoff
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                <div className="ui-panel-card rounded-2xl px-3 py-3 text-[11px] text-slate-700 dark:text-slate-300">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-bold">Recent Recovery Activity</p>
-                    <button
-                      type="button"
-                      onClick={() => void fetchAdminAuditEntries()}
-                      disabled={isLoadingAdminAudit}
-                      className={`${xpModalButtonClass} disabled:opacity-60`}
-                    >
-                      {isLoadingAdminAudit ? 'Refreshing...' : 'Refresh'}
-                    </button>
-                  </div>
-
-                  {adminAuditError ? (
-                    <p className="ui-note-error mt-2">{adminAuditError}</p>
-                  ) : null}
-
-                  {!adminAuditError && !isLoadingAdminAudit && adminAuditEntries.length === 0 ? (
-                    <p className="mt-2 text-slate-500">No recent events.</p>
-                  ) : null}
-
-                  {adminAuditEntries.length > 0 ? (
-                    <div className="mt-2 max-h-44 space-y-1.5 overflow-y-auto pr-1">
-                      {adminAuditEntries.map((entry) => {
-                        const actorLabel = formatAuditUserLabel(entry.actorScreenname, entry.actorUserId);
-                        const targetLabel = formatAuditUserLabel(entry.targetScreenname, entry.targetUserId);
-                        const reason =
-                          typeof entry.metadata.reason === 'string' && entry.metadata.reason.trim()
-                            ? entry.metadata.reason
-                            : null;
-
-                        return (
-                          <div key={entry.id} className="ui-panel-muted rounded-xl px-2.5 py-2">
-                            <p className="font-semibold text-slate-700 dark:text-slate-300">{formatAdminAuditEvent(entry.eventType)}</p>
-                            <p className="text-[10px] text-slate-500">{new Date(entry.createdAt).toLocaleString()}</p>
-                            <p className="mt-0.5">
-                              <span className="font-semibold">Actor:</span> {actorLabel}
-                            </p>
-                            <p>
-                              <span className="font-semibold">Target:</span> {targetLabel}
-                            </p>
-                            {reason ? (
-                              <p>
-                                <span className="font-semibold">Reason:</span> {reason}
-                              </p>
-                            ) : null}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsAdminResetOpen(false)}
-                    className={xpModalButtonClass}
-                  >
-                    Close
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isIssuingAdminReset || !confirmAdminResetAction}
-                    className={xpModalPrimaryButtonClass}
-                  >
-                    {isIssuingAdminReset ? 'Issuing...' : 'Issue Ticket'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-
       {showAwayModal && (
         <div
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/20 backdrop-blur-[2px]"
@@ -8467,101 +7936,6 @@ const [showAddWindow, setShowAddWindow] = useState(false);
                     className={xpModalPrimaryButtonClass}
                   >
                     {isProcessingRequestId === activePendingRequest.senderId ? 'Adding...' : 'Add Buddy'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showAddWindow && (
-        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-4 backdrop-blur-[1px]">
-          <div className="w-full max-w-md">
-            <div className={xpModalFrameClass}>
-              <div className={`${xpModalHeaderClass} mb-2`}>Add Buddy</div>
-              <div className="flex flex-col gap-3 px-2 pb-2 text-[11px]">
-                <form onSubmit={handleSearch} className="flex gap-2">
-                  <label htmlFor="add-buddy-search-input" className="sr-only">Search screen names</label>
-                  <input
-                    id="add-buddy-search-input"
-                    type="search"
-                    value={searchTerm}
-                    onChange={(event) => setSearchTerm(event.target.value)}
-                    className={xpModalInputClass}
-                    placeholder="Search screen names..."
-                    autoComplete="off"
-                    autoCapitalize="none"
-                    autoCorrect="off"
-                  />
-                  <button
-                    type="submit"
-                    className={xpModalPrimaryButtonClass}
-                  >
-                    Search
-                  </button>
-                </form>
-
-                {searchError && <p className="ui-note-error">{searchError}</p>}
-
-                <div className="max-h-56 overflow-y-auto rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-[inset_0_1px_1px_rgba(15,23,42,0.05)] dark:border-slate-700 dark:bg-[#0F1424]/50">
-                  {isSearching && (
-                    <p className="p-2 text-sm text-slate-500">Searching screen names...</p>
-                  )}
-                  {!isSearching && searchTerm.trim() !== '' && searchResults.length === 0 && (
-                    <p className="p-2 text-sm text-slate-500">No screen names found.</p>
-                  )}
-                  {!isSearching &&
-                    searchResults.map((profile) => {
-                      const resolvedProfileStatus = resolveStatusFields({
-                        status: profile.status,
-                        awayMessage: profile.away_message,
-                        statusMessage: profile.status_msg,
-                      });
-                      const visiblePresence = resolveVisiblePresence({
-                        status: resolvedProfileStatus.status,
-                        idleSince: profile.idle_since,
-                        lastActiveAt: profile.last_active_at,
-                        showOnlineStatus: profile.show_online_status,
-                      });
-                      const isProfileAway = visiblePresence.activityVisible && visiblePresence.state === 'away';
-                      const searchSubtitle = visiblePresence.activityVisible
-                        ? isProfileAway
-                          ? `Away: ${resolvedProfileStatus.awayMessage || 'Away'}`
-                          : resolvedProfileStatus.statusMessage
-                        : resolvedProfileStatus.awayMessage || resolvedProfileStatus.statusMessage;
-
-                      return (
-                        <div
-                          key={profile.id}
-                          className="ui-panel-muted mb-2 flex items-center justify-between gap-2 rounded-2xl p-3"
-                        >
-                          <div className="min-w-0">
-                            <p className="ui-screenname truncate font-bold">{profile.screenname || 'Unknown User'}</p>
-                            <p className="truncate text-[11px] text-slate-500">
-                              {searchSubtitle}
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleAddBuddy(profile)}
-                            disabled={isAddingBuddyId === profile.id}
-                            className={xpModalPrimaryButtonClass}
-                          >
-                            {isAddingBuddyId === profile.id ? 'Adding...' : 'Add'}
-                          </button>
-                        </div>
-                      );
-                    })}
-                </div>
-
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setShowAddWindow(false)}
-                    className={xpModalButtonClass}
-                  >
-                    Close
                   </button>
                 </div>
               </div>

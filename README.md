@@ -70,7 +70,7 @@ This is a product decision, not an unfinished parity backlog. If a room feature 
 
 - `/` — logged-out web porch; native `/` is still Sign in. `?signin=1` and `/signin` keep LoginPage.
 - `/signin` — password sign-on + account creation
-- `/reset-password` — recovery-code / admin-ticket redemption
+- `/reset-password` — password reset
 - `/hi-its-me` — main app: buddies, DM windows, room windows, settings
 - `/hi-its-me/rooms`, `/hi-its-me/rooms/new`, `/hi-its-me/rooms/:roomId/preview` — room list / create / invite preview
 - `/join/:inviteCode` — room invite accept
@@ -82,8 +82,6 @@ This is a product decision, not an unfinished parity backlog. If a room feature 
   - `/api/auth/recovery/reset`
   - `/api/auth/recovery/redeem-ticket`
   - `/api/admin/me`
-  - `/api/admin/password-reset-ticket`
-  - `/api/admin/password-reset-audit`
 
 ## Environment Variables
 
@@ -245,7 +243,7 @@ Recovery model:
 - `src/components/ChatWindow.tsx` - DM UI (mobile-first dense log + collapsible formatting)
 - `src/components/IncomingMessageBanner.tsx` - mobile-style notification banner
 - `src/components/RetroWindow.tsx` - top-level mobile window shell + centered glossy titlebar
-- `src/app/hi-its-me/page.tsx` - H.I.M. contacts, DM windows, room controls, admin reset UI
+- `src/app/hi-its-me/page.tsx` - H.I.M. contacts, DM windows, room controls
 - `src/lib/passwordRecovery.ts` - recovery/ticket crypto + workflows
 - `src/lib/clientStorage.ts` - safe typed local persistence with versioned envelopes
 - `src/lib/chatMedia.ts` - attachment validation + Supabase Storage upload helpers
@@ -255,7 +253,6 @@ Recovery model:
 - `src/lib/pushDispatch.ts` - client fan-out into the `push-dispatch` Edge Function
 - `src/lib/pushPromptMoments.ts` - contextual iOS permission prompt after friendship actions
 - `supabase/functions/push-dispatch/index.ts` - APNs delivery + `push_dispatch_log`
-- `src/app/api/admin/password-reset-audit/route.ts` - admin-only recovery audit feed
 
 ## Build & Quality Checks
 
