@@ -64,7 +64,7 @@ on was deleted in #147 — do not restore either.
 ### Auth Model
 - Password-based (not magic links). Supabase synthetic email: `${screenname}@hiitsme.app`
 - Fallback to legacy `${screenname}@buddylist.com`
-- Password recovery: recovery codes (user-generated) + admin one-time tickets
+- Password recovery: email reset for accounts with a real inbox; no admin ticket APIs
 
 ### Rooms v2
 The rooms model was rewritten in migration `20260509184623_rooms_v2_launch_schema.sql`. Old tables (`chat_rooms`, `room_messages` v1, `room_participants`, `user_active_rooms`, etc.) were renamed to `_archive_*` and replaced by:
@@ -149,7 +149,7 @@ Operational runbook: [docs/push-dispatch.md](./docs/push-dispatch.md).
 
 ### Vercel API Routes
 - `/api/auth/recovery/{setup,reset,redeem-ticket}` — Password recovery flows
-- `/api/admin/{me,password-reset-ticket,password-reset-audit}` — Admin tools
+- `/api/admin/me` — Admin ops probe
 
 ### Supabase Edge Functions
 - `delete-account` — Self-service account erasure (Apple Guideline 5.1.1(v)). Wipes ~14 user tables in dependency order, then `auth.admin.deleteUser` last.
