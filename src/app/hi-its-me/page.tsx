@@ -67,7 +67,7 @@ import {
   createClientMessageId,
   createOutboxItem,
   getOutboxStorageKey,
-  isOutboxItemDue,
+  isFlushableOutboxItem,
   loadOutbox,
   markOutboxSending,
   markOutboxAttemptFailure,
@@ -2266,64 +2266,68 @@ function HiItsMeContent() {
         setOutboxItems((previous) => normalizeOutboxItems(previous.filter((c) => c.id !== id)));
 
       for (const item of snapshot) {
-        if (item.status === 'sending') {
-          continue;
-        }
-
-        if (!isOutboxItemDue(item, nowMs)) {
+        // Concurrent flushes are blocked by isFlushingOutboxRef. A leftover
+        // `sending` row is an interrupted attempt (throw or process kill), not
+        // an in-flight request — skip it and the message is lost with no Retry.
+        if (!isFlushableOutboxItem(item, nowMs)) {
           continue;
         }
 
         markSending(item.id);
 
-        if (item.type === 'dm') {
-          const { data, error } = await sendDirectMessageWithClientMessageId({
-            senderId: userId,
-            receiverId: item.targetId,
-            content: item.content,
-            clientMessageId: item.id,
-            expiresAt: item.expiresAt,
-            replyToMessageId: item.replyToMessageId,
-            forwardSourceMessageId: item.forwardSourceMessageId,
-            forwardSourceSenderId: item.forwardSourceSenderId,
-            previewType: item.previewType,
-          });
+        try {
+          if (item.type === 'dm') {
+            const { data, error } = await sendDirectMessageWithClientMessageId({
+              senderId: userId,
+              receiverId: item.targetId,
+              content: item.content,
+              clientMessageId: item.id,
+              expiresAt: item.expiresAt,
+              replyToMessageId: item.replyToMessageId,
+              forwardSourceMessageId: item.forwardSourceMessageId,
+              forwardSourceSenderId: item.forwardSourceSenderId,
+              previewType: item.previewType,
+            });
 
-          if (error) {
-            markFailed(item.id, humanizeDbError(error.message));
+            if (error || !data) {
+              markFailed(item.id, humanizeDbError(error?.message ?? 'Unable to send message.'));
+              continue;
+            }
+
+            const insertedMessage = data as ChatMessage;
+            setBuddyLastMessageAt((previous) => ({
+              ...previous,
+              [item.targetId]: insertedMessage.created_at,
+            }));
+            if (activeChatBuddyIdRef.current === item.targetId) {
+              setChatMessages((previous) =>
+                previous.some((message) => message.id === insertedMessage.id)
+                  ? previous
+                  : [...previous, insertedMessage],
+              );
+            }
+            dropSent(item.id);
             continue;
           }
 
-          const insertedMessage = data as ChatMessage;
-          setBuddyLastMessageAt((previous) => ({
-            ...previous,
-            [item.targetId]: insertedMessage.created_at,
-          }));
-          if (activeChatBuddyIdRef.current === item.targetId) {
-            setChatMessages((previous) =>
-              previous.some((message) => message.id === insertedMessage.id)
-                ? previous
-                : [...previous, insertedMessage],
-            );
+          const { data, error } = await sendRoomMessageWithClientMessageId({
+            roomId: item.targetId,
+            userId,
+            body: item.content,
+            clientMessageId: item.id,
+          });
+          if (error || !data) {
+            markFailed(item.id, humanizeDbError(error?.message ?? 'Unable to send message.'));
+            continue;
+          }
+          if (activeRoom?.id === item.targetId) {
+            setActiveRoomReloadToken((previous) => previous + 1);
           }
           dropSent(item.id);
-          continue;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unable to send message.';
+          markFailed(item.id, humanizeDbError(message));
         }
-
-        const { data, error } = await sendRoomMessageWithClientMessageId({
-          roomId: item.targetId,
-          userId,
-          body: item.content,
-          clientMessageId: item.id,
-        });
-        if (error) {
-          markFailed(item.id, error.message);
-          continue;
-        }
-        if (activeRoom?.id === item.targetId && data) {
-          setActiveRoomReloadToken((previous) => previous + 1);
-        }
-        dropSent(item.id);
       }
     } finally {
       isFlushingOutboxRef.current = false;
