@@ -176,7 +176,7 @@ export function loadOutbox(userId: string): OutboxItem[] {
     },
   });
 
-  return normalizeOutboxItems(payload.items);
+  return requeueInterruptedOutboxSends(normalizeOutboxItems(payload.items));
 }
 
 export function saveOutbox(userId: string, items: OutboxItem[]) {
@@ -264,4 +264,37 @@ export function isOutboxItemDue(item: OutboxItem, nowMs = Date.now()) {
     return true;
   }
   return nowMs >= nextAttemptMs;
+}
+
+/**
+ * Persistable `sending` means a previous flush was killed mid-request.
+ * Reload must put those rows back on the queue — flush otherwise skips them
+ * forever, and the UI hides Retry while status is `sending`.
+ */
+export function requeueInterruptedOutboxSends(items: OutboxItem[]): OutboxItem[] {
+  return items.map((item) =>
+    item.status === 'sending'
+      ? {
+          ...item,
+          status: 'queued' as const,
+          lastError: null,
+        }
+      : item,
+  );
+}
+
+export function isFlushableOutboxItem(item: OutboxItem, nowMs = Date.now()) {
+  // queued, failed, and interrupted `sending` all retry when due.
+  // Concurrent in-flight sends are gated by the flush mutex, not by status.
+  switch (item.status) {
+    case 'queued':
+    case 'failed':
+    case 'sending':
+      return isOutboxItemDue(item, nowMs);
+    default: {
+      const _exhaustive: never = item.status;
+      void _exhaustive;
+      return false;
+    }
+  }
 }

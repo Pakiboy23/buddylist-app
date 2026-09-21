@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   createOutboxItem,
+  isFlushableOutboxItem,
   isOutboxItemDue,
   markOutboxSending,
   markOutboxAttemptFailure,
   normalizeOutboxItems,
+  requeueInterruptedOutboxSends,
   scheduleOutboxRetryNow,
 } from '@/lib/outbox';
 
@@ -152,5 +154,73 @@ describe('isOutboxItemDue', () => {
         lastError: null,
       }),
     ).toBe(true);
+  });
+});
+
+describe('requeueInterruptedOutboxSends', () => {
+  it('turns leftover sending rows back into queued retries', () => {
+    const sending = markOutboxSending(
+      createOutboxItem({
+        type: 'dm',
+        targetId: 'buddy-d',
+        content: 'still in flight',
+        clientMessageId: 'client-msg-6',
+      }),
+    );
+    const queued = createOutboxItem({
+      type: 'room',
+      targetId: 'room-3',
+      content: 'already queued',
+      clientMessageId: 'client-msg-7',
+    });
+    const failed = markOutboxAttemptFailure(
+      createOutboxItem({
+        type: 'dm',
+        targetId: 'buddy-e',
+        content: 'already failed',
+        clientMessageId: 'client-msg-8',
+      }),
+      'offline',
+    );
+
+    const recovered = requeueInterruptedOutboxSends([sending, queued, failed]);
+
+    expect(recovered[0]?.status).toBe('queued');
+    expect(recovered[0]?.lastError).toBeNull();
+    expect(recovered[1]?.status).toBe('queued');
+    expect(recovered[2]?.status).toBe('failed');
+    expect(recovered[2]?.lastError).toBe('offline');
+  });
+});
+
+describe('isFlushableOutboxItem', () => {
+  it('retries interrupted sending rows once they are due', () => {
+    const sending = markOutboxSending(
+      createOutboxItem({
+        type: 'dm',
+        targetId: 'buddy-f',
+        content: 'killed mid-send',
+        clientMessageId: 'client-msg-9',
+      }),
+    );
+
+    expect(isFlushableOutboxItem(sending)).toBe(true);
+  });
+
+  it('still waits out backoff on failed rows', () => {
+    const failed = {
+      ...markOutboxAttemptFailure(
+        createOutboxItem({
+          type: 'room',
+          targetId: 'room-4',
+          content: 'wait for backoff',
+          clientMessageId: 'client-msg-10',
+        }),
+        'offline',
+      ),
+      nextAttemptAt: '2099-01-01T00:00:00.000Z',
+    };
+
+    expect(isFlushableOutboxItem(failed, Date.parse('2026-09-21T00:00:00.000Z'))).toBe(false);
   });
 });
