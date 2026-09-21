@@ -5,7 +5,7 @@ import AppLockSheet from '@/components/AppLockSheet';
 import HiItsMeTabIcon from '@/components/HiItsMeTabIcon';
 import type { ChatMessage } from '@/components/ChatWindow';
 import BuddyProfileSheet from '@/components/BuddyProfileSheet';
-import { BuddyCircleGroup, NewCircleControl } from '@/components/BuddyCircles';
+import { BuddyListGroup } from '@/components/BuddyListGroup';
 import MessageReportSheet, { type MessageReportSubmission } from '@/components/MessageReportSheet';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import RenameScreenname from '@/components/RenameScreenname';
@@ -87,15 +87,12 @@ import {
 import { dispatchBuddyRequestPush } from '@/lib/pushDispatch';
 import { buildAwayMessageReplyDraft } from '@/lib/awayMessageReply';
 import {
-  buildBuddyCircleIndex,
-  createBuddyCircle as createCircleRecord,
-  deleteBuddyCircle,
-  loadBuddyCircles,
-  renameBuddyCircle,
-  setBuddyCircle as assignBuddyToCircle,
-  updateBuddyCircleSettings,
-  type BuddyCircle,
-} from '@/lib/buddyCircles';
+  ARCHIVED_BUDDY_GROUP_ID,
+  OFFLINE_BUDDY_GROUP_ID,
+  ONLINE_BUDDY_GROUP_ID,
+  REQUESTS_BUDDY_GROUP_ID,
+  buildBuddyListGroups,
+} from '@/lib/buddyListGroups';
 import {
   EXTENDED_USER_PROFILE_SELECT_FIELDS,
   EXTENDED_USER_PROFILE_WITH_EMAIL_SELECT_FIELDS,
@@ -285,15 +282,7 @@ const AWAY_PRESETS_STORAGE_KEY = 'hiitsme:away-presets';
 const AWAY_SETTINGS_STORAGE_KEY = 'hiitsme:away-settings';
 const AWAY_COOLDOWN_STORAGE_KEY = 'hiitsme:away-cooldowns';
 const BUDDY_SORT_STORAGE_KEY = 'hiitsme:buddy-sort';
-const BUDDY_CIRCLES_COLLAPSED_STORAGE_KEY = 'hiitsme:buddy-circles-collapsed';
-// Pseudo-group ids share the circle collapse store, so collapsing Offline sticks
-// across sessions exactly like collapsing a real group does.
-const UNGROUPED_BUDDY_GROUP_ID = '__ungrouped__';
-const OFFLINE_BUDDY_GROUP_ID = '__offline__';
-const REQUESTS_BUDDY_GROUP_ID = '__requests__';
-const ARCHIVED_BUDDY_GROUP_ID = '__archived__';
-// What a buddy filed nowhere in particular sits under.
-const DEFAULT_BUDDY_GROUP_NAME = 'Buddies';
+const BUDDY_LIST_COLLAPSED_STORAGE_KEY = 'hiitsme:buddy-list-collapsed';
 const AWAY_AUTO_REPLY_PREFIX = '[Auto-Reply]';
 const AWAY_AUTO_REPLY_COOLDOWN_MS = 10 * 60 * 1000;
 const TYPING_THROTTLE_MS = 1200;
@@ -665,7 +654,6 @@ interface DirectMessageRowProps {
   handleOpenChat: (buddyId: string) => void;
   handleReplyToAwayMessage: (buddyId: string, awayMessage: string) => void;
   handleKnockBuddy: (buddyId: string) => void;
-  presenceHidden?: boolean;
 }
 
 function areDirectMessageRowPropsEqual(prev: DirectMessageRowProps, next: DirectMessageRowProps): boolean {
@@ -693,8 +681,7 @@ function areDirectMessageRowPropsEqual(prev: DirectMessageRowProps, next: Direct
     prev.openBuddyProfile === next.openBuddyProfile &&
     prev.handleOpenChat === next.handleOpenChat &&
     prev.handleReplyToAwayMessage === next.handleReplyToAwayMessage &&
-    prev.handleKnockBuddy === next.handleKnockBuddy &&
-    prev.presenceHidden === next.presenceHidden
+    prev.handleKnockBuddy === next.handleKnockBuddy
   );
 }
 
@@ -712,7 +699,6 @@ const DirectMessageRow = memo(function DirectMessageRow({
   handleOpenChat,
   handleReplyToAwayMessage,
   handleKnockBuddy,
-  presenceHidden = false,
 }: DirectMessageRowProps) {
   const resolvedStatus = resolveStatusFields({
     status: buddy.status,
@@ -730,16 +716,10 @@ const DirectMessageRow = memo(function DirectMessageRow({
     showOnlineStatus: buddy.show_online_status,
   });
   const activityHidden = !visiblePresence.activityVisible;
-  // A presence-hidden circle collapses the buddy to a neutral offline row — the
-  // owner opted out of seeing this circle's live presence (never reveals it to the buddy).
   // A subject who hid activity looks signed off, without last-active leakage.
-  const presenceState = presenceHidden || activityHidden ? 'offline' : visiblePresence.state;
-  const presenceLabel = presenceHidden
-    ? 'Presence hidden'
-    : activityHidden
-      ? ''
-      : getPresenceLabel(presenceState);
-  const presenceDetail = presenceHidden || activityHidden
+  const presenceState = activityHidden ? 'offline' : visiblePresence.state;
+  const presenceLabel = activityHidden ? '' : getPresenceLabel(presenceState);
+  const presenceDetail = activityHidden
     ? ''
     : getPresenceDetail({
         state: presenceState,
@@ -750,19 +730,15 @@ const DirectMessageRow = memo(function DirectMessageRow({
       });
   // The buddy's own words get a line of their own, whatever their presence —
   // an away message shouldn't vanish the moment its author signs off.
-  // Circle hide is the owner's choice; a subject's activity toggle still
-  // leaves their authored away line readable.
-  const statusNote = presenceHidden
-    ? null
-    : getStatusNote({
-        state: presenceState,
-        awayMessage: awayLine,
-        statusMessage: resolvedStatus.authoredStatusMessage,
-      });
+  const statusNote = getStatusNote({
+    state: presenceState,
+    awayMessage: awayLine,
+    statusMessage: resolvedStatus.authoredStatusMessage,
+  });
   const metaDetail = statusNote && statusNote === presenceDetail ? '' : presenceDetail;
 
   const showArrivalWave =
-    !presenceHidden && (recentActivity?.tone === 'online' || recentActivity?.tone === 'back');
+    recentActivity?.tone === 'online' || recentActivity?.tone === 'back';
   const presenceToneClass =
     presenceState === 'away'
       ? 'text-[var(--gold)]'
@@ -781,7 +757,7 @@ const DirectMessageRow = memo(function DirectMessageRow({
       ? `“${statusNote}”`
       : lastMessagePreview || metaDetail;
   const secondaryTone = isTypingActive ? 'typing' : statusNote ? 'status' : 'meta';
-  const isSignedOff = presenceState === 'offline' || presenceHidden;
+  const isSignedOff = presenceState === 'offline';
 
   // An explicit aria-label wins outright over name-from-content, so everything
   // the row shows visually has to be restated here or a screen-reader user gets
@@ -794,7 +770,7 @@ const DirectMessageRow = memo(function DirectMessageRow({
       : `IM ${buddy.screenname}`;
   const rowLabel = [
     rowAction,
-    presenceHidden ? 'presence hidden' : presenceLabel,
+    presenceLabel,
     unreadCount > 0 ? `${unreadCount} unread` : '',
     isTypingActive ? 'typing' : statusNote ? `says ${statusNote}` : '',
     conversationPreference.isPinned ? 'pinned' : '',
@@ -944,9 +920,7 @@ function HiItsMeContent() {
   const [selectedBuddyId, setSelectedBuddyId] = useState<string | null>(null);
   const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
   const [buddySortMode, setBuddySortMode] = useState<BuddySortMode>('online_then_alpha');
-  const [buddyCircles, setBuddyCircles] = useState<BuddyCircle[]>([]);
-  const [collapsedCircleIds, setCollapsedCircleIds] = useState<Set<string>>(new Set());
-  const [circleActionError, setCircleActionError] = useState<string | null>(null);
+  const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(new Set());
   const [buddyLastMessageAt, setBuddyLastMessageAt] = useState<Record<string, string>>({});
   const [buddyLastMessagePreview, setBuddyLastMessagePreview] = useState<Record<string, string>>({});
   const [isUiCacheHydrated, setIsUiCacheHydrated] = useState(false);
@@ -1045,8 +1019,6 @@ function HiItsMeContent() {
   const activeChatBuddyIdRef = useRef<string | null>(null);
   const acceptedBuddyIdsRef = useRef<Set<string>>(new Set());
   const blockedUserIdsRef = useRef<Set<string>>(new Set());
-  const presenceHiddenBuddyIdsRef = useRef<Set<string>>(new Set());
-  const mutedBuddyIdsRef = useRef<Set<string>>(new Set());
   const buddyRowsRef = useRef<Buddy[]>([]);
   const pendingRequestsRef = useRef<PendingRequest[]>([]);
   const temporaryChatAllowedIdsRef = useRef<Set<string>>(new Set());
@@ -1637,12 +1609,6 @@ function HiItsMeContent() {
   const pushBuddyActivity = useCallback(
     (buddyId: string, tone: BuddyActivityToast['tone'], message: string) => {
       if (!buddyId || buddyId === userId) {
-        return;
-      }
-
-      // Owner-side circle controls: a circle with hidden presence never surfaces
-      // sign-on/off/away toasts; a muted circle stays silent in-app.
-      if (presenceHiddenBuddyIdsRef.current.has(buddyId) || mutedBuddyIdsRef.current.has(buddyId)) {
         return;
       }
 
@@ -3531,37 +3497,6 @@ function HiItsMeContent() {
     [acceptedBuddies],
   );
 
-  // Buddy Circles — owner-private grouping + owner-side presence/notification controls.
-  const buddyCircleIndex = useMemo(() => buildBuddyCircleIndex(buddyCircles), [buddyCircles]);
-  const presenceHiddenBuddyIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const circle of buddyCircles) {
-      if (!circle.showPresence) {
-        for (const buddyId of circle.memberBuddyIds) {
-          ids.add(buddyId);
-        }
-      }
-    }
-    return ids;
-  }, [buddyCircles]);
-  const mutedBuddyIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const circle of buddyCircles) {
-      if (circle.notifyMode === 'muted') {
-        for (const buddyId of circle.memberBuddyIds) {
-          ids.add(buddyId);
-        }
-      }
-    }
-    return ids;
-  }, [buddyCircles]);
-  useEffect(() => {
-    presenceHiddenBuddyIdsRef.current = presenceHiddenBuddyIds;
-  }, [presenceHiddenBuddyIds]);
-  useEffect(() => {
-    mutedBuddyIdsRef.current = mutedBuddyIds;
-  }, [mutedBuddyIds]);
-
   const activeChatBuddy = useMemo(() => {
     if (!activeChatBuddyId) {
       return null;
@@ -3665,84 +3600,18 @@ function HiItsMeContent() {
   );
 
   // ── Buddy list groups ──────────────────────────────────────────────────────
-  // The list is organized by named group first and presence second, the way a
-  // buddy list has always worked. Each header carries an online/total count, and
-  // a buddy who signs off leaves their group for a single Offline group at the
-  // bottom — the group's total still counts them, which is what makes a header
-  // like "Buddies (3/6)" mean anything.
-  //
-  // Presence-hidden circles are the one exception: the owner opted out of seeing
-  // that circle's presence, so its buddies stay filed under their own name (we
-  // can't honestly sort them) and never count toward the online half.
-  const buddyListGroups = useMemo(() => {
-    const query = buddyQuery.trim().toLowerCase();
-    type ListBuddy = (typeof filteredDirectMessageBuddies)[number];
-    const matchesQuery = (buddy: ListBuddy) => !query || buddy.screenname.toLowerCase().includes(query);
-    const isPresenceHidden = (buddy: ListBuddy) => presenceHiddenBuddyIds.has(buddy.id);
-    const isSignedOn = (buddy: ListBuddy) =>
-      !isPresenceHidden(buddy) && getBuddyPresenceSummary(buddy).presenceState !== 'offline';
-    const staysInNamedGroup = (buddy: ListBuddy) => isSignedOn(buddy) || isPresenceHidden(buddy);
-
-    const named = [
-      ...buddyCircles.map((circle) => ({
-        id: circle.id,
-        name: circle.name,
-        circle: circle as BuddyCircle | undefined,
-        members: filteredDirectMessageBuddies.filter(
-          (buddy) => buddyCircleIndex.get(buddy.id)?.id === circle.id,
-        ),
-      })),
-      {
-        id: UNGROUPED_BUDDY_GROUP_ID,
-        name: DEFAULT_BUDDY_GROUP_NAME,
-        circle: undefined as BuddyCircle | undefined,
-        members: filteredDirectMessageBuddies.filter((buddy) => !buddyCircleIndex.has(buddy.id)),
-      },
-    ];
-
-    const groups = named
-      .map((group) => {
-        const presenceHidden = group.circle ? !group.circle.showPresence : false;
-        return {
-          ...group,
-          // A presence-hidden circle has no honest online half — reporting "0/6"
-          // over six visible rows would be a lie, so the header shows the total
-          // alone.
-          onlineCount: presenceHidden ? undefined : group.members.filter(isSignedOn).length,
-          totalCount: group.members.length,
-          rows: group.members.filter(staysInNamedGroup).filter(matchesQuery),
-          presenceHidden,
-        };
-      })
-      .filter((group) => group.totalCount > 0);
-
-    const offlineMembers = filteredDirectMessageBuddies.filter((buddy) => !staysInNamedGroup(buddy));
-
-    return {
-      groups,
-      offline: {
-        id: OFFLINE_BUDDY_GROUP_ID,
-        name: 'Offline',
-        circle: undefined as BuddyCircle | undefined,
-        onlineCount: 0,
-        totalCount: offlineMembers.length,
-        rows: offlineMembers.filter(matchesQuery),
-        presenceHidden: false,
-      },
-      totalOnline: groups.reduce((sum, group) => sum + (group.onlineCount ?? 0), 0),
-      totalBuddies: filteredDirectMessageBuddies.length,
-      // With a query typed, an empty group is noise rather than structure.
-      hasQuery: query.length > 0,
-      query,
-    };
-  }, [
-    buddyCircleIndex,
-    buddyCircles,
-    buddyQuery,
-    filteredDirectMessageBuddies,
-    getBuddyPresenceSummary,
-    presenceHiddenBuddyIds,
-  ]);
+  // Flattened to Online / Offline. A buddy who signs off leaves Online for the
+  // single Offline group at the bottom. Requests and Archived stay as extra
+  // sections when they have anyone to show.
+  const buddyListGroups = useMemo(
+    () =>
+      buildBuddyListGroups({
+        buddies: filteredDirectMessageBuddies,
+        isSignedOn: (buddy) => getBuddyPresenceSummary(buddy).presenceState !== 'offline',
+        query: buddyQuery,
+      }),
+    [buddyQuery, filteredDirectMessageBuddies, getBuddyPresenceSummary],
+  );
 
   const currentUserPresenceState = useMemo(
     () =>
@@ -4153,11 +4022,6 @@ function HiItsMeContent() {
               ? previous
               : [...previous, incomingMessage],
           );
-
-          // Muted circle: deliver the message but skip the in-app alert.
-          if (mutedBuddyIdsRef.current.has(senderId)) {
-            return;
-          }
 
           if (incomingMessage.preview_type === 'buzz') {
             document.body.classList.add('buzz-flash');
@@ -5252,32 +5116,16 @@ function HiItsMeContent() {
     });
   }, [handleSendKnockToBuddy]);
 
-  // ── Buddy Circles ──────────────────────────────────────────────────────────
-  const reloadBuddyCircles = useCallback(async () => {
-    if (!userId) {
-      setBuddyCircles([]);
-      return;
-    }
-    try {
-      setBuddyCircles(await loadBuddyCircles());
-    } catch (error) {
-      setCircleActionError(error instanceof Error ? error.message : 'Could not load your circles.');
-    }
-  }, [userId]);
-
-  useEffect(() => {
-    void reloadBuddyCircles();
-  }, [reloadBuddyCircles]);
-
+  // Collapse state for Online / Offline / Requests / Archived.
   useEffect(() => {
     if (!userId || typeof window === 'undefined') {
       return;
     }
     try {
-      const raw = window.localStorage.getItem(`${BUDDY_CIRCLES_COLLAPSED_STORAGE_KEY}:${userId}`);
+      const raw = window.localStorage.getItem(`${BUDDY_LIST_COLLAPSED_STORAGE_KEY}:${userId}`);
       const parsed = raw ? JSON.parse(raw) : null;
       if (Array.isArray(parsed)) {
-        setCollapsedCircleIds(new Set(parsed.filter((value): value is string => typeof value === 'string')));
+        setCollapsedGroupIds(new Set(parsed.filter((value): value is string => typeof value === 'string')));
       }
     } catch {
       /* ignore malformed cache */
@@ -5290,75 +5138,21 @@ function HiItsMeContent() {
     }
     try {
       window.localStorage.setItem(
-        `${BUDDY_CIRCLES_COLLAPSED_STORAGE_KEY}:${userId}`,
-        JSON.stringify([...collapsedCircleIds]),
+        `${BUDDY_LIST_COLLAPSED_STORAGE_KEY}:${userId}`,
+        JSON.stringify([...collapsedGroupIds]),
       );
     } catch {
       /* storage may be unavailable */
     }
-  }, [collapsedCircleIds, userId]);
+  }, [collapsedGroupIds, userId]);
 
-  const runCircleAction = useCallback(
-    async (action: () => Promise<unknown>) => {
-      setCircleActionError(null);
-      try {
-        await action();
-        await reloadBuddyCircles();
-      } catch (error) {
-        setCircleActionError(error instanceof Error ? error.message : 'That circle action did not work.');
-      }
-    },
-    [reloadBuddyCircles],
-  );
-
-  const handleCreateCircle = useCallback(
-    (name: string) => {
-      if (!userId) {
-        return;
-      }
-      void runCircleAction(() => createCircleRecord({ ownerId: userId, name, position: buddyCircles.length }));
-    },
-    [buddyCircles.length, runCircleAction, userId],
-  );
-
-  const handleRenameCircle = useCallback(
-    (circleId: string, name: string) => {
-      void runCircleAction(() => renameBuddyCircle(circleId, name));
-    },
-    [runCircleAction],
-  );
-
-  const handleDeleteCircle = useCallback(
-    (circleId: string) => {
-      void runCircleAction(() => deleteBuddyCircle(circleId));
-    },
-    [runCircleAction],
-  );
-
-  const handleUpdateCircleSettings = useCallback(
-    (circleId: string, settings: { showPresence?: boolean; notifyMode?: 'all' | 'muted' }) => {
-      void runCircleAction(() => updateBuddyCircleSettings(circleId, settings));
-    },
-    [runCircleAction],
-  );
-
-  const handleSetBuddyCircle = useCallback(
-    (buddyId: string, circleId: string | null) => {
-      if (!userId) {
-        return;
-      }
-      void runCircleAction(() => assignBuddyToCircle({ ownerId: userId, buddyId, circleId }));
-    },
-    [runCircleAction, userId],
-  );
-
-  const toggleCircleCollapsed = useCallback((circleId: string) => {
-    setCollapsedCircleIds((previous) => {
+  const toggleGroupCollapsed = useCallback((groupId: string) => {
+    setCollapsedGroupIds((previous) => {
       const next = new Set(previous);
-      if (next.has(circleId)) {
-        next.delete(circleId);
+      if (next.has(groupId)) {
+        next.delete(groupId);
       } else {
-        next.add(circleId);
+        next.add(groupId);
       }
       return next;
     });
@@ -5793,7 +5587,6 @@ function HiItsMeContent() {
   const xpModalButtonClass = 'ui-focus-ring ui-button-secondary ui-button-compact';
   const renderDirectMessageRow = (
     buddy: (typeof filteredDirectMessageBuddies)[number],
-    rowPresenceHidden = false,
   ) => (
     <DirectMessageRow
       key={buddy.id}
@@ -5810,7 +5603,6 @@ function HiItsMeContent() {
       handleOpenChat={handleOpenChat}
       handleReplyToAwayMessage={handleReplyToAwayMessage}
       handleKnockBuddy={handleKnockBuddy}
-      presenceHidden={rowPresenceHidden}
     />
   );
   const isChatSyncBusy = syncState === 'hydrating' || syncState === 'syncing';
@@ -5992,7 +5784,7 @@ function HiItsMeContent() {
         )
       : archivedDirectMessageBuddies;
   const buddyListMatchCount =
-    buddyListGroups.groups.reduce((sum, group) => sum + group.rows.length, 0) +
+    buddyListGroups.online.rows.length +
     buddyListGroups.offline.rows.length +
     matchingPendingRequests.length +
     (conversationFilter === 'all' ? matchingArchivedBuddies.length : 0);
@@ -6559,7 +6351,6 @@ function HiItsMeContent() {
                               }`}
                         </p>
                         <div className="flex shrink-0 items-center gap-1.5">
-                          <NewCircleControl onCreate={handleCreateCircle} disabled={!userId} />
                           <button
                             type="button"
                             onClick={() => setShowListSetup((open) => !open)}
@@ -6607,12 +6398,6 @@ function HiItsMeContent() {
                         </div>
                       ) : null}
                     </div>
-
-                    {circleActionError ? (
-                      <p className="px-4 pb-1 text-[11px] text-red-500" role="alert">
-                        {circleActionError}
-                      </p>
-                    ) : null}
 
                     <div className="px-2 pb-2">
                       {buddyListWaveTone ? (
@@ -6716,84 +6501,55 @@ function HiItsMeContent() {
                         </div>
                       ) : null}
 
-                      {/* The list proper: named groups, an online/total count on each
-                          header, and everyone signed off collected at the bottom. */}
+                      {/* The list proper: Online, then Offline, then Requests / Archived. */}
                       {!isBootstrapping && conversationFilter !== 'requests' ? (
                         <div className="space-y-1 px-2 pb-1">
-                          {buddyListGroups.groups.map((group) => {
-                            // A group with nothing left to show is noise while searching.
-                            if (buddyListGroups.hasQuery && group.rows.length === 0) {
-                              return null;
-                            }
-                            const circle = group.circle;
-                            return (
-                              <BuddyCircleGroup
-                                key={group.id}
-                                name={group.name}
-                                total={group.totalCount}
-                                onlineCount={group.onlineCount}
-                                collapsed={buddyListGroups.hasQuery ? false : collapsedCircleIds.has(group.id)}
-                                collapsible={!buddyListGroups.hasQuery}
-                                onToggleCollapsed={() => toggleCircleCollapsed(group.id)}
-                                circle={circle}
-                                onRename={circle ? (name) => handleRenameCircle(circle.id, name) : undefined}
-                                onDelete={circle ? () => handleDeleteCircle(circle.id) : undefined}
-                                onSetShowPresence={
-                                  circle
-                                    ? (showPresence) => handleUpdateCircleSettings(circle.id, { showPresence })
-                                    : undefined
-                                }
-                                onSetMuted={
-                                  circle
-                                    ? (muted) =>
-                                        handleUpdateCircleSettings(circle.id, {
-                                          notifyMode: muted ? 'muted' : 'all',
-                                        })
-                                    : undefined
-                                }
-                              >
-                                {group.rows.length > 0 ? (
-                                  group.rows.map((buddy) => renderDirectMessageRow(buddy, group.presenceHidden))
-                                ) : (
-                                  <p className="ui-group-empty">
-                                    {group.totalCount > 0
-                                      ? 'Everyone here is signed off.'
-                                      : 'Nobody filed here yet — assign someone from their profile.'}
-                                  </p>
-                                )}
-                              </BuddyCircleGroup>
-                            );
-                          })}
+                          {buddyListGroups.online.totalCount > 0 &&
+                          !(buddyListGroups.hasQuery && buddyListGroups.online.rows.length === 0) ? (
+                            <BuddyListGroup
+                              name={buddyListGroups.online.name}
+                              total={buddyListGroups.online.totalCount}
+                              collapsed={
+                                buddyListGroups.hasQuery
+                                  ? false
+                                  : collapsedGroupIds.has(ONLINE_BUDDY_GROUP_ID)
+                              }
+                              collapsible={!buddyListGroups.hasQuery}
+                              onToggleCollapsed={() => toggleGroupCollapsed(ONLINE_BUDDY_GROUP_ID)}
+                            >
+                              {buddyListGroups.online.rows.map((buddy) => renderDirectMessageRow(buddy))}
+                            </BuddyListGroup>
+                          ) : null}
 
                           {buddyListGroups.offline.totalCount > 0 &&
                           !(buddyListGroups.hasQuery && buddyListGroups.offline.rows.length === 0) ? (
-                            <BuddyCircleGroup
+                            <BuddyListGroup
                               name={buddyListGroups.offline.name}
                               total={buddyListGroups.offline.totalCount}
                               collapsed={
                                 buddyListGroups.hasQuery
                                   ? false
-                                  : collapsedCircleIds.has(OFFLINE_BUDDY_GROUP_ID)
+                                  : collapsedGroupIds.has(OFFLINE_BUDDY_GROUP_ID)
                               }
                               collapsible={!buddyListGroups.hasQuery}
-                              onToggleCollapsed={() => toggleCircleCollapsed(OFFLINE_BUDDY_GROUP_ID)}
+                              onToggleCollapsed={() => toggleGroupCollapsed(OFFLINE_BUDDY_GROUP_ID)}
                               tone="muted"
                             >
                               {buddyListGroups.offline.rows.map((buddy) => renderDirectMessageRow(buddy))}
-                            </BuddyCircleGroup>
+                            </BuddyListGroup>
                           ) : null}
 
                           {matchingPendingRequests.length > 0 ? (
-                            <BuddyCircleGroup
+                            <BuddyListGroup
                               name="Requests"
                               total={matchingPendingRequests.length}
                               collapsed={
                                 buddyListGroups.hasQuery
                                   ? false
-                                  : collapsedCircleIds.has(REQUESTS_BUDDY_GROUP_ID)
+                                  : collapsedGroupIds.has(REQUESTS_BUDDY_GROUP_ID)
                               }
                               collapsible={!buddyListGroups.hasQuery}
-                              onToggleCollapsed={() => toggleCircleCollapsed(REQUESTS_BUDDY_GROUP_ID)}
+                              onToggleCollapsed={() => toggleGroupCollapsed(REQUESTS_BUDDY_GROUP_ID)}
                             >
                               {matchingPendingRequests.map((request) => (
                                 <div key={request.senderId} className="ui-list-row">
@@ -6821,24 +6577,24 @@ function HiItsMeContent() {
                                   </div>
                                 </div>
                               ))}
-                            </BuddyCircleGroup>
+                            </BuddyListGroup>
                           ) : null}
 
                           {conversationFilter === 'all' && matchingArchivedBuddies.length > 0 ? (
-                            <BuddyCircleGroup
+                            <BuddyListGroup
                               name="Archived"
                               total={matchingArchivedBuddies.length}
                               collapsed={
                                 buddyListGroups.hasQuery
                                   ? false
-                                  : collapsedCircleIds.has(ARCHIVED_BUDDY_GROUP_ID)
+                                  : collapsedGroupIds.has(ARCHIVED_BUDDY_GROUP_ID)
                               }
                               collapsible={!buddyListGroups.hasQuery}
-                              onToggleCollapsed={() => toggleCircleCollapsed(ARCHIVED_BUDDY_GROUP_ID)}
+                              onToggleCollapsed={() => toggleGroupCollapsed(ARCHIVED_BUDDY_GROUP_ID)}
                               tone="muted"
                             >
                               {matchingArchivedBuddies.map((buddy) => renderDirectMessageRow(buddy))}
-                            </BuddyCircleGroup>
+                            </BuddyListGroup>
                           ) : null}
 
                           {/* A query that matches nobody must say so; a blank
@@ -8035,15 +7791,6 @@ function HiItsMeContent() {
         mutualContext={mutualContextState.context}
         isMutualContextLoading={mutualContextState.isLoading}
         mutualContextError={mutualContextState.error}
-        circles={buddyCircles}
-        currentCircleId={
-          selectedProfileSummary ? buddyCircleIndex.get(selectedProfileSummary.id)?.id ?? null : null
-        }
-        onSetCircle={
-          selectedProfileSummary && selectedProfileSummary.relationshipStatus === 'accepted'
-            ? (circleId) => handleSetBuddyCircle(selectedProfileSummary.id, circleId)
-            : undefined
-        }
         onClose={closeBuddyProfile}
         onStartChat={() => {
           if (!selectedProfileSummary) {

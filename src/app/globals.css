@@ -1035,19 +1035,6 @@ p.ui-group-header-toggle:hover {
   color: #7c8aa5;
 }
 
-.ui-group-manage {
-  flex-shrink: 0;
-  border-radius: 9999px;
-  padding: 0.1rem 0.4rem;
-  font-size: 12px;
-  color: #94a3b8;
-  transition: color 120ms ease;
-}
-
-.ui-group-manage:hover {
-  color: var(--color-accent, #E8A23A);
-}
-
 /* ── Buddy row ───────────────────────────────────────────────────────────── */
 
 .ui-buddy-row-wrap {
