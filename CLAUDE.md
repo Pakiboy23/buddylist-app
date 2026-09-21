@@ -76,10 +76,12 @@ The main buddy-list path (`ChatContext`) upserts/deletes `room_memberships` dire
 
 ### iOS renders the React app — there is no native UI layer
 On iOS the React app owns every pixel. `ios/App/App/AppDelegate.swift` is a thin
-Capacitor host: `HiItsMeShellViewController` embeds the bridge edge-to-edge and
-does nothing else, and the `HiItsMeShell` plugin exists only to report the
-signed push environment. Its `isAvailable` returns `false` on purpose, which is
-what tells the web to render its own chrome (`nativeShellActive === false`).
+Capacitor host: `HiItsMeShellViewController` embeds the bridge edge-to-edge.
+The `HiItsMeShell` plugin is native *services*, not a UI layer: signed push
+environment plus UserDefaults KV for the auth session. Its `isAvailable`
+returns `false` on purpose so React never waits for native chrome that does
+not exist. Chat Done/Back/menu always render in `ChatWindow` /
+`GroupChatWindow` — do not hide them behind `isNativeIosShell()`.
 
 **A change to the web UI reaches iOS by rebuilding the bundle — nothing else.**
 `npm run build && npm run ios:sync`, then commit `dist/` and
@@ -93,19 +95,23 @@ rooms and conversations natively above the WKWebView, fed by a
 step with the React screens proved impossible — the native list was always a
 redesign behind — so `f6fbad5` switched iOS to the React UI and the overlay,
 its UIKit chrome (nav bar, tab bar, dock), and the whole milestone-one bridge
-were deleted. Native duplicates of privacy settings, admin reset and account
-deletion went with them; the web equivalents at `/account`, `/account/delete`
-and in `hi-its-me/page.tsx` are the only implementations now.
+were deleted. `#166` then deleted the leftover chrome-publish / route-sync
+path that still hid React headers while `isAvailable` was false, so chats
+had no Done/Back at all. Native duplicates of privacy settings, admin reset
+and account deletion went with the overlay; the web equivalents at
+`/account`, `/account/delete` and in `hi-its-me/page.tsx` are the only
+implementations now.
 
-On each new `CFBundleVersion`, `AppDelegate` clears WKWebView site data
-(HTTP cache + service-worker Cache Storage) so a reinstall cannot keep serving
-the previous bundle. See [IOS_APP_STORE_RELEASE.md](./IOS_APP_STORE_RELEASE.md).
+On each new `CFBundleVersion`, `AppDelegate` clears WKWebView HTTP cache and
+service-worker registrations so a reinstall cannot keep serving the previous
+bundle. It does **not** wipe localStorage, cookies, or IndexedDB — auth
+lives in UserDefaults via `HiItsMeShell`, and theme/app-lock still use
+localStorage. See [IOS_APP_STORE_RELEASE.md](./IOS_APP_STORE_RELEASE.md)
+and [docs/ios-auth-persistence.md](./docs/ios-auth-persistence.md).
 
-Vestigial but harmless: `nativeShellActive` / `nativeShellMode` conditionals and
-the chrome-state publish path still exist in `page.tsx` and
-`src/lib/nativeShell.ts`. With `isAvailable` false they always take the web
-branch. Removing them is a separate cleanup — it touches layout across several
-components and wants device verification.
+`src/lib/nativeShell.ts` now only exports `isNativeIosShell`,
+`confirmNativeShellAvailable` (always false), and `getNativePushEnvironment`.
+There is no chrome-state publish path.
 
 ### Realtime Channels
 - Room presence: `active_chat_room:${roomId}`
@@ -141,6 +147,7 @@ Operational runbook: [docs/push-dispatch.md](./docs/push-dispatch.md).
 - `src/context/ChatContext.tsx` — Persistent room state, unread tracking, sync
 - `src/hooks/` — Custom hooks (keyboard viewport, pull-to-refresh, swipe-back, theme)
 - `src/lib/` — Business logic (auth, crypto, outbox, media, presence, push, content moderation, account deletion, trust & safety, etc.)
+- `src/lib/himAuthStorage.ts` / `authSessionPolicy.ts` — native UserDefaults session + SIGNED_OUT-only bounce. Runbook: `docs/ios-auth-persistence.md`.
 - `src/lib/profanityTerms.generated.ts` — **Auto-generated** wordlist. Don't hand-edit; re-run the generator.
 - `supabase/migrations/` — Ordered Postgres migrations (28 as of May 2026).
 - `supabase/functions/` — Deno Edge Functions: `admin-me`, `delete-account`, `export-account`, `push-dispatch`, `rooms-invite`.
@@ -156,7 +163,7 @@ Operational runbook: [docs/push-dispatch.md](./docs/push-dispatch.md).
 - `export-account` — JSON download of the caller's data (`/account` Export).
 - `push-dispatch` — APNs (and leftover FCM) fan-out. Client JWT after a send, or Vault secret for server-side inserts. Runbook: `docs/push-dispatch.md`.
 - `admin-me` — Check whether the caller is in `admin_users`.
-- `rooms-invite` — Room invite link generator + accept.
+- `rooms-invite` — accepted-buddy room invite fan-out (`POST {roomId, buddyIds}`). No shareable links; `/join/:inviteCode` discards the code.
 
 ## Environment
 
@@ -175,7 +182,8 @@ E2E tests need: `PLAYWRIGHT_USER_A_SCREENNAME`, `PLAYWRIGHT_USER_A_PASSWORD`, `P
 
 - iOS: Archive via Xcode after `npm run ios:preflight`. Xcode Cloud CI in `ci_scripts/`.
 - iOS defaults to bundled mode. Keep `ios/App/App/public` and `native-web/` in sync with web builds — on iOS this bundle *is* the UI.
-- On each new `CFBundleVersion`, `AppDelegate` clears WKWebView site data so a reinstall cannot keep a stale service worker. Same-number reinstalls will not clear the cache.
+- On each new `CFBundleVersion`, `AppDelegate` clears HTTP cache + service-worker registrations only. Same-number reinstalls will not clear the cache. Do not restore `allWebsiteDataTypes()` — that wipes the session. See [docs/ios-auth-persistence.md](./docs/ios-auth-persistence.md).
+- Never hand-edit hashed files under `dist/assets/` or `ios/App/App/public/assets/` (CI bundle-integrity guard). Rebuild with real `VITE_SUPABASE_*`.
 - Xcode Cloud (as of 30 Aug 2026): `Release (HIM) — main` archives `main` and auto-distributes to internal TestFlight; `PR compile check v2 (HIM)` builds `claude/*` branches without archiving. `ci_pre_xcodebuild.sh` refuses archives that are not `main` or a tag.
 
 ## App Store readiness

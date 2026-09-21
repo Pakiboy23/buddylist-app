@@ -189,11 +189,14 @@ npm run ios:open
 
 Current native-host behavior:
 - thin Capacitor WKWebView; no SwiftUI overlay
-- WKWebView site data cleared once per `CFBundleVersion` so a reinstall cannot keep a stale service worker
+- WKWebView HTTP cache + service-worker registrations cleared once per `CFBundleVersion`. localStorage is **not** wiped — auth lives in UserDefaults. See [docs/ios-auth-persistence.md](./docs/ios-auth-persistence.md).
 - no pull-to-refresh bounce (`overscroll-behavior-y: none`)
-- no viewport zoom (`maximum-scale=1`, `user-scalable=0`)
+- pinch-zoom is allowed (`index.html` viewport is `width=device-width, initial-scale=1, viewport-fit=cover` — no `maximum-scale` / `user-scalable=no`)
+- amber fills use ink text (`--on-accent: #0F1424`) so CTAs meet WCAG AA against chiraag `#E8A23A`
+- boot splash, unread pulses, and chat slide-ins honor `prefers-reduced-motion`
 - no long-press text callout (`-webkit-touch-callout: none`)
 - status bar configured in `capacitor.config.ts`
+- chat Done / Back / menu always render in React. Do not hide them for iOS.
 - push is Supabase-first (token table + `push-dispatch` Edge Function). See [docs/push-dispatch.md](./docs/push-dispatch.md).
 
 ## Auth Model
@@ -201,6 +204,7 @@ Current native-host behavior:
 Supabase auth uses synthetic email behind screenname:
 - new signup uses `${screenname}@hiitsme.app`; sign-in also falls back to legacy BuddyList auth emails such as `${screenname}@buddylist.com`
 - user profile screenname lives in `public.users`
+- on iOS the session is dual-written to UserDefaults (`him.persist.*`) and localStorage so a build-number cache clear cannot bounce a signed-in user back to login. `/hi-its-me` returns to Sign in only on `SIGNED_OUT`, never on `INITIAL_SESSION` with a null session. Runbook: [docs/ios-auth-persistence.md](./docs/ios-auth-persistence.md).
 
 Recovery model:
 - user can set/update a recovery code (hashed in DB)
@@ -245,6 +249,8 @@ Recovery model:
 - `src/components/RetroWindow.tsx` - top-level mobile window shell + centered glossy titlebar
 - `src/app/hi-its-me/page.tsx` - H.I.M. contacts, DM windows, room controls
 - `src/lib/passwordRecovery.ts` - recovery/ticket crypto + workflows
+- `src/lib/himAuthStorage.ts` - native UserDefaults + localStorage auth adapter
+- `src/lib/authSessionPolicy.ts` - SIGNED_OUT-only bounce to the login UI
 - `src/lib/clientStorage.ts` - safe typed local persistence with versioned envelopes
 - `src/lib/chatMedia.ts` - attachment validation + Supabase Storage upload helpers
 - `src/lib/outbox.ts` - offline outbox queue schema + retry metadata
@@ -285,7 +291,21 @@ npm run build
 npm run ios:sync
 ```
 
-Then commit `dist/` and `ios/App/App/public`. If a reinstall still looks stale, confirm `CFBundleVersion` changed — `AppDelegate` only clears WKWebView site data when the build number changes.
+Then commit `dist/` and `ios/App/App/public`. If a reinstall still looks stale, confirm `CFBundleVersion` changed — `AppDelegate` only clears HTTP cache + service-worker registrations when the build number changes. It will **not** sign the user out.
+
+### Signed in, then bounced back to Sign in (iOS)
+
+That is App Review 2.1(a), not a wrong password. `/hi-its-me` must bounce only on `SIGNED_OUT`. Native `getSession()` can return null for up to ~3s while UserDefaults hydrates — `waitForSessionOrNull()` retries. Do not call `signOut()` on an invalid-refresh error during that lookup.
+
+Full runbook: [docs/ios-auth-persistence.md](./docs/ios-auth-persistence.md).
+
+### Chat window has no Done / Back on iOS
+
+`HiItsMeShell.isAvailable()` is always false. There is no native header. `ChatWindow` / `GroupChatWindow` must always render their React chrome. Do not gate `headerActions` or `hideHeader` on `isNativeIosShell()`.
+
+### CI: content-hashed bundle file was edited in place
+
+A file under `dist/assets/` or `ios/App/App/public/assets/` kept its Vite hash but changed bytes. Do not patch CSS/JS in the artifact. Rebuild with real `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY`, then `npm run ios:sync`.
 
 ### Push returned 200 but nobody got a notification
 
