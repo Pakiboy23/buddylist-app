@@ -9,9 +9,7 @@ import {
   ABUSE_REPORT_CATEGORY_OPTIONS,
   type AbuseReportCategory,
 } from '@/lib/trustSafety';
-import { supabase } from '@/lib/supabase';
 import { createEmptyMutualContext, type MutualContext } from '@/lib/mutualContext';
-import { useConnectionStatus } from '@/hooks/useConnectionStatus';
 
 const EMPTY_MUTUAL_CONTEXT = createEmptyMutualContext();
 
@@ -47,16 +45,6 @@ interface BuddyProfileSheetProps {
   onBlockBuddy?: () => void;
   onUnblockBuddy?: () => void;
   onSubmitReport?: (payload: { category: AbuseReportCategory; details: string }) => Promise<void> | void;
-  /**
-   * When provided, enables the room-gated connection system (user_connections table)
-   * and applies presence visibility gating based on connection status.
-   */
-  currentUserId?: string;
-}
-
-/** Returns [ua, ub] with the lesser UUID first (canonical ordering for user_connections). */
-function canonicalPair(a: string, b: string): [string, string] {
-  return a < b ? [a, b] : [b, a];
 }
 
 export default function BuddyProfileSheet({
@@ -78,7 +66,6 @@ export default function BuddyProfileSheet({
   onBlockBuddy,
   onUnblockBuddy,
   onSubmitReport,
-  currentUserId,
 }: BuddyProfileSheetProps) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const previouslyFocusedElementRef = useRef<HTMLElement | null>(null);
@@ -88,23 +75,7 @@ export default function BuddyProfileSheet({
   const [reportCategory, setReportCategory] = useState<AbuseReportCategory>('harassment');
   const [reportDetails, setReportDetails] = useState('');
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
-  const [connectionError, setConnectionError] = useState<string | null>(null);
-
-  // Connection status — always called (hooks cannot be conditional).
-  // Skips all fetching when currentUserId is absent or buddy is null.
-  const connectionState = useConnectionStatus(
-    currentUserId && buddy ? buddy.id : '',
-  );
-
-  // Derived visibility flags.
-  // When currentUserId is not provided, fall back to full visibility (backward compat).
-  const effectiveStatus = currentUserId ? connectionState.status : 'mutual';
-  const showPresence =
-    effectiveStatus !== 'none' && effectiveStatus !== 'loading' && effectiveStatus !== 'blocked';
-  const showActivity = showPresence && buddy?.activityVisible !== false;
-  const showAwayMessage = showPresence;
-  // Status line and bio are "extended info" — only for pending/mutual.
-  const showExtended = effectiveStatus === 'pending' || effectiveStatus === 'mutual';
+  const showActivity = buddy?.activityVisible !== false;
 
   useEffect(() => {
     if (!isOpen || !buddy) return;
@@ -126,41 +97,6 @@ export default function BuddyProfileSheet({
       onClose();
     }
   };
-
-  // --- Connection action handlers (user_connections table) ---
-  // Realtime subscription in useConnectionStatus will reflect the DB update.
-
-  async function handleFollow() {
-    if (!currentUserId || !buddy) return;
-    setConnectionError(null);
-    const [ua, ub] = canonicalPair(currentUserId, buddy.id);
-    const { error } = await supabase.from('user_connections').insert({
-      user_a: ua, user_b: ub, status: 'following', initiated_by: currentUserId,
-    });
-    if (error) setConnectionError(error.message);
-  }
-
-  async function handleAddBuddy() {
-    if (!currentUserId || !buddy) return;
-    setConnectionError(null);
-    const [ua, ub] = canonicalPair(currentUserId, buddy.id);
-    const { error } = await supabase.from('user_connections').insert({
-      user_a: ua, user_b: ub, status: 'pending', initiated_by: currentUserId,
-    });
-    if (error) setConnectionError(error.message);
-  }
-
-  async function handleUpgradeToBuddy() {
-    if (!currentUserId || !buddy) return;
-    setConnectionError(null);
-    const [ua, ub] = canonicalPair(currentUserId, buddy.id);
-    const { error } = await supabase
-      .from('user_connections')
-      .update({ status: 'pending', initiated_by: currentUserId })
-      .eq('user_a', ua)
-      .eq('user_b', ub);
-    if (error) setConnectionError(error.message);
-  }
 
   return (
     <div
@@ -229,7 +165,7 @@ export default function BuddyProfileSheet({
               </div>
             </div>
 
-            {showExtended && buddy.statusLine ? (
+            {buddy.statusLine ? (
               <div className="ui-panel-muted mt-4 rounded-2xl px-3 py-2">
                 <p className="text-[length:var(--ui-text-2xs)] font-semibold uppercase tracking-widest text-slate-400">
                   Status Line
@@ -238,7 +174,7 @@ export default function BuddyProfileSheet({
               </div>
             ) : null}
 
-            {showAwayMessage && buddy.awayMessage ? (
+            {buddy.awayMessage ? (
               <div className="ui-away-card mt-3">
                 <p data-away-label="true" className="text-[length:var(--ui-text-2xs)] font-semibold uppercase tracking-widest">
                   Away Message
@@ -249,25 +185,14 @@ export default function BuddyProfileSheet({
               </div>
             ) : null}
 
-            {showExtended ? (
-              <div className="ui-panel-muted mt-3 rounded-2xl px-3 py-2">
-                <p className="text-[length:var(--ui-text-2xs)] font-semibold uppercase tracking-widest text-slate-400">
-                  Bio
-                </p>
-                <p className="mt-1 text-[length:var(--ui-text-md)] text-slate-700 dark:text-slate-200">
-                  {buddy.bio?.trim() || 'No profile bio yet.'}
-                </p>
-              </div>
-            ) : null}
-
-            {/* Prompt to follow when there's no connection yet */}
-            {currentUserId && effectiveStatus === 'none' ? (
-              <div className="ui-panel-muted mt-3 rounded-2xl px-3 py-2">
-                <p className="text-[length:var(--ui-text-xs)] text-slate-400">
-                  Follow {buddy.screenname} to see their away message and status.
-                </p>
-              </div>
-            ) : null}
+            <div className="ui-panel-muted mt-3 rounded-2xl px-3 py-2">
+              <p className="text-[length:var(--ui-text-2xs)] font-semibold uppercase tracking-widest text-slate-400">
+                Bio
+              </p>
+              <p className="mt-1 text-[length:var(--ui-text-md)] text-slate-700 dark:text-slate-200">
+                {buddy.bio?.trim() || 'No profile bio yet.'}
+              </p>
+            </div>
           </div>
 
           <MutualContextCard
@@ -288,69 +213,7 @@ export default function BuddyProfileSheet({
               {isBlocked ? 'Blocked' : 'Send IM'}
             </button>
 
-            {/* New connection system (currentUserId present, status loaded) */}
-            {currentUserId && effectiveStatus !== 'loading' ? (
-              <>
-                {effectiveStatus === 'none' ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => void handleAddBuddy()}
-                      disabled={!connectionState.canAddBuddy}
-                      title={
-                        !connectionState.canAddBuddy
-                          ? 'Join a room with them first to send a buddy request'
-                          : undefined
-                      }
-                      aria-label={`Add ${buddy.screenname} as a buddy`}
-                      className="ui-focus-ring ui-button-secondary rounded-2xl px-4 py-2.5 text-[length:var(--ui-text-md)] disabled:opacity-50"
-                    >
-                      Add Buddy
-                    </button>
-                    {!connectionState.canAddBuddy ? (
-                      <p className="w-full text-right text-[length:var(--ui-text-xs)] text-slate-400">
-                        Join a room with them first to send a buddy request
-                      </p>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() => void handleFollow()}
-                      aria-label={`Follow ${buddy.screenname}`}
-                      className="ui-focus-ring ui-button-secondary rounded-2xl px-4 py-2.5 text-[length:var(--ui-text-md)]"
-                    >
-                      Follow
-                    </button>
-                  </>
-                ) : null}
-
-                {effectiveStatus === 'following' ? (
-                  <>
-                    <span className="flex items-center rounded-2xl px-4 py-2.5 text-[length:var(--ui-text-md)] text-slate-400">
-                      Following
-                    </span>
-                    {connectionState.canAddBuddy ? (
-                      <button
-                        type="button"
-                        onClick={() => void handleUpgradeToBuddy()}
-                        aria-label={`Upgrade to buddy with ${buddy.screenname}`}
-                        className="ui-focus-ring ui-button-secondary rounded-2xl px-4 py-2.5 text-[length:var(--ui-text-md)]"
-                      >
-                        Upgrade to Buddy
-                      </button>
-                    ) : null}
-                  </>
-                ) : null}
-
-                {effectiveStatus === 'pending' ? (
-                  <span className="flex items-center rounded-2xl px-4 py-2.5 text-[length:var(--ui-text-md)] text-slate-400">
-                    Request Sent
-                  </span>
-                ) : null}
-              </>
-            ) : null}
-
-            {/* Legacy prop-driven add buddy (when currentUserId not provided) */}
-            {!currentUserId && showAddAction ? (
+            {showAddAction ? (
               <button
                 type="button"
                 onClick={onAddBuddy}
@@ -535,11 +398,6 @@ export default function BuddyProfileSheet({
             </div>
           ) : null}
 
-          {connectionError ? (
-            <p role="alert" className="ui-note-error text-[length:var(--ui-text-sm)] font-semibold">
-              {connectionError}
-            </p>
-          ) : null}
           {feedbackMessage ? (
             <p className="ui-note-info text-[length:var(--ui-text-sm)] font-semibold">
               {feedbackMessage}

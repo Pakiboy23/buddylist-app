@@ -7781,7 +7781,6 @@ function HiItsMeContent() {
         key={selectedProfileSummary?.id ?? 'profile-sheet'}
         buddy={selectedProfileSummary}
         isOpen={Boolean(selectedProfileSummary)}
-        currentUserId={userId ?? undefined}
         isUpdating={isAddingBuddyId === selectedProfileSummary?.id || isRemovingBuddyId === selectedProfileSummary?.id}
         errorMessage={profileSheetError}
         feedbackMessage={profileSheetFeedback}
