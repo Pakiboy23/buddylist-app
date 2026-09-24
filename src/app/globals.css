@@ -2676,19 +2676,6 @@ html:not(.dark) .ui-my-status-chip[data-tone='ghost'] {
   background: rgba(15, 20, 36, 0.04);
 }
 
-.ui-room-filter-row {
-  display: flex;
-  gap: 0.4rem;
-  overflow-x: auto;
-  padding-bottom: 0.25rem;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-
-.ui-room-filter-row::-webkit-scrollbar {
-  display: none;
-}
-
 .ui-room-filter-chip {
   flex-shrink: 0;
   border: 1px solid rgba(247, 240, 232, 0.1);
@@ -2719,106 +2706,6 @@ html:not(.dark) .ui-room-filter-chip {
   position: relative;
   overflow: hidden;
   align-items: flex-start !important;
-}
-
-.ui-room-card[data-live='true'] {
-  padding-left: 1rem;
-}
-
-.ui-room-card[data-live='true']::before {
-  content: "";
-  position: absolute;
-  left: 0.38rem;
-  top: 0.5rem;
-  bottom: 0.5rem;
-  width: 3px;
-  border-radius: 999px;
-  background: linear-gradient(180deg, var(--rose) 0%, var(--gold) 100%);
-}
-
-.ui-room-live-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  flex-shrink: 0;
-  border: 1px solid rgba(78, 201, 122, 0.18);
-  border-radius: 999px;
-  background: rgba(78, 201, 122, 0.1);
-  color: var(--green);
-  padding: 0.15rem 0.45rem;
-  font-family: var(--font-screenname), "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
-  font-size: 9px;
-  letter-spacing: 0.04em;
-}
-
-.ui-room-live-dot {
-  width: 0.32rem;
-  height: 0.32rem;
-  border-radius: 999px;
-  background: var(--green);
-  box-shadow: 0 0 6px rgba(78, 201, 122, 0.7);
-  animation: ui-room-live-blink 1.6s ease-in-out infinite;
-}
-
-@keyframes ui-room-live-blink {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.35;
-  }
-}
-
-.ui-room-tag {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 999px;
-  border: 1px solid rgba(247, 240, 232, 0.1);
-  padding: 0.15rem 0.48rem;
-  font-family: var(--font-screenname), "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
-  font-size: 9px;
-  letter-spacing: 0.03em;
-  text-transform: lowercase;
-}
-
-.ui-room-tag[data-tone='rose'] {
-  border-color: rgba(232, 162, 58, 0.26);
-  background: rgba(232, 162, 58, 0.12);
-  color: var(--rose);
-}
-
-.ui-room-tag[data-tone='gold'] {
-  border-color: rgba(232, 162, 58, 0.24);
-  background: rgba(232, 162, 58, 0.1);
-  color: var(--gold);
-}
-
-.ui-room-tag[data-tone='lavender'] {
-  border-color: rgba(232, 162, 58, 0.24);
-  background: rgba(232, 162, 58, 0.1);
-  color: var(--lavender);
-}
-
-.ui-room-tag[data-tone='green'] {
-  border-color: rgba(78, 201, 122, 0.22);
-  background: rgba(78, 201, 122, 0.08);
-  color: var(--green);
-}
-
-.ui-room-tag[data-tone='ghost'] {
-  border-color: rgba(247, 240, 232, 0.08);
-  background: rgba(15, 20, 36, 0.3);
-  color: var(--muted);
-}
-
-html:not(.dark) .ui-room-tag {
-  border-color: rgba(15, 20, 36, 0.10);
-}
-
-html:not(.dark) .ui-room-tag[data-tone='ghost'] {
-  border-color: rgba(15, 20, 36, 0.08);
-  background: rgba(15, 20, 36, 0.04);
 }
 
 .ui-away-card {
@@ -3037,7 +2924,6 @@ html:not(.dark) .ui-room-tag[data-tone='ghost'] {
 
 @media (prefers-reduced-motion: reduce) {
   .ui-online-pip,
-  .ui-room-live-dot,
   .ui-buddy-arrival-wave span,
   .ui-unread-badge-pulse,
   .aim-unread-badge-pulse {

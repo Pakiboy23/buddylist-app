@@ -21,6 +21,7 @@ export interface JoinedRoom {
   id: string;
   slug: string;
   name: string;
+  description: string;
   unreadCount: number;
 }
 
@@ -33,7 +34,7 @@ interface ChatContextValue {
   lastSyncedAt: string | null;
   lastSyncError: string | null;
   playChatSound: (type: SoundType) => void;
-  joinRoom: (roomId: string, roomSlug: string, roomName: string) => Promise<void>;
+  joinRoom: (roomId: string, roomSlug: string, roomName: string, roomDescription?: string) => Promise<void>;
   leaveRoom: (roomId: string) => Promise<void>;
   clearUnreads: (roomId: string) => Promise<void>;
   resetChatState: () => Promise<void>;
@@ -57,6 +58,7 @@ interface StoredRoomState {
   roomId: string;
   roomSlug: string;
   roomName: string;
+  roomDescription: string;
   unreadCount: number;
   joinedAt: string | null;
 }
@@ -69,10 +71,16 @@ interface PersistedChatState {
 
 type CacheSource = 'current' | 'none';
 
+interface RoomCatalogFields {
+  slug: string;
+  name: string;
+  description?: string | null;
+}
+
 interface RoomMembershipRow {
   room_id: string;
   joined_at: string | null;
-  rooms: { slug: string; name: string } | { slug: string; name: string }[] | null;
+  rooms: RoomCatalogFields | RoomCatalogFields[] | null;
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null);
@@ -101,6 +109,8 @@ function coerceStoredRoom(value: unknown): StoredRoomState | null {
   const roomId = typeof candidate.roomId === 'string' ? candidate.roomId : '';
   const roomSlug = typeof candidate.roomSlug === 'string' ? candidate.roomSlug.trim() : '';
   const roomName = typeof candidate.roomName === 'string' ? candidate.roomName.trim() : '';
+  const roomDescription =
+    typeof candidate.roomDescription === 'string' ? candidate.roomDescription.trim() : '';
   if (!roomId || !roomSlug || !roomName) {
     return null;
   }
@@ -114,6 +124,7 @@ function coerceStoredRoom(value: unknown): StoredRoomState | null {
     roomId,
     roomSlug,
     roomName,
+    roomDescription,
     unreadCount: Math.max(0, Math.floor(unreadCandidate)),
     joinedAt: typeof candidate.joinedAt === 'string' ? candidate.joinedAt : null,
   };
@@ -201,6 +212,7 @@ function mapRowsToStoredRooms(rows: RoomMembershipRow[]): StoredRoomState[] {
       const roomData = Array.isArray(row.rooms) ? row.rooms[0] ?? null : row.rooms;
       const roomSlug = roomData?.slug?.trim() ?? '';
       const roomName = roomData?.name?.trim() ?? '';
+      const roomDescription = roomData?.description?.trim() ?? '';
       if (!row.room_id || !roomSlug || !roomName) {
         return null;
       }
@@ -209,6 +221,7 @@ function mapRowsToStoredRooms(rows: RoomMembershipRow[]): StoredRoomState[] {
         roomId: row.room_id,
         roomSlug,
         roomName,
+        roomDescription,
         unreadCount: 0,
         joinedAt: typeof row.joined_at === 'string' ? row.joined_at : null,
       } satisfies StoredRoomState;
@@ -229,7 +242,8 @@ function areRoomsEqual(left: StoredRoomState[], right: StoredRoomState[]) {
     if (
       leftRoom.roomId !== rightRoom.roomId ||
       leftRoom.roomSlug !== rightRoom.roomSlug ||
-      leftRoom.roomName !== rightRoom.roomName
+      leftRoom.roomName !== rightRoom.roomName ||
+      leftRoom.roomDescription !== rightRoom.roomDescription
     ) {
       return false;
     }
@@ -293,7 +307,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       for (let attempt = 0; attempt <= SYNC_RETRY_DELAYS_MS.length; attempt += 1) {
         const { data, error } = await supabase
           .from('room_memberships')
-          .select('room_id, joined_at, rooms(slug, name)')
+          .select('room_id, joined_at, rooms(slug, name, description)')
           .eq('user_id', sessionUserId)
           .order('joined_at', { ascending: false });
 
@@ -549,16 +563,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [syncFromServer, userId]);
 
   const joinRoom = useCallback(
-    async (roomId: string, roomSlug: string, roomName: string) => {
+    async (roomId: string, roomSlug: string, roomName: string, roomDescription?: string) => {
       if (!roomId || !roomSlug || !roomName) {
         return;
       }
 
       const alreadyActive = roomsRef.current.some((room) => room.roomId === roomId);
+      const existing = roomsRef.current.find((room) => room.roomId === roomId);
       const optimisticRoom: StoredRoomState = {
         roomId,
         roomSlug,
         roomName,
+        roomDescription: roomDescription?.trim() || existing?.roomDescription || '',
         unreadCount: 0,
         joinedAt: new Date().toISOString(),
       };
@@ -662,6 +678,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         id: room.roomId,
         slug: room.roomSlug,
         name: room.roomName,
+        description: room.roomDescription,
         unreadCount: room.unreadCount,
       })),
     [rooms],
