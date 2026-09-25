@@ -175,7 +175,7 @@ Gaps are ordered by risk. **P1 = fix before launch, P2 = fix in first post-launc
 | **Gap** | Admin access is not logged. Cannot determine when admins accessed the admin panel, or whether an admin account was hijacked and used for unauthorized access. GDPR Art. 5(2) accountability particularly requires this for privileged operations. |
 | **Recommended event_type** | `admin.access.granted` / `admin.access.denied` |
 | **Recommended metadata** | `{ route }` — passed from the caller |
-| **Files affected** | `src/lib/adminAuth.ts`, `api/admin/me.ts`, `api/admin/password-reset-ticket.ts`, `api/admin/password-reset-audit.ts` |
+| **Files affected** | `src/lib/adminAuth.ts`, `api/admin/me.ts`. Ticket/audit Vercel routes were deleted in #172. |
 
 ---
 

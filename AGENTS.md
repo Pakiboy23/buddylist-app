@@ -62,9 +62,9 @@ on was deleted in #147 — do not restore either.
 - **Native Hosted (debug only):** Live server mode via `CAPACITOR_HOSTED=1`
 
 ### Auth Model
-- Password-based (not magic links). Supabase synthetic email: `${screenname}@hiitsme.app`
-- Fallback to legacy `${screenname}@buddylist.com`
-- Password recovery: email reset for accounts with a real inbox; no admin ticket APIs
+- Password-based (not magic links). New signups use the user's real email as the Supabase Auth identity.
+- Sign-in still accepts a screenname and tries `${screenname}@hiitsme.app`, then legacy `${screenname}@buddylist.com` (`src/lib/authIdentity.ts`).
+- Password recovery is Supabase email reset for accounts with a real inbox. No admin ticket APIs. Synthetic/legacy emails cannot receive the link — `/account` asks those users to add a real address. Runbook: [docs/password-recovery.md](./docs/password-recovery.md).
 
 ### Rooms v2
 The rooms model was rewritten in migration `20260509184623_rooms_v2_launch_schema.sql`. Old tables (`chat_rooms`, `room_messages` v1, `room_participants`, `user_active_rooms`, etc.) were renamed to `_archive_*` and replaced by:
@@ -101,11 +101,9 @@ On each new `CFBundleVersion`, `AppDelegate` clears WKWebView site data
 (HTTP cache + service-worker Cache Storage) so a reinstall cannot keep serving
 the previous bundle. See [IOS_APP_STORE_RELEASE.md](./IOS_APP_STORE_RELEASE.md).
 
-Vestigial but harmless: `nativeShellActive` / `nativeShellMode` conditionals and
-the chrome-state publish path still exist in `page.tsx` and
-`src/lib/nativeShell.ts`. With `isAvailable` false they always take the web
-branch. Removing them is a separate cleanup — it touches layout across several
-components and wants device verification.
+`src/lib/nativeShell.ts` still reports the signed push environment and confirms
+the presentation shell is off (`isAvailable` is false on purpose). The
+`nativeShellActive` branches and chrome-state publish path were deleted in #166.
 
 ### Realtime Channels
 - Room presence: `active_chat_room:${roomId}`
@@ -138,32 +136,32 @@ Operational runbook: [docs/push-dispatch.md](./docs/push-dispatch.md).
 ### Key Source Layout
 - `src/app/` — Page modules. Path style follows the old Next.js App Router convention but they're plain React components wired into `src/App.tsx` via `react-router-dom`.
 - `src/components/` — React components (ChatWindow, GroupChatWindow, RetroWindow, MessageReportSheet, etc.)
-- `src/context/ChatContext.tsx` — Persistent room state, unread tracking, sync
+- `src/context/ChatContext.tsx` — Persistent room membership + local unread cache (counts are preserved or cleared; room inserts do not increment them)
+- `src/lib/buddyListGroups.ts` — Online / Offline buddy-list sections. Circles UI is gone (#174).
 - `src/hooks/` — Custom hooks (keyboard viewport, pull-to-refresh, swipe-back, theme)
 - `src/lib/` — Business logic (auth, crypto, outbox, media, presence, push, content moderation, account deletion, trust & safety, etc.)
 - `src/lib/profanityTerms.generated.ts` — **Auto-generated** wordlist. Don't hand-edit; re-run the generator.
 - `supabase/migrations/` — Ordered Postgres migrations (28 as of May 2026; later push/ops migrations continue the series).
 - `supabase/functions/` — Deno Edge Functions: `admin-me`, `delete-account`, `export-account`, `push-dispatch`, `rooms-invite`.
-- `supabase/queries/` — Admin/operational queries (not migrations).
-- `api/` — Vercel Functions for serverless endpoints.
+- `supabase/queries/` — Admin/operational queries (not migrations). Do not recreate loose `supabase/*.sql` snapshots (#176).
+- `api/` — Vercel Functions. After #172 this is only `api/admin/me.ts`.
 
 ### Vercel API Routes
-- `/api/auth/recovery/{setup,reset,redeem-ticket}` — Password recovery flows
-- `/api/admin/me` — Admin ops probe
+- `/api/admin/me` — Admin ops probe. Recovery Vercel routes were deleted in #172.
 
 ### Supabase Edge Functions
 - `delete-account` — Self-service account erasure (Apple Guideline 5.1.1(v)). Wipes ~14 user tables in dependency order, then `auth.admin.deleteUser` last.
 - `export-account` — JSON download of the caller's data (`/account` Export).
 - `push-dispatch` — APNs (and leftover FCM) fan-out. Client JWT after a send, or Vault secret for server-side inserts.
 - `admin-me` — Check whether the caller is in `admin_users`.
-- `rooms-invite` — Room invite link generator + accept.
+- `rooms-invite` — In-app accepted-buddy room invites (`POST {roomId, buddyIds}`). No shareable links. `/join/:inviteCode` discards the code. See [docs/buddy-list.md](./docs/buddy-list.md).
 
 ## Environment
 
 Copy `.env.example` to `.env.local`. Required vars (note the `VITE_*` rename for client-side after the Vite migration):
 - `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` — client-side Supabase
 - `SUPABASE_SERVICE_ROLE_KEY` — server-side only (Vercel Functions, Edge Functions, admin queries)
-- `NEXT_PUBLIC_APP_API_ORIGIN` — native builds hitting hosted backend (var name kept for backward compat with Capacitor scripts)
+- `VITE_APP_API_ORIGIN` — optional override of the native Capacitor backend origin (defaults to `https://hiitsme-app.vercel.app`). There is no `NEXT_PUBLIC_APP_API_ORIGIN` reader in app code.
 
 E2E tests need: `PLAYWRIGHT_USER_A_SCREENNAME`, `PLAYWRIGHT_USER_A_PASSWORD`, `PLAYWRIGHT_USER_B_SCREENNAME`, `PLAYWRIGHT_USER_B_PASSWORD`. The `account-delete` and `block-report` specs additionally need `SUPABASE_SERVICE_ROLE_KEY` exposed to the test process. Specs auto-skip if env is missing.
 

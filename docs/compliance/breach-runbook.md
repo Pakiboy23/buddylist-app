@@ -43,8 +43,8 @@ Check the following in the Supabase dashboard (Database → Logs → Postgres / 
 
 | Signal | What to look for |
 |---|---|
-| API 5xx spike | Surge in 500/503 on `/api/push/dispatch` or `/api/admin/*` — may indicate logic error exposing data |
-| Unexpected 401s on admin routes | Someone enumerating `/api/admin/me` or `/api/admin/password-reset-audit` with invalid tokens |
+| API 5xx spike | Surge in 500/503 on `/api/admin/me` — the only remaining Vercel function after #172. Push errors live in Supabase Edge Function logs + `push_dispatch_log`. |
+| Unexpected 401s on admin routes | Someone enumerating `/api/admin/me` with invalid tokens |
 | Build log exposure | A Vercel build that accidentally logged environment variables (check build output in deployment details) |
 
 **How to access:** Vercel Dashboard → Project → Logs; or `vercel logs --follow` in the CLI.

@@ -1,6 +1,6 @@
 # H.I.M. Data Retention Windows
 
-**Last updated:** 2026-09-03  
+**Last updated:** 2026-09-25  
 **Prepared by:** Engineering (Claude Code session)  
 **Status:** Draft — requires legal review before publication
 
@@ -40,8 +40,8 @@ Migration: `supabase/migrations/20260525000004_retention_cleanup_cron.sql`
 
 | Category | Reason |
 |----------|--------|
-| Recovery codes (used / unused) | `account_recovery_codes` table dropped in migration `20260426083107_drop_password_recovery.sql`. Password recovery is now admin-ticket-based. No retention window to enforce. |
-| Password reset audit log | `password_reset_audit` table dropped in same migration. |
+| Recovery codes (used / unused) | `account_recovery_codes` table dropped in migration `20260426083107_drop_password_recovery.sql`. Password recovery is Supabase Auth email reset (`resetPasswordForEmail`). No H.I.M. recovery table remains. |
+| Password reset audit log | `password_reset_audit` and ticket tables dropped in the same migration. Admin ticket APIs were deleted in #172 / #173. |
 
 ---
 

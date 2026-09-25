@@ -9,13 +9,13 @@ This repo has a Capacitor iOS project at `ios/App/App.xcodeproj`.
 - **React owns every pixel.** There is no SwiftUI buddy list or native chrome. `AppDelegate` + `HiItsMeShellViewController` embed the Capacitor WKWebView edge-to-edge. `HiItsMeShell.isAvailable` is `false` on purpose so the web app renders its own chrome.
 - The iOS shell defaults to bundled native assets from `native-web/` (copied into `ios/App/App/public`).
 - Hosted mode still exists, but only as an explicit opt-in debug path via `npm run ios:sync:hosted`.
-- The native export intentionally excludes `src/app/api` and continues to use the hosted backend for recovery/admin requests via `NEXT_PUBLIC_APP_API_ORIGIN`.
+- Password reset is client → Supabase Auth (`resetPasswordForEmail` / `/reset-password`). Native deep link is `HIM://reset-password`. The only remaining Vercel function is `GET /api/admin/me`. See [docs/password-recovery.md](./docs/password-recovery.md).
 - The committed Xcode project is currently narrowed to iPhone portrait to reduce App Review surface area.
 
 A web UI change reaches iOS only after `npm run build && npm run ios:sync` and a commit of `dist/` + `ios/App/App/public`. What the phone shows is the same entry chunk as `hiitsme.app`.
 
 Hosted mode still depends on the live web app. Bundled mode ships the UI locally, but it is not offline-first:
-Supabase auth/data and the recovery/admin backend still require network access.
+Supabase auth/data still require network access. Password reset uses Supabase Auth email, not a Vercel recovery API.
 
 ### Stale WKWebView after a reinstall
 
@@ -75,7 +75,7 @@ npm run ios:open
 
 ## Important review note
 
-Hosted mode still exists, but it is now an explicit debug-only escape hatch. The App Review/TestFlight path should stay on the default bundled `npm run ios:sync` flow so the UI is local in the app shell while recovery/admin requests still hit the hosted backend.
+Hosted mode still exists, but it is now an explicit debug-only escape hatch. The App Review/TestFlight path should stay on the default bundled `npm run ios:sync` flow so the UI is local in the app shell.
 
 Never run `npx cap copy ios` — it regenerates `capacitor.config.json` and drops `HiItsMeShellPlugin`. Always `npm run ios:sync` / `pnpm run ios:sync`.
 
@@ -88,6 +88,6 @@ Push permission is never requested on cold launch. The contextual prompt asks on
 
 ## Bundled-build prep already in place
 
-- Client recovery/admin calls can target a hosted backend origin from native builds.
-- Override the default backend origin with `NEXT_PUBLIC_APP_API_ORIGIN` if you move API traffic off `https://hiitsme-app.vercel.app`.
-- The native bundle is generated in an isolated export workspace so App Router pages can statically export without shipping the web-only `src/app/api` routes into Capacitor.
+- Override the default native API origin with `VITE_APP_API_ORIGIN` if you move `/api/admin/me` off `https://hiitsme-app.vercel.app`.
+- Password reset does not go through Vercel. Native uses `HIM://reset-password`; web uses `https://hiitsme-app.vercel.app/reset-password`.
+- Repo iOS train is **2.6 (build 465)** as of #177. Bump `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` in `ios/App/App.xcodeproj/project.pbxproj` together. Same-number reinstalls will not clear the WKWebView cache.

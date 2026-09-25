@@ -5,10 +5,9 @@ A retro AIM-style messaging app built with Vite + React Router + Supabase, mobil
 ## Current Status
 
 - Auth migrated from magic links to password-based sign-on.
-- Non-email password recovery is live:
-  - recovery code flow
-  - admin-issued one-time reset ticket fallback
-- Chat rooms support persistent membership (`activeRooms`) and unread room counters across refresh/re-login.
+- New signups use a real email. Sign-in still accepts a screenname and tries the synthetic `${screenname}@hiitsme.app` / `@buddylist.com` identities for older accounts.
+- Password recovery is Supabase email reset (`/reset-password`). Recovery codes, admin tickets, and Recovery Concierge are gone. See [docs/password-recovery.md](./docs/password-recovery.md).
+- Chat rooms support persistent membership (`room_memberships`). Room unread badges are a local cache that is cleared on open; they are not incremented from room inserts.
 - Direct-message unread state is persisted in DB (`user_dm_state`) for multi-device consistency.
 - Global listener shows incoming notification banners outside active views.
 - DM behavior:
@@ -73,15 +72,12 @@ This is a product decision, not an unfinished parity backlog. If a room feature 
 - `/reset-password` — password reset
 - `/hi-its-me` — main app: buddies, DM windows, room windows, settings
 - `/hi-its-me/rooms`, `/hi-its-me/rooms/new`, `/hi-its-me/rooms/:roomId/preview` — room list / create / invite preview
-- `/join/:inviteCode` — room invite accept
+- `/join/:inviteCode` — discarded; redirects to `/hi-its-me/rooms`. Room invites are in-app accepted-buddy pulls, not links.
 - `/account` — email, password, push permission, notification preview, data export, legal links
 - `/account/delete` — two-step account erasure
 - Static legal: `hiitsme.app/privacy`, `/terms`, `/support` (`public/{privacy,terms,support}.html`)
 - API routes:
-  - `/api/auth/recovery/setup`
-  - `/api/auth/recovery/reset`
-  - `/api/auth/recovery/redeem-ticket`
-  - `/api/admin/me`
+  - `/api/admin/me` — admin probe (only remaining Vercel function after #172)
 
 ## Environment Variables
 
@@ -101,8 +97,8 @@ VITE_SUPABASE_ANON_KEY=...
 # Server-side only (Vercel Functions, Edge Functions, admin tooling)
 SUPABASE_SERVICE_ROLE_KEY=...
 
-# Native bundles hitting the hosted API origin (var name kept for backward compat)
-NEXT_PUBLIC_APP_API_ORIGIN=...
+# Optional: override the native Capacitor backend origin
+VITE_APP_API_ORIGIN=https://hiitsme-app.vercel.app
 ```
 
 Optional E2E (Playwright) env vars for seeded test users:
@@ -115,7 +111,7 @@ PLAYWRIGHT_USER_B_PASSWORD=...
 ```
 
 Notes:
-- `SUPABASE_SERVICE_ROLE_KEY` is required for server-side recovery/admin routes.
+- `SUPABASE_SERVICE_ROLE_KEY` is required for Edge Functions and `api/admin/me`, not for password reset (that is client → Supabase Auth).
 - Never commit real keys.
 
 ## Mobile Platforms
@@ -133,7 +129,7 @@ Notes:
 pnpm install
 ```
 
-2. Apply Supabase migrations from `supabase/migrations/` (canonical CLI-managed history; the readable snapshots in `supabase/*.sql` are not the live schema). Rooms v2, push fan-out, exclusive device tokens, and `push_dispatch_log` all live later in that directory than the early 2026 numbered files.
+2. Apply Supabase migrations from `supabase/migrations/` (canonical CLI-managed history). Loose `supabase/*.sql` snapshots were deleted in #176 — do not recreate them. Operational SQL lives in `supabase/queries/` and `marketing/campaign-2026-q3/reporting/`. Rooms v2, push fan-out, exclusive device tokens, and `push_dispatch_log` all live later in `supabase/migrations/` than the early 2026 numbered files.
 
 If the remote project already has these schema changes and you are adopting Supabase CLI after the fact, mark already-applied versions with `supabase migration repair --status applied <version>` rather than replaying them. Then:
 
@@ -191,22 +187,17 @@ Current native-host behavior:
 - thin Capacitor WKWebView; no SwiftUI overlay
 - WKWebView site data cleared once per `CFBundleVersion` so a reinstall cannot keep a stale service worker
 - no pull-to-refresh bounce (`overscroll-behavior-y: none`)
-- no viewport zoom (`maximum-scale=1`, `user-scalable=0`)
+- pinch-zoom is allowed (`index.html` viewport is `width=device-width, initial-scale=1.0, viewport-fit=cover` — #167)
 - no long-press text callout (`-webkit-touch-callout: none`)
 - status bar configured in `capacitor.config.ts`
 - push is Supabase-first (token table + `push-dispatch` Edge Function). See [docs/push-dispatch.md](./docs/push-dispatch.md).
 
 ## Auth Model
 
-Supabase auth uses synthetic email behind screenname:
-- new signup uses `${screenname}@hiitsme.app`; sign-in also falls back to legacy BuddyList auth emails such as `${screenname}@buddylist.com`
-- user profile screenname lives in `public.users`
-
-Recovery model:
-- user can set/update a recovery code (hashed in DB)
-- forgot password supports:
-  - recovery code reset
-  - admin one-time ticket redemption
+- New signups store the user's real email on `auth.users` and `public.users`.
+- Sign-in accepts a screenname and tries `${screenname}@hiitsme.app`, then legacy `${screenname}@buddylist.com` (`src/lib/authIdentity.ts`). Typing a full email uses that address as-is.
+- Password recovery is Supabase `resetPasswordForEmail` → `/reset-password`. Accounts whose Auth email is still `@hiitsme.app` or `@buddylist.com` cannot receive the link; `/account` prompts them to add a real inbox.
+- Recovery codes, admin tickets, and `src/lib/passwordRecovery.ts` are gone. Runbook: [docs/password-recovery.md](./docs/password-recovery.md).
 
 ## Realtime + Notification Model
 
@@ -237,14 +228,15 @@ Recovery model:
 
 ## Files to Know
 
-- `src/context/ChatContext.tsx` - persistent room state + unread logic
+- `src/context/ChatContext.tsx` - persistent room membership + local unread cache (cleared on open; not incremented from room inserts)
 - `src/components/GlobalNotificationListener.tsx` - app-wide notifications
 - `src/components/GroupChatWindow.tsx` - room UI + presence
 - `src/components/ChatWindow.tsx` - DM UI (mobile-first dense log + collapsible formatting)
 - `src/components/IncomingMessageBanner.tsx` - mobile-style notification banner
 - `src/components/RetroWindow.tsx` - top-level mobile window shell + centered glossy titlebar
 - `src/app/hi-its-me/page.tsx` - H.I.M. contacts, DM windows, room controls
-- `src/lib/passwordRecovery.ts` - recovery/ticket crypto + workflows
+- `src/lib/buddyRequest.ts` - send/accept buddy graph writes. Surfaces: [docs/buddy-list.md](./docs/buddy-list.md)
+- `src/lib/buddyListGroups.ts` - Online / Offline buddy-list sections (Circles UI removed in #174)
 - `src/lib/clientStorage.ts` - safe typed local persistence with versioned envelopes
 - `src/lib/chatMedia.ts` - attachment validation + Supabase Storage upload helpers
 - `src/lib/outbox.ts` - offline outbox queue schema + retry metadata
@@ -287,6 +279,10 @@ npm run ios:sync
 
 Then commit `dist/` and `ios/App/App/public`. If a reinstall still looks stale, confirm `CFBundleVersion` changed — `AppDelegate` only clears WKWebView site data when the build number changes.
 
+### Password reset email never arrives
+
+The Auth email is probably a synthetic `@hiitsme.app` or `@buddylist.com` address. Sign in (if you still can) and add a real inbox on `/account`. There is no admin ticket fallback. Full runbook: [docs/password-recovery.md](./docs/password-recovery.md).
+
 ### Push returned 200 but nobody got a notification
 
 Two different failures look the same from the sender's side:
@@ -303,7 +299,7 @@ Use `npm run ios:sync` (or `pnpm run ios:sync`). Never hand-edit `CapApp-SPM/Pac
 ## Deployment Notes (Vercel)
 
 - Set the three required env vars in Vercel project settings.
-- Set `NEXT_PUBLIC_APP_API_ORIGIN` too if native builds should target a different backend origin than the default production web domain.
+- Set `VITE_APP_API_ORIGIN` if native builds should target a different backend origin than `https://hiitsme-app.vercel.app`.
 - Ensure Supabase URL/keys match the intended environment (staging vs prod).
 - If auth callback/session behavior seems stale after env changes, redeploy.
 - If using Capacitor hosted mode for debugging, keep `CAPACITOR_SERVER_URL` aligned with your intended domain.

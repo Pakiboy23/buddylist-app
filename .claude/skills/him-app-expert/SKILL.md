@@ -16,8 +16,8 @@ H.I.M. ("Hi, It's Me") is a friendship-first social app for gay men. Screennames
 - Bundle: `com.hiitsme.app`
 - GitHub: `Pakiboy23/buddylist-app`
 - Supabase: BuddyList `keckqpadzxwwmagnmpuk`
-- iOS: live App Store, v2.2 as of Aug 2026
-- Android: not live. Do not claim it is.
+- iOS: App Store product. Repo train is **2.6 (build 465)** as of #177. Do not assume that is the live store build from this file.
+- Android: not live. Client and `android/` were removed in #147. Do not claim it is.
 
 Canonical public line: **H.I.M. — Friends, Not Dates.** Never tell people to search bare "H.I.M."
 
@@ -26,7 +26,7 @@ Canonical public line: **H.I.M. — Friends, Not Dates.** Never tell people to s
 | Topic | Live code | Stale doc to ignore |
 |---|---|---|
 | Design tokens | Midnight + chiraag. `src/app/globals.css`: ink `#0F1424`, stone `#F5F1E8`, chiraag `#E8A23A`, indigo `#1A1F3A`, anaar `#9C2E2E` | `him-CLAUDE.md` rose `#E8608A` / gold / `#13100E`. That palette is **not in `src/`**. Do not restyle toward it. |
-| Auth email | Primary `${screenname}@hiitsme.app`, legacy fallback `@buddylist.com` (`src/lib/authIdentity.ts`) | `him-CLAUDE.md` saying primary is `@buddylist.com` |
+| Auth email | New signups use a real inbox. Sign-in tries `${screenname}@hiitsme.app` then `@buddylist.com` (`src/lib/authIdentity.ts`) | `him-CLAUDE.md` saying primary is `@buddylist.com`, or that recovery is ticket-based |
 | Rooms | v2: `public.rooms`, `room_memberships`, `room_messages.body`. Join/leave via `join_room_by_id` / `leave_room_by_id` | `him-CLAUDE.md` `user_active_rooms` + dual-write to `room_participants` |
 | Social graph | `buddies` (**asymmetric**, pending → accepted). `pending` is ONE directional row (requester → target); `accepted` writes both directions but some mirrors are missing. Count DISTINCT UNORDERED pairs — `count(*) / 2` is wrong for both statuses. | Do not build on `user_connections`. Do not assume symmetry. |
 | Public copy | No dating vocab. No AOL/AIM in **public** copy (issue #108) | Internal AIM-era mechanics (sounds, buddy list) may stay. `src/app/page.tsx` still plays `/sounds/aol-welcome.mp3` on native sign-on — do not advertise that. |
@@ -36,7 +36,7 @@ Canonical public line: **H.I.M. — Friends, Not Dates.** Never tell people to s
 
 ## Stack
 
-Vite 6 + React 19 + React Router v7 SPA. Tailwind v4. Supabase (Postgres, Auth, Realtime, Storage, Edge Functions). Capacitor 8 iOS/Android wrappers. Vitest + Playwright. Vercel for web; `api/` for recovery/admin. Native default is **bundled** (`native-web/` via `scripts/build-native-web.mjs`). Hosted mode is debug-only.
+Vite 6 + React 19 + React Router v7 SPA. Tailwind v4. Supabase (Postgres, Auth, Realtime, Storage, Edge Functions). Capacitor 8 iOS wrapper (Android client removed in #147). Vitest + Playwright. Vercel for web; `api/` is only `/api/admin/me` after #172. Native default is **bundled** (`native-web/` via `scripts/build-native-web.mjs`). Hosted mode is debug-only.
 
 Do not introduce SSR, server components, or Next.js App Router primitives. The Next.js labels in paths are historical (`src/app/` pages are plain React, wired in `src/App.tsx`).
 
@@ -52,10 +52,11 @@ Do not introduce SSR, server components, or Next.js App Router primitives. The N
 
 - **Realtime in Capacitor:** `detectSessionInUrl: false`; call `supabase.realtime.setAuth(session.access_token)` after SUBSCRIBED; filter `room_id` client-side. Do not remove these.
 - **Rooms v2 RLS:** direct INSERT on `room_memberships` recurses. Always go through the SECURITY DEFINER RPCs.
-- **Password recovery** is custom (synthetic emails cannot receive mail): `account_recovery_codes`, `password_reset_tickets`, `password_reset_audit`, `password_reset_attempts`. Do not "simplify" onto Supabase's email reset.
+- **Password recovery** is Supabase email reset (`resetPasswordForEmail` → `/reset-password`). Custom ticket tables were dropped in `20260426083107_drop_password_recovery.sql`. Recovery Concierge and admin ticket APIs were deleted in #172/#173. Do not rebuild them. Legacy synthetic emails cannot receive mail — `/account` asks those users to add a real inbox. Runbook: `docs/password-recovery.md`.
 - **Account deletion** is `supabase/functions/delete-account`. It must succeed on data-bearing accounts, not empty ones. Guards: CORS allows `x-client-info`; `isMissingTable()` matches both `42P01` and `PGRST205`; native ⋯ menu has Account; rooms-v1 archive triggers were dropped. Do not reintroduce those four bugs.
 - **Push:** `requestAndRegisterPush()` lives in `src/lib/nativePush.ts`. Callers: `/account` (manual) and `src/lib/pushPromptMoments.ts` (contextual, only while system state is `prompt`). Friendship-action callers are `buddyRequest.ts` (`buddy_accepted`) and `messageIdempotency.ts` (`first_dm_sent` on a successful DM insert; `first_room_message` on a successful room insert, not on a 23505 reconcile). iOS permission state is the source of truth; `him.pushPrompt.askedAt` is a 7-day cooldown, not a once-per-install veto — localStorage survives reinstalls, authorization does not (#154). Do not skip the ask because `user_push_tokens` has rows. `pushColdLaunchGuard.test.ts` is the contract. Never prompt on cold launch (Guideline 2.5.13). Notification preview default is sender-only.
-- **Invites:** `rooms-invite` requires an accepted buddy. There are no shareable invite links. `/join/:inviteCode` discards the code. Do not invent viral links.
+- **Invites:** `rooms-invite` is `POST {roomId, buddyIds}` for accepted buddies. There are no shareable invite links. `/join/:inviteCode` discards the code. Do not invent viral links. See `docs/buddy-list.md`.
+- **Buddy list:** Online / Offline via `buddyListGroups.ts`. Circles UI was deleted in #174; `buddy_circles` schema is unused. Do not restore that surface.
 - **`dist/` is tracked.** Always `npm run build` (emptyOutDir) before a dist resync. `npx cap copy ios` drops `HiItsMeShellPlugin` — use `npm run ios:sync`.
 - **Content moderation:** DB trigger + client `displayBodyForMessage()`. Wordlist is generated; do not hand-edit `profanityTerms.generated.ts`.
 
@@ -79,7 +80,7 @@ Open tickets:
 - ~~**#106** `users.acquisition_source` write-once at web signup.~~ Shipped 22 Aug (#113).
 - ~~**#107** `marketing_snapshots` + founder SQL insert.~~ Shipped 22 Aug (#114); run `marketing/campaign-2026-q3/reporting/gh17-daily.sql`.
 
-Do **not** this weekend: Circles (0 owners), Buzz demos, Reddit launch blast, a 2.2.1 unless a live bridge error, user counts in posts, "Apple approved 2.2 today," reusing WAU 37.
+Do **not** this weekend: restore Circles UI (#174 deleted it; tables are empty), Buzz demos, Reddit launch blast, user counts in posts, claiming a store version from this file.
 
 Interim porch: `https://him.samaan.tech/why.html?utm_source=instagram&utm_campaign=him_v2_2`.
 
@@ -93,8 +94,8 @@ Activation funnel (honest): install (ASC, not in Supabase) → screenname (`user
 - Building on `user_connections` or rooms-v1 archive tables.
 - Shareable invite links.
 - SSR.
-- Touching password-reset tables without an explicit ask.
-- Shipping Circles as a launch feature while they have 0 owners.
+- Rebuilding the dropped recovery-ticket tables or Recovery Concierge.
+- Restoring the deleted Circles UI on top of unused `buddy_circles` tables.
 
 ## Done when
 
@@ -102,4 +103,4 @@ Activation funnel (honest): install (ASC, not in Supabase) → screenname (`user
 - Native path still bundles (`ios:sync`, not hosted).
 - Copy could be read aloud in a quiet room without sounding like a dating ad.
 - If you changed push callers, `pushColdLaunchGuard.test.ts` matches the new policy.
-- If you changed auth, synthetic email domains still try `hiitsme.app` then `buddylist.com`.
+- If you changed auth, new signups still collect a real email and sign-in still tries `hiitsme.app` then `buddylist.com`.

@@ -43,7 +43,8 @@ Returns `200 { ok: true, userId, deletes: [...] }` on success or `500 { error, d
 
 - `chat_rooms` — public rooms persist even if their creator leaves. Their `created_by_id` FK uses `on delete set null`.
 - `message_reactions`, `room_message_reactions`, `message_attachments`, `room_message_attachments` — cascade off `messages`/`room_messages` (deleted above) and off `users` directly.
-- `admin_users`, `password_reset_*`, `account_recovery_codes` — cascade off `auth.users` and clear automatically when the auth row is deleted.
+- `admin_users` — cascade off `auth.users` when the auth row is deleted.
+- `password_reset_*`, `account_recovery_codes` — **already dropped** in `20260426083107_drop_password_recovery.sql`. Do not add them back to this delete list.
 
 ## Deployment
 
