@@ -1009,7 +1009,6 @@ function HiItsMeContent() {
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const mutualContextTargetId = profileSheetBuddyId ?? activeChatBuddyId;
   const mutualContextState = useMutualContext(userId ? mutualContextTargetId : null);
-  const [initialUnreadForActiveRoom, setInitialUnreadForActiveRoom] = useState(0);
   const [activeRoomReloadToken, setActiveRoomReloadToken] = useState(0);
   const [outboxItems, setOutboxItems] = useState<OutboxItem[]>([]);
   const [awayModalMode, setAwayModalMode] = useState<'profile' | 'away'>('profile');
@@ -1061,7 +1060,6 @@ function HiItsMeContent() {
   const [searchParams] = useSearchParams();
   const {
     joinedRooms,
-    unreadMessages,
     joinRoom,
     leaveRoom,
     clearUnreads,
@@ -4076,7 +4074,6 @@ function HiItsMeContent() {
     setIsHeaderMenuOpen(false);
     setUnreadDirectMessages({});
     setInitialUnreadForActiveChat(0);
-    setInitialUnreadForActiveRoom(0);
     setActiveDmTypingText(null);
     setIsUiCacheHydrated(false);
     setDraftCache({ dm: {}, rooms: {} });
@@ -4131,7 +4128,7 @@ function HiItsMeContent() {
         isSigningOffRef.current = false;
       }
     }
-  }, [playSound, resetChatState, router, setInitialUnreadForActiveChat, setInitialUnreadForActiveRoom, userId]);
+  }, [playSound, resetChatState, router, setInitialUnreadForActiveChat, userId]);
 
   const recordAwayMessageSetEvent = useCallback((nextAwayMessage: string) => {
     if (!nextAwayMessage.trim()) {
@@ -5290,11 +5287,6 @@ function HiItsMeContent() {
       ? 'im'
       : normalizeShellSection(searchParams.get(SHELL_SECTION_QUERY_KEY));
 
-  const getUnreadCountForRoom = useCallback(
-    (roomId: string) => unreadMessages[roomId] ?? 0,
-    [unreadMessages],
-  );
-
   const resolveRoomBySlug = useCallback(async (slug: string) => {
     const normalizedSlug = slug.trim().toLowerCase();
     if (!normalizedSlug) {
@@ -5321,14 +5313,13 @@ function HiItsMeContent() {
 
   const openRoomView = useCallback(
     async (room: ChatRoom) => {
-      setInitialUnreadForActiveRoom(getUnreadCountForRoom(room.id));
       setBodyShellSection('chat');
       await joinRoom(room.id, room.slug, room.name);
       await clearUnreads(room.id);
       setActiveRoom(room);
       replaceAppPathInPlace(buildHiItsMePath({ section: 'chat', roomName: room.slug }));
     },
-    [clearUnreads, getUnreadCountForRoom, joinRoom],
+    [clearUnreads, joinRoom],
   );
 
   const handleOpenActiveRoom = useCallback(
@@ -5349,7 +5340,6 @@ function HiItsMeContent() {
   );
 
   const handleBackFromRoom = useCallback(() => {
-    setInitialUnreadForActiveRoom(0);
     setActiveRoom(null);
     navigateAppPath(router, buildHiItsMePath({ section: 'chat' }), { replace: true });
   }, [router]);
@@ -5363,7 +5353,6 @@ function HiItsMeContent() {
       await leaveRoom(roomId);
 
       if (activeRoom && activeRoom.id === roomId) {
-        setInitialUnreadForActiveRoom(0);
         setActiveRoom(null);
         navigateAppPath(router, buildHiItsMePath({ section: 'chat' }), { replace: true });
       }
@@ -5434,7 +5423,6 @@ function HiItsMeContent() {
         }
 
         await joinRoom(resolvedRoom.id, resolvedRoom.slug, resolvedRoom.name);
-        setInitialUnreadForActiveRoom(getUnreadCountForRoom(resolvedRoom.id));
         await clearUnreads(resolvedRoom.id);
         setActiveRoom(resolvedRoom);
       } catch (error) {
@@ -5449,7 +5437,7 @@ function HiItsMeContent() {
     return () => {
       isCancelled = true;
     };
-  }, [activeRoom, clearUnreads, getUnreadCountForRoom, joinRoom, requestedRoomName, resolveRoomBySlug, userId]);
+  }, [activeRoom, clearUnreads, joinRoom, requestedRoomName, resolveRoomBySlug, userId]);
 
   useEffect(() => {
     if (!userId || !requestedDirectMessageUserId || requestedRoomName) {
@@ -6702,7 +6690,6 @@ function HiItsMeContent() {
                         </div>
                       ) : (
                         filteredRoomCards.map(({ room, meta }) => {
-                          const unreadCount = getUnreadCountForRoom(room.id);
                           const isRoomSelected = Boolean(activeRoom && activeRoom.id === room.id);
                           const normalizedRoomKey = normalizeRoomKey(room.slug);
 
@@ -6714,7 +6701,6 @@ function HiItsMeContent() {
                                 disabled={isJoiningRoom}
                                 data-testid={`room-row-${normalizedRoomKey}`}
                                 data-room-name={room.name}
-                                data-room-unread={unreadCount}
                                 data-active={isRoomSelected ? 'true' : 'false'}
                                 data-live={meta.liveCount > 0 ? 'true' : 'false'}
                                 className="ui-list-row ui-room-card flex-1 text-left disabled:cursor-wait disabled:opacity-60"
@@ -6741,17 +6727,6 @@ function HiItsMeContent() {
                                     ))}
                                   </div>
                                 </div>
-                                {unreadCount > 0 ? (
-                                  <span
-                                    data-testid={`room-unread-${normalizedRoomKey}`}
-                                    aria-label={`Unread in ${room.name}: ${unreadCount}`}
-                                    className={`ui-unread-badge flex min-w-[20px] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                                      isRoomSelected ? '' : 'aim-unread-badge-pulse'
-                                    }`}
-                                  >
-                                    {unreadCount}
-                                  </span>
-                                ) : null}
                               </button>
                               <button
                                 type="button"
@@ -7937,7 +7912,6 @@ function HiItsMeContent() {
           currentUserId={userId}
           currentUserScreenname={screenname}
           currentUserBuddyIconPath={buddyIconPath}
-          initialUnreadCount={initialUnreadForActiveRoom}
           initialDraft={draftCache.rooms[activeRoom.id] ?? ''}
           outboxItems={activeRoomOutboxItems}
           reloadToken={activeRoomReloadToken}

@@ -129,7 +129,7 @@
 | `hiitsme:app-lock:v1:<userId>` | `src/lib/appLock.ts` | User-set PIN | App lock; stores enabled flag, SHA-256 PIN hash, autoLockSeconds, biometricsEnabled | Contract 6(1)(b) | No | No | Until disabled or app uninstall | None (local only) |
 | `hiitsme:dm-preferences:v1:<userId>` | `src/lib/privateChat.ts` | User-set | Per-conversation UI preferences | Contract 6(1)(b) | No | No | Until changed or app uninstall | None (local only) |
 | `hiitsme:privacy:v1:<userId>` | `src/lib/privateChat.ts` | User-set | Local privacy settings cache | Contract 6(1)(b) | No | No | Until changed or app uninstall | None (local only) |
-| `hiitsme:chatstate:v3:<userId>` | `src/context/ChatContext.tsx` | System | Room join state and unread counts; 7-day TTL | Contract 6(1)(b) | No | Art. 9 — reveals room memberships | 7 days | None (local only) |
+| `hiitsme:chatstate:v3:<userId>` | `src/context/ChatContext.tsx` | System | Room join state; 7-day TTL | Contract 6(1)(b) | No | Art. 9 — reveals room memberships | 7 days | None (local only) |
 
 ### 1.13 Push Notification Payload (In Transit)
 
