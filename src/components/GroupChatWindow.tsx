@@ -112,7 +112,6 @@ interface GroupChatWindowProps {
   currentUserId: string;
   currentUserScreenname: string;
   currentUserBuddyIconPath?: string | null;
-  initialUnreadCount?: number;
   initialDraft?: string;
   outboxItems?: OutboxItem[];
   typingUsers?: string[];
@@ -180,7 +179,6 @@ export default function GroupChatWindow({
   currentUserId,
   currentUserScreenname,
   currentUserBuddyIconPath = null,
-  initialUnreadCount = 0,
   initialDraft = '',
   outboxItems = [],
   typingUsers = [],
@@ -331,7 +329,6 @@ export default function GroupChatWindow({
     [participants],
   );
   const [isSending, setIsSending] = useState(false);
-  const [hasLiveMessageSinceOpen, setHasLiveMessageSinceOpen] = useState(false);
   const [typingMap, setTypingMap] = useState<Record<string, string>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
@@ -732,7 +729,6 @@ export default function GroupChatWindow({
         setMessages((previous) =>
           previous.some((message) => message.id === incoming.id) ? previous : [...previous, incoming],
         );
-        setHasLiveMessageSinceOpen(true);
         void clearUnreads(roomId);
         void ensureScreennames([incoming.user_id]);
       },
@@ -916,7 +912,6 @@ export default function GroupChatWindow({
         ? previous
         : [...previous, insertedMessage],
     );
-    setHasLiveMessageSinceOpen(true);
     setMentioningMessageId(null);
     void hapticSuccess();
     return { ok: true as const };
@@ -1101,7 +1096,6 @@ export default function GroupChatWindow({
   const mentioningMessage = mentioningMessageId ? messagesById.get(mentioningMessageId) ?? null : null;
   const visibleOutboxItems = outboxItems;
 
-  const normalizedInitialUnreadCount = Math.max(0, Math.floor(initialUnreadCount));
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
   const messageMatches = useMemo(() => {
     const matches = new Map<string, boolean>();
@@ -1120,13 +1114,6 @@ export default function GroupChatWindow({
     () => Array.from(messageMatches.values()).filter(Boolean).length,
     [messageMatches],
   );
-  const separatorIndex =
-    !isLoadingMessages &&
-    !hasLiveMessageSinceOpen &&
-    normalizedInitialUnreadCount > 0 &&
-    messages.length > 0
-      ? Math.max(0, messages.length - normalizedInitialUnreadCount)
-      : null;
   const chatShellStyle =
     isKeyboardOpen && viewportHeight ? ({ height: `${viewportHeight}px` } satisfies CSSProperties) : undefined;
   const messagesAreaStyle =
@@ -1689,9 +1676,7 @@ export default function GroupChatWindow({
 
                   return (
                     <div key={message.id} className="flex flex-col">
-                      {separatorIndex === index ? (
-                        <p className="aim-new-messages-separator my-2">New messages</p>
-                      ) : clusterMeta.showTimeDivider ? (
+                      {clusterMeta.showTimeDivider ? (
                         <div className="my-3 flex items-center justify-center">
                           <p className="ui-message-divider" title={fullTimestamp}>
                             {dividerLabel}
