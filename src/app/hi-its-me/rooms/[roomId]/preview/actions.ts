@@ -14,16 +14,11 @@ function humanize(code: string): string {
 
 export async function joinRoom(
   roomId: string,
-  _userId: string,
 ): Promise<{ success: true } | { error: string }> {
   const { data, error } = await supabase.rpc('join_room_by_id', { p_room_id: roomId });
 
   if (error) {
-    // Capture auth context for diagnosis if the RPC itself errored.
-    const { data: debug } = await supabase.rpc('debug_auth');
-    return {
-      error: `RPC failed: ${error.message} | auth=${JSON.stringify(debug ?? {})}`,
-    };
+    return { error: `RPC failed: ${error.message}` };
   }
 
   const result = data as RpcResult | null;
@@ -38,7 +33,6 @@ export async function joinRoom(
 
 export async function leaveRoom(
   roomId: string,
-  _userId: string,
 ): Promise<{ success: true } | { error: string }> {
   const { data, error } = await supabase.rpc('leave_room_by_id', { p_room_id: roomId });
 
