@@ -1007,7 +1007,6 @@ function HiItsMeContent() {
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const mutualContextTargetId = profileSheetBuddyId ?? activeChatBuddyId;
   const mutualContextState = useMutualContext(userId ? mutualContextTargetId : null);
-  const [initialUnreadForActiveRoom, setInitialUnreadForActiveRoom] = useState(0);
   const [activeRoomReloadToken, setActiveRoomReloadToken] = useState(0);
   const [outboxItems, setOutboxItems] = useState<OutboxItem[]>([]);
   const [awayModalMode, setAwayModalMode] = useState<'profile' | 'away'>('profile');
@@ -1059,7 +1058,6 @@ function HiItsMeContent() {
   const [searchParams] = useSearchParams();
   const {
     joinedRooms,
-    unreadMessages,
     joinRoom,
     leaveRoom,
     clearUnreads,
@@ -4074,7 +4072,6 @@ function HiItsMeContent() {
     setIsHeaderMenuOpen(false);
     setUnreadDirectMessages({});
     setInitialUnreadForActiveChat(0);
-    setInitialUnreadForActiveRoom(0);
     setActiveDmTypingText(null);
     setIsUiCacheHydrated(false);
     setDraftCache({ dm: {}, rooms: {} });
@@ -4129,7 +4126,7 @@ function HiItsMeContent() {
         isSigningOffRef.current = false;
       }
     }
-  }, [playSound, resetChatState, router, setInitialUnreadForActiveChat, setInitialUnreadForActiveRoom, userId]);
+  }, [playSound, resetChatState, router, setInitialUnreadForActiveChat, userId]);
 
   const recordAwayMessageSetEvent = useCallback((nextAwayMessage: string) => {
     if (!nextAwayMessage.trim()) {
@@ -5288,11 +5285,6 @@ function HiItsMeContent() {
       ? 'im'
       : normalizeShellSection(searchParams.get(SHELL_SECTION_QUERY_KEY));
 
-  const getUnreadCountForRoom = useCallback(
-    (roomId: string) => unreadMessages[roomId] ?? 0,
-    [unreadMessages],
-  );
-
   const resolveRoomBySlug = useCallback(async (slug: string) => {
     const normalizedSlug = slug.trim().toLowerCase();
     if (!normalizedSlug) {
@@ -5320,14 +5312,13 @@ function HiItsMeContent() {
 
   const openRoomView = useCallback(
     async (room: ChatRoom) => {
-      setInitialUnreadForActiveRoom(getUnreadCountForRoom(room.id));
       setBodyShellSection('chat');
       await joinRoom(room.id, room.slug, room.name, room.description);
       await clearUnreads(room.id);
       setActiveRoom(room);
       replaceAppPathInPlace(buildHiItsMePath({ section: 'chat', roomName: room.slug }));
     },
-    [clearUnreads, getUnreadCountForRoom, joinRoom],
+    [clearUnreads, joinRoom],
   );
 
   const handleOpenActiveRoom = useCallback(
@@ -5348,7 +5339,6 @@ function HiItsMeContent() {
   );
 
   const handleBackFromRoom = useCallback(() => {
-    setInitialUnreadForActiveRoom(0);
     setActiveRoom(null);
     navigateAppPath(router, buildHiItsMePath({ section: 'chat' }), { replace: true });
   }, [router]);
@@ -5362,7 +5352,6 @@ function HiItsMeContent() {
       await leaveRoom(roomId);
 
       if (activeRoom && activeRoom.id === roomId) {
-        setInitialUnreadForActiveRoom(0);
         setActiveRoom(null);
         navigateAppPath(router, buildHiItsMePath({ section: 'chat' }), { replace: true });
       }
@@ -5433,7 +5422,6 @@ function HiItsMeContent() {
         }
 
         await joinRoom(resolvedRoom.id, resolvedRoom.slug, resolvedRoom.name, resolvedRoom.description);
-        setInitialUnreadForActiveRoom(getUnreadCountForRoom(resolvedRoom.id));
         await clearUnreads(resolvedRoom.id);
         setActiveRoom(resolvedRoom);
       } catch (error) {
@@ -5448,7 +5436,7 @@ function HiItsMeContent() {
     return () => {
       isCancelled = true;
     };
-  }, [activeRoom, clearUnreads, getUnreadCountForRoom, joinRoom, requestedRoomName, resolveRoomBySlug, userId]);
+  }, [activeRoom, clearUnreads, joinRoom, requestedRoomName, resolveRoomBySlug, userId]);
 
   useEffect(() => {
     if (!userId || !requestedDirectMessageUserId || requestedRoomName) {
@@ -6648,7 +6636,6 @@ function HiItsMeContent() {
                           <JoinedRoomCard
                             key={room.id}
                             room={room}
-                            unreadCount={getUnreadCountForRoom(room.id)}
                             isSelected={Boolean(activeRoom && activeRoom.id === room.id)}
                             isJoining={isJoiningRoom}
                             onOpen={() => void handleOpenActiveRoom(room)}
@@ -7827,7 +7814,6 @@ function HiItsMeContent() {
           currentUserId={userId}
           currentUserScreenname={screenname}
           currentUserBuddyIconPath={buddyIconPath}
-          initialUnreadCount={initialUnreadForActiveRoom}
           initialDraft={draftCache.rooms[activeRoom.id] ?? ''}
           outboxItems={activeRoomOutboxItems}
           reloadToken={activeRoomReloadToken}

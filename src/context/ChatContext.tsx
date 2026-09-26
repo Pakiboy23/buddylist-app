@@ -10,8 +10,17 @@ import {
 } from 'react';
 import { waitForSessionOrNull } from '@/lib/authClient';
 import { getRaw, removeValue, setVersionedData, subscribeToStorageKey } from '@/lib/clientStorage';
-import { setAppBadgeCount } from '@/lib/badge';
+import { clearAppBadge } from '@/lib/badge';
 import { initSoundSystem, playUiSound } from '@/lib/sound';
+import {
+  CHAT_STATE_CACHE_VERSION,
+  mergeStoredRooms,
+  parseChatStateCache,
+  sortStoredRooms,
+  syncRoomsFromMembershipRows,
+  type RoomMembershipRow,
+  type StoredRoomState,
+} from '@/lib/roomMembershipState';
 import { supabase } from '@/lib/supabase';
 
 type SoundType = 'join' | 'leave' | 'message';
@@ -22,13 +31,11 @@ export interface JoinedRoom {
   slug: string;
   name: string;
   description: string;
-  unreadCount: number;
 }
 
 interface ChatContextValue {
   activeRooms: string[];
   joinedRooms: JoinedRoom[];
-  unreadMessages: Record<string, number>;
   isHydrated: boolean;
   syncState: ChatSyncState;
   lastSyncedAt: string | null;
@@ -48,40 +55,8 @@ const SOUND_MAP: Record<SoundType, string> = {
 };
 
 const CHAT_STATE_CACHE_PREFIX = 'hiitsme:chatstate:v3:';
-const CHAT_STATE_CACHE_VERSION = 3;
 const CHAT_STATE_WRITE_DEBOUNCE_MS = 180;
-const CHAT_STATE_ROOM_LIMIT = 250;
-const CHAT_STATE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const SYNC_RETRY_DELAYS_MS = [1500, 4000, 10000] as const;
-
-interface StoredRoomState {
-  roomId: string;
-  roomSlug: string;
-  roomName: string;
-  roomDescription: string;
-  unreadCount: number;
-  joinedAt: string | null;
-}
-
-interface PersistedChatState {
-  version?: number;
-  savedAt?: string;
-  rooms: StoredRoomState[];
-}
-
-type CacheSource = 'current' | 'none';
-
-interface RoomCatalogFields {
-  slug: string;
-  name: string;
-  description?: string | null;
-}
-
-interface RoomMembershipRow {
-  room_id: string;
-  joined_at: string | null;
-  rooms: RoomCatalogFields | RoomCatalogFields[] | null;
-}
 
 const ChatContext = createContext<ChatContextValue | null>(null);
 
@@ -89,110 +64,8 @@ function getCacheKey(userId: string) {
   return `${CHAT_STATE_CACHE_PREFIX}${userId}`;
 }
 
-function sortRooms(rooms: StoredRoomState[]) {
-  return [...rooms].sort((left, right) => {
-    const leftTime = left.joinedAt ? Date.parse(left.joinedAt) : 0;
-    const rightTime = right.joinedAt ? Date.parse(right.joinedAt) : 0;
-    if (leftTime !== rightTime) {
-      return rightTime - leftTime;
-    }
-    return left.roomName.localeCompare(right.roomName, undefined, { sensitivity: 'base' });
-  }).slice(0, CHAT_STATE_ROOM_LIMIT);
-}
-
-function coerceStoredRoom(value: unknown): StoredRoomState | null {
-  if (!value || typeof value !== 'object') {
-    return null;
-  }
-
-  const candidate = value as Partial<StoredRoomState>;
-  const roomId = typeof candidate.roomId === 'string' ? candidate.roomId : '';
-  const roomSlug = typeof candidate.roomSlug === 'string' ? candidate.roomSlug.trim() : '';
-  const roomName = typeof candidate.roomName === 'string' ? candidate.roomName.trim() : '';
-  const roomDescription =
-    typeof candidate.roomDescription === 'string' ? candidate.roomDescription.trim() : '';
-  if (!roomId || !roomSlug || !roomName) {
-    return null;
-  }
-
-  const unreadCandidate =
-    typeof candidate.unreadCount === 'number' && Number.isFinite(candidate.unreadCount)
-      ? candidate.unreadCount
-      : 0;
-
-  return {
-    roomId,
-    roomSlug,
-    roomName,
-    roomDescription,
-    unreadCount: Math.max(0, Math.floor(unreadCandidate)),
-    joinedAt: typeof candidate.joinedAt === 'string' ? candidate.joinedAt : null,
-  };
-}
-
-function parseCachedPayload(raw: string | null): PersistedChatState | null {
-  if (!raw) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== 'object') {
-      return null;
-    }
-
-    const candidate = parsed as {
-      version?: unknown;
-      savedAt?: unknown;
-      rooms?: unknown;
-    };
-
-    const rooms = Array.isArray(candidate.rooms) ? candidate.rooms : null;
-    if (!rooms) {
-      return null;
-    }
-
-    return {
-      version: typeof candidate.version === 'number' ? candidate.version : undefined,
-      savedAt: typeof candidate.savedAt === 'string' ? candidate.savedAt : undefined,
-      rooms: rooms as StoredRoomState[],
-    };
-  } catch {
-    return null;
-  }
-}
-
-function normalizeCachedRooms(payload: PersistedChatState | null) {
-  if (!payload) {
-    return [];
-  }
-
-  if (typeof payload.version === 'number' && payload.version > CHAT_STATE_CACHE_VERSION) {
-    return [];
-  }
-
-  if (typeof payload.savedAt === 'string') {
-    const savedAtMs = Date.parse(payload.savedAt);
-    if (Number.isNaN(savedAtMs) || Date.now() - savedAtMs > CHAT_STATE_CACHE_TTL_MS) {
-      return [];
-    }
-  }
-
-  const normalizedRooms = payload.rooms
-    .map((room) => coerceStoredRoom(room))
-    .filter((room): room is StoredRoomState => Boolean(room));
-  return sortRooms(
-    Array.from(new Map(normalizedRooms.map((room) => [room.roomId, room])).values()),
-  );
-}
-
-function parseCachedRooms(userId: string): { rooms: StoredRoomState[]; source: CacheSource } {
-  const currentPayload = parseCachedPayload(getRaw(getCacheKey(userId)));
-  const currentRooms = normalizeCachedRooms(currentPayload);
-  if (currentRooms.length > 0) {
-    return { rooms: currentRooms, source: 'current' };
-  }
-  return { rooms: [], source: 'none' };
+function parseCachedRooms(userId: string): StoredRoomState[] {
+  return parseChatStateCache(getRaw(getCacheKey(userId)));
 }
 
 function writeCachedRooms(userId: string, rooms: StoredRoomState[]) {
@@ -206,56 +79,10 @@ function deleteCachedRooms(userId: string | null) {
   removeValue(getCacheKey(userId));
 }
 
-function mapRowsToStoredRooms(rows: RoomMembershipRow[]): StoredRoomState[] {
-  const mapped = rows
-    .map((row) => {
-      const roomData = Array.isArray(row.rooms) ? row.rooms[0] ?? null : row.rooms;
-      const roomSlug = roomData?.slug?.trim() ?? '';
-      const roomName = roomData?.name?.trim() ?? '';
-      const roomDescription = roomData?.description?.trim() ?? '';
-      if (!row.room_id || !roomSlug || !roomName) {
-        return null;
-      }
-
-      return {
-        roomId: row.room_id,
-        roomSlug,
-        roomName,
-        roomDescription,
-        unreadCount: 0,
-        joinedAt: typeof row.joined_at === 'string' ? row.joined_at : null,
-      } satisfies StoredRoomState;
-    })
-    .filter((room): room is StoredRoomState => Boolean(room));
-
-  return sortRooms(Array.from(new Map(mapped.map((room) => [room.roomId, room])).values()));
-}
-
-function areRoomsEqual(left: StoredRoomState[], right: StoredRoomState[]) {
-  if (left.length !== right.length) {
-    return false;
-  }
-
-  for (let index = 0; index < left.length; index += 1) {
-    const leftRoom = left[index];
-    const rightRoom = right[index];
-    if (
-      leftRoom.roomId !== rightRoom.roomId ||
-      leftRoom.roomSlug !== rightRoom.roomSlug ||
-      leftRoom.roomName !== rightRoom.roomName ||
-      leftRoom.roomDescription !== rightRoom.roomDescription
-    ) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
 function upsertRoomState(previous: StoredRoomState[], room: StoredRoomState) {
   const next = previous.filter((item) => item.roomId !== room.roomId);
   next.push(room);
-  return sortRooms(next);
+  return sortStoredRooms(next);
 }
 
 export function ChatProvider({ children }: { children: ReactNode }) {
@@ -313,17 +140,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
         if (!error) {
           const rows = (data ?? []) as RoomMembershipRow[];
-          const nextRooms = mapRowsToStoredRooms(rows);
-
-          setRooms((previous) => {
-            if (!areRoomsEqual(previous, nextRooms)) {
-              return nextRooms.map((next) => {
-                const existing = previous.find((p) => p.roomId === next.roomId);
-                return existing ? { ...next, unreadCount: existing.unreadCount } : next;
-              });
-            }
-            return previous;
-          });
+          setRooms((previous) => syncRoomsFromMembershipRows(previous, rows));
           setLastSyncedAt(new Date().toISOString());
           setSyncState('live');
           return;
@@ -411,8 +228,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       setIsHydrated(false);
       setSyncState('hydrating');
-      const { rooms: cachedRooms } = parseCachedRooms(userId);
-      setRooms(cachedRooms.length > 0 ? cachedRooms : []);
+      setRooms(parseCachedRooms(userId));
 
       await syncFromServer();
       if (!isCancelled) {
@@ -508,9 +324,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
 
     const unsubscribe = subscribeToStorageKey(getCacheKey(userId), (rawValue) => {
-      const nextRooms = normalizeCachedRooms(parseCachedPayload(rawValue));
+      const nextRooms = parseChatStateCache(rawValue);
       if (nextRooms.length > 0) {
-        setRooms((previous) => (areRoomsEqual(previous, nextRooms) ? previous : nextRooms));
+        setRooms((previous) => mergeStoredRooms(previous, nextRooms));
       }
     });
 
@@ -575,7 +391,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         roomSlug,
         roomName,
         roomDescription: roomDescription?.trim() || existing?.roomDescription || '',
-        unreadCount: 0,
         joinedAt: new Date().toISOString(),
       };
       setRooms((previous) => upsertRoomState(previous, optimisticRoom));
@@ -637,17 +452,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const clearUnreads = useCallback(
     async (roomId: string) => {
-      if (!roomId) {
-        return;
-      }
-
-      setRooms((previous) =>
-        previous.map((room) =>
-          room.roomId === roomId ? { ...room, unreadCount: 0 } : room,
-        ),
-      );
-
-      if (!userIdRef.current) {
+      if (!roomId || !userIdRef.current) {
         return;
       }
 
@@ -679,32 +484,21 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         slug: room.roomSlug,
         name: room.roomName,
         description: room.roomDescription,
-        unreadCount: room.unreadCount,
       })),
     [rooms],
   );
 
   const activeRooms = useMemo(() => rooms.map((room) => room.roomSlug), [rooms]);
 
-  const unreadMessages = useMemo(
-    () =>
-      rooms.reduce<Record<string, number>>((accumulator, room) => {
-        accumulator[room.roomId] = room.unreadCount;
-        return accumulator;
-      }, {}),
-    [rooms],
-  );
-
+  // Room unread no longer drives the icon badge. Clear a count an older client left behind.
   useEffect(() => {
-    const total = Object.values(unreadMessages).reduce((sum, count) => sum + count, 0);
-    void setAppBadgeCount(total);
-  }, [unreadMessages]);
+    void clearAppBadge();
+  }, []);
 
   const value = useMemo(
     () => ({
       activeRooms,
       joinedRooms,
-      unreadMessages,
       isHydrated,
       syncState,
       lastSyncedAt,
@@ -719,7 +513,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     [
       activeRooms,
       joinedRooms,
-      unreadMessages,
       isHydrated,
       syncState,
       lastSyncedAt,

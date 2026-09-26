@@ -10,14 +10,10 @@ const LATE_NIGHT = {
   description: 'For the night owls. No judgment.',
 };
 
-function renderCard(
-  room: { id: string; slug: string; name: string; description: string },
-  unreadCount = 0,
-) {
+function renderCard(room: { id: string; slug: string; name: string; description: string }) {
   return renderToStaticMarkup(
     createElement(JoinedRoomCard, {
       room,
-      unreadCount,
       isSelected: false,
       isJoining: false,
       onOpen: () => undefined,

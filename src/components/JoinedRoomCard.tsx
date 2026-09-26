@@ -10,7 +10,6 @@ export interface JoinedRoomCardRoom {
 
 interface JoinedRoomCardProps {
   room: JoinedRoomCardRoom;
-  unreadCount: number;
   isSelected: boolean;
   isJoining: boolean;
   onOpen: () => void;
@@ -19,7 +18,6 @@ interface JoinedRoomCardProps {
 
 export function JoinedRoomCard({
   room,
-  unreadCount,
   isSelected,
   isJoining,
   onOpen,
@@ -37,7 +35,6 @@ export function JoinedRoomCard({
         data-testid={`room-row-${normalizedRoomKey}`}
         data-room-name={room.name}
         data-room-description={description}
-        data-room-unread={unreadCount}
         data-active={isSelected ? 'true' : 'false'}
         className="ui-list-row ui-room-card flex-1 text-left disabled:cursor-wait disabled:opacity-60"
       >
@@ -50,17 +47,6 @@ export function JoinedRoomCard({
             <p className="mt-0.5 truncate text-[11px] text-slate-400 dark:text-slate-500">{description}</p>
           ) : null}
         </div>
-        {unreadCount > 0 ? (
-          <span
-            data-testid={`room-unread-${normalizedRoomKey}`}
-            aria-label={`Unread in ${room.name}: ${unreadCount}`}
-            className={`ui-unread-badge flex min-w-[20px] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-              isSelected ? '' : 'aim-unread-badge-pulse'
-            }`}
-          >
-            {unreadCount}
-          </span>
-        ) : null}
       </button>
       <button
         type="button"
