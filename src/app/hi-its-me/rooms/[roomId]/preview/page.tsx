@@ -74,7 +74,7 @@ function RoomPreviewContent({ roomId }: { roomId: string }) {
   async function handleJoin() {
     if (!userId || !room) return;
     setIsJoining(true);
-    const result = await joinRoom(room.id, userId);
+    const result = await joinRoom(room.id);
     if ('error' in result) {
       setError(result.error);
       setIsJoining(false);
@@ -89,7 +89,7 @@ function RoomPreviewContent({ roomId }: { roomId: string }) {
   async function handleLeave() {
     if (!userId || !room) return;
     setIsLeaving(true);
-    const result = await leaveRoom(room.id, userId);
+    const result = await leaveRoom(room.id);
     if ('error' in result) {
       setError(result.error);
       setIsLeaving(false);
