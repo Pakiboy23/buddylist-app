@@ -5,19 +5,30 @@
  * carry unreadCount from the old client; readers drop that field. Membership
  * rows selected for sync do not include an unread count, and sync must not
  * copy one forward from memory.
+ *
+ * The seeded catalog description is part of the room. Sync selects it with
+ * the membership and the cache keeps that line so joined cards do not guess
+ * a tag from the slug.
  */
 
 export interface StoredRoomState {
   roomId: string;
   roomSlug: string;
   roomName: string;
+  roomDescription: string;
   joinedAt: string | null;
+}
+
+interface RoomCatalogFields {
+  slug: string;
+  name: string;
+  description?: string | null;
 }
 
 export interface RoomMembershipRow {
   room_id: string;
   joined_at: string | null;
-  rooms: { slug: string; name: string } | { slug: string; name: string }[] | null;
+  rooms: RoomCatalogFields | RoomCatalogFields[] | null;
 }
 
 export const CHAT_STATE_CACHE_VERSION = 3;
@@ -47,6 +58,7 @@ export function coerceStoredRoom(value: unknown): StoredRoomState | null {
     roomId?: unknown;
     roomSlug?: unknown;
     roomName?: unknown;
+    roomDescription?: unknown;
     joinedAt?: unknown;
   };
   const roomId = typeof candidate.roomId === 'string' ? candidate.roomId : '';
@@ -60,6 +72,7 @@ export function coerceStoredRoom(value: unknown): StoredRoomState | null {
     roomId,
     roomSlug,
     roomName,
+    roomDescription: typeof candidate.roomDescription === 'string' ? candidate.roomDescription.trim() : '',
     joinedAt: typeof candidate.joinedAt === 'string' ? candidate.joinedAt : null,
   };
 }
@@ -79,6 +92,7 @@ function isCleanStoredRoom(value: unknown): value is StoredRoomState {
     candidate.roomId === coerced.roomId &&
     candidate.roomSlug === coerced.roomSlug &&
     candidate.roomName === coerced.roomName &&
+    candidate.roomDescription === coerced.roomDescription &&
     candidate.joinedAt === coerced.joinedAt
   );
 }
@@ -146,6 +160,7 @@ export function mapMembershipRowsToStoredRooms(rows: readonly RoomMembershipRow[
       const roomData = Array.isArray(row.rooms) ? row.rooms[0] ?? null : row.rooms;
       const roomSlug = roomData?.slug?.trim() ?? '';
       const roomName = roomData?.name?.trim() ?? '';
+      const roomDescription = roomData?.description?.trim() ?? '';
       if (!row.room_id || !roomSlug || !roomName) {
         return null;
       }
@@ -154,6 +169,7 @@ export function mapMembershipRowsToStoredRooms(rows: readonly RoomMembershipRow[
         roomId: row.room_id,
         roomSlug,
         roomName,
+        roomDescription,
         joinedAt: typeof row.joined_at === 'string' ? row.joined_at : null,
       } satisfies StoredRoomState;
     })
@@ -173,7 +189,8 @@ function areRoomsEqual(left: readonly StoredRoomState[], right: readonly StoredR
     if (
       leftRoom.roomId !== rightRoom.roomId ||
       leftRoom.roomSlug !== rightRoom.roomSlug ||
-      leftRoom.roomName !== rightRoom.roomName
+      leftRoom.roomName !== rightRoom.roomName ||
+      leftRoom.roomDescription !== rightRoom.roomDescription
     ) {
       return false;
     }

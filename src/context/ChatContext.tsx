@@ -30,6 +30,7 @@ export interface JoinedRoom {
   id: string;
   slug: string;
   name: string;
+  description: string;
 }
 
 interface ChatContextValue {
@@ -40,7 +41,7 @@ interface ChatContextValue {
   lastSyncedAt: string | null;
   lastSyncError: string | null;
   playChatSound: (type: SoundType) => void;
-  joinRoom: (roomId: string, roomSlug: string, roomName: string) => Promise<void>;
+  joinRoom: (roomId: string, roomSlug: string, roomName: string, roomDescription?: string) => Promise<void>;
   leaveRoom: (roomId: string) => Promise<void>;
   clearUnreads: (roomId: string) => Promise<void>;
   resetChatState: () => Promise<void>;
@@ -133,7 +134,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       for (let attempt = 0; attempt <= SYNC_RETRY_DELAYS_MS.length; attempt += 1) {
         const { data, error } = await supabase
           .from('room_memberships')
-          .select('room_id, joined_at, rooms(slug, name)')
+          .select('room_id, joined_at, rooms(slug, name, description)')
           .eq('user_id', sessionUserId)
           .order('joined_at', { ascending: false });
 
@@ -378,16 +379,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [syncFromServer, userId]);
 
   const joinRoom = useCallback(
-    async (roomId: string, roomSlug: string, roomName: string) => {
+    async (roomId: string, roomSlug: string, roomName: string, roomDescription?: string) => {
       if (!roomId || !roomSlug || !roomName) {
         return;
       }
 
       const alreadyActive = roomsRef.current.some((room) => room.roomId === roomId);
+      const existing = roomsRef.current.find((room) => room.roomId === roomId);
       const optimisticRoom: StoredRoomState = {
         roomId,
         roomSlug,
         roomName,
+        roomDescription: roomDescription?.trim() || existing?.roomDescription || '',
         joinedAt: new Date().toISOString(),
       };
       setRooms((previous) => upsertRoomState(previous, optimisticRoom));
@@ -480,6 +483,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         id: room.roomId,
         slug: room.roomSlug,
         name: room.roomName,
+        description: room.roomDescription,
       })),
     [rooms],
   );

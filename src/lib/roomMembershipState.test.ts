@@ -35,6 +35,7 @@ describe('syncRoomsFromMembershipRows', () => {
         roomId: 'room-1',
         roomSlug: 'late-night',
         roomName: 'Late Night',
+        roomDescription: '',
         joinedAt: JOINED_AT,
         unreadCount: 6,
       },
@@ -48,6 +49,7 @@ describe('syncRoomsFromMembershipRows', () => {
         roomId: 'room-1',
         roomSlug: 'late-night',
         roomName: 'Late Night',
+        roomDescription: '',
         joinedAt: JOINED_AT,
       },
     ]);
@@ -61,6 +63,7 @@ describe('syncRoomsFromMembershipRows', () => {
         roomId: 'room-1',
         roomSlug: 'late-night',
         roomName: 'Late Night',
+        roomDescription: '',
         joinedAt: JOINED_AT,
       },
     ];
@@ -80,6 +83,7 @@ describe('chat state cache version 3', () => {
             roomId: 'room-1',
             roomSlug: 'late-night',
             roomName: 'Late Night',
+            roomDescription: '',
             joinedAt: JOINED_AT,
             unreadCount: 4,
           },
@@ -94,6 +98,7 @@ describe('chat state cache version 3', () => {
         roomId: 'room-1',
         roomSlug: 'late-night',
         roomName: 'Late Night',
+        roomDescription: '',
         joinedAt: JOINED_AT,
       },
     ]);
@@ -113,6 +118,7 @@ describe('chat state cache version 3', () => {
           roomId: 'room-1',
           roomSlug: 'late-night',
           roomName: 'Late Night',
+          roomDescription: '',
           joinedAt: JOINED_AT,
           unreadCount: 2,
         },
@@ -121,6 +127,43 @@ describe('chat state cache version 3', () => {
 
     const rooms = parseChatStateCache(raw, Date.parse('2026-09-20T12:00:00.000Z'));
     expect(rooms[0]).not.toHaveProperty('unreadCount');
+    expect(rooms[0]?.roomDescription).toBe('');
     expect(positiveRoomUnread(syncRoomsFromMembershipRows(rooms, membershipRows))).toBe(0);
+  });
+
+  it('keeps the seeded catalog description and still drops unreadCount', () => {
+    const description = 'For the night owls. No judgment.';
+    const raw = JSON.stringify({
+      version: 3,
+      savedAt: '2026-09-20T12:00:00.000Z',
+      rooms: [
+        {
+          roomId: 'room-1',
+          roomSlug: 'late-night',
+          roomName: 'Late Night',
+          roomDescription: description,
+          joinedAt: JOINED_AT,
+          unreadCount: 2,
+        },
+      ],
+    });
+    const rooms = parseChatStateCache(raw, Date.parse('2026-09-20T12:00:00.000Z'));
+    const rows: RoomMembershipRow[] = [
+      {
+        room_id: 'room-1',
+        joined_at: JOINED_AT,
+        rooms: { slug: 'late-night', name: 'Late Night', description },
+      },
+    ];
+
+    expect(rooms[0]).toEqual({
+      roomId: 'room-1',
+      roomSlug: 'late-night',
+      roomName: 'Late Night',
+      roomDescription: description,
+      joinedAt: JOINED_AT,
+    });
+    expect(rooms[0]).not.toHaveProperty('unreadCount');
+    expect(syncRoomsFromMembershipRows(rooms, rows)).toBe(rooms);
   });
 });

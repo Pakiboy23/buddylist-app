@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import AppIcon from '@/components/AppIcon';
 import AppLockSheet from '@/components/AppLockSheet';
 import HiItsMeTabIcon from '@/components/HiItsMeTabIcon';
+import { JoinedRoomCard } from '@/components/JoinedRoomCard';
 import type { ChatMessage } from '@/components/ChatWindow';
 import BuddyProfileSheet from '@/components/BuddyProfileSheet';
 import { BuddyListGroup } from '@/components/BuddyListGroup';
@@ -12,10 +13,8 @@ import RenameScreenname from '@/components/RenameScreenname';
 import SavedMessagesWindow from '@/components/SavedMessagesWindow';
 import {
   AWAY_MOOD_OPTIONS,
-  buildRoomFilterOptions,
   DEFAULT_AWAY_MOOD_ID,
   getAwayMoodOption,
-  getHimRoomMeta,
   isAwayMoodId,
   type AwayMoodId,
 } from '@/lib/himArtDirection';
@@ -109,7 +108,6 @@ import { hapticLight, hapticWarning, hapticSelection } from '@/lib/haptics';
 import { initSoundSystem, playFallbackTone, playUiSound } from '@/lib/sound';
 import { supabase } from '@/lib/supabase';
 import { upsertOwnProfileWithRepair } from '@/lib/profileRepair';
-import { normalizeRoomKey } from '@/lib/roomName';
 import { htmlToPlainText } from '@/lib/richText';
 import {
   DEFAULT_USER_PRIVACY_SETTINGS,
@@ -212,6 +210,7 @@ interface ChatRoom {
   id: string;
   slug: string;
   name: string;
+  description: string;
 }
 
 interface AwayPreset {
@@ -988,7 +987,6 @@ function HiItsMeContent() {
   const [buddyActivityToasts, setBuddyActivityToasts] = useState<BuddyActivityToast[]>([]);
 
   const [showRoomsWindow, setShowRoomsWindow] = useState(false);
-  const [roomFilterTag, setRoomFilterTag] = useState('all');
   const [roomJoinError, setRoomJoinError] = useState<string | null>(null);
   const [isJoiningRoom, setIsJoiningRoom] = useState(false);
   const [activeRoom, setActiveRoom] = useState<ChatRoom | null>(null);
@@ -5295,7 +5293,7 @@ function HiItsMeContent() {
 
     const { data, error } = await supabase
       .from('rooms')
-      .select('id, slug, name')
+      .select('id, slug, name, description')
       .eq('slug', normalizedSlug)
       .eq('is_active', true)
       .maybeSingle();
@@ -5308,13 +5306,14 @@ function HiItsMeContent() {
       id: data.id as string,
       slug: data.slug as string,
       name: data.name as string,
+      description: typeof data.description === 'string' ? data.description : '',
     } satisfies ChatRoom;
   }, []);
 
   const openRoomView = useCallback(
     async (room: ChatRoom) => {
       setBodyShellSection('chat');
-      await joinRoom(room.id, room.slug, room.name);
+      await joinRoom(room.id, room.slug, room.name, room.description);
       await clearUnreads(room.id);
       setActiveRoom(room);
       replaceAppPathInPlace(buildHiItsMePath({ section: 'chat', roomName: room.slug }));
@@ -5422,7 +5421,7 @@ function HiItsMeContent() {
           return;
         }
 
-        await joinRoom(resolvedRoom.id, resolvedRoom.slug, resolvedRoom.name);
+        await joinRoom(resolvedRoom.id, resolvedRoom.slug, resolvedRoom.name, resolvedRoom.description);
         await clearUnreads(resolvedRoom.id);
         setActiveRoom(resolvedRoom);
       } catch (error) {
@@ -5673,36 +5672,6 @@ function HiItsMeContent() {
       ),
     [buddyActivityToasts],
   );
-  const roomCards = useMemo(
-    () =>
-      joinedRooms.map((room) => ({
-        room,
-        meta: getHimRoomMeta(room.slug),
-      })),
-    [joinedRooms],
-  );
-  const roomFilterOptions = useMemo(
-    () => buildRoomFilterOptions(joinedRooms.map((r) => r.slug)),
-    [joinedRooms],
-  );
-  const filteredRoomCards = useMemo(
-    () =>
-      roomCards.filter(
-        (roomCard) => roomFilterTag === 'all' || roomCard.meta.tags.some((tag) => tag.key === roomFilterTag),
-      ),
-    [roomCards, roomFilterTag],
-  );
-  useEffect(() => {
-    if (roomFilterTag === 'all') {
-      return;
-    }
-
-    if (roomFilterOptions.some((option) => option.key === roomFilterTag)) {
-      return;
-    }
-
-    setRoomFilterTag('all');
-  }, [roomFilterOptions, roomFilterTag]);
   const mainShellTitle =
     bodyShellSection === 'im'
       ? 'H.I.M.'
@@ -6654,25 +6623,6 @@ function HiItsMeContent() {
                       ) : null}
                     </div>
 
-                    {roomFilterOptions.length > 1 ? (
-                      <div className="px-4 pt-3">
-                        <div className="ui-room-filter-row">
-                          {roomFilterOptions.map((option) => (
-                            <button
-                              key={option.key}
-                              type="button"
-                              onClick={() => setRoomFilterTag(option.key)}
-                              className="ui-focus-ring ui-room-filter-chip"
-                              data-active={roomFilterTag === option.key ? 'true' : 'false'}
-                              data-tone={option.tone}
-                            >
-                              {option.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
-
                     <div className="px-2 pb-2 pt-3">
                       {joinedRooms.length === 0 ? (
                         <div className="ui-empty-state px-4 py-8 ui-fade-in">
@@ -6681,65 +6631,17 @@ function HiItsMeContent() {
                           </div>
                           <p className="text-[12px] text-slate-400">Browse and join a room to start chatting.</p>
                         </div>
-                      ) : filteredRoomCards.length === 0 ? (
-                        <div className="ui-empty-state px-4 py-8 ui-fade-in">
-                          <div className="flex h-11 w-11 items-center justify-center rounded-full border border-[rgba(232,162,58,0.16)] bg-[rgba(232,162,58,0.12)]">
-                            <AppIcon kind="chat" className="h-5 w-5 text-[var(--rose)]" />
-                          </div>
-                          <p className="text-[12px] text-slate-400">No rooms match this vibe right now.</p>
-                        </div>
                       ) : (
-                        filteredRoomCards.map(({ room, meta }) => {
-                          const isRoomSelected = Boolean(activeRoom && activeRoom.id === room.id);
-                          const normalizedRoomKey = normalizeRoomKey(room.slug);
-
-                          return (
-                            <div key={room.id} className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => void handleOpenActiveRoom(room)}
-                                disabled={isJoiningRoom}
-                                data-testid={`room-row-${normalizedRoomKey}`}
-                                data-room-name={room.name}
-                                data-active={isRoomSelected ? 'true' : 'false'}
-                                data-live={meta.liveCount > 0 ? 'true' : 'false'}
-                                className="ui-list-row ui-room-card flex-1 text-left disabled:cursor-wait disabled:opacity-60"
-                              >
-                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[0.9rem] border border-[rgba(232,162,58,0.18)] bg-[rgba(232,162,58,0.14)] text-[13px] font-bold text-[var(--gold)]">
-                                  #
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex items-center gap-2">
-                                    <p className="truncate text-[13px] font-semibold text-slate-800 dark:text-slate-100">{room.name}</p>
-                                    {meta.liveCount > 0 ? (
-                                      <span className="ui-room-live-pill">
-                                        <span className="ui-room-live-dot" />
-                                        {meta.liveCount}
-                                      </span>
-                                    ) : null}
-                                  </div>
-                                  <p className="mt-0.5 truncate text-[11px] text-slate-400 dark:text-slate-500">{meta.blurb}</p>
-                                  <div className="mt-2 flex flex-wrap gap-1.5">
-                                    {meta.tags.map((tag) => (
-                                      <span key={`${normalizedRoomKey}-${tag.key}`} className="ui-room-tag" data-tone={tag.tone}>
-                                        {tag.label}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => void handleLeaveRoom(room.id)}
-                                className="ui-focus-ring ui-button-danger ui-button-compact flex h-8 w-8 shrink-0 p-0"
-                                aria-label={`Leave ${room.name}`}
-                                title="Leave room"
-                              >
-                                <AppIcon kind="close" className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          );
-                        })
+                        joinedRooms.map((room) => (
+                          <JoinedRoomCard
+                            key={room.id}
+                            room={room}
+                            isSelected={Boolean(activeRoom && activeRoom.id === room.id)}
+                            isJoining={isJoiningRoom}
+                            onOpen={() => void handleOpenActiveRoom(room)}
+                            onLeave={() => void handleLeaveRoom(room.id)}
+                          />
+                        ))
                       )}
                     </div>
                   </section>
