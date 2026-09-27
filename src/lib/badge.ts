@@ -1,7 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 
 type BadgePlugin = {
-  set(options: { count: number }): Promise<void>;
   clear(): Promise<void>;
 };
 
@@ -19,21 +18,6 @@ async function getBadgePlugin(): Promise<BadgePlugin | null> {
     return badgePlugin;
   } catch {
     return null;
-  }
-}
-
-export async function setAppBadgeCount(count: number): Promise<void> {
-  const plugin = await getBadgePlugin();
-  if (!plugin) return;
-
-  try {
-    if (count <= 0) {
-      await plugin.clear();
-    } else {
-      await plugin.set({ count });
-    }
-  } catch {
-    // Badge permission not granted or unsupported
   }
 }
 
