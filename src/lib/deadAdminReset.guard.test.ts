@@ -55,7 +55,7 @@ describe('dead Recovery Concierge + Add Buddy modal cleanup', () => {
     expect(existsSync(path.join(REPO_ROOT, 'api', 'admin', 'me.ts'))).toBe(true);
     expect(existsSync(path.join(REPO_ROOT, 'supabase', 'functions', 'admin-me', 'index.ts'))).toBe(true);
     expect(appApi).not.toHaveProperty('getShareableInviteUrl');
-    expect(typeof appApi.getAppApiUrl).toBe('function');
+    expect(appApi).not.toHaveProperty('getAppApiUrl');
     expect(typeof appApi.getEdgeFunctionUrl).toBe('function');
   });
 });

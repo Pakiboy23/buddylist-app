@@ -36,7 +36,6 @@ export interface JoinedRoom {
 interface ChatContextValue {
   activeRooms: string[];
   joinedRooms: JoinedRoom[];
-  isHydrated: boolean;
   syncState: ChatSyncState;
   lastSyncedAt: string | null;
   lastSyncError: string | null;
@@ -499,7 +498,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     () => ({
       activeRooms,
       joinedRooms,
-      isHydrated,
       syncState,
       lastSyncedAt,
       lastSyncError,
@@ -513,7 +511,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     [
       activeRooms,
       joinedRooms,
-      isHydrated,
       syncState,
       lastSyncedAt,
       lastSyncError,

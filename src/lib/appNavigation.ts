@@ -10,7 +10,6 @@ interface RouterLike {
 interface NavigateOptions {
   replace?: boolean;
   scroll?: boolean;
-  nativeDocumentNavigation?: boolean;
 }
 
 function isNativePlatform() {
@@ -35,20 +34,6 @@ export function navigateAppPath(
   options: NavigateOptions = {},
 ) {
   const targetPath = normalizeAppPath(path);
-
-  if (
-    options.nativeDocumentNavigation &&
-    isNativePlatform() &&
-    typeof window !== 'undefined'
-  ) {
-    if (options.replace) {
-      window.location.replace(targetPath);
-      return;
-    }
-
-    window.location.assign(targetPath);
-    return;
-  }
 
   if (options.replace) {
     router.replace(targetPath, { scroll: options.scroll });
