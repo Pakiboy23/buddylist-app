@@ -8,6 +8,7 @@ This repo has a Capacitor iOS project at `ios/App/App.xcodeproj`.
 - App name: `H.I.M.`
 - **React owns every pixel.** There is no SwiftUI buddy list or native chrome. `AppDelegate` + `HiItsMeShellViewController` embed the Capacitor WKWebView edge-to-edge. `HiItsMeShell.isAvailable` is `false` on purpose so the web app renders its own chrome.
 - The iOS shell defaults to bundled native assets from `native-web/` (copied into `ios/App/App/public`).
+- `HiItsMeShell` still reports the signed push environment and stores the auth session in UserDefaults. It is not a presentation shell: chat Done/Back always come from React.
 - Hosted mode still exists, but only as an explicit opt-in debug path via `npm run ios:sync:hosted`.
 - The native export intentionally excludes `src/app/api` and continues to use the hosted backend for recovery/admin requests via `NEXT_PUBLIC_APP_API_ORIGIN`.
 - The committed Xcode project is currently narrowed to iPhone portrait to reduce App Review surface area.
@@ -19,9 +20,11 @@ Supabase auth/data and the recovery/admin backend still require network access.
 
 ### Stale WKWebView after a reinstall
 
-WKWebView site data (HTTP disk cache and any service-worker Cache Storage) survives an in-place Xcode Run and an App Store update. A previously registered service worker will keep serving the old bundle.
+WKWebView HTTP cache and service-worker registrations survive an in-place Xcode Run and an App Store update. A previously registered service worker will keep serving the old bundle.
 
-`AppDelegate.clearWebViewCacheIfBuildChanged()` wipes `WKWebsiteDataStore` once per new `CFBundleVersion` (`UserDefaults` key `lastLaunchedCFBundleVersion`). If you are debugging a "I rebuilt but the phone still looks old" report, confirm the build number actually changed. Same-number reinstalls will not clear the cache.
+`AppDelegate.clearWebViewCacheIfBuildChanged()` wipes **only** disk/memory/fetch/offline cache and `WKWebsiteDataTypeServiceWorkerRegistrations` once per new `CFBundleVersion` (`UserDefaults` key `lastLaunchedCFBundleVersion`). It does **not** call `allWebsiteDataTypes()` and does **not** delete localStorage, cookies, or IndexedDB. Auth is dual-written to UserDefaults via `HiItsMeShell` (`him.persist.*`) so a TestFlight bump cannot bounce a signed-in reviewer back to login. See [docs/ios-auth-persistence.md](./docs/ios-auth-persistence.md).
+
+If you are debugging a "I rebuilt but the phone still looks old" report, confirm the build number actually changed. Same-number reinstalls will not clear the cache. If the phone looks old *and* the user is signed out, the cache-clear set grew — check `websiteDataTypesToClearOnBuildChange()`.
 
 ## Prerequisites
 

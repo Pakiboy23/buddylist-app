@@ -44,6 +44,7 @@ Do not introduce SSR, server components, or Next.js App Router primitives. The N
 
 - Light: stone surfaces, ink text, chiraag amber accent.
 - Dark: indigo night `#1A1F3A` / `#0F1424`, chiraag accent.
+- Text on amber fills is `--on-accent` (`#0F1424`), not white. White-on-chiraag fails WCAG AA.
 - Do not use Tailwind `bg-black` / `bg-slate-*` / `bg-zinc-*` as a substitute for tokens — they fight the theme.
 - No fake live counts. `himArtDirection.ts` hard-codes honesty here on purpose.
 - No dating-app vocabulary in UI copy: match, swipe, singles, nearby, flirt, hot, hookup-as-offer.
@@ -53,10 +54,13 @@ Do not introduce SSR, server components, or Next.js App Router primitives. The N
 - **Realtime in Capacitor:** `detectSessionInUrl: false`; call `supabase.realtime.setAuth(session.access_token)` after SUBSCRIBED; filter `room_id` client-side. Do not remove these.
 - **Rooms v2 RLS:** direct INSERT on `room_memberships` recurses. Always go through the SECURITY DEFINER RPCs.
 - **Password recovery** is custom (synthetic emails cannot receive mail): `account_recovery_codes`, `password_reset_tickets`, `password_reset_audit`, `password_reset_attempts`. Do not "simplify" onto Supabase's email reset.
+- **iOS auth persistence:** session is dual-written to UserDefaults (`him.persist.*`) and localStorage. `/hi-its-me` bounces to login only on `SIGNED_OUT` — never on `INITIAL_SESSION` with a null session. `waitForSessionOrNull()` retries on native. Do not `signOut()` on invalid-refresh during that lookup. Do not restore `allWebsiteDataTypes()` in `AppDelegate`. `iosAuthPersistence.contract.test.ts` + `authSession.test.ts` are the contract. Runbook: `docs/ios-auth-persistence.md`.
+- **iOS chrome is React.** `HiItsMeShell.isAvailable()` is always false. Do not hide `ChatWindow` / `GroupChatWindow` Done/Back behind `isNativeIosShell()`. `#166` deleted the leftover chrome-publish path; do not rebuild it.
 - **Account deletion** is `supabase/functions/delete-account`. It must succeed on data-bearing accounts, not empty ones. Guards: CORS allows `x-client-info`; `isMissingTable()` matches both `42P01` and `PGRST205`; native ⋯ menu has Account; rooms-v1 archive triggers were dropped. Do not reintroduce those four bugs.
 - **Push:** `requestAndRegisterPush()` lives in `src/lib/nativePush.ts`. Callers: `/account` (manual) and `src/lib/pushPromptMoments.ts` (contextual, only while system state is `prompt`). Friendship-action callers are `buddyRequest.ts` (`buddy_accepted`) and `messageIdempotency.ts` (`first_dm_sent` on a successful DM insert; `first_room_message` on a successful room insert, not on a 23505 reconcile). iOS permission state is the source of truth; `him.pushPrompt.askedAt` is a 7-day cooldown, not a once-per-install veto — localStorage survives reinstalls, authorization does not (#154). Do not skip the ask because `user_push_tokens` has rows. `pushColdLaunchGuard.test.ts` is the contract. Never prompt on cold launch (Guideline 2.5.13). Notification preview default is sender-only.
 - **Invites:** `rooms-invite` requires an accepted buddy. There are no shareable invite links. `/join/:inviteCode` discards the code. Do not invent viral links.
-- **`dist/` is tracked.** Always `npm run build` (emptyOutDir) before a dist resync. `npx cap copy ios` drops `HiItsMeShellPlugin` — use `npm run ios:sync`.
+- **`dist/` is tracked.** Always `npm run build` (emptyOutDir) before a dist resync, with real `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY`. Never hand-edit a hashed file under `dist/assets/` or `ios/App/App/public/assets/` — CI fails in-place modifications. `npx cap copy ios` drops `HiItsMeShellPlugin` — use `npm run ios:sync`.
+- **Viewport zoom stays on.** `index.html` must not ship `maximum-scale=1` / `user-scalable=no` (WCAG 1.4.4). Amber CTAs use `--on-accent`, not white. Honor `prefers-reduced-motion`.
 - **Content moderation:** DB trigger + client `displayBodyForMessage()`. Wordlist is generated; do not hand-edit `profanityTerms.generated.ts`.
 
 ## App Store
@@ -65,6 +69,7 @@ History that will repeat if forgotten:
 
 1. Rejection: iPad "unresponsive" — `100vw` overflow + opaque boot splash. Fix: `width: 100%`, boot watchdog.
 2. Rejection: 5.1.1(v) account deletion + 1.5 Support URL. Four stacked deletion bugs (CORS, PGRST205, native menu, legacy triggers) plus `/support`.
+3. 2.1(a) triage: successful sign-in bounced back to login. `INITIAL_SESSION` with a null session is not logout; do not wipe localStorage on a `CFBundleVersion` bump.
 
 Still required: deletion reachable in-app on iOS; Support/Privacy/Terms URLs live; no push prompt on launch; age rating 18+. Demo account `appreviewer2026` exists for review — never store its password in the repo.
 
@@ -103,3 +108,5 @@ Activation funnel (honest): install (ASC, not in Supabase) → screenname (`user
 - Copy could be read aloud in a quiet room without sounding like a dating ad.
 - If you changed push callers, `pushColdLaunchGuard.test.ts` matches the new policy.
 - If you changed auth, synthetic email domains still try `hiitsme.app` then `buddylist.com`.
+- If you changed iOS session restore or the login bounce, `iosAuthPersistence.contract.test.ts` and `authSession.test.ts` still pass.
+- If you changed chat headers, Done/Back still render without `isNativeIosShell()` gates.

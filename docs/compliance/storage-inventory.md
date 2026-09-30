@@ -1,16 +1,16 @@
 # On-device Storage Inventory
 
-Audited: 2026-05-25  
-Scope: `src/` — all `localStorage`, `sessionStorage`, and `clientStorage` usage.
+Audited: 2026-05-25; iOS UserDefaults true-up 2026-09-18  
+Scope: `src/` — all `localStorage`, `sessionStorage`, and `clientStorage` usage, plus the iOS `him.persist.*` UserDefaults mirror.
 
 **sessionStorage** — not used anywhere in the codebase.  
-**Cookies** — not set by the app. Supabase JS client uses `localStorage` for session persistence, not cookies.
+**Cookies** — not set by the app. On web, the Supabase JS client persists the session in `localStorage`. On iOS it dual-writes the same JSON to UserDefaults (`him.persist.<key>`) via `HiItsMeShellPlugin` so a WKWebView cache clear cannot drop the session.
 
 ## Inventory
 
 | Key | Storage | Purpose | Expiry | Strictly Necessary |
 |-----|---------|---------|--------|-------------------|
-| `sb-*-auth-token` | localStorage | Supabase auth session (access + refresh tokens). Key format is `sb-{projectRef}-auth-token`. | Cleared on sign-out; refresh token rotates on each use (~7 days idle expiry) | **Yes** — authentication |
+| `sb-*-auth-token` | localStorage (web + iOS mirror) and iOS UserDefaults `him.persist.sb-*-auth-token` | Supabase auth session (access + refresh tokens). Key format is `sb-{projectRef}-auth-token`. Native adapter: `src/lib/himAuthStorage.ts`. | Cleared on sign-out; refresh token rotates on each use (~7 days idle expiry) | **Yes** — authentication |
 | `hiitsme_theme` | localStorage | User's color-scheme preference (`light` / `dark` / `system`). Removed when user selects "system". | Until changed or browser data cleared | **Yes** — UI rendering |
 | `hiitsme:away-presets:{userId}` | localStorage | User's saved away-message presets. Per-user (keyed by UUID). | Cleared on sign-out | **Yes** — core messaging feature |
 | `hiitsme:away-settings:{userId}` | localStorage | Auto-away configuration (threshold, reply-enabled flag). Per-user. | Cleared on sign-out | **Yes** — core messaging feature |
@@ -36,7 +36,7 @@ Because all storage is strictly necessary, GDPR ePrivacy consent is not required
 
 ## Cleared on sign-out
 
-All per-user keys (those containing `{userId}` in the key name) are removed from localStorage when the user signs out. Theme and rich-text format preferences are device-level and survive sign-out, but contain no personal data.
+All per-user keys (those containing `{userId}` in the key name) are removed from localStorage when the user signs out. The matching `him.persist.sb-*-auth-token` UserDefaults key is removed through the same `removeItem` path. Theme and rich-text format preferences are device-level and survive sign-out, but contain no personal data.
 
 ## Cleared on account deletion
 

@@ -172,3 +172,4 @@ There is no automated purge of this table yet. It holds no device tokens; `actor
 - Log schema: `supabase/migrations/20260901060000_push_dispatch_log.sql`
 - Server-side buddy requests: `supabase/migrations/20260901060200_dispatch_push_on_buddy_request.sql`
 - iOS host / rebuild: [../IOS_APP_STORE_RELEASE.md](../IOS_APP_STORE_RELEASE.md)
+- iOS auth persistence (same plugin, UserDefaults KV): [ios-auth-persistence.md](./ios-auth-persistence.md)
