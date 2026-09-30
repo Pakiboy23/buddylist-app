@@ -1,7 +1,7 @@
 # H.I.M. Personal Data Inventory
 
 **App:** H.I.M. (hiitsme)  
-**Last updated:** 2026-09-03  
+**Last updated:** 2026-09-25  
 **Prepared by:** Engineering (Claude Code session)  
 **Status:** Draft — requires legal review before publication
 
@@ -15,7 +15,7 @@
 
 | Field | Source | Collected from | Purpose | Lawful basis (GDPR) | Sensitive PI (CCPA) | Special category (GDPR Art. 9) | Retention | Sub-processors |
 |-------|--------|----------------|---------|---------------------|---------------------|-------------------------------|-----------|----------------|
-| Email address (synthetic) | `auth.users.email` | Registration — constructed as `{screenname}@hiitsme.app` or legacy `{screenname}@buddylist.com` | Supabase Auth identifier; never shown to users | Contract 6(1)(b) | No | Art. 9 — orientation-revealing by context | Until account deletion | Supabase |
+| Email address | `auth.users.email` | New signups: user-entered inbox. Legacy accounts may still hold a constructed `{screenname}@hiitsme.app` or `{screenname}@buddylist.com` address. | Supabase Auth identifier and password-reset destination | Contract 6(1)(b) | No | Art. 9 — orientation-revealing by context | Until account deletion | Supabase |
 | Hashed password | `auth.users.encrypted_password` | Registration / password change | Authentication | Contract 6(1)(b) | No | Art. 9 — orientation-revealing by context | Until account deletion | Supabase |
 | Auth UUID | `auth.users.id` | System-generated | Primary key linking all user data | Contract 6(1)(b) | No | Art. 9 — orientation-revealing by context | Until account deletion | Supabase |
 | Sign-in timestamps | `auth.users.last_sign_in_at`, `created_at`, `updated_at` | System-generated | Fraud detection, account security | Legitimate interest 6(1)(f) | No | Art. 9 — orientation-revealing by context | Until account deletion | Supabase |
@@ -182,7 +182,7 @@ Ops table written by the `push-dispatch` Edge Function under the service role. R
 
 3. **Supabase managed log retention** — Supabase retains Postgres logs, Auth logs (including IP addresses at sign-in), and Edge Function logs on managed infrastructure. Exact retention periods depend on the Supabase plan tier. Confirm current plan and log retention duration; add to privacy notice.
 
-4. **IP address at message-send (Vercel Functions)** — `api/push/dispatch.ts` and `api/auth/recovery/*` receive the sender's IP address via Vercel's infra. These IPs appear in Vercel's access logs. Confirm whether Vercel retains raw IPs or only aggregated geo-data, and add to privacy notice.
+4. **IP address at Vercel (updated 2026-09-25)** — After #172 the only Vercel function is `api/admin/me.ts`. Push fan-out and password reset no longer hit Vercel (`push-dispatch` is a Supabase Edge Function; reset is client → Supabase Auth). Confirm whether leftover Vercel access logs from the deleted recovery/push routes still need a notice.
 
 5. **Chat media (`chat-media` bucket) — public access** — The bucket is configured `public` in migration `20260320000010_chat_media.sql`. Any attachment URL is guessable if the path pattern is known. Confirm: (a) is this intentional? (b) does Supabase Storage enforce auth on individual objects despite the bucket being public? Recommend restricting to authenticated access unless CDN-public URLs are required.
 
