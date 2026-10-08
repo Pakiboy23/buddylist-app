@@ -4,31 +4,17 @@ A retro AIM-style messaging app built with Vite + React Router + Supabase, mobil
 
 ## Current Status
 
-- Auth migrated from magic links to password-based sign-on.
-- Non-email password recovery is live:
-  - recovery code flow
-  - admin-issued one-time reset ticket fallback
-- Chat rooms support persistent membership (`activeRooms`) and unread room counters across refresh/re-login.
-- Direct-message unread state is persisted in DB (`user_dm_state`) for multi-device consistency.
-- Global listener shows incoming notification banners outside active views.
-- DM behavior:
-  - incoming DMs no longer force-open the chat window
-  - unread DM badge appears next to sender in H.I.M. until opened
-- Chat UX is optimized for mobile:
-  - dense AIM-style timestamped message rows (no heavy message cards)
-  - collapsible rich text toolbar in compose area
-  - compact `<` / `X` room controls
-  - smooth auto-scroll to newest message
-  - inline message search in DM and room windows
-- Sender names are color-differentiated in DM and group chat:
-  - `You` is always blue
-  - other users get stable deterministic colors (per sender id)
-- Capacitor mobile wrapper is configured with status bar + safe-area aware layout behavior.
-- Chat room state now exposes sync status (`hydrating`, `syncing`, `live`, `error`) with manual resync in H.I.M..
-- UI preferences/drafts now use a versioned local cache (`hiitsme:ui:v1:<userId>`) with legacy-key migration.
-- DM and room chat support soft edit/delete and emoji reactions.
-- DM and room chat support file attachments via Supabase Storage (`chat-media`) + metadata tables.
-- Offline-safe local outbox (`hiitsme:outbox:v1:<userId>`) retries queued DM/room sends with backoff.
+- **iOS App Store:** H.I.M. — Friends, Not Dates **2.6 (build 466)** is live, released 26 Sep 2026.
+- **`main`:** marketing version **2.7** (#185). `CURRENT_PROJECT_VERSION` is 465, but Xcode Cloud assigns the real build number. 2.7 build 472 is in internal TestFlight, and the next 2.7 archive must be above 466.
+- **Platforms:** iOS (Capacitor, rendering the bundled React app) and web (Vercel). Android was removed in #147.
+- **Auth:** password sign-on with a screen name. Sign-up collects a real email. Password recovery is Supabase's email-link reset, landing on `/reset-password`. The old recovery-code and admin reset-ticket flow was removed in April 2026.
+- **Buddies:** `public.buddies` is the one graph. Search, suggestions, and profile Add Buddy all write it (#178).
+- **Rooms:** rooms v2 (`rooms`, `room_memberships`, `room_messages`) with persistent membership. The room unread counter was removed in #181 because it never incremented. Room invites need an accepted buddy, and there are no shareable invite links.
+- **Push:** never asked on cold launch. The contextual prompt fires after a buddy is accepted, the first DM, or the first room message (#157).
+- **Removed:** Buddy Circles UI (#174), unused Next.js/Vercel API duplicates (#172).
+- Direct-message unread state is persisted in the DB (`user_dm_state`) for multi-device consistency.
+- DM and room chat support soft edit/delete, emoji reactions, inline search, and file attachments via Supabase Storage (`chat-media`).
+- An offline-safe local outbox (`hiitsme:outbox:v1:<userId>`) retries queued DM and room sends with backoff, deduped by `client_msg_id`.
 
 ## Messaging Feature Policy
 
@@ -78,9 +64,6 @@ This is a product decision, not an unfinished parity backlog. If a room feature 
 - `/account/delete` — two-step account erasure
 - Static legal: `hiitsme.app/privacy`, `/terms`, `/support` (`public/{privacy,terms,support}.html`)
 - API routes:
-  - `/api/auth/recovery/setup`
-  - `/api/auth/recovery/reset`
-  - `/api/auth/recovery/redeem-ticket`
   - `/api/admin/me`
 
 ## Environment Variables
@@ -198,15 +181,15 @@ Current native-host behavior:
 
 ## Auth Model
 
-Supabase auth uses synthetic email behind screenname:
-- new signup uses `${screenname}@hiitsme.app`; sign-in also falls back to legacy BuddyList auth emails such as `${screenname}@buddylist.com`
+Supabase auth sits behind the screen name:
+- sign-up collects a real email; sign-in resolves it from `public.users`, then falls back to synthetic `${screenname}@hiitsme.app` and legacy `${screenname}@buddylist.com`
 - user profile screenname lives in `public.users`
 
 Recovery model:
-- user can set/update a recovery code (hashed in DB)
-- forgot password supports:
-  - recovery code reset
-  - admin one-time ticket redemption
+- forgot password sends Supabase's email reset link (`resetPasswordForEmail`) to the account's real email
+- legacy synthetic-email accounts (`@hiitsme.app`, `@buddylist.com`) cannot receive that mail
+- native redirect is `HIM://reset-password`; web redirect is `https://hiitsme-app.vercel.app/reset-password`
+- the recovery-code and admin reset-ticket flow was removed in April 2026 (`20260426083107_drop_password_recovery.sql`)
 
 ## Realtime + Notification Model
 
@@ -244,7 +227,6 @@ Recovery model:
 - `src/components/IncomingMessageBanner.tsx` - mobile-style notification banner
 - `src/components/RetroWindow.tsx` - top-level mobile window shell + centered glossy titlebar
 - `src/app/hi-its-me/page.tsx` - H.I.M. contacts, DM windows, room controls
-- `src/lib/passwordRecovery.ts` - recovery/ticket crypto + workflows
 - `src/lib/clientStorage.ts` - safe typed local persistence with versioned envelopes
 - `src/lib/chatMedia.ts` - attachment validation + Supabase Storage upload helpers
 - `src/lib/outbox.ts` - offline outbox queue schema + retry metadata
