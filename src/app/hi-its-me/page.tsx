@@ -2177,15 +2177,26 @@ function HiItsMeContent() {
       .filter((item) => item.type === 'room' && item.status === 'sending')
       .map((item) => item.id));
     let cancelled = false;
-    if (interruptedRoomIds.size > 0) {
+    let recovered = false;
+    const recoverInterruptedRoomSends = () => {
+      if (cancelled || recovered || interruptedRoomIds.size === 0) return;
       void supportsRoomMessageDeduplication().then((supported) => {
-        if (cancelled || !supported) return;
+        if (cancelled || recovered || !supported) return;
+        recovered = true;
+        window.removeEventListener('online', recoverInterruptedRoomSends);
         // Only recover rows from this load, never a new in-session send.
         setOutboxItems((previous) => previous.map((item) =>
           interruptedRoomIds.has(item.id) ? requeueInterruptedOutboxSends([item], true)[0] : item));
       });
+    };
+    if (interruptedRoomIds.size > 0) {
+      window.addEventListener('online', recoverInterruptedRoomSends);
+      recoverInterruptedRoomSends();
     }
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      window.removeEventListener('online', recoverInterruptedRoomSends);
+    };
   }, [userId]);
 
   useEffect(() => {
