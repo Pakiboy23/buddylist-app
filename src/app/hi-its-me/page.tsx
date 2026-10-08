@@ -2283,7 +2283,7 @@ function HiItsMeContent() {
             clientMessageId: item.id,
           });
           if (error) {
-            markFailed(item.id, error.message);
+            markFailed(item.id, humanizeDbError(error.message));
             continue;
           }
           if (activeRoom?.id === item.targetId && data) {
