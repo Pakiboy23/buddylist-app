@@ -265,3 +265,15 @@ export function isOutboxItemDue(item: OutboxItem, nowMs = Date.now()) {
   }
   return nowMs >= nextAttemptMs;
 }
+
+/**
+ * A row persisted as `sending` belongs to a request that was in flight when the
+ * app was killed. Nothing will finish it: flush skips `sending` (an in-session
+ * row is owned by the request still awaiting), and the UI hides Retry while a
+ * row is `sending`. Call this once when the outbox is loaded at sign-in so those
+ * rows go back on the queue. The id is the client_msg_id, so a retry of a send
+ * that actually landed reconciles instead of duplicating.
+ */
+export function requeueInterruptedOutboxSends(items: OutboxItem[]): OutboxItem[] {
+  return items.map((item) => (item.status === 'sending' ? scheduleOutboxRetryNow(item) : item));
+}

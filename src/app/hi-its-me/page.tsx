@@ -71,6 +71,7 @@ import {
   markOutboxSending,
   markOutboxAttemptFailure,
   normalizeOutboxItems,
+  requeueInterruptedOutboxSends,
   type OutboxItem,
   type OutboxItemStatus,
   saveOutbox,
@@ -2167,7 +2168,9 @@ function HiItsMeContent() {
       setOutboxItems([]);
       return;
     }
-    setOutboxItems(loadOutbox(userId));
+    // Only here, not in the cross-tab storage listener below: at load no send
+    // from this session is in flight, so any `sending` row was interrupted.
+    setOutboxItems(requeueInterruptedOutboxSends(loadOutbox(userId)));
   }, [userId]);
 
   useEffect(() => {
@@ -2238,54 +2241,60 @@ function HiItsMeContent() {
 
         markSending(item.id);
 
-        if (item.type === 'dm') {
-          const { data, error } = await sendDirectMessageWithClientMessageId({
-            senderId: userId,
-            receiverId: item.targetId,
-            content: item.content,
-            clientMessageId: item.id,
-            expiresAt: item.expiresAt,
-            replyToMessageId: item.replyToMessageId,
-            forwardSourceMessageId: item.forwardSourceMessageId,
-            forwardSourceSenderId: item.forwardSourceSenderId,
-            previewType: item.previewType,
-          });
+        try {
+          if (item.type === 'dm') {
+            const { data, error } = await sendDirectMessageWithClientMessageId({
+              senderId: userId,
+              receiverId: item.targetId,
+              content: item.content,
+              clientMessageId: item.id,
+              expiresAt: item.expiresAt,
+              replyToMessageId: item.replyToMessageId,
+              forwardSourceMessageId: item.forwardSourceMessageId,
+              forwardSourceSenderId: item.forwardSourceSenderId,
+              previewType: item.previewType,
+            });
 
-          if (error) {
-            markFailed(item.id, humanizeDbError(error.message));
+            if (error) {
+              markFailed(item.id, humanizeDbError(error.message));
+              continue;
+            }
+
+            const insertedMessage = data as ChatMessage;
+            setBuddyLastMessageAt((previous) => ({
+              ...previous,
+              [item.targetId]: insertedMessage.created_at,
+            }));
+            if (activeChatBuddyIdRef.current === item.targetId) {
+              setChatMessages((previous) =>
+                previous.some((message) => message.id === insertedMessage.id)
+                  ? previous
+                  : [...previous, insertedMessage],
+              );
+            }
+            dropSent(item.id);
             continue;
           }
 
-          const insertedMessage = data as ChatMessage;
-          setBuddyLastMessageAt((previous) => ({
-            ...previous,
-            [item.targetId]: insertedMessage.created_at,
-          }));
-          if (activeChatBuddyIdRef.current === item.targetId) {
-            setChatMessages((previous) =>
-              previous.some((message) => message.id === insertedMessage.id)
-                ? previous
-                : [...previous, insertedMessage],
-            );
+          const { data, error } = await sendRoomMessageWithClientMessageId({
+            roomId: item.targetId,
+            userId,
+            body: item.content,
+            clientMessageId: item.id,
+          });
+          if (error) {
+            markFailed(item.id, error.message);
+            continue;
+          }
+          if (activeRoom?.id === item.targetId && data) {
+            setActiveRoomReloadToken((previous) => previous + 1);
           }
           dropSent(item.id);
-          continue;
+        } catch (error) {
+          // A thrown insert (not a returned error) used to escape the loop and
+          // leave the row `sending`, which flush skips and the UI cannot retry.
+          markFailed(item.id, humanizeDbError(error instanceof Error ? error.message : 'Unable to send message.'));
         }
-
-        const { data, error } = await sendRoomMessageWithClientMessageId({
-          roomId: item.targetId,
-          userId,
-          body: item.content,
-          clientMessageId: item.id,
-        });
-        if (error) {
-          markFailed(item.id, error.message);
-          continue;
-        }
-        if (activeRoom?.id === item.targetId && data) {
-          setActiveRoomReloadToken((previous) => previous + 1);
-        }
-        dropSent(item.id);
       }
     } finally {
       isFlushingOutboxRef.current = false;

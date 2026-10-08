@@ -5,7 +5,9 @@ import {
   markOutboxSending,
   markOutboxAttemptFailure,
   normalizeOutboxItems,
+  requeueInterruptedOutboxSends,
   scheduleOutboxRetryNow,
+  type OutboxItem,
 } from '@/lib/outbox';
 
 describe('createOutboxItem', () => {
@@ -152,5 +154,68 @@ describe('isOutboxItemDue', () => {
         lastError: null,
       }),
     ).toBe(true);
+  });
+});
+
+describe('requeueInterruptedOutboxSends', () => {
+  const interrupted = () =>
+    markOutboxSending(
+      createOutboxItem({
+        type: 'dm',
+        targetId: 'buddy-killed',
+        content: 'sent right before the app was killed',
+        clientMessageId: 'client-msg-killed',
+      }),
+    );
+
+  it('puts a row left in sending back on the queue so flush retries it', () => {
+    const [recovered] = requeueInterruptedOutboxSends([interrupted()]);
+
+    expect(recovered?.status).toBe('queued');
+    expect(recovered?.lastError).toBeNull();
+    expect(isOutboxItemDue(recovered!, Date.now())).toBe(true);
+  });
+
+  it('keeps the client message id so a retry of a landed send dedupes', () => {
+    const [recovered] = requeueInterruptedOutboxSends([interrupted()]);
+
+    expect(recovered?.id).toBe('client-msg-killed');
+    expect(recovered?.content).toBe('sent right before the app was killed');
+    expect(recovered?.attempts).toBe(0);
+  });
+
+  it('leaves queued and failed rows alone, including failed backoff', () => {
+    const queued = createOutboxItem({
+      type: 'room',
+      targetId: 'room-1',
+      content: 'waiting',
+      clientMessageId: 'client-msg-queued',
+    });
+    const failed = {
+      ...markOutboxAttemptFailure(
+        createOutboxItem({
+          type: 'dm',
+          targetId: 'buddy-b',
+          content: 'offline',
+          clientMessageId: 'client-msg-failed',
+        }),
+        'network down',
+      ),
+      nextAttemptAt: '2099-01-01T00:00:00.000Z',
+    };
+
+    const [stillQueued, stillFailed] = requeueInterruptedOutboxSends([queued, failed]);
+
+    expect(stillQueued).toBe(queued);
+    expect(stillFailed).toBe(failed);
+    expect(stillFailed?.lastError).toBe('network down');
+    expect(isOutboxItemDue(stillFailed!, Date.parse('2026-10-08T00:00:00.000Z'))).toBe(false);
+  });
+
+  it('survives the persisted round trip that an app kill goes through', () => {
+    const persisted = JSON.parse(JSON.stringify([interrupted()])) as OutboxItem[];
+    const [recovered] = requeueInterruptedOutboxSends(normalizeOutboxItems(persisted));
+
+    expect(recovered?.status).toBe('queued');
   });
 });
