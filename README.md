@@ -64,9 +64,6 @@ This is a product decision, not an unfinished parity backlog. If a room feature 
 - `/account/delete` — two-step account erasure
 - Static legal: `hiitsme.app/privacy`, `/terms`, `/support` (`public/{privacy,terms,support}.html`)
 - API routes:
-  - `/api/auth/recovery/setup`
-  - `/api/auth/recovery/reset`
-  - `/api/auth/recovery/redeem-ticket`
   - `/api/admin/me`
 
 ## Environment Variables
@@ -190,6 +187,7 @@ Supabase auth sits behind the screen name:
 
 Recovery model:
 - forgot password sends Supabase's email reset link (`resetPasswordForEmail`) to the account's real email
+- legacy synthetic-email accounts (`@hiitsme.app`, `@buddylist.com`) cannot receive that mail
 - native redirect is `HIM://reset-password`; web redirect is `https://hiitsme-app.vercel.app/reset-password`
 - the recovery-code and admin reset-ticket flow was removed in April 2026 (`20260426083107_drop_password_recovery.sql`)
 
@@ -229,7 +227,6 @@ Recovery model:
 - `src/components/IncomingMessageBanner.tsx` - mobile-style notification banner
 - `src/components/RetroWindow.tsx` - top-level mobile window shell + centered glossy titlebar
 - `src/app/hi-its-me/page.tsx` - H.I.M. contacts, DM windows, room controls
-- `src/lib/passwordRecovery.ts` - recovery/ticket crypto + workflows
 - `src/lib/clientStorage.ts` - safe typed local persistence with versioned envelopes
 - `src/lib/chatMedia.ts` - attachment validation + Supabase Storage upload helpers
 - `src/lib/outbox.ts` - offline outbox queue schema + retry metadata
