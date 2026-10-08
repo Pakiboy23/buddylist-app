@@ -6,29 +6,26 @@ import { resolveDeepLinkPath } from '@/lib/deepLinkPath';
 const RECOVERY_HASH = '#access_token=abc.def&expires_in=3600&refresh_token=r1&type=recovery';
 
 describe('resolveDeepLinkPath', () => {
-  it('routes the iOS password reset redirect and keeps the recovery tokens', () => {
-    expect(resolveDeepLinkPath(`HIM://reset-password${RECOVERY_HASH}`)).toBe(`/reset-password${RECOVERY_HASH}`);
+  it('routes the associated recovery link and preserves tokens and query', () => {
+    expect(resolveDeepLinkPath(`https://hiitsme.app/reset-password?next=1${RECOVERY_HASH}`)).toBe(
+      `/reset-password?next=1${RECOVERY_HASH}`,
+    );
   });
 
-  it('treats a trailing slash after the host the same way', () => {
-    expect(resolveDeepLinkPath(`HIM://reset-password/${RECOVERY_HASH}`)).toBe(`/reset-password${RECOVERY_HASH}`);
+  it.each([
+    'HIM://reset-password',
+    'HIM://reset-password/',
+    'HIM://localhost/reset-password',
+    'hiitsme://reset-password',
+    'http://hiitsme.app/reset-password',
+    'https://hiitsme.app.evil.test/reset-password',
+  ])('rejects recovery via an unassociated URL: %s', (url) => {
+    expect(resolveDeepLinkPath(`${url}${RECOVERY_HASH}`)).toBeNull();
   });
 
-  it('routes hiitsme host-style links and keeps the query', () => {
-    expect(resolveDeepLinkPath('hiitsme://reset-password?next=1#t')).toBe('/reset-password?next=1#t');
-  });
-
-  it('keeps path-style custom scheme links working', () => {
+  it('keeps unrelated custom scheme and universal links working', () => {
     expect(resolveDeepLinkPath('hiitsme:///hi-its-me?dm=buddy-1')).toBe('/hi-its-me?dm=buddy-1');
-    expect(resolveDeepLinkPath(`HIM://localhost/reset-password${RECOVERY_HASH}`)).toBe(
-      `/reset-password${RECOVERY_HASH}`,
-    );
-  });
-
-  it('keeps universal links on their pathname', () => {
-    expect(resolveDeepLinkPath(`https://hiitsme-app.vercel.app/reset-password${RECOVERY_HASH}`)).toBe(
-      `/reset-password${RECOVERY_HASH}`,
-    );
+    expect(resolveDeepLinkPath('https://hiitsme.app/join/room-1')).toBe('/join/room-1');
   });
 
   it('ignores links with no route', () => {
@@ -40,17 +37,21 @@ describe('resolveDeepLinkPath', () => {
   });
 });
 
-describe('iOS URL scheme registration', () => {
+describe('iOS recovery association', () => {
   const read = (relative: string) => readFileSync(path.resolve(__dirname, '../..', relative), 'utf-8');
 
-  it('registers the scheme the native reset email redirects to, alongside hiitsme', () => {
-    const plist = read('ios/App/App/Info.plist');
-    const schemesBlock = plist.match(/<key>CFBundleURLSchemes<\/key>\s*<array>([\s\S]*?)<\/array>/)?.[1] ?? '';
-    const schemes = [...schemesBlock.matchAll(/<string>([^<]+)<\/string>/g)].map((match) => match[1]);
-
-    const redirect = read('src/app/page.tsx').match(/NATIVE_RESET_PASSWORD_URL = '([A-Za-z][A-Za-z0-9+.-]*):\/\//)?.[1];
-    expect(redirect).toBe('HIM');
-    expect(schemes).toContain('hiitsme');
-    expect(schemes.map((scheme) => scheme.toLowerCase())).toContain(redirect!.toLowerCase());
+  it('uses the same HTTPS callback in the client, association and Supabase allowlist', () => {
+    const redirect = read('src/app/page.tsx').match(/NATIVE_RESET_PASSWORD_URL = '([^']+)'/)?.[1];
+    expect(redirect).toBe('https://hiitsme.app/reset-password');
+    const url = new URL(redirect!);
+    expect(read('ios/App/App/App.entitlements')).toContain(`<string>applinks:${url.host}</string>`);
+    const association = JSON.parse(read('public/.well-known/apple-app-site-association'));
+    expect(association.applinks.details).toContainEqual({
+      appID: '6KTSZRW2J6.com.hiitsme.app',
+      paths: expect.arrayContaining([url.pathname]),
+    });
+    expect(read('supabase/config.toml')).toContain(`"${redirect}"`);
+    expect(read('supabase/config.toml')).not.toContain('HIM://reset-password');
+    expect(read('ios/App/App/Info.plist')).not.toContain('<string>HIM</string>');
   });
 });

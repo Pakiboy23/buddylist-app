@@ -83,6 +83,7 @@ import {
   isDirectMessageMetadataSchemaMissingError,
   sendDirectMessageWithClientMessageId,
   sendRoomMessageWithClientMessageId,
+  supportsRoomMessageDeduplication,
 } from '@/lib/messageIdempotency';
 import { dispatchBuddyRequestPush } from '@/lib/pushDispatch';
 import { buildAwayMessageReplyDraft } from '@/lib/awayMessageReply';
@@ -2170,7 +2171,21 @@ function HiItsMeContent() {
     }
     // Only here, not in the cross-tab storage listener below: at load no send
     // from this session is in flight, so any `sending` row was interrupted.
-    setOutboxItems(requeueInterruptedOutboxSends(loadOutbox(userId)));
+    const loaded = loadOutbox(userId);
+    setOutboxItems(requeueInterruptedOutboxSends(loaded));
+    const interruptedRoomIds = new Set(loaded
+      .filter((item) => item.type === 'room' && item.status === 'sending')
+      .map((item) => item.id));
+    let cancelled = false;
+    if (interruptedRoomIds.size > 0) {
+      void supportsRoomMessageDeduplication().then((supported) => {
+        if (cancelled || !supported) return;
+        // Only recover rows from this load, never a new in-session send.
+        setOutboxItems((previous) => previous.map((item) =>
+          interruptedRoomIds.has(item.id) ? requeueInterruptedOutboxSends([item], true)[0] : item));
+      });
+    }
+    return () => { cancelled = true; };
   }, [userId]);
 
   useEffect(() => {
@@ -2281,6 +2296,7 @@ function HiItsMeContent() {
             userId,
             body: item.content,
             clientMessageId: item.id,
+            requireDeduplication: true,
           });
           if (error) {
             markFailed(item.id, humanizeDbError(error.message));

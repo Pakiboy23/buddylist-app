@@ -155,7 +155,7 @@ site_url = "https://hiitsme-app.vercel.app"
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
 additional_redirect_urls = [
   "https://hiitsme-app.vercel.app/reset-password",
-  "HIM://reset-password",
+  "https://hiitsme.app/reset-password",
   "https://hiitsme-app-syed-shariffs-projects.vercel.app/",
   "https://hiitsme-app-syed-shariffs-projects.vercel.app/**",
   "https://hiitsme-*-app-syed-shariffs-projects.vercel.app",

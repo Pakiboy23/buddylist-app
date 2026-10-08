@@ -168,6 +168,24 @@ describe('requeueInterruptedOutboxSends', () => {
       }),
     );
 
+  it('leaves interrupted room sends untouched until dedup support is confirmed', () => {
+    const room = { ...interrupted(), type: 'room' as const };
+    const dm = interrupted();
+    expect(requeueInterruptedOutboxSends([room])[0]).toBe(room);
+    const [stillRoom, recoveredDm] = requeueInterruptedOutboxSends([room, dm], false);
+    expect(stillRoom).toBe(room);
+    expect(recoveredDm.status).toBe('queued');
+  });
+
+  it('requeues interrupted room sends with the original key when dedup is supported', () => {
+    const room = { ...interrupted(), type: 'room' as const };
+    const persisted = normalizeOutboxItems(JSON.parse(JSON.stringify([room])));
+    const [recovered] = requeueInterruptedOutboxSends(persisted, true);
+    expect(recovered.status).toBe('queued');
+    expect(recovered.id).toBe(room.id);
+    expect(isOutboxItemDue(recovered)).toBe(true);
+  });
+
   it('puts a row left in sending back on the queue so flush retries it', () => {
     const [recovered] = requeueInterruptedOutboxSends([interrupted()]);
 

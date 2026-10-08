@@ -28,7 +28,6 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>hiitsme</string>
-				<string>HIM</string>
 			</array>
 		</dict>
 	</array>
