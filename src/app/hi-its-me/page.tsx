@@ -1011,6 +1011,10 @@ function HiItsMeContent() {
   const mutualContextState = useMutualContext(userId ? mutualContextTargetId : null);
   const [activeRoomReloadToken, setActiveRoomReloadToken] = useState(0);
   const [outboxItems, setOutboxItems] = useState<OutboxItem[]>([]);
+  // The user whose stored outbox has been loaded into outboxItems. Set in the
+  // same batch as the loaded items, so persistence never writes the empty
+  // initial state or another user's rows over this user's storage.
+  const [outboxLoadedForUserId, setOutboxLoadedForUserId] = useState<string | null>(null);
   const [awayModalMode, setAwayModalMode] = useState<'profile' | 'away'>('profile');
 
   const hasPresenceSyncedRef = useRef(false);
@@ -2167,12 +2171,14 @@ function HiItsMeContent() {
   useEffect(() => {
     if (!userId) {
       setOutboxItems([]);
+      setOutboxLoadedForUserId(null);
       return;
     }
     // Only here, not in the cross-tab storage listener below: at load no send
     // from this session is in flight, so any `sending` row was interrupted.
     const loaded = loadOutbox(userId);
     setOutboxItems(requeueInterruptedOutboxSends(loaded));
+    setOutboxLoadedForUserId(userId);
     const interruptedRoomIds = new Set(loaded
       .filter((item) => item.type === 'room' && item.status === 'sending')
       .map((item) => item.id));
@@ -2200,11 +2206,11 @@ function HiItsMeContent() {
   }, [userId]);
 
   useEffect(() => {
-    if (!userId) {
+    if (!userId || outboxLoadedForUserId !== userId) {
       return;
     }
     saveOutbox(userId, outboxItems);
-  }, [outboxItems, userId]);
+  }, [outboxItems, outboxLoadedForUserId, userId]);
 
   useEffect(() => {
     if (!userId) {

@@ -18,7 +18,7 @@ function findRecoveryEffect(node: ts.Node) {
 findRecoveryEffect(page);
 if (!effectSource) throw new Error('Outbox recovery effect not found');
 const effectJs = ts.transpile(`const effect = ${effectSource};`, { target: ts.ScriptTarget.ES2022 });
-const runEffect = new Function('userId', 'loadOutbox', 'setOutboxItems', 'requeueInterruptedOutboxSends', 'supportsRoomMessageDeduplication', 'window', `${effectJs}\nreturn effect();`);
+const runEffect = new Function('userId', 'loadOutbox', 'setOutboxItems', 'requeueInterruptedOutboxSends', 'supportsRoomMessageDeduplication', 'window', 'setOutboxLoadedForUserId', `${effectJs}\nreturn effect();`);
 
 const room = (id: string) => createOutboxItem({ type: 'room', targetId: 'room-1', content: 'hello', clientMessageId: id, status: 'sending' });
 function setup(loaded: OutboxItem[], probe = vi.fn<() => Promise<boolean>>()) {
@@ -27,7 +27,7 @@ function setup(loaded: OutboxItem[], probe = vi.fn<() => Promise<boolean>>()) {
   const setItems = (update: OutboxItem[] | ((previous: OutboxItem[]) => OutboxItem[])) => {
     items = typeof update === 'function' ? update(items) : update;
   };
-  const cleanup = runEffect('user-1', () => loaded, setItems, requeueInterruptedOutboxSends, probe, window) as () => void;
+  const cleanup = runEffect('user-1', () => loaded, setItems, requeueInterruptedOutboxSends, probe, window, () => {}) as () => void;
   return { probe, cleanup, setItems, items: () => items, online: () => window.dispatchEvent(new Event('online')) };
 }
 
@@ -107,5 +107,53 @@ describe('outbox room recovery effect', () => {
     expect(state.probe).not.toHaveBeenCalled();
     expect(state.items()[0].status).toBe('queued');
     state.cleanup();
+  });
+});
+
+function findEffect(marker: string): string {
+  let source = '';
+  const visit = (node: ts.Node) => {
+    if (ts.isCallExpression(node) && node.expression.getText(page) === 'useEffect') {
+      const callback = node.arguments[0];
+      if (callback?.getText(page).includes(marker)) source = callback.getText(page);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(page);
+  if (!source) throw new Error(`Effect containing ${marker} not found`);
+  return source;
+}
+
+const persistJs = ts.transpile(`const effect = ${findEffect('saveOutbox(userId, outboxItems)')};`, { target: ts.ScriptTarget.ES2022 });
+const runPersist = new Function('userId', 'outboxItems', 'outboxLoadedForUserId', 'saveOutbox', `${persistJs}\nreturn effect();`);
+
+describe('outbox persistence effect', () => {
+  const dm = (id: string) => createOutboxItem({ type: 'dm', targetId: 'buddy-1', content: 'hi', clientMessageId: id });
+
+  it('does not overwrite storage before the current user\'s outbox is loaded', () => {
+    const saveOutbox = vi.fn();
+    // Commit where userId first appears: recovery has only queued its update.
+    runPersist('user-b', [], null, saveOutbox);
+    // User switch: outboxItems still holds user A's rows.
+    runPersist('user-b', [dm('a-row')], 'user-a', saveOutbox);
+    runPersist(null, [], null, saveOutbox);
+    expect(saveOutbox).not.toHaveBeenCalled();
+  });
+
+  it('saves once the recovered rows for this user are committed', () => {
+    const saveOutbox = vi.fn();
+    const rows = [dm('b-row')];
+    runPersist('user-b', rows, 'user-b', saveOutbox);
+    expect(saveOutbox).toHaveBeenCalledExactlyOnceWith('user-b', rows);
+  });
+});
+
+describe('outbox recovery effect marks the loaded user', () => {
+  it('records the user it loaded, and clears it on sign-out', () => {
+    const marks: Array<string | null> = [];
+    const noop = () => {};
+    runEffect('user-1', () => [], noop, requeueInterruptedOutboxSends, vi.fn(), new EventTarget(), (id: string | null) => marks.push(id));
+    runEffect(null, () => [], noop, requeueInterruptedOutboxSends, vi.fn(), new EventTarget(), (id: string | null) => marks.push(id));
+    expect(marks).toEqual(['user-1', null]);
   });
 });
