@@ -188,7 +188,7 @@ Supabase auth sits behind the screen name:
 Recovery model:
 - forgot password sends Supabase's email reset link (`resetPasswordForEmail`) to the account's real email
 - legacy synthetic-email accounts (`@hiitsme.app`, `@buddylist.com`) cannot receive that mail
-- native redirect is `HIM://reset-password`; web redirect is `https://hiitsme-app.vercel.app/reset-password`
+- native recovery via `HIM://reset-password` is pending URL scheme registration and deep-link route parsing; web redirect is `https://hiitsme-app.vercel.app/reset-password`
 - the recovery-code and admin reset-ticket flow was removed in April 2026 (`20260426083107_drop_password_recovery.sql`)
 
 ## Realtime + Notification Model
