@@ -166,11 +166,21 @@ export async function sendDirectMessageWithClientMessageId(input: {
   };
 }
 
+export async function supportsRoomMessageDeduplication(): Promise<boolean> {
+  try {
+    const { error } = await supabase.from('room_messages').select('client_msg_id,flagged_at').limit(0);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
 export async function sendRoomMessageWithClientMessageId(input: {
   roomId: string;
   userId: string;
   body: string;
   clientMessageId: string;
+  requireDeduplication?: boolean;
 }) {
   // Attempt 1: insert WITH the dedup key. A partial unique index on
   // (user_id, client_msg_id) means an outbox retry of a message that already
@@ -204,8 +214,8 @@ export async function sendRoomMessageWithClientMessageId(input: {
 
   // Fallbacks for older schema: client_msg_id column not applied yet (dedup
   // simply off until the migration lands), or the flagged_at metadata column
-  // absent. Either way, fall back to a plain insert so room chat keeps working.
-  if (isRoomClientMessageIdColumnMissing(error) || isRoomMessageMetadataSchemaMissingError(error)) {
+  // absent. Only fresh sends may fall back: outbox replays must retain dedup.
+  if (!input.requireDeduplication && (isRoomClientMessageIdColumnMissing(error) || isRoomMessageMetadataSchemaMissingError(error))) {
     ({ data, error } = await supabase
       .from('room_messages')
       .insert({

@@ -18,12 +18,12 @@ const SIGN_ON_SOUND = '/sounds/aol-welcome.mp3';
 const SIGN_ON_FALLBACK_SOUND = '/sounds/aim.mp3';
 
 // Where Supabase should send users after they click the password-reset email.
-// Native (iOS/Android via Capacitor) uses the custom URL scheme registered in
-// capacitor.config.ts (ios.scheme = 'HIM'). Web uses the canonical app URL
+// Native uses the HTTPS universal link associated with the iOS app.
+// Web uses the canonical app URL
 // rather than window.location.origin so reset emails sent from a Vercel
 // preview still land users on production.
 const APP_WEB_URL = 'https://hiitsme-app.vercel.app';
-const NATIVE_RESET_PASSWORD_URL = 'HIM://reset-password';
+const NATIVE_RESET_PASSWORD_URL = 'https://hiitsme.app/reset-password';
 const WEB_RESET_PASSWORD_URL = `${APP_WEB_URL}/reset-password`;
 
 function getResetPasswordRedirectUrl(): string {

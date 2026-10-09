@@ -4,7 +4,7 @@
     "details": [
       {
         "appID": "6KTSZRW2J6.com.hiitsme.app",
-        "paths": ["/join/*"]
+        "paths": ["/join/*", "/reset-password"]
       }
     ]
   }

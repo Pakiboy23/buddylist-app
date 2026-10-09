@@ -34,7 +34,7 @@ vi.mock('@/lib/pushPromptMoments', () => ({
   maybePromptForPushAfterFriendshipAction: vi.fn(),
 }));
 
-import { sendRoomMessageWithClientMessageId } from '@/lib/messageIdempotency';
+import { sendRoomMessageWithClientMessageId, supportsRoomMessageDeduplication } from '@/lib/messageIdempotency';
 import { dispatchRoomMessagePush } from '@/lib/pushDispatch';
 import { maybePromptForPushAfterFriendshipAction } from '@/lib/pushPromptMoments';
 
@@ -42,6 +42,7 @@ const INPUT = { roomId: 'room-1', userId: 'user-1', body: 'hi', clientMessageId:
 
 describe('sendRoomMessageWithClientMessageId', () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
     state.insert = { data: null, error: null };
     state.lookup = { data: null, error: null };
     state.inserts = [];
@@ -67,7 +68,7 @@ describe('sendRoomMessageWithClientMessageId', () => {
     state.insert = { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "room_messages_user_client_msg_id_key"' } };
     state.lookup = { data: { id: 'already', room_id: 'room-1', user_id: 'user-1', body: 'hi', created_at: 't' }, error: null };
 
-    const result = await sendRoomMessageWithClientMessageId(INPUT);
+    const result = await sendRoomMessageWithClientMessageId({ ...INPUT, requireDeduplication: true });
 
     expect(result.reconciled).toBe(true);
     expect(result.data?.id).toBe('already');
@@ -77,6 +78,15 @@ describe('sendRoomMessageWithClientMessageId', () => {
     // A retry is not a new message. Do not re-dispatch or re-prompt.
     expect(dispatchRoomMessagePush).not.toHaveBeenCalled();
     expect(maybePromptForPushAfterFriendshipAction).not.toHaveBeenCalled();
+  });
+
+  it.each(['client_msg_id', 'flagged_at'])('never falls back on outbox replay when %s is missing', async (column) => {
+    state.insert = { data: null, error: { code: '42703', message: `column "${column}" does not exist` } };
+    const result = await sendRoomMessageWithClientMessageId({ ...INPUT, requireDeduplication: true });
+    expect(state.inserts).toHaveLength(1);
+    expect(state.inserts[0]).toHaveProperty('client_msg_id', INPUT.clientMessageId);
+    expect(result.error).toBe(state.insert.error);
+    expect(dispatchRoomMessagePush).not.toHaveBeenCalled();
   });
 
   it('falls back to a plain insert when the client_msg_id column is not applied yet', async () => {
@@ -106,5 +116,28 @@ describe('sendRoomMessageWithClientMessageId', () => {
     expect(result.error).toBeNull();
     expect(dispatchRoomMessagePush).toHaveBeenCalledWith('legacy');
     expect(maybePromptForPushAfterFriendshipAction).toHaveBeenCalledWith('first_room_message');
+  });
+});
+
+describe('supportsRoomMessageDeduplication', () => {
+  it.each([null, { message: 'client_msg_id missing' }, { message: 'flagged_at missing' }, { message: 'offline' }])(
+    'confirms both columns only after a successful probe: %j', async (error) => {
+      const { supabase } = await import('@/lib/supabase');
+      const limit = vi.fn().mockResolvedValue({ error });
+      const select = vi.fn().mockReturnValue({ limit });
+      const from = vi.spyOn(supabase, 'from').mockReturnValue({ select } as unknown as ReturnType<typeof supabase.from>);
+      expect(await supportsRoomMessageDeduplication()).toBe(error === null);
+      expect(from).toHaveBeenCalledWith('room_messages');
+      expect(select).toHaveBeenCalledWith('client_msg_id,flagged_at');
+      expect(limit).toHaveBeenCalledWith(0);
+      from.mockRestore();
+    },
+  );
+
+  it('fails closed when the probe throws', async () => {
+    const { supabase } = await import('@/lib/supabase');
+    const from = vi.spyOn(supabase, 'from').mockImplementation(() => { throw new Error('offline'); });
+    expect(await supportsRoomMessageDeduplication()).toBe(false);
+    from.mockRestore();
   });
 });

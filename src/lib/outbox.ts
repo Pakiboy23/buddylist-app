@@ -265,3 +265,19 @@ export function isOutboxItemDue(item: OutboxItem, nowMs = Date.now()) {
   }
   return nowMs >= nextAttemptMs;
 }
+
+/**
+ * A row persisted as `sending` belongs to a request that was in flight when the
+ * app was killed. Nothing will finish it: flush skips `sending` (an in-session
+ * row is owned by the request still awaiting), and the UI hides Retry while a
+ * row is `sending`. Call this once when the outbox is loaded at sign-in so those
+ * rows go back on the queue. Room sends require confirmed support for both
+ * client_msg_id and flagged_at; otherwise the legacy sender can duplicate them.
+ */
+export function requeueInterruptedOutboxSends(items: OutboxItem[], roomDedupSupported = false): OutboxItem[] {
+  return items.map((item) => (
+    item.status === 'sending' && (item.type !== 'room' || roomDedupSupported)
+      ? scheduleOutboxRetryNow(item)
+      : item
+  ));
+}

@@ -71,6 +71,7 @@ import {
   markOutboxSending,
   markOutboxAttemptFailure,
   normalizeOutboxItems,
+  requeueInterruptedOutboxSends,
   type OutboxItem,
   type OutboxItemStatus,
   saveOutbox,
@@ -82,6 +83,7 @@ import {
   isDirectMessageMetadataSchemaMissingError,
   sendDirectMessageWithClientMessageId,
   sendRoomMessageWithClientMessageId,
+  supportsRoomMessageDeduplication,
 } from '@/lib/messageIdempotency';
 import { dispatchBuddyRequestPush } from '@/lib/pushDispatch';
 import { buildAwayMessageReplyDraft } from '@/lib/awayMessageReply';
@@ -1009,6 +1011,10 @@ function HiItsMeContent() {
   const mutualContextState = useMutualContext(userId ? mutualContextTargetId : null);
   const [activeRoomReloadToken, setActiveRoomReloadToken] = useState(0);
   const [outboxItems, setOutboxItems] = useState<OutboxItem[]>([]);
+  // The user whose stored outbox has been loaded into outboxItems. Set in the
+  // same batch as the loaded items, so persistence never writes the empty
+  // initial state or another user's rows over this user's storage.
+  const [outboxLoadedForUserId, setOutboxLoadedForUserId] = useState<string | null>(null);
   const [awayModalMode, setAwayModalMode] = useState<'profile' | 'away'>('profile');
 
   const hasPresenceSyncedRef = useRef(false);
@@ -2165,17 +2171,46 @@ function HiItsMeContent() {
   useEffect(() => {
     if (!userId) {
       setOutboxItems([]);
+      setOutboxLoadedForUserId(null);
       return;
     }
-    setOutboxItems(loadOutbox(userId));
+    // Only here, not in the cross-tab storage listener below: at load no send
+    // from this session is in flight, so any `sending` row was interrupted.
+    const loaded = loadOutbox(userId);
+    setOutboxItems(requeueInterruptedOutboxSends(loaded));
+    setOutboxLoadedForUserId(userId);
+    const interruptedRoomIds = new Set(loaded
+      .filter((item) => item.type === 'room' && item.status === 'sending')
+      .map((item) => item.id));
+    let cancelled = false;
+    let recovered = false;
+    const recoverInterruptedRoomSends = () => {
+      if (cancelled || recovered || interruptedRoomIds.size === 0) return;
+      void supportsRoomMessageDeduplication().then((supported) => {
+        if (cancelled || recovered || !supported) return;
+        recovered = true;
+        window.removeEventListener('online', recoverInterruptedRoomSends);
+        // Only recover rows from this load, never a new in-session send.
+        setOutboxItems((previous) => previous.map((item) =>
+          interruptedRoomIds.has(item.id) ? requeueInterruptedOutboxSends([item], true)[0] : item));
+      });
+    };
+    if (interruptedRoomIds.size > 0) {
+      window.addEventListener('online', recoverInterruptedRoomSends);
+      recoverInterruptedRoomSends();
+    }
+    return () => {
+      cancelled = true;
+      window.removeEventListener('online', recoverInterruptedRoomSends);
+    };
   }, [userId]);
 
   useEffect(() => {
-    if (!userId) {
+    if (!userId || outboxLoadedForUserId !== userId) {
       return;
     }
     saveOutbox(userId, outboxItems);
-  }, [outboxItems, userId]);
+  }, [outboxItems, outboxLoadedForUserId, userId]);
 
   useEffect(() => {
     if (!userId) {
@@ -2238,54 +2273,61 @@ function HiItsMeContent() {
 
         markSending(item.id);
 
-        if (item.type === 'dm') {
-          const { data, error } = await sendDirectMessageWithClientMessageId({
-            senderId: userId,
-            receiverId: item.targetId,
-            content: item.content,
-            clientMessageId: item.id,
-            expiresAt: item.expiresAt,
-            replyToMessageId: item.replyToMessageId,
-            forwardSourceMessageId: item.forwardSourceMessageId,
-            forwardSourceSenderId: item.forwardSourceSenderId,
-            previewType: item.previewType,
-          });
+        try {
+          if (item.type === 'dm') {
+            const { data, error } = await sendDirectMessageWithClientMessageId({
+              senderId: userId,
+              receiverId: item.targetId,
+              content: item.content,
+              clientMessageId: item.id,
+              expiresAt: item.expiresAt,
+              replyToMessageId: item.replyToMessageId,
+              forwardSourceMessageId: item.forwardSourceMessageId,
+              forwardSourceSenderId: item.forwardSourceSenderId,
+              previewType: item.previewType,
+            });
 
+            if (error) {
+              markFailed(item.id, humanizeDbError(error.message));
+              continue;
+            }
+
+            const insertedMessage = data as ChatMessage;
+            setBuddyLastMessageAt((previous) => ({
+              ...previous,
+              [item.targetId]: insertedMessage.created_at,
+            }));
+            if (activeChatBuddyIdRef.current === item.targetId) {
+              setChatMessages((previous) =>
+                previous.some((message) => message.id === insertedMessage.id)
+                  ? previous
+                  : [...previous, insertedMessage],
+              );
+            }
+            dropSent(item.id);
+            continue;
+          }
+
+          const { data, error } = await sendRoomMessageWithClientMessageId({
+            roomId: item.targetId,
+            userId,
+            body: item.content,
+            clientMessageId: item.id,
+            requireDeduplication: true,
+          });
           if (error) {
             markFailed(item.id, humanizeDbError(error.message));
             continue;
           }
-
-          const insertedMessage = data as ChatMessage;
-          setBuddyLastMessageAt((previous) => ({
-            ...previous,
-            [item.targetId]: insertedMessage.created_at,
-          }));
-          if (activeChatBuddyIdRef.current === item.targetId) {
-            setChatMessages((previous) =>
-              previous.some((message) => message.id === insertedMessage.id)
-                ? previous
-                : [...previous, insertedMessage],
-            );
+          if (activeRoom?.id === item.targetId && data) {
+            setActiveRoomReloadToken((previous) => previous + 1);
           }
           dropSent(item.id);
-          continue;
+        } catch (error) {
+          // A thrown insert (not a returned error) used to escape the loop and
+          // leave the row `sending`, which flush skips and the UI cannot retry.
+          markFailed(item.id, humanizeDbError(error instanceof Error ? error.message : 'Unable to send message.'));
         }
-
-        const { data, error } = await sendRoomMessageWithClientMessageId({
-          roomId: item.targetId,
-          userId,
-          body: item.content,
-          clientMessageId: item.id,
-        });
-        if (error) {
-          markFailed(item.id, error.message);
-          continue;
-        }
-        if (activeRoom?.id === item.targetId && data) {
-          setActiveRoomReloadToken((previous) => previous + 1);
-        }
-        dropSent(item.id);
       }
     } finally {
       isFlushingOutboxRef.current = false;
