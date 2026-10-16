@@ -1,5 +1,5 @@
 # Project Memory
-Last updated: 2026-10-08 | Session 14 | Branch: grok/docs-main-today
+Last updated: 2026-10-16 | Session 15 | Branch: cursor/engineering-documentation-updates-1ea4
 Memory health: 8/10. Sessions 1 to 9 are in `MEMORY-ARCHIVE.md`. Metrics below are dated historical reads, not current numbers; read live data before quoting any.
 
 ## Project Overview
@@ -9,7 +9,8 @@ H.I.M. (`hiitsme`): friendship-first messaging app with a retro buddy-list feel.
 - **App Store:** 2.6 (466) Ready for Sale, released 2026-09-26. Earlier: 2.5 (460), 2.4 (453), 2.3 (377), 2.2 (314).
 - **main:** `MARKETING_VERSION = 2.7` (#185), `CURRENT_PROJECT_VERSION = 465`. Xcode Cloud assigns the build number (its run number), so 465 is not what ships. 2.7 build 472 is in internal TestFlight from `main` (2026-09-28). The next 2.7 archive must be above 466, and Xcode Cloud's next number (473+) already is.
 - **Xcode Cloud, verified via ASC API 2026-10-08:** `Release (HIM) — main` archives on `main` only (internal TestFlight). `PR compile check v2 (HIM)` builds `claude/*` with no archive. `Untitled Workflow` archives on manual start only (no branch or PR conditions). The other three workflows are disabled. **Pushing a non-main branch does not archive or upload.** Merging to `main` does. Issue #131 stays open for the owner to close.
-- **Open PRs from this session:** #186 (outbox requeue + iOS `HIM://reset-password` link; needs a bundle resync before it reaches iOS).
+- **#186 merged (2026-10-08):** outbox kill recovery + native password reset as `https://hiitsme.app/reset-password` (universal link). `HIM://reset-password` is not registered and is rejected as a recovery callback.
+- **Open docs drafts, do not duplicate:** #164 presence/invite, #170 iOS auth persistence, #182 recovery/buddy-list (stale vs #186).
 - **Open question:** ASC key `XV95PUP6YN` revocation is still unverified (issue #132). Do not claim it is revoked.
 
 ## Health check — verified 2026-08-22 end of session
@@ -35,8 +36,8 @@ Two things moved the wrong way since the week-2 capture: **WAU 37 → 17 → 13*
 Diagnosis on record: this is **one discovery-and-prompting problem across the whole surface**, not four independent feature misses. The one feature with a visible surface in the default view (Suggested Buddies, shipped Aug 4) moved its metric 2.5–19× in six days; everything shipped Jul 22 without a surface (Circles, Knock, Buzz) sits at or near zero. Room entry is a *zero-entry* problem — seeding content does not fix a surface nobody opens.
 
 ## Active Work
-- [ ] #186: outbox rows stuck in `sending` after an app kill; iOS password-reset link (`HIM` URL scheme + host-as-route). Needs `npm run build && npm run ios:sync` with the real Supabase env before merge.
-- [ ] Owner: confirm `HIM://reset-password` is in the Supabase Auth redirect allow list
+- [x] #186: outbox rows stuck in `sending` after an app kill; iOS password-reset universal link `https://hiitsme.app/reset-password`
+- [ ] Owner: confirm hosted Supabase Auth allow list has `https://hiitsme.app/reset-password` and does **not** still list `HIM://reset-password` (`config.toml` is local only)
 - [ ] SECURITY (owner, console only): confirm ASC key `XV95PUP6YN` is revoked (#132). Leaked at `00b2839`
 - [ ] Owner: close #131 once satisfied. The ASC API shows Archive is off PR and branch triggers
 - [x] 2.3 through 2.6 shipped; 2.6 (466) live since 2026-09-26
@@ -80,10 +81,12 @@ Diagnosis on record: this is **one discovery-and-prompting problem across the wh
 | `scripts/asc/asc.mjs` | ASC API client — `ASC_KEY_ID=… ASC_ISSUER_ID=… ASC_KEY_PATH=fastlane/.keys/AuthKey_*.p8 node scripts/asc/asc.mjs …` |
 | `scripts/capture-app-store.mjs` | Playwright store screenshot capture |
 | `supabase/functions/` | `admin-me`, `delete-account`, `export-account`, `push-dispatch`, `rooms-invite` |
-| `src/lib/outbox.ts` | Offline outbox (`hiitsme:outbox:v1:<userId>`), backoff, `client_msg_id` ids |
+| `src/lib/outbox.ts` | Offline outbox (`hiitsme:outbox:v1:<userId>`), backoff, `client_msg_id` ids; kill recovery via `requeueInterruptedOutboxSends` |
+| `docs/outbox.md` | Outbox runbook (load-time requeue, room dedup gate, persist marker) |
+| `docs/password-recovery-links.md` | Email reset + iOS AASA / universal-link rollout |
 | `src/components/DeepLinkHandler.tsx` | Routes OS-opened URLs into the SPA |
 | `ios/App/App/AppDelegate.swift` | Thin Capacitor host — embeds the web view, reports push environment. No native UI (30 Aug) |
-| `src/context/ChatContext.tsx` | Persistent room state + unread logic |
+| `src/context/ChatContext.tsx` | Persistent room membership + sync. DM unread is `user_dm_state`. Room unread badges removed (#181). |
 | `AGENTS.md` | Codex-facing twin of `CLAUDE.md` |
 | `supabase/migrations/` | Through `20260907000001_show_online_status.sql` |
 
@@ -93,7 +96,9 @@ Diagnosis on record: this is **one discovery-and-prompting problem across the wh
 - **`public.buddies` is asymmetric** — verified against prod 2026-08-22: pending 134 raw rows / **0 mirrored**; accepted 51 raw rows / 44 mirrored / **7 orphaned** → 29 true pairs. `count(*)/2` understates pending by half. Always count distinct unordered pairs. (The `him-app-expert` skill claimed symmetry; corrected in PR #117.) `public.users` has **no** `created_at`; use `auth.users.created_at`.
 - **In-app engine** (welcome DMs, buddy nudges ~4/day, daily room prompts) went live Aug 16; first room prompt fired 00:18Z Aug 17 on trigger-queue latency. Frozen texts live on the PR #104 branch, not yet merged. 4 nudges/day will not drain an 86-pair backlog — hence the manual drain.
 - **Push:** registration listener → `user_push_tokens`; `requestAndRegisterPush()` is the only permission trigger. Contextual moments in `pushPromptMoments.ts`: `buddy_accepted`, `first_dm_sent`, `first_room_message` (#157). Never on cold launch.
-- **Password recovery:** Supabase `resetPasswordForEmail`, native redirect `HIM://reset-password`, web `/reset-password`. The custom recovery-code system was dropped in April 2026.
+- **Password recovery:** Supabase `resetPasswordForEmail`. Native callback `https://hiitsme.app/reset-password`; web `https://hiitsme-app.vercel.app/reset-password`. `HIM://` is rejected. The custom recovery-code system was dropped in April 2026. See `docs/password-recovery-links.md`.
+- **Outbox:** load-time requeue of `sending` rows (#186). Room sends wait on `client_msg_id` + `flagged_at`. See `docs/outbox.md`.
+- **Vercel `api/`:** only `GET /api/admin/me`. Client origin override is `VITE_APP_API_ORIGIN`.
 - `CURRENT_PROJECT_VERSION` is **465** in the repo, but Xcode Cloud assigns the build number (its run number): live 2.6 is 466, and 2.7 TestFlight is 472. Any new binary must be above 466.
 - PostgREST missing-table error is `PGRST205` "schema cache", not Postgres `42P01`. Guard both.
 
@@ -123,6 +128,7 @@ Diagnosis on record: this is **one discovery-and-prompting problem across the wh
 | 11 | 2026-08-23 | Closed #25 as not planned. Closed #107/#109 as shipped. Web porch on logged-out `/` (#108). Xcode Cloud refuses docs-only archives so they cannot burn ITMS-90382 quota. Do not upload 2.3 until the 24h window from Sat 22 Aug 07:37 GMT is done. |
 | 12 | 2026-08-24 | Competitor scare (Goose) assessed and dismissed — it is a dating app whose founder quit after a WIRED investigation into AI-generated promo accounts; H.I.M.'s real problem remains its own funnel. Verified `main` archive-ready and wrote `marketing/release-2-3/asc-submission.md`, the first 2.3 submission package (#124). Then discovered, by triggering it, that **the #122 archive guard fails open in Xcode Cloud** and that **every branch archives and uploads** — builds 374/375 went to App Store Connect from a docs PR. Rewrote the guard to fail closed on unclassifiable PR builds. Net: 2.3 (375) is uploaded and Ready to Submit; only Distribution remains. |
 | 14 | 2026-10-08 | Docs truth-up against `main`, git history, and the ASC API (read-only): 2.6 (466) live since 26 Sep, `main` on 2.7 with TestFlight 472, Xcode Cloud only archives `main`, password recovery is Supabase email reset (recovery codes dropped in April). Opened #186 (outbox requeue after app kill; `HIM://reset-password` deep link), superseding drafts #175 and #179. Closed obsolete issues #133, #134, #158. |
+| 15 | 2026-10-16 | Weekly docs pass after #186 landed on top of #187. Native reset is HTTPS universal link (not `HIM://`). `AGENTS.md`/`CLAUDE.md` no longer list deleted recovery APIs or `nativeShellActive` in `page.tsx`. Added `docs/outbox.md`; expanded `docs/password-recovery-links.md`. Left #164/#170/#182 as the presence / iOS-auth / buddy-list runbook PRs. |
 | 13 | 2026-08-29/30 | The AIM-structure buddy list day. Web restructure shipped (#128) + away-on-send; lockfile consolidation to pnpm (#136); archive gate narrowed to main/tags (#137); 2.3-train-closed diagnosis and 2.4 bump (#138) — build **2.4 (401)** uploaded, VALID, in the internal TestFlight group. Then the day's real lesson: the user still saw the old layout because **iOS renders the buddy list in SwiftUI** (`NativeMilestoneOneView.swift`), not the web bundle — nothing documented this; CLAUDE.md now has a 'Native iOS shell (Milestone One)' section. Ported the AIM grouping to SwiftUI (`nativeBuddyGroups` mirroring `buddyListGroups`): circles-then-Buddies groups with (online/total) headers, single Offline group, Find a Buddy filter, collapse, italic-grey signed-off rows. ASC API used with an uploaded key: disabled the broken `Buddy` workflow, created `PR compile check (HIM)` (Build-only, fires on `claude/*`), proved `Test - iOS` unfixable via API (409 deploymentConfig) and that its required-failure **skips TestFlight auto-distribute**. |
 
 ## User Preferences

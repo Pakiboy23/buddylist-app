@@ -1,7 +1,7 @@
 # H.I.M. Personal Data Inventory
 
 **App:** H.I.M. (hiitsme)  
-**Last updated:** 2026-09-03  
+**Last updated:** 2026-10-16  
 **Prepared by:** Engineering (Claude Code session)  
 **Status:** Draft — requires legal review before publication
 
@@ -182,7 +182,7 @@ Ops table written by the `push-dispatch` Edge Function under the service role. R
 
 3. **Supabase managed log retention** — Supabase retains Postgres logs, Auth logs (including IP addresses at sign-in), and Edge Function logs on managed infrastructure. Exact retention periods depend on the Supabase plan tier. Confirm current plan and log retention duration; add to privacy notice.
 
-4. **IP address at message-send (Vercel Functions)** — `api/push/dispatch.ts` and `api/auth/recovery/*` receive the sender's IP address via Vercel's infra. These IPs appear in Vercel's access logs. Confirm whether Vercel retains raw IPs or only aggregated geo-data, and add to privacy notice.
+4. **IP address at message-send (Vercel Functions)** — the only remaining Vercel function is `GET /api/admin/me` (`api/admin/me.ts`). Push fan-out and password recovery are not Vercel routes (`push-dispatch` Edge Function; Supabase `resetPasswordForEmail`). Confirm whether Vercel access logs for `/api/admin/me` retain raw IPs or only aggregated geo-data, and add to privacy notice.
 
 5. **Chat media (`chat-media` bucket) — public access** — The bucket is configured `public` in migration `20260320000010_chat_media.sql`. Any attachment URL is guessable if the path pattern is known. Confirm: (a) is this intentional? (b) does Supabase Storage enforce auth on individual objects despite the bucket being public? Recommend restricting to authenticated access unless CDN-public URLs are required.
 
