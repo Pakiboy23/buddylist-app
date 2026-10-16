@@ -62,24 +62,23 @@ on was deleted in #147 — do not restore either.
 - **Native Hosted (debug only):** Live server mode via `CAPACITOR_HOSTED=1`
 
 ### Auth Model
-- Password-based (not magic links). Supabase synthetic email: `${screenname}@hiitsme.app`
-- Fallback to legacy `${screenname}@buddylist.com`
-- Password recovery: email reset for accounts with a real inbox; no admin ticket APIs
+- Password-based (not magic links). Sign-up collects a real email. Sign-in resolves it from `public.users`, then falls back to synthetic `${screenname}@hiitsme.app` and legacy `${screenname}@buddylist.com`.
+- Password recovery is Supabase `resetPasswordForEmail`. Native callback is the HTTPS universal link `https://hiitsme.app/reset-password`; web callback is `https://hiitsme-app.vercel.app/reset-password`. No admin ticket APIs, no `/api/auth/recovery/*`. See [docs/password-recovery-links.md](./docs/password-recovery-links.md).
 
 ### Rooms v2
 The rooms model was rewritten in migration `20260509184623_rooms_v2_launch_schema.sql`. Old tables (`chat_rooms`, `room_messages` v1, `room_participants`, `user_active_rooms`, etc.) were renamed to `_archive_*` and replaced by:
-- `public.rooms` — 7 seeded launch rooms (regional + vibe `room_kind` enum)
-- `public.room_memberships` — presence + join tracking
+- `public.rooms` — 7 seeded launch rooms (regional + vibe `room_kind` enum). UI shows the seeded `description` (#180); do not invent tags.
+- `public.room_memberships` — join tracking + `last_seen_at` heartbeats for roster recency and “Seen by”
 - `public.room_messages` — fresh shape (`body` text, not `content`)
 
-The main buddy-list path (`ChatContext`) upserts/deletes `room_memberships` directly. Invite/preview flows go through `join_room_by_id` / `leave_room_by_id` SECURITY DEFINER RPCs (migration 20260510050322) to bypass an RLS recursion bug on direct INSERT.
+The main buddy-list path (`ChatContext`) upserts/deletes `room_memberships` directly. Invite/preview flows go through `join_room_by_id` / `leave_room_by_id` SECURITY DEFINER RPCs (migration 20260510050322) to bypass an RLS recursion bug on direct INSERT. Room unread badges were removed in #181 — they never incremented. `last_seen_at` is not an unread counter.
 
 ### iOS renders the React app — there is no native UI layer
 On iOS the React app owns every pixel. `ios/App/App/AppDelegate.swift` is a thin
 Capacitor host: `HiItsMeShellViewController` embeds the bridge edge-to-edge and
 does nothing else, and the `HiItsMeShell` plugin exists only to report the
-signed push environment. Its `isAvailable` returns `false` on purpose, which is
-what tells the web to render its own chrome (`nativeShellActive === false`).
+signed push environment. Its `isAvailable` returns `false` on purpose — there
+is no native presentation chrome to host.
 
 **A change to the web UI reaches iOS by rebuilding the bundle — nothing else.**
 `npm run build && npm run ios:sync`, then commit `dist/` and
@@ -101,11 +100,11 @@ On each new `CFBundleVersion`, `AppDelegate` clears WKWebView site data
 (HTTP cache + service-worker Cache Storage) so a reinstall cannot keep serving
 the previous bundle. See [IOS_APP_STORE_RELEASE.md](./IOS_APP_STORE_RELEASE.md).
 
-Vestigial but harmless: `nativeShellActive` / `nativeShellMode` conditionals and
-the chrome-state publish path still exist in `page.tsx` and
-`src/lib/nativeShell.ts`. With `isAvailable` false they always take the web
-branch. Removing them is a separate cleanup — it touches layout across several
-components and wants device verification.
+`src/lib/nativeShell.ts` is not a UI layer. `confirmNativeShellAvailable()` is
+always false since `f6fbad5`. `getNativePushEnvironment()` still talks to the
+plugin — do not gate it on `isAvailable` (that persisted `push_environment:
+null` and made APNs try both hosts). Native chrome conditionals were removed
+from `hi-its-me/page.tsx` in #166; chat Done/Back always render.
 
 ### Realtime Channels
 - Room presence: `active_chat_room:${roomId}`
@@ -127,7 +126,7 @@ state is the source of truth for whether this install has been asked;
 `him.pushPrompt.askedAt` is a 7-day cooldown, not a permanent veto. Do not
 skip the ask because token rows exist — they outlive the install.
 
-Operational runbook: [docs/push-dispatch.md](./docs/push-dispatch.md).
+Operational runbook: [docs/push-dispatch.md](./docs/push-dispatch.md). Offline send queue: [docs/outbox.md](./docs/outbox.md).
 
 ### Content moderation
 - DB trigger `BEFORE INSERT` on `messages` and `room_messages` (migration `20260515021650_content_moderation.sql`) stamps `flagged_at` when content matches an alternation of ~700 normalized profanity terms.
@@ -138,7 +137,7 @@ Operational runbook: [docs/push-dispatch.md](./docs/push-dispatch.md).
 ### Key Source Layout
 - `src/app/` — Page modules. Path style follows the old Next.js App Router convention but they're plain React components wired into `src/App.tsx` via `react-router-dom`.
 - `src/components/` — React components (ChatWindow, GroupChatWindow, RetroWindow, MessageReportSheet, etc.)
-- `src/context/ChatContext.tsx` — Persistent room state, unread tracking, sync
+- `src/context/ChatContext.tsx` — Persistent room membership + sync. DM unread lives in `user_dm_state` (`hi-its-me/page.tsx`). Room unread badges are gone (#181).
 - `src/hooks/` — Custom hooks (keyboard viewport, pull-to-refresh, swipe-back, theme)
 - `src/lib/` — Business logic (auth, crypto, outbox, media, presence, push, content moderation, account deletion, trust & safety, etc.)
 - `src/lib/profanityTerms.generated.ts` — **Auto-generated** wordlist. Don't hand-edit; re-run the generator.
@@ -148,22 +147,21 @@ Operational runbook: [docs/push-dispatch.md](./docs/push-dispatch.md).
 - `api/` — Vercel Functions for serverless endpoints.
 
 ### Vercel API Routes
-- `/api/auth/recovery/{setup,reset,redeem-ticket}` — Password recovery flows
-- `/api/admin/me` — Admin ops probe
+- `GET /api/admin/me` — Admin ops probe. This is the only file under `api/`.
 
 ### Supabase Edge Functions
 - `delete-account` — Self-service account erasure (Apple Guideline 5.1.1(v)). Wipes ~14 user tables in dependency order, then `auth.admin.deleteUser` last.
 - `export-account` — JSON download of the caller's data (`/account` Export).
 - `push-dispatch` — APNs (and leftover FCM) fan-out. Client JWT after a send, or Vault secret for server-side inserts. Runbook: `docs/push-dispatch.md`.
 - `admin-me` — Check whether the caller is in `admin_users`.
-- `rooms-invite` — Room invite link generator + accept.
+- `rooms-invite` — `POST { roomId, buddyIds }` to invite accepted buddies. Not a shareable link generator. `/join/:inviteCode` redirects to the rooms list. CORS on the **deployed** function must allow `apikey` or Safari reports "Load failed". Invite list stays empty until the roster query succeeds (`membershipReady`).
 
 ## Environment
 
 Copy `.env.example` to `.env.local`. Required vars (note the `VITE_*` rename for client-side after the Vite migration):
 - `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` — client-side Supabase
 - `SUPABASE_SERVICE_ROLE_KEY` — server-side only (Vercel Functions, Edge Functions, admin queries)
-- `NEXT_PUBLIC_APP_API_ORIGIN` — native builds hitting hosted backend (var name kept for backward compat with Capacitor scripts)
+- `VITE_APP_API_ORIGIN` — optional override of the native/CORS API origin (default `https://hiitsme-app.vercel.app`)
 
 E2E tests need: `PLAYWRIGHT_USER_A_SCREENNAME`, `PLAYWRIGHT_USER_A_PASSWORD`, `PLAYWRIGHT_USER_B_SCREENNAME`, `PLAYWRIGHT_USER_B_PASSWORD`. The `account-delete` and `block-report` specs additionally need `SUPABASE_SERVICE_ROLE_KEY` exposed to the test process. Specs auto-skip if env is missing.
 

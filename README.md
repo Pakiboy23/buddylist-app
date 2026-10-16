@@ -1,20 +1,20 @@
 # H.I.M. App
 
-A retro AIM-style messaging app built with Vite + React Router + Supabase, mobile-first, with persistent room sessions, unread tracking, global realtime notifications, and a Capacitor iOS wrapper. Android support was removed in #147.
+A retro AIM-style messaging app built with Vite + React Router + Supabase, mobile-first, with persistent room sessions, DM unread tracking, global realtime notifications, and a Capacitor iOS wrapper. Android support was removed in #147.
 
 ## Current Status
 
 - **iOS App Store:** H.I.M. — Friends, Not Dates **2.6 (build 466)** is live, released 26 Sep 2026.
 - **`main`:** marketing version **2.7** (#185). `CURRENT_PROJECT_VERSION` is 465, but Xcode Cloud assigns the real build number. 2.7 build 472 is in internal TestFlight, and the next 2.7 archive must be above 466.
 - **Platforms:** iOS (Capacitor, rendering the bundled React app) and web (Vercel). Android was removed in #147.
-- **Auth:** password sign-on with a screen name. Sign-up collects a real email. Password recovery is Supabase's email-link reset, landing on `/reset-password`. The old recovery-code and admin reset-ticket flow was removed in April 2026.
+- **Auth:** password sign-on with a screen name. Sign-up collects a real email. Password recovery is Supabase's email-link reset. Native uses the HTTPS universal link `https://hiitsme.app/reset-password`; web uses `https://hiitsme-app.vercel.app/reset-password`. See [docs/password-recovery-links.md](./docs/password-recovery-links.md). The old recovery-code and admin reset-ticket flow was removed in April 2026.
 - **Buddies:** `public.buddies` is the one graph. Search, suggestions, and profile Add Buddy all write it (#178).
-- **Rooms:** rooms v2 (`rooms`, `room_memberships`, `room_messages`) with persistent membership. The room unread counter was removed in #181 because it never incremented. Room invites need an accepted buddy, and there are no shareable invite links.
+- **Rooms:** rooms v2 (`rooms`, `room_memberships`, `room_messages`) with persistent membership. Cards and the room list show the seeded `rooms.description` (#180). The room unread counter was removed in #181 because it never incremented; `last_seen_at` still powers roster recency and “Seen by”. Room invites are `POST {roomId, buddyIds}` to `rooms-invite` and need an accepted buddy. There are no shareable invite links.
 - **Push:** never asked on cold launch. The contextual prompt fires after a buddy is accepted, the first DM, or the first room message (#157).
 - **Removed:** Buddy Circles UI (#174), unused Next.js/Vercel API duplicates (#172).
 - Direct-message unread state is persisted in the DB (`user_dm_state`) for multi-device consistency.
 - DM and room chat support soft edit/delete, emoji reactions, inline search, and file attachments via Supabase Storage (`chat-media`).
-- An offline-safe local outbox (`hiitsme:outbox:v1:<userId>`) retries queued DM and room sends with backoff, deduped by `client_msg_id`.
+- An offline-safe local outbox (`hiitsme:outbox:v1:<userId>`) retries queued DM and room sends with backoff, deduped by `client_msg_id`. Rows left in `sending` after an app kill are requeued on sign-in (#186). See [docs/outbox.md](./docs/outbox.md).
 
 ## Messaging Feature Policy
 
@@ -59,7 +59,7 @@ This is a product decision, not an unfinished parity backlog. If a room feature 
 - `/reset-password` — password reset
 - `/hi-its-me` — main app: buddies, DM windows, room windows, settings
 - `/hi-its-me/rooms`, `/hi-its-me/rooms/new`, `/hi-its-me/rooms/:roomId/preview` — room list / create / invite preview
-- `/join/:inviteCode` — room invite accept
+- `/join/:inviteCode` — leftover route; discards the code and redirects to `/hi-its-me/rooms`
 - `/account` — email, password, push permission, notification preview, data export, legal links
 - `/account/delete` — two-step account erasure
 - Static legal: `hiitsme.app/privacy`, `/terms`, `/support` (`public/{privacy,terms,support}.html`)
@@ -84,8 +84,8 @@ VITE_SUPABASE_ANON_KEY=...
 # Server-side only (Vercel Functions, Edge Functions, admin tooling)
 SUPABASE_SERVICE_ROLE_KEY=...
 
-# Native bundles hitting the hosted API origin (var name kept for backward compat)
-NEXT_PUBLIC_APP_API_ORIGIN=...
+# Optional: override native/CORS API origin if it differs from production web
+VITE_APP_API_ORIGIN=...
 ```
 
 Optional E2E (Playwright) env vars for seeded test users:
@@ -98,13 +98,15 @@ PLAYWRIGHT_USER_B_PASSWORD=...
 ```
 
 Notes:
-- `SUPABASE_SERVICE_ROLE_KEY` is required for server-side recovery/admin routes.
+- `SUPABASE_SERVICE_ROLE_KEY` is required for Edge Functions and admin tooling. Password recovery is Supabase Auth, not a Vercel route.
 - Never commit real keys.
 
 ## Mobile Platforms
 
 - iOS release notes: [IOS_APP_STORE_RELEASE.md](./IOS_APP_STORE_RELEASE.md)
 - Push operations: [docs/push-dispatch.md](./docs/push-dispatch.md)
+- Password recovery (email link + iOS universal link): [docs/password-recovery-links.md](./docs/password-recovery-links.md)
+- Offline outbox / kill recovery: [docs/outbox.md](./docs/outbox.md)
 - Android was dropped in #147. The Play runbook is archived at [docs/archive/ANDROID_PLAY_RELEASE.md](./docs/archive/ANDROID_PLAY_RELEASE.md).
 
 ## Local Setup
@@ -116,7 +118,7 @@ Notes:
 pnpm install
 ```
 
-2. Apply Supabase migrations from `supabase/migrations/` (canonical CLI-managed history; the readable snapshots in `supabase/*.sql` are not the live schema). Rooms v2, push fan-out, exclusive device tokens, and `push_dispatch_log` all live later in that directory than the early 2026 numbered files.
+2. Apply Supabase migrations from `supabase/migrations/` (canonical CLI-managed history). Operational SQL lives in `supabase/queries/` — there are no loose `supabase/*.sql` snapshots. Rooms v2, push fan-out, exclusive device tokens, and `push_dispatch_log` all live later in that directory than the early 2026 numbered files.
 
 If the remote project already has these schema changes and you are adopting Supabase CLI after the fact, mark already-applied versions with `supabase migration repair --status applied <version>` rather than replaying them. Then:
 
@@ -174,7 +176,7 @@ Current native-host behavior:
 - thin Capacitor WKWebView; no SwiftUI overlay
 - WKWebView site data cleared once per `CFBundleVersion` so a reinstall cannot keep a stale service worker
 - no pull-to-refresh bounce (`overscroll-behavior-y: none`)
-- no viewport zoom (`maximum-scale=1`, `user-scalable=0`)
+- pinch-zoom is allowed (`index.html` viewport is `width=device-width, initial-scale=1.0, viewport-fit=cover`)
 - no long-press text callout (`-webkit-touch-callout: none`)
 - status bar configured in `capacitor.config.ts`
 - push is Supabase-first (token table + `push-dispatch` Edge Function). See [docs/push-dispatch.md](./docs/push-dispatch.md).
@@ -188,8 +190,10 @@ Supabase auth sits behind the screen name:
 Recovery model:
 - forgot password sends Supabase's email reset link (`resetPasswordForEmail`) to the account's real email
 - legacy synthetic-email accounts (`@hiitsme.app`, `@buddylist.com`) cannot receive that mail
-- native redirect is `HIM://reset-password`; web redirect is `https://hiitsme-app.vercel.app/reset-password`
+- native redirect is `https://hiitsme.app/reset-password` (universal link); web redirect is `https://hiitsme-app.vercel.app/reset-password`
+- `HIM://reset-password` is not registered and is rejected as a recovery callback (`src/lib/deepLinkPath.ts`)
 - the recovery-code and admin reset-ticket flow was removed in April 2026 (`20260426083107_drop_password_recovery.sql`)
+- rollout / AASA: [docs/password-recovery-links.md](./docs/password-recovery-links.md)
 
 ## Realtime + Notification Model
 
@@ -213,14 +217,15 @@ Recovery model:
 
 ### Room Persistence
 
-- Canonical state is rooms v2: `public.rooms` + `public.room_memberships` (unread via `last_seen_at`). The rooms-v1 table `user_active_rooms` is archived (`_archive_user_active_rooms`).
+- Canonical state is rooms v2: `public.rooms` + `public.room_memberships`. `last_seen_at` is a 30s heartbeat used for roster recency and “Seen by”, not an unread badge (removed in #181). The rooms-v1 table `user_active_rooms` is archived (`_archive_user_active_rooms`).
 - Client hydrates from localStorage cache first, then syncs `room_memberships`.
 - Main app join/leave (`ChatContext`) upserts/deletes `room_memberships` directly.
 - Invite/preview flows use SECURITY DEFINER RPCs `join_room_by_id` / `leave_room_by_id`.
 
 ## Files to Know
 
-- `src/context/ChatContext.tsx` - persistent room state + unread logic
+- `src/context/ChatContext.tsx` - persistent room membership + sync (DM unread is `user_dm_state` in `hi-its-me/page.tsx`)
+- `src/lib/outbox.ts` - offline outbox + kill recovery (`requeueInterruptedOutboxSends`)
 - `src/components/GlobalNotificationListener.tsx` - app-wide notifications
 - `src/components/GroupChatWindow.tsx` - room UI + presence
 - `src/components/ChatWindow.tsx` - DM UI (mobile-first dense log + collapsible formatting)
@@ -229,7 +234,7 @@ Recovery model:
 - `src/app/hi-its-me/page.tsx` - H.I.M. contacts, DM windows, room controls
 - `src/lib/clientStorage.ts` - safe typed local persistence with versioned envelopes
 - `src/lib/chatMedia.ts` - attachment validation + Supabase Storage upload helpers
-- `src/lib/outbox.ts` - offline outbox queue schema + retry metadata
+- `src/lib/roomsInvite.ts` - in-app room invites (`POST {roomId, buddyIds}`)
 - `src/lib/roomName.ts` - shared room normalization helpers
 - `capacitor.config.ts` - iOS wrapper configuration
 - `src/lib/pushDispatch.ts` - client fan-out into the `push-dispatch` Edge Function
@@ -278,6 +283,14 @@ Two different failures look the same from the sender's side:
 
 Full runbook: [docs/push-dispatch.md](./docs/push-dispatch.md).
 
+### iOS reset email opens the browser, or `HIM://` does nothing
+
+Native reset is `https://hiitsme.app/reset-password`, not a custom scheme. Confirm the deployed AASA includes `/reset-password`, the hosted Supabase Auth allow list has that exact URL, and `Info.plist` still has no `HIM` scheme. Full runbook: [docs/password-recovery-links.md](./docs/password-recovery-links.md).
+
+### Outbox row stuck on Sending after an app kill
+
+Load-time requeue turns persisted `sending` DMs back to `queued`. Room sends wait until `room_messages` exposes `client_msg_id` and `flagged_at`. Persist is skipped until `outboxLoadedForUserId` matches the signed-in user. Runbook: [docs/outbox.md](./docs/outbox.md).
+
 ### `npx cap copy ios` dropped HiItsMeShellPlugin
 
 Use `npm run ios:sync` (or `pnpm run ios:sync`). Never hand-edit `CapApp-SPM/Package.swift`.
@@ -285,7 +298,7 @@ Use `npm run ios:sync` (or `pnpm run ios:sync`). Never hand-edit `CapApp-SPM/Pac
 ## Deployment Notes (Vercel)
 
 - Set the three required env vars in Vercel project settings.
-- Set `NEXT_PUBLIC_APP_API_ORIGIN` too if native builds should target a different backend origin than the default production web domain.
+- Set `VITE_APP_API_ORIGIN` too if native builds should target a different backend origin than the default production web domain.
 - Ensure Supabase URL/keys match the intended environment (staging vs prod).
 - If auth callback/session behavior seems stale after env changes, redeploy.
 - If using Capacitor hosted mode for debugging, keep `CAPACITOR_SERVER_URL` aligned with your intended domain.
