@@ -73,6 +73,28 @@ describe('outbox room recovery effect', () => {
     expect(state.probe).toHaveBeenCalledTimes(2);
   });
 
+  it('retries the dedup probe on a timer while the tab stays online', async () => {
+    vi.useFakeTimers();
+    try {
+      const interrupted = room('interrupted');
+      const probe = vi.fn<() => Promise<boolean>>().mockResolvedValueOnce(false).mockResolvedValue(true);
+      const state = setup([interrupted], probe);
+      await settle();
+      expect(state.items()[0]).toBe(interrupted);
+      expect(probe).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1000);
+      await settle();
+      expect(probe).toHaveBeenCalledTimes(2);
+      expect(state.items()[0].status).toBe('queued');
+      expect(isOutboxItemDue(state.items()[0])).toBe(true);
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(probe).toHaveBeenCalledTimes(2);
+      state.cleanup();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('ignores a pending result after cleanup and removes the reconnect listener', async () => {
     let resolve!: (supported: boolean) => void;
     const interrupted = room('interrupted');
