@@ -2184,11 +2184,30 @@ function HiItsMeContent() {
       .map((item) => item.id));
     let cancelled = false;
     let recovered = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let retryDelayMs = 1000;
+    const clearRetry = () => {
+      if (retryTimer === undefined) return;
+      clearTimeout(retryTimer);
+      retryTimer = undefined;
+    };
     const recoverInterruptedRoomSends = () => {
       if (cancelled || recovered || interruptedRoomIds.size === 0) return;
+      clearRetry();
       void supportsRoomMessageDeduplication().then((supported) => {
-        if (cancelled || recovered || !supported) return;
+        if (cancelled || recovered) return;
+        if (!supported) {
+          // Already-online launches never see another `online` event. Keep
+          // probing so a cold-start auth blip cannot pin the row on Sending.
+          retryTimer = setTimeout(() => {
+            retryTimer = undefined;
+            retryDelayMs = Math.min(retryDelayMs * 2, 30_000);
+            recoverInterruptedRoomSends();
+          }, retryDelayMs);
+          return;
+        }
         recovered = true;
+        clearRetry();
         window.removeEventListener('online', recoverInterruptedRoomSends);
         // Only recover rows from this load, never a new in-session send.
         setOutboxItems((previous) => previous.map((item) =>
@@ -2201,6 +2220,7 @@ function HiItsMeContent() {
     }
     return () => {
       cancelled = true;
+      clearRetry();
       window.removeEventListener('online', recoverInterruptedRoomSends);
     };
   }, [userId]);
