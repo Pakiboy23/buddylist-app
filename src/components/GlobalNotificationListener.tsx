@@ -13,6 +13,7 @@ import { useChatContext } from '@/context/ChatContext';
 import { navigateAppPath, normalizeAppPath, useAppRouter } from '@/lib/appNavigation';
 import { waitForSessionOrNull } from '@/lib/authClient';
 import { subscribeToStorageKey } from '@/lib/clientStorage';
+import { recipientVisibleBody } from '@/lib/contentModeration';
 import { getNativePushEnvironment } from '@/lib/nativeShell';
 import { isPushEnvironmentSchemaMissingError } from '@/lib/pushEnvironmentSchema';
 import {
@@ -46,6 +47,7 @@ interface MessageInsert {
   receiver_id?: string | null;
   screenname?: string | null;
   content?: string | null;
+  flagged_at?: string | null;
 }
 
 interface RoomMessageInsert {
@@ -53,6 +55,7 @@ interface RoomMessageInsert {
   room_id?: string | null;
   user_id?: string | null;
   body?: string | null;
+  flagged_at?: string | null;
 }
 
 interface UserProfileLookup {
@@ -671,7 +674,10 @@ export default function GlobalNotificationListener() {
             const senderName = await resolveSenderNameById(senderId, incoming.screenname);
             enqueueBanner({
               senderName,
-              messagePreview: normalizeTextContent(incoming.content, 'New direct message.'),
+              messagePreview: normalizeTextContent(
+                recipientVisibleBody({ flagged_at: incoming.flagged_at }, incoming.content ?? ''),
+                'New direct message.',
+              ),
               targetPath: normalizeAppPath(
                 `${HI_ITS_ME_PATH}?dm=${encodeURIComponent(senderId)}`,
               ),
@@ -729,7 +735,10 @@ export default function GlobalNotificationListener() {
               return;
             }
 
-            const previewText = normalizeTextContent(incoming.body, 'New room message.');
+            const previewText = normalizeTextContent(
+              recipientVisibleBody({ flagged_at: incoming.flagged_at }, incoming.body ?? ''),
+              'New room message.',
+            );
             const mentionToken = currentUserScreennameRef.current
               ? `@${currentUserScreennameRef.current}`
               : '';

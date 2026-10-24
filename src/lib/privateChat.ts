@@ -47,7 +47,7 @@ export const DEFAULT_DM_PREFERENCE: Omit<DmConversationPreference, 'buddyId'> = 
 
 export const DEFAULT_USER_PRIVACY_SETTINGS: UserPrivacySettings = {
   shareReadReceipts: true,
-  notificationPreviewMode: 'full',
+  notificationPreviewMode: 'name_only',
   screenShieldEnabled: false,
 };
 
