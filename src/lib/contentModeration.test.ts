@@ -3,6 +3,7 @@ import {
   MESSAGE_HIDDEN_PLACEHOLDER,
   displayBodyForMessage,
   isObjectionable,
+  recipientVisibleBody,
 } from './contentModeration';
 
 describe('isObjectionable', () => {
@@ -68,5 +69,19 @@ describe('displayBodyForMessage', () => {
 
   it('treats undefined flagged_at as not flagged', () => {
     expect(displayBodyForMessage({}, 'hello', false)).toBe('hello');
+  });
+});
+
+describe('recipientVisibleBody', () => {
+  it('never returns the original flagged body for a notification recipient', () => {
+    expect(
+      recipientVisibleBody({ flagged_at: '2026-05-15T00:00:00Z' }, 'you are an asshole'),
+    ).toBe(MESSAGE_HIDDEN_PLACEHOLDER);
+  });
+
+  it('keeps clean bodies for notification previews', () => {
+    expect(recipientVisibleBody({ flagged_at: null }, 'see you in Cool_kids')).toBe(
+      'see you in Cool_kids',
+    );
   });
 });
