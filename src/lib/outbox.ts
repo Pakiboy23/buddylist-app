@@ -180,16 +180,29 @@ export function loadOutbox(userId: string): OutboxItem[] {
 }
 
 export function saveOutbox(userId: string, items: OutboxItem[]) {
-  const normalized = normalizeOutboxItems(items);
-  return setVersionedData<OutboxEnvelopeData>(getOutboxStorageKey(userId), OUTBOX_VERSION, { items: normalized }, {
-    maxBytes: 96 * 1024,
-    compact: (envelope) => ({
-      ...envelope,
-      data: {
-        items: normalizeOutboxItems(envelope.data.items),
+  let normalized = normalizeOutboxItems(items);
+  while (true) {
+    const saved = setVersionedData<OutboxEnvelopeData>(
+      getOutboxStorageKey(userId),
+      OUTBOX_VERSION,
+      { items: normalized },
+      {
+        maxBytes: 96 * 1024,
+        compact: (envelope) => ({
+          ...envelope,
+          data: {
+            items: normalizeOutboxItems(envelope.data.items),
+          },
+        }),
       },
-    }),
-  });
+    );
+    if (saved || normalized.length === 0) {
+      return saved;
+    }
+    // Persist must not no-op: a false return leaves the last good snapshot in
+    // place, so a reload drops everything queued after that write.
+    normalized = normalized.slice(1);
+  }
 }
 
 export function createOutboxItem(input: NewOutboxItem): OutboxItem {
@@ -280,4 +293,38 @@ export function requeueInterruptedOutboxSends(items: OutboxItem[], roomDedupSupp
       ? scheduleOutboxRetryNow(item)
       : item
   ));
+}
+
+/**
+ * Another tab's persist fires `storage` and must not replace this tab's live
+ * queue. Keep local-only rows (not written yet) and in-flight `sending` rows
+ * this tab still owns. Requeue a remote DM left in `sending` — that tab's
+ * request is gone. Leave remote room `sending` alone until dedup is confirmed.
+ */
+export function applyRemoteOutboxSnapshot(local: OutboxItem[], incoming: OutboxItem[]): OutboxItem[] {
+  const localById = new Map(local.map((item) => [item.id, item]));
+  const incomingIds = new Set<string>();
+  const merged: OutboxItem[] = [];
+
+  for (const item of incoming) {
+    incomingIds.add(item.id);
+    const existing = localById.get(item.id);
+    if (existing?.status === 'sending') {
+      merged.push(existing);
+      continue;
+    }
+    if (item.status === 'sending' && item.type !== 'room') {
+      merged.push(scheduleOutboxRetryNow(item));
+      continue;
+    }
+    merged.push(item);
+  }
+
+  for (const item of local) {
+    if (!incomingIds.has(item.id)) {
+      merged.push(item);
+    }
+  }
+
+  return normalizeOutboxItems(merged);
 }
