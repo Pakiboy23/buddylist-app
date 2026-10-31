@@ -148,6 +148,14 @@ describe('outbox persistence effect', () => {
   });
 });
 
+describe('outbox cross-tab storage effect', () => {
+  it('merges the persisted snapshot into the live queue instead of replacing it', () => {
+    const source = findEffect('subscribeToStorageKey(getOutboxStorageKey');
+    expect(source).toContain('applyRemoteOutboxSnapshot');
+    expect(source).not.toMatch(/setOutboxItems\(loadOutbox/);
+  });
+});
+
 describe('outbox recovery effect marks the loaded user', () => {
   it('records the user it loaded, and clears it on sign-out', () => {
     const marks: Array<string | null> = [];

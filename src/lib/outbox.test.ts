@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest';
+import { removeValue } from '@/lib/clientStorage';
 import {
+  applyRemoteOutboxSnapshot,
   createOutboxItem,
+  getOutboxStorageKey,
   isOutboxItemDue,
+  loadOutbox,
   markOutboxSending,
   markOutboxAttemptFailure,
   normalizeOutboxItems,
   requeueInterruptedOutboxSends,
+  saveOutbox,
   scheduleOutboxRetryNow,
   type OutboxItem,
 } from '@/lib/outbox';
@@ -235,5 +240,89 @@ describe('requeueInterruptedOutboxSends', () => {
     const [recovered] = requeueInterruptedOutboxSends(normalizeOutboxItems(persisted));
 
     expect(recovered?.status).toBe('queued');
+  });
+});
+
+describe('applyRemoteOutboxSnapshot', () => {
+  const queued = (id: string, createdAt = '2026-10-30T00:00:00.000Z') => ({
+    ...createOutboxItem({
+      type: 'dm' as const,
+      targetId: 'buddy-a',
+      content: id,
+      clientMessageId: id,
+    }),
+    createdAt,
+  });
+
+  it('keeps a local-only row that the other tab has not persisted yet', () => {
+    const persisted = queued('from-other-tab');
+    const unpersisted = queued('still-in-memory', '2026-10-30T00:00:01.000Z');
+
+    const merged = applyRemoteOutboxSnapshot([unpersisted], [persisted]);
+
+    expect(merged.map((item) => item.id)).toEqual(['from-other-tab', 'still-in-memory']);
+  });
+
+  it('does not let a stale persist rewind this tab\'s in-flight send', () => {
+    const localSending = markOutboxSending(queued('in-flight'));
+    const incomingQueued = queued('in-flight');
+
+    const merged = applyRemoteOutboxSnapshot([localSending], [incomingQueued]);
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0]?.status).toBe('sending');
+  });
+
+  it('requeues a remote DM left in sending so this tab can finish it', () => {
+    const remoteSending = markOutboxSending(queued('other-tab-killed'));
+
+    const merged = applyRemoteOutboxSnapshot([], [remoteSending]);
+
+    expect(merged[0]?.status).toBe('queued');
+    expect(merged[0]?.id).toBe('other-tab-killed');
+    expect(isOutboxItemDue(merged[0]!)).toBe(true);
+  });
+
+  it('leaves a remote room sending row alone until dedup support is confirmed', () => {
+    const remoteRoom = {
+      ...markOutboxSending(
+        createOutboxItem({
+          type: 'room',
+          targetId: 'room-1',
+          content: 'hello room',
+          clientMessageId: 'room-sending',
+        }),
+      ),
+    };
+
+    const merged = applyRemoteOutboxSnapshot([], [remoteRoom]);
+
+    expect(merged[0]?.status).toBe('sending');
+    expect(merged[0]?.id).toBe('room-sending');
+  });
+});
+
+describe('saveOutbox', () => {
+  it('drops the oldest rows instead of failing the persist when the envelope is over cap', () => {
+    const userId = 'user-outbox-cap';
+    removeValue(getOutboxStorageKey(userId));
+
+    const items = Array.from({ length: 40 }, (_, index) =>
+      createOutboxItem({
+        type: 'dm',
+        targetId: 'buddy-cap',
+        content: 'x'.repeat(4000),
+        clientMessageId: `cap-${String(index).padStart(2, '0')}`,
+      }),
+    );
+
+    expect(saveOutbox(userId, items)).toBe(true);
+    const loaded = loadOutbox(userId);
+    expect(loaded.length).toBeGreaterThan(0);
+    expect(loaded.length).toBeLessThan(items.length);
+    expect(loaded[0]?.id).not.toBe('cap-00');
+    expect(loaded.at(-1)?.id).toBe('cap-39');
+
+    removeValue(getOutboxStorageKey(userId));
   });
 });
