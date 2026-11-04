@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createOutboxItem,
   isOutboxItemDue,
+  isRetryableOutboxTransportError,
   markOutboxSending,
   markOutboxAttemptFailure,
   normalizeOutboxItems,
@@ -9,6 +10,30 @@ import {
   scheduleOutboxRetryNow,
   type OutboxItem,
 } from '@/lib/outbox';
+
+describe('isRetryableOutboxTransportError', () => {
+  it('queues WebKit/Capacitor transport errors that the old matcher dropped', () => {
+    expect(isRetryableOutboxTransportError({ message: 'Load failed' }, true)).toBe(true);
+    expect(isRetryableOutboxTransportError({ message: 'TypeError: Load failed' }, true)).toBe(true);
+    expect(isRetryableOutboxTransportError({ message: 'Network request failed' }, true)).toBe(true);
+    expect(isRetryableOutboxTransportError({ message: 'Failed to fetch' }, true)).toBe(true);
+  });
+
+  it('queues any send while the browser already reports offline', () => {
+    expect(isRetryableOutboxTransportError({ message: 'new row violates row-level security' }, false)).toBe(
+      true,
+    );
+  });
+
+  it('does not treat a permission or validation error as a transport blip', () => {
+    expect(
+      isRetryableOutboxTransportError({ message: 'new row violates row-level security policy' }, true),
+    ).toBe(false);
+    expect(isRetryableOutboxTransportError({ message: 'Type a message first.' }, true)).toBe(false);
+    expect(isRetryableOutboxTransportError({ message: '' }, true)).toBe(false);
+    expect(isRetryableOutboxTransportError(null, true)).toBe(false);
+  });
+});
 
 describe('createOutboxItem', () => {
   it('uses the provided client message id as the stable outbox id', () => {

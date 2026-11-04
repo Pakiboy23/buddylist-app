@@ -5,7 +5,7 @@ import ProfileAvatar from '@/components/ProfileAvatar';
 import RetroWindow from '@/components/RetroWindow';
 import RichTextToolbar from '@/components/RichTextToolbar';
 import SwipeActionFrame from '@/components/SwipeActionFrame';
-import type { OutboxItem } from '@/lib/outbox';
+import { createClientMessageId, isRetryableOutboxTransportError, type OutboxItem } from '@/lib/outbox';
 import { getJSON, setJSON } from '@/lib/clientStorage';
 import { hapticLight, hapticSuccess } from '@/lib/haptics';
 import { sendOrAcceptBuddyRequest, type BuddyRequestStatus } from '@/lib/buddyRequest';
@@ -37,7 +37,6 @@ import {
   withProfileSchemaDefaultsList,
 } from '@/lib/profileSchema';
 import { useChatContext } from '@/context/ChatContext';
-import { createClientMessageId } from '@/lib/outbox';
 import {
   createEmptyMutualContext,
   loadMutualContext,
@@ -886,9 +885,7 @@ export default function GroupChatWindow({
 
     if (sendError) {
       const retryableNetworkError =
-        Boolean(trimmed) &&
-        ((typeof navigator !== 'undefined' && !navigator.onLine) ||
-          /network|fetch|offline|timeout/i.test(sendError.message));
+        Boolean(trimmed) && isRetryableOutboxTransportError(sendError);
       if (retryableNetworkError) {
         const queued = onQueueRoomMessage?.({
           roomId,
