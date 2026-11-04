@@ -58,6 +58,27 @@ export function createClientMessageId() {
     : `${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
 }
 
+/**
+ * Errors that mean the send never reached Postgres, so the outbox should keep
+ * the row. WebKit/Capacitor reports those as "Load failed" or
+ * "TypeError: Load failed"; Chromium as "Failed to fetch". The old
+ * /network|fetch|offline|timeout/ matcher dropped the WebKit form, then the
+ * sender deleted the outbox row as a hard failure.
+ */
+const RETRYABLE_OUTBOX_TRANSPORT_ERROR =
+  /network|fetch|offline|timeout|load failed|networkerror/i;
+
+export function isRetryableOutboxTransportError(
+  error: { message?: string | null } | null | undefined,
+  isOnline: boolean = typeof navigator === 'undefined' ? true : navigator.onLine,
+): boolean {
+  if (!isOnline) {
+    return true;
+  }
+  const message = typeof error?.message === 'string' ? error.message : '';
+  return RETRYABLE_OUTBOX_TRANSPORT_ERROR.test(message);
+}
+
 function computeNextAttemptIso(attempts: number) {
   const stepIndex = Math.max(0, Math.min(OUTBOX_BACKOFF_STEPS_MS.length - 1, attempts));
   const nextAttemptMs = Date.now() + OUTBOX_BACKOFF_STEPS_MS[stepIndex];
