@@ -140,3 +140,69 @@ export async function uploadChatMediaFile({
   };
 }
 
+export async function removeUploadedChatMedia(uploads: UploadedChatMedia[]): Promise<void> {
+  if (uploads.length === 0) {
+    return;
+  }
+
+  const pathsByBucket = new Map<string, string[]>();
+  for (const upload of uploads) {
+    const paths = pathsByBucket.get(upload.bucket) ?? [];
+    paths.push(upload.storagePath);
+    pathsByBucket.set(upload.bucket, paths);
+  }
+
+  await Promise.all(
+    [...pathsByBucket.entries()].map(async ([bucket, paths]) => {
+      try {
+        await supabase.storage.from(bucket).remove(paths);
+      } catch {
+        // Best-effort cleanup; the original send/upload error is what the user needs.
+      }
+    }),
+  );
+}
+
+/**
+ * Upload every file, or none. A later failure rolls back objects already
+ * written so a retried send does not leave orphan blobs.
+ */
+export async function uploadChatMediaFiles({
+  userId,
+  files,
+}: {
+  userId: string;
+  files: File[];
+}): Promise<UploadedChatMedia[]> {
+  const uploaded: UploadedChatMedia[] = [];
+  try {
+    for (const file of files) {
+      uploaded.push(await uploadChatMediaFile({ userId, file }));
+    }
+    return uploaded;
+  } catch (error) {
+    await removeUploadedChatMedia(uploaded);
+    throw error;
+  }
+}
+
+export function messageAttachmentInserts({
+  messageId,
+  uploaderId,
+  uploads,
+}: {
+  messageId: number;
+  uploaderId: string;
+  uploads: UploadedChatMedia[];
+}) {
+  return uploads.map((uploaded) => ({
+    message_id: messageId,
+    uploader_id: uploaderId,
+    bucket: uploaded.bucket,
+    storage_path: uploaded.storagePath,
+    file_name: uploaded.fileName,
+    mime_type: uploaded.mimeType,
+    size_bytes: uploaded.sizeBytes,
+  }));
+}
+

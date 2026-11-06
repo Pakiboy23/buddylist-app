@@ -42,7 +42,12 @@ import {
   setVersionedData,
   subscribeToStorageKey,
 } from '@/lib/clientStorage';
-import { uploadChatMediaFile } from '@/lib/chatMedia';
+import {
+  messageAttachmentInserts,
+  removeUploadedChatMedia,
+  uploadChatMediaFiles,
+  type UploadedChatMedia,
+} from '@/lib/chatMedia';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useMutualContext } from '@/hooks/useMutualContext';
 import { useTheme } from '@/hooks/useTheme';
@@ -4970,110 +4975,106 @@ function HiItsMeContent() {
       setIsSendingMessage(true);
       setChatError(null);
 
-      const { data, error } = await sendDirectMessageWithClientMessageId({
-        senderId: userId,
-        receiverId: activeChatBuddyId,
-        content: messageContent,
-        clientMessageId,
-        expiresAt,
-        replyToMessageId,
-        previewType,
-      });
-
-      setIsSendingMessage(false);
-
-      if (error) {
-        const isLikelyNetworkIssue =
-          (typeof navigator !== 'undefined' && !navigator.onLine) ||
-          /network|fetch|offline|timeout/i.test(error.message);
-        if (trackedOutboxItem) {
-          if (isLikelyNetworkIssue) {
-            setOutboxItems((previous) =>
-              normalizeOutboxItems(
-                previous.map((item) =>
-                  item.id === trackedOutboxItem.id ? markOutboxAttemptFailure(item, error.message) : item,
-                ),
-              ),
-            );
-            setChatError('Offline: message queued and will retry automatically.');
-            return;
-          }
-
-          removeOutboxItem(trackedOutboxItem.id);
-        }
-
-        // Hard failure (not queued for retry): release the optimistic cooldown
-        // so the user can try the signal again.
-        if (isSignal) {
-          delete signalCooldownRef.current[signalCooldownKey];
-        }
-        setChatError(error.message);
-        throw error;
-      }
-
-      // Typing a message to someone is proof you're at the keyboard, so sending
-      // one takes your away message down — the away round-trip a buddy list has
-      // always had. Signals (buzz / knock) are a nudge, not a conversation, and
-      // leave the away message standing. The auto-reply path never lands here:
-      // sendAutoAwayReply inserts straight into `messages`, so a buddy messaging
-      // you can never clear your own away status.
-      if (!isSignal && userStatusRef.current === AWAY_STATUS) {
-        void updateStatus(AVAILABLE_STATUS, null);
-      }
-
-      const insertedMessage = data as ChatMessage;
-      setBuddyLastMessageAt((previous) => ({
-        ...previous,
-        [activeChatBuddyId]: insertedMessage.created_at,
-      }));
-      setInitialUnreadForActiveChat(0);
-      setChatMessages((previous) =>
-        previous.some((message) => message.id === insertedMessage.id)
-          ? previous
-          : [...previous, insertedMessage],
-      );
-      if (trackedOutboxItem) {
-        removeOutboxItem(trackedOutboxItem.id);
-      }
-
-      if (normalizedAttachments.length > 0) {
-        const attachmentRows: Array<{
-          message_id: number;
-          uploader_id: string;
-          bucket: string;
-          storage_path: string;
-          file_name: string;
-          mime_type: string;
-          size_bytes: number;
-        }> = [];
-
-        for (const file of normalizedAttachments) {
+      let uploadedAttachments: UploadedChatMedia[] = [];
+      try {
+        if (normalizedAttachments.length > 0) {
           try {
-            const uploaded = await uploadChatMediaFile({ userId, file });
-            attachmentRows.push({
-              message_id: insertedMessage.id,
-              uploader_id: userId,
-              bucket: uploaded.bucket,
-              storage_path: uploaded.storagePath,
-              file_name: uploaded.fileName,
-              mime_type: uploaded.mimeType,
-              size_bytes: uploaded.sizeBytes,
+            uploadedAttachments = await uploadChatMediaFiles({
+              userId,
+              files: normalizedAttachments,
             });
           } catch (uploadError) {
             const message =
               uploadError instanceof Error ? uploadError.message : 'Attachment upload failed.';
             setChatError(message);
+            throw uploadError;
           }
         }
 
-        if (attachmentRows.length > 0) {
+        const { data, error } = await sendDirectMessageWithClientMessageId({
+          senderId: userId,
+          receiverId: activeChatBuddyId,
+          content: messageContent,
+          clientMessageId,
+          expiresAt,
+          replyToMessageId,
+          previewType,
+        });
+
+        if (error) {
+          await removeUploadedChatMedia(uploadedAttachments);
+          const isLikelyNetworkIssue =
+            (typeof navigator !== 'undefined' && !navigator.onLine) ||
+            /network|fetch|offline|timeout/i.test(error.message);
+          if (trackedOutboxItem) {
+            if (isLikelyNetworkIssue) {
+              setOutboxItems((previous) =>
+                normalizeOutboxItems(
+                  previous.map((item) =>
+                    item.id === trackedOutboxItem.id ? markOutboxAttemptFailure(item, error.message) : item,
+                  ),
+                ),
+              );
+              setChatError('Offline: message queued and will retry automatically.');
+              return;
+            }
+
+            removeOutboxItem(trackedOutboxItem.id);
+          }
+
+          // Hard failure (not queued for retry): release the optimistic cooldown
+          // so the user can try the signal again.
+          if (isSignal) {
+            delete signalCooldownRef.current[signalCooldownKey];
+          }
+          setChatError(error.message);
+          throw error;
+        }
+
+        // Typing a message to someone is proof you're at the keyboard, so sending
+        // one takes your away message down — the away round-trip a buddy list has
+        // always had. Signals (buzz / knock) are a nudge, not a conversation, and
+        // leave the away message standing. The auto-reply path never lands here:
+        // sendAutoAwayReply inserts straight into `messages`, so a buddy messaging
+        // you can never clear your own away status.
+        if (!isSignal && userStatusRef.current === AWAY_STATUS) {
+          void updateStatus(AVAILABLE_STATUS, null);
+        }
+
+        const insertedMessage = data as ChatMessage;
+
+        if (uploadedAttachments.length > 0) {
           const { error: attachmentInsertError } = await supabase
             .from('message_attachments')
-            .insert(attachmentRows);
+            .insert(
+              messageAttachmentInserts({
+                messageId: insertedMessage.id,
+                uploaderId: userId,
+                uploads: uploadedAttachments,
+              }),
+            );
           if (attachmentInsertError) {
+            // The DM row is already committed. Do not throw — ChatWindow would
+            // keep the composer and a retry would insert a second message.
             setChatError(attachmentInsertError.message);
           }
         }
+
+        setBuddyLastMessageAt((previous) => ({
+          ...previous,
+          [activeChatBuddyId]: insertedMessage.created_at,
+        }));
+        setInitialUnreadForActiveChat(0);
+        setChatMessages((previous) =>
+          previous.some((message) => message.id === insertedMessage.id)
+            ? previous
+            : [...previous, insertedMessage],
+        );
+        if (trackedOutboxItem) {
+          removeOutboxItem(trackedOutboxItem.id);
+        }
+      } finally {
+        setIsSendingMessage(false);
       }
     },
     [activeChatBuddyId, dmPreferencesByBuddyId, queueOutboxMessage, removeOutboxItem, updateStatus, userId],
