@@ -1,6 +1,9 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   createOutboxItem,
+  expiresAtForOutboxSend,
   isOutboxItemDue,
   markOutboxSending,
   markOutboxAttemptFailure,
@@ -235,5 +238,44 @@ describe('requeueInterruptedOutboxSends', () => {
     const [recovered] = requeueInterruptedOutboxSends(normalizeOutboxItems(persisted));
 
     expect(recovered?.status).toBe('queued');
+  });
+});
+
+describe('expiresAtForOutboxSend', () => {
+  const queued: Pick<OutboxItem, 'createdAt' | 'expiresAt'> = {
+    createdAt: '2026-11-07T11:00:00.000Z',
+    expiresAt: '2026-11-07T11:05:00.000Z',
+  };
+
+  it('leaves non-disappearing rows without an expiry', () => {
+    expect(
+      expiresAtForOutboxSend({
+        createdAt: '2026-11-07T11:00:00.000Z',
+        expiresAt: null,
+      }),
+    ).toBeNull();
+  });
+
+  it('rebases a queued disappearing timer onto the send instant', () => {
+    // 5-minute timer, flushed 12 minutes after tap-send — stored expiry is
+    // already in the past, so inserting it would hide the message immediately.
+    const sendAt = Date.parse('2026-11-07T11:12:00.000Z');
+    expect(Date.parse(queued.expiresAt!) < sendAt).toBe(true);
+    expect(expiresAtForOutboxSend(queued, sendAt)).toBe('2026-11-07T11:17:00.000Z');
+  });
+
+  it('keeps the original duration across retries instead of compounding', () => {
+    const first = expiresAtForOutboxSend(queued, Date.parse('2026-11-07T11:12:00.000Z'));
+    const second = expiresAtForOutboxSend(queued, Date.parse('2026-11-07T11:20:00.000Z'));
+    expect(first).toBe('2026-11-07T11:17:00.000Z');
+    expect(second).toBe('2026-11-07T11:25:00.000Z');
+  });
+});
+
+describe('flushOutbox disappearing expiry', () => {
+  it('rebases outbox expiry at send time rather than reusing the tap-send stamp', () => {
+    const page = readFileSync(path.resolve(__dirname, '../app/hi-its-me/page.tsx'), 'utf-8');
+    expect(page).toContain('expiresAt: expiresAtForOutboxSend(item)');
+    expect(page).not.toContain('clientMessageId: item.id,\n              expiresAt: item.expiresAt');
   });
 });
