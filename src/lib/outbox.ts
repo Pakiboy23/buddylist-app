@@ -267,6 +267,34 @@ export function isOutboxItemDue(item: OutboxItem, nowMs = Date.now()) {
 }
 
 /**
+ * Absolute `expiresAt` is stamped when the user taps send. Flush can land
+ * minutes later (offline, app kill). Rebase the original timer onto the send
+ * instant so the inserted row is not already past `expires_at` and hidden by
+ * `filterExpiredMessages`.
+ */
+export function expiresAtForOutboxSend(
+  item: Pick<OutboxItem, 'createdAt' | 'expiresAt'>,
+  nowMs = Date.now(),
+): string | null {
+  if (!item.expiresAt) {
+    return null;
+  }
+
+  const createdMs = Date.parse(item.createdAt);
+  const expiresMs = Date.parse(item.expiresAt);
+  if (Number.isNaN(createdMs) || Number.isNaN(expiresMs)) {
+    return item.expiresAt;
+  }
+
+  const durationMs = expiresMs - createdMs;
+  if (durationMs <= 0) {
+    return item.expiresAt;
+  }
+
+  return new Date(nowMs + durationMs).toISOString();
+}
+
+/**
  * A row persisted as `sending` belongs to a request that was in flight when the
  * app was killed. Nothing will finish it: flush skips `sending` (an in-session
  * row is owned by the request still awaiting), and the UI hides Retry while a
