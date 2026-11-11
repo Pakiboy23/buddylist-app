@@ -37,6 +37,9 @@ const MAX_FAILURE_REASON_LENGTH = 200;
 const APNS_PRODUCTION_HOST = 'https://api.push.apple.com';
 const APNS_SANDBOX_HOST = 'https://api.sandbox.push.apple.com';
 const MAX_PREVIEW_LENGTH = 140;
+// Keep in lockstep with src/lib/contentModeration.ts — recipients must never
+// see a flagged body on the lock screen either.
+const MESSAGE_HIDDEN_PLACEHOLDER = '[Message hidden — flagged for review]';
 
 function normalizeApplePushPrivateKey(value: string): string {
   const t = value.trim();
@@ -74,6 +77,24 @@ function resolvePreviewText(content: string, previewType?: string | null): strin
   if (previewType === 'voice_note') return 'Sent a voice note.';
   if (previewType === 'attachment') return 'Sent an attachment.';
   return clampPreview(htmlToPlainText(content));
+}
+
+function resolveRecipientPreviewText(
+  content: string,
+  previewType: string | null | undefined,
+  flaggedAt: string | null | undefined,
+): string {
+  if (flaggedAt) return MESSAGE_HIDDEN_PLACEHOLDER;
+  return resolvePreviewText(content, previewType);
+}
+
+function resolveRecipientRoomPreviewText(
+  roomName: string,
+  body: string,
+  flaggedAt: string | null | undefined,
+): string {
+  if (flaggedAt) return clampPreview(`${roomName}: ${MESSAGE_HIDDEN_PLACEHOLDER}`);
+  return clampPreview(`${roomName}: ${htmlToPlainText(body) || 'New room message'}`);
 }
 
 function applyNotificationPreview(
@@ -624,11 +645,11 @@ Deno.serve(async (req: Request) => {
       }
       const { data: msg, error: msgErr } = await admin
         .from('messages')
-        .select('id,sender_id,receiver_id,content,preview_type')
+        .select('id,sender_id,receiver_id,content,preview_type,flagged_at')
         .eq('id', messageId)
         .maybeSingle();
       if (msgErr || !msg) return Response.json({ error: 'Message not found.' }, { status: 404, headers: CORS_HEADERS });
-      const m = msg as { sender_id: string; receiver_id: string; content: string; preview_type?: string | null };
+      const m = msg as { sender_id: string; receiver_id: string; content: string; preview_type?: string | null; flagged_at?: string | null };
       // Client mode may only announce its own message; automation takes the
       // author from the row it was handed.
       if (!isAutomation && m.sender_id !== user!.id) {
@@ -640,7 +661,7 @@ Deno.serve(async (req: Request) => {
       const result = await dispatchToRecipients({
         recipientIds: [m.receiver_id],
         senderName,
-        previewText: resolvePreviewText(m.content, m.preview_type),
+        previewText: resolveRecipientPreviewText(m.content, m.preview_type, m.flagged_at),
         targetPath: `/hi-its-me?dm=${encodeURIComponent(senderId)}`,
         variant: 'dm',
       });
@@ -662,11 +683,11 @@ Deno.serve(async (req: Request) => {
 
       const { data: msg, error: msgErr } = await admin
         .from('room_messages')
-        .select('id,room_id,user_id,body')
+        .select('id,room_id,user_id,body,flagged_at')
         .eq('id', roomMessageId)
         .maybeSingle();
       if (msgErr || !msg) return Response.json({ error: 'Room message not found.' }, { status: 404, headers: CORS_HEADERS });
-      const rm = msg as { room_id: string; user_id: string; body: string };
+      const rm = msg as { room_id: string; user_id: string; body: string; flagged_at?: string | null };
       if (!isAutomation && rm.user_id !== user!.id) {
         return Response.json({ error: 'Room message not found.' }, { status: 404, headers: CORS_HEADERS });
       }
@@ -689,7 +710,7 @@ Deno.serve(async (req: Request) => {
       const result = await dispatchToRecipients({
         recipientIds,
         senderName,
-        previewText: clampPreview(`${r.name}: ${htmlToPlainText(rm.body) || 'New room message'}`),
+        previewText: resolveRecipientRoomPreviewText(r.name, rm.body, rm.flagged_at),
         targetPath: `/hi-its-me?tab=chat&room=${encodeURIComponent(r.slug)}`,
         variant: 'room',
       });

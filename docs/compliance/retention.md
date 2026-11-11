@@ -40,7 +40,7 @@ Migration: `supabase/migrations/20260525000004_retention_cleanup_cron.sql`
 
 | Category | Reason |
 |----------|--------|
-| Recovery codes (used / unused) | `account_recovery_codes` table dropped in migration `20260426083107_drop_password_recovery.sql`. Password recovery is now admin-ticket-based. No retention window to enforce. |
+| Recovery codes (used / unused) | `account_recovery_codes` table dropped in migration `20260426083107_drop_password_recovery.sql`. Password recovery is Supabase email-link reset (`resetPasswordForEmail`). No retention window to enforce. |
 | Password reset audit log | `password_reset_audit` table dropped in same migration. |
 
 ---
