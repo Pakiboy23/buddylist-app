@@ -43,6 +43,7 @@ import {
   subscribeToStorageKey,
 } from '@/lib/clientStorage';
 import { uploadChatMediaFile } from '@/lib/chatMedia';
+import { CHAT_DM_HISTORY_PAGE_SIZE, chronologicalFromNewestPage } from '@/lib/chatHistoryPage';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useMutualContext } from '@/hooks/useMutualContext';
 import { useTheme } from '@/hooks/useTheme';
@@ -3749,8 +3750,8 @@ function HiItsMeContent() {
           .from('messages')
           .select(DIRECT_MESSAGE_SELECT_FIELDS)
           .or(chatFilter)
-          .order('created_at', { ascending: true })
-          .limit(200);
+          .order('created_at', { ascending: false })
+          .limit(CHAT_DM_HISTORY_PAGE_SIZE);
         data = response.data;
         error = response.error;
       }
@@ -3760,8 +3761,8 @@ function HiItsMeContent() {
           .from('messages')
           .select(LEGACY_DIRECT_MESSAGE_SELECT_FIELDS)
           .or(chatFilter)
-          .order('created_at', { ascending: true })
-          .limit(200);
+          .order('created_at', { ascending: false })
+          .limit(CHAT_DM_HISTORY_PAGE_SIZE);
         data = legacyResponse.data;
         error = legacyResponse.error;
       }
@@ -3777,7 +3778,7 @@ function HiItsMeContent() {
         return;
       }
 
-      const loadedMessages = (data ?? []) as ChatMessage[];
+      const loadedMessages = chronologicalFromNewestPage((data ?? []) as ChatMessage[]);
       setChatMessages(loadedMessages);
       const latestMessage = loadedMessages[loadedMessages.length - 1];
       if (latestMessage?.created_at) {

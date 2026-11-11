@@ -12,6 +12,7 @@ import { sendOrAcceptBuddyRequest, type BuddyRequestStatus } from '@/lib/buddyRe
 import { countSeenByOthers, formatSeenByLabel } from '@/lib/roomReadReceipts';
 import { useKeyboardViewport } from '@/hooks/useKeyboardViewport';
 import { useSwipeBack } from '@/hooks/useSwipeBack';
+import { CHAT_ROOM_HISTORY_PAGE_SIZE, chronologicalFromNewestPage } from '@/lib/chatHistoryPage';
 import {
   formatConversationDividerLabel,
   formatConversationMetaTime,
@@ -639,8 +640,8 @@ export default function GroupChatWindow({
         .from('room_messages')
         .select(ROOM_MESSAGE_SELECT_FIELDS)
         .eq('room_id', roomId)
-        .order('created_at', { ascending: true })
-        .limit(300);
+        .order('created_at', { ascending: false })
+        .limit(CHAT_ROOM_HISTORY_PAGE_SIZE);
       data = initial.data;
       messagesError = initial.error;
 
@@ -649,8 +650,8 @@ export default function GroupChatWindow({
           .from('room_messages')
           .select(LEGACY_ROOM_MESSAGE_SELECT_FIELDS)
           .eq('room_id', roomId)
-          .order('created_at', { ascending: true })
-          .limit(300);
+          .order('created_at', { ascending: false })
+          .limit(CHAT_ROOM_HISTORY_PAGE_SIZE);
         data = fallback.data;
         messagesError = fallback.error;
       }
@@ -666,7 +667,7 @@ export default function GroupChatWindow({
         return;
       }
 
-      const loadedMessages = (data ?? []) as RoomMessage[];
+      const loadedMessages = chronologicalFromNewestPage((data ?? []) as RoomMessage[]);
       setMessages(loadedMessages);
       setIsLoadingMessages(false);
       void ensureScreennames(loadedMessages.map((message) => message.user_id));
