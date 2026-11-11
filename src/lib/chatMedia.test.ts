@@ -72,7 +72,7 @@ describe('uploadChatMediaFiles', () => {
     ).rejects.toThrow('Network connection lost');
 
     expect(remove).toHaveBeenCalledTimes(1);
-    const removedPaths = remove.mock.calls[0]?.[0] as string[];
+    const removedPaths = (remove.mock.calls[0] as unknown[] | undefined)?.[0] as string[];
     expect(removedPaths).toHaveLength(1);
     expect(removedPaths[0]).toContain('kept.png');
   });
