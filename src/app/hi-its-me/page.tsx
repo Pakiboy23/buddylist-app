@@ -67,6 +67,7 @@ import {
   createOutboxItem,
   getOutboxStorageKey,
   isOutboxItemDue,
+  isRetryableOutboxTransportError,
   loadOutbox,
   markOutboxSending,
   markOutboxAttemptFailure,
@@ -2577,11 +2578,8 @@ function HiItsMeContent() {
       setIsForwardingToId(null);
 
       if (error) {
-        const isLikelyNetworkIssue =
-          (typeof navigator !== 'undefined' && !navigator.onLine) ||
-          /network|fetch|offline|timeout/i.test(error.message);
         if (trackedOutboxItem) {
-          if (isLikelyNetworkIssue) {
+          if (isRetryableOutboxTransportError(error)) {
             setOutboxItems((previous) =>
               normalizeOutboxItems(
                 previous.map((item) =>
@@ -4983,11 +4981,8 @@ function HiItsMeContent() {
       setIsSendingMessage(false);
 
       if (error) {
-        const isLikelyNetworkIssue =
-          (typeof navigator !== 'undefined' && !navigator.onLine) ||
-          /network|fetch|offline|timeout/i.test(error.message);
         if (trackedOutboxItem) {
-          if (isLikelyNetworkIssue) {
+          if (isRetryableOutboxTransportError(error)) {
             setOutboxItems((previous) =>
               normalizeOutboxItems(
                 previous.map((item) =>
@@ -5109,10 +5104,7 @@ function HiItsMeContent() {
     });
 
     if (error) {
-      const isLikelyNetworkIssue =
-        (typeof navigator !== 'undefined' && !navigator.onLine) ||
-        /network|fetch|offline|timeout/i.test(error.message);
-      if (trackedOutboxItem && isLikelyNetworkIssue) {
+      if (trackedOutboxItem && isRetryableOutboxTransportError(error)) {
         setOutboxItems((previous) =>
           normalizeOutboxItems(
             previous.map((item) =>
