@@ -40,3 +40,14 @@ export function displayBodyForMessage<T extends FlaggedMessageInput>(
   if (viewerIsAuthor) return originalBody;
   return MESSAGE_HIDDEN_PLACEHOLDER;
 }
+
+/**
+ * Body shown to a recipient on any surface that is not the author: chat,
+ * in-app banners, and push previews. Authors keep their own text.
+ */
+export function recipientVisibleBody(
+  message: FlaggedMessageInput,
+  originalBody: string,
+): string {
+  return displayBodyForMessage(message, originalBody, false);
+}
