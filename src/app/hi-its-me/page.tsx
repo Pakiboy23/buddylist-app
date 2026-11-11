@@ -63,6 +63,7 @@ import {
   getBiometricErrorCode,
 } from '@/lib/biometrics';
 import {
+  applyRemoteOutboxSnapshot,
   createClientMessageId,
   createOutboxItem,
   getOutboxStorageKey,
@@ -2218,7 +2219,7 @@ function HiItsMeContent() {
     }
 
     const unsubscribe = subscribeToStorageKey(getOutboxStorageKey(userId), () => {
-      setOutboxItems(loadOutbox(userId));
+      setOutboxItems((previous) => applyRemoteOutboxSnapshot(previous, loadOutbox(userId)));
     });
     return () => {
       unsubscribe();
