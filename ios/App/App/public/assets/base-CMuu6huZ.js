@@ -1,5 +1,0 @@
-<<<<<<<< HEAD:ios/App/App/public/assets/base-BIpjUqq3.js
-import{App as a}from"./index--31cw2f7.js";import{a9 as o,aa as i}from"./index-Dr-jAVOV.js";import{BiometryError as s,isBiometryErrorType as c}from"./index-BYrs9o62.js";class y extends o{async authenticate(r){try{await this.internalAuthenticate(r)}catch(e){throw e instanceof i&&c(e.code)?new s(e.message,e.code):e}}async addResumeListener(r){return a.addListener("appStateChange",({isActive:e})=>{e&&(async()=>{try{const t=await this.checkBiometry();r(t)}catch(t){console.error(t)}})()})}}export{y as B};
-========
-import{App as a}from"./index-gdd3nUdh.js";import{aa as o,ab as i}from"./index-BeW2fhPs.js";import{BiometryError as s,isBiometryErrorType as c}from"./index-3Kk1XmyE.js";class y extends o{async authenticate(r){try{await this.internalAuthenticate(r)}catch(e){throw e instanceof i&&c(e.code)?new s(e.message,e.code):e}}async addResumeListener(r){return a.addListener("appStateChange",({isActive:e})=>{e&&(async()=>{try{const t=await this.checkBiometry();r(t)}catch(t){console.error(t)}})()})}}export{y as B};
->>>>>>>> origin/main:ios/App/App/public/assets/base-CMuu6huZ.js

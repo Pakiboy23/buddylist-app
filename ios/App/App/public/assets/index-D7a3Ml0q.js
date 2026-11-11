@@ -1,7 +1,0 @@
-<<<<<<<< HEAD:ios/App/App/public/assets/index-RjXLeFOf.js
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-DscXQ3X_.js","assets/index-Dr-jAVOV.js","assets/index-CN_-6yuT.css"])))=>i.map(i=>d[i]);
-import{W as t,_ as n}from"./index-Dr-jAVOV.js";var i;(function(o){o[o.Sunday=1]="Sunday",o[o.Monday=2]="Monday",o[o.Tuesday=3]="Tuesday",o[o.Wednesday=4]="Wednesday",o[o.Thursday=5]="Thursday",o[o.Friday=6]="Friday",o[o.Saturday=7]="Saturday"})(i||(i={}));const a=t("LocalNotifications",{web:()=>n(()=>import("./web-DscXQ3X_.js"),__vite__mapDeps([0,1,2])).then(o=>new o.LocalNotificationsWeb)});export{a as LocalNotifications,i as Weekday};
-========
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-CIKqULIm.js","assets/index-BeW2fhPs.js","assets/index-CN_-6yuT.css"])))=>i.map(i=>d[i]);
-import{W as t,_ as n}from"./index-BeW2fhPs.js";var i;(function(o){o[o.Sunday=1]="Sunday",o[o.Monday=2]="Monday",o[o.Tuesday=3]="Tuesday",o[o.Wednesday=4]="Wednesday",o[o.Thursday=5]="Thursday",o[o.Friday=6]="Friday",o[o.Saturday=7]="Saturday"})(i||(i={}));const a=t("LocalNotifications",{web:()=>n(()=>import("./web-CIKqULIm.js"),__vite__mapDeps([0,1,2])).then(o=>new o.LocalNotificationsWeb)});export{a as LocalNotifications,i as Weekday};
->>>>>>>> origin/main:ios/App/App/public/assets/index-D7a3Ml0q.js
