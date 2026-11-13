@@ -65,6 +65,7 @@ import {
 import {
   createClientMessageId,
   createOutboxItem,
+  expiresAtForOutboxSend,
   getOutboxStorageKey,
   isOutboxItemDue,
   loadOutbox,
@@ -2280,7 +2281,7 @@ function HiItsMeContent() {
               receiverId: item.targetId,
               content: item.content,
               clientMessageId: item.id,
-              expiresAt: item.expiresAt,
+              expiresAt: expiresAtForOutboxSend(item),
               replyToMessageId: item.replyToMessageId,
               forwardSourceMessageId: item.forwardSourceMessageId,
               forwardSourceSenderId: item.forwardSourceSenderId,
