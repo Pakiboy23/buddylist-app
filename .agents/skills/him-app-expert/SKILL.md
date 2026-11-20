@@ -62,7 +62,7 @@ Do not introduce SSR, server components, or Next.js App Router primitives. The N
 - **Removed, stay removed:** Buddy Circles UI (#174), the room unread counter that never incremented (#181), Android (#147), the native SwiftUI shell (iOS renders the React bundle).
 - **`dist/` and `ios/App/App/public` are tracked, and Xcode Cloud archives `ios/App/App/public` verbatim.** A web change reaches iOS only after `npm run build && npm run ios:sync` with the real `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`, committed. CI's Bundle resync guard fails a PR that changes client source without it. Never use `npx cap copy ios` (it drops `HiItsMeShellPlugin`).
 - **Xcode Cloud (verified via the App Store Connect API, 8 Oct 2026):** enabled workflows are `Release (HIM) — main` (Archive, internal TestFlight, branch `main` only), `PR compile check v2 (HIM)` (Build only, no archive, branches starting `claude/`), and `Untitled Workflow` (Archive, no start conditions, manual runs only). `ci_pre_xcodebuild.sh` also refuses an archive that is not `main` or a tag. Pushing any non-main branch does not archive or upload; merging to `main` does.
-- **Content moderation:** DB trigger + client `displayBodyForMessage()`. Wordlist is generated; do not hand-edit `profanityTerms.generated.ts`.
+- **Content moderation:** DB trigger + client `displayBodyForMessage()`. Recipients never see flagged text in chat, in-app banners (`recipientVisibleBody` in `GlobalNotificationListener`), or APNs (`push-dispatch` reads `flagged_at` and substitutes the placeholder even when preview mode is `full`). Wordlist is generated; do not hand-edit `profanityTerms.generated.ts`.
 
 ## App Store
 

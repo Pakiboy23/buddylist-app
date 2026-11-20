@@ -60,6 +60,19 @@ Stale tokens (90 days from `last_registered_at`) are also removed by `run_retent
 
 Per-recipient mode comes from `user_privacy_settings.notification_preview_mode`. Missing row → `name_only` (sender name, body `"New message"`). `hidden` shows title `H.I.M.` and the same generic body. `full` includes up to 140 characters of stripped text. Buzz / knock / voice-note / attachment use fixed copy instead of the body.
 
+### Flagged bodies (#190)
+
+`flagged_at` wins over preview mode. Recipients must never see the original body on a lock screen or in-app banner:
+
+| Surface | Helper | Flagged body |
+|---|---|---|
+| APNs DM | `resolveRecipientPreviewText` in `push-dispatch` | `[Message hidden — flagged for review]` |
+| APNs room | `resolveRecipientRoomPreviewText` | `{roomName}: [Message hidden — flagged for review]` |
+| In-app banner | `recipientVisibleBody` in `GlobalNotificationListener` | same placeholder |
+| Chat | `displayBodyForMessage(..., viewerIsAuthor)` | placeholder for everyone except the author |
+
+The Edge Function re-reads `messages.flagged_at` / `room_messages.flagged_at` before building the payload. Keep the placeholder string in lockstep with `src/lib/contentModeration.ts`. Preview mode `full` does not restore a flagged body.
+
 ## Permission (iOS)
 
 Never request on cold launch (`pushColdLaunchGuard.test.ts` enforces this). The only callers of `requestAndRegisterPush()` are:
