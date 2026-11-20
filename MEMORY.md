@@ -1,5 +1,5 @@
 # Project Memory
-Last updated: 2026-11-06 | Session 16 | Branch: cursor/documentation-automation-system-d1cb
+Last updated: 2026-11-20 | Session 17 | Branch: cursor/bc-34268fc5-f08b-4359-9f87-7d4bc8bef721-054c
 Memory health: 8/10. Sessions 1 to 9 are in `MEMORY-ARCHIVE.md`. Metrics below are dated historical reads, not current numbers; read live data before quoting any.
 
 ## Project Overview
@@ -42,6 +42,7 @@ Diagnosis on record: this is **one discovery-and-prompting problem across the wh
 - [x] `first_room_message` push moment (#157)
 - [x] Android removed (#147); Circles UI deleted (#174); room unread counter removed (#181)
 - [x] Profile Add Buddy writes the `buddies` graph (#178)
+- [x] #190: flagged message text hidden from push previews and in-app banners. Chat still shows the original body to the author.
 
 ## Blockers
 - **iOS renders the React app; there is no native UI.** A web change reaches iOS only by rebuilding: `npm run build && npm run ios:sync` with the real `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`, then commit `dist/` + `native-web/` + `ios/App/App/public`. Xcode Cloud archives `ios/App/App/public` verbatim. Do not reimplement screens natively.
@@ -91,7 +92,7 @@ Diagnosis on record: this is **one discovery-and-prompting problem across the wh
 - **Realtime:** `active_chat_room:${roomId}`, `global_notifications_messages`, `global_notifications_room_messages`.
 - **`public.buddies` is asymmetric** — verified against prod 2026-08-22: pending 134 raw rows / **0 mirrored**; accepted 51 raw rows / 44 mirrored / **7 orphaned** → 29 true pairs. `count(*)/2` understates pending by half. Always count distinct unordered pairs. (The `him-app-expert` skill claimed symmetry; corrected in PR #117.) `public.users` has **no** `created_at`; use `auth.users.created_at`.
 - **In-app engine** (welcome DMs, buddy nudges ~4/day, daily room prompts) went live Aug 16; first room prompt fired 00:18Z Aug 17 on trigger-queue latency. Frozen texts live on the PR #104 branch, not yet merged. 4 nudges/day will not drain an 86-pair backlog — hence the manual drain.
-- **Push:** registration listener → `user_push_tokens`; `requestAndRegisterPush()` is the only permission trigger. Contextual moments in `pushPromptMoments.ts`: `buddy_accepted`, `first_dm_sent`, `first_room_message` (#157). Never on cold launch.
+- **Push:** registration listener → `user_push_tokens`; `requestAndRegisterPush()` is the only permission trigger. Contextual moments in `pushPromptMoments.ts`: `buddy_accepted`, `first_dm_sent`, `first_room_message` (#157). Never on cold launch. Flagged DMs/rooms substitute `[Message hidden — flagged for review]` on APNs and in-app banners (#190); `full` preview mode does not restore the original body.
 - **Password recovery:** Supabase `resetPasswordForEmail`. Native callback `https://hiitsme.app/reset-password`; web `https://hiitsme-app.vercel.app/reset-password`. `HIM://` is rejected. The custom recovery-code system was dropped in April 2026. See `docs/password-recovery-links.md`.
 - **Outbox:** load-time requeue of `sending` rows (#186). Room sends wait on `client_msg_id` + `flagged_at`. See `docs/outbox.md`. Drafts #189 / #191 / #192 / #194 are not on `main`.
 - **Vercel `api/`:** only `GET /api/admin/me`. Client origin override is `VITE_APP_API_ORIGIN`.
@@ -125,6 +126,7 @@ Diagnosis on record: this is **one discovery-and-prompting problem across the wh
 | 12 | 2026-08-24 | Competitor scare (Goose) assessed and dismissed — it is a dating app whose founder quit after a WIRED investigation into AI-generated promo accounts; H.I.M.'s real problem remains its own funnel. Verified `main` archive-ready and wrote `marketing/release-2-3/asc-submission.md`, the first 2.3 submission package (#124). Then discovered, by triggering it, that **the #122 archive guard fails open in Xcode Cloud** and that **every branch archives and uploads** — builds 374/375 went to App Store Connect from a docs PR. Rewrote the guard to fail closed on unclassifiable PR builds. Net: 2.3 (375) is uploaded and Ready to Submit; only Distribution remains. |
 | 14 | 2026-10-08 | Docs truth-up against `main`, git history, and the ASC API (read-only): 2.6 (466) live since 26 Sep, `main` on 2.7 with TestFlight 472, Xcode Cloud only archives `main`, password recovery is Supabase email reset (recovery codes dropped in April). Opened #186 (outbox requeue after app kill; later landed as HTTPS reset, not `HIM://`). Closed obsolete issues #133, #134, #158. |
 | 16 | 2026-11-06 | Weekly docs pass. #186 is on `main`; prior docs PR #188 never merged. Native reset is HTTPS universal link. Added `docs/outbox.md`; expanded `docs/password-recovery-links.md`. `AGENTS.md`/`CLAUDE.md` no longer list deleted recovery APIs. Left #164/#170/#182 as the presence / iOS-auth / buddy-list runbook PRs. Drafts #189–#194 are not shipped. |
+| 17 | 2026-11-20 | Weekly docs pass. #190 is on `main`: flagged bodies stay off APNs and in-app banners. Documented in `docs/push-dispatch.md`. Left drafts #189/#191–#194/#196 undocumented. |
 | 13 | 2026-08-29/30 | The AIM-structure buddy list day. Web restructure shipped (#128) + away-on-send; lockfile consolidation to pnpm (#136); archive gate narrowed to main/tags (#137); 2.3-train-closed diagnosis and 2.4 bump (#138) — build **2.4 (401)** uploaded, VALID, in the internal TestFlight group. Then the day's real lesson: the user still saw the old layout because **iOS renders the buddy list in SwiftUI** (`NativeMilestoneOneView.swift`), not the web bundle — nothing documented this; CLAUDE.md now has a 'Native iOS shell (Milestone One)' section. Ported the AIM grouping to SwiftUI (`nativeBuddyGroups` mirroring `buddyListGroups`): circles-then-Buddies groups with (online/total) headers, single Offline group, Find a Buddy filter, collapse, italic-grey signed-off rows. ASC API used with an uploaded key: disabled the broken `Buddy` workflow, created `PR compile check (HIM)` (Build-only, fires on `claude/*`), proved `Test - iOS` unfixable via API (409 deploymentConfig) and that its required-failure **skips TestFlight auto-distribute**. |
 
 ## User Preferences

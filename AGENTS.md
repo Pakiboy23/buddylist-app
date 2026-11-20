@@ -132,6 +132,7 @@ Operational runbook: [docs/push-dispatch.md](./docs/push-dispatch.md). Offline s
 - DB trigger `BEFORE INSERT` on `messages` and `room_messages` (migration `20260515021650_content_moderation.sql`) stamps `flagged_at` when content matches an alternation of ~700 normalized profanity terms.
 - Wordlist sourced from the `bad-words` npm package via `scripts/generate-profanity-terms.mjs`. To refresh, re-run the script and ship a new migration with `create or replace function`.
 - Client-side: `src/lib/contentModeration.ts` mirrors the trigger logic; `displayBodyForMessage()` swaps the body for `[Message hidden — flagged for review]` when rendering a flagged message to a non-author.
+- Recipients also never see the original body on in-app banners (`recipientVisibleBody` in `GlobalNotificationListener`) or APNs (`push-dispatch` substitutes the same placeholder when `flagged_at` is set, even if preview mode is `full`). Authors still see their own text in chat. Runbook: [docs/push-dispatch.md](./docs/push-dispatch.md) (Flagged bodies).
 - Admin queue: `supabase/queries/moderation_review_queue.sql`. No admin UI yet.
 
 ### Key Source Layout
